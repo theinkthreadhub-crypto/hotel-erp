@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Hotel ERP</title>
+<style>
+:root{
+  --bar:#1d5c63; --bar2:#174a50; --bg:#fffdf0; --panel:#fff; --line:#d9d2b0; --ink:#1d1d1d; --muted:#6b6b6b;
+  --hi:#fff3b0; --sel:#1d5c63; --ok:#1e7d32; --bad:#c62828; --warn:#ef6c00; --side:#e8f1ee;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.4 "Segoe UI",Tahoma,Arial,sans-serif;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;padding:6px 8px;border:1px solid #bdb59a;border-radius:3px;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid #f5c400;background:var(--hi)}
+#top{background:var(--bar);color:#fff;display:flex;align-items:center;gap:16px;padding:6px 14px}
+#top b{font-size:17px;letter-spacing:.3px}
+#top .scr{background:var(--bar2);padding:2px 10px;border-radius:3px;font-size:13px}
+#top .clock{margin-left:auto;font-size:13px;opacity:.9}
+#wrap{flex:1;display:flex;min-height:0}
+#main{flex:1;overflow:auto;padding:14px}
+#side{width:170px;background:var(--side);border-left:1px solid var(--line);overflow:auto;padding:6px}
+#side button{display:flex;width:100%;text-align:left;background:#fff;border:1px solid #b9cfc8;margin:0 0 4px;padding:6px 8px;border-radius:3px;font-size:13px}
+#side button:hover{background:var(--hi)}
+#side button u{font-weight:700;color:var(--bar);text-decoration:none;width:26px;flex:none}
+.title{background:var(--bar);color:#fff;padding:6px 12px;font-weight:600;display:flex;align-items:center;gap:10px;margin:-14px -14px 14px}
+.title .r{margin-left:auto;font-weight:400;font-size:13px}
+.title input[type=date]{width:auto;padding:2px 6px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:12px;margin-bottom:12px}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+table{width:100%;border-collapse:collapse;background:#fff}
+th,td{padding:6px 8px;border-bottom:1px solid #eee8cf;text-align:left;vertical-align:middle}
+th{background:#f3eed3;font-weight:600;font-size:13px;position:sticky;top:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:#fffbe0}
+tfoot td{font-weight:700;background:#f8f4de}
+.btn{background:var(--bar);color:#fff;border:0;padding:8px 14px;border-radius:3px}
+.btn:hover{background:var(--bar2)}
+.btn.g{background:#fff;color:var(--bar);border:1px solid var(--bar)}
+.btn.ok{background:var(--ok)}.btn.bad{background:var(--bad)}.btn.wa{background:#1fa855}
+.btn.sm{padding:3px 8px;font-size:12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.muted{color:var(--muted)}.red{color:var(--bad);font-weight:600}.green{color:var(--ok);font-weight:600}
+/* gateway */
+.gw{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;align-items:flex-start;padding-top:10px}
+.gwbox{width:330px;background:#fff;border:1px solid var(--line);box-shadow:0 2px 8px #0001}
+.gwbox h3{margin:0;background:var(--bar);color:#fff;text-align:center;padding:8px;font-size:15px}
+.gwbox .sec{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:8px 18px 2px}
+.gwbox .it{padding:5px 18px;cursor:pointer;display:flex;gap:6px}
+.gwbox .it u{color:var(--bad);font-weight:700;text-decoration:none}
+.gwbox .it.on,.gwbox .it:hover{background:var(--hi)}
+.stats{width:300px}
+.stat{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px dashed #e6dfbf}
+.stat b{font-variant-numeric:tabular-nums}
+/* billing */
+.bill{display:grid;grid-template-columns:1.1fr 1fr;gap:12px}
+.cats{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.cat{background:#fff;border:1px solid #bdb59a;border-radius:14px;padding:4px 12px;font-size:13px}
+.cat.on{background:var(--bar);color:#fff;border-color:var(--bar)}
+.items{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.item{background:#fff;border:1px solid var(--line);border-radius:4px;padding:10px;text-align:left;min-height:62px}
+.item:hover,.item.first{background:var(--hi);border-color:#e0c200}
+.item small{display:block;color:var(--bar);font-weight:700;margin-top:3px}
+.qty{display:flex;align-items:center;gap:3px}
+.qty button{width:26px;height:26px;border:1px solid #bdb59a;background:#fff;border-radius:3px}
+.qty input{width:46px;text-align:center;padding:3px}
+.tot div{display:flex;justify-content:space-between;padding:3px 0}
+.tot .big{font-size:22px;font-weight:700;color:var(--bar);border-top:2px solid var(--bar);margin-top:4px;padding-top:6px}
+.modes{display:flex;gap:6px}
+.modes button{flex:1;padding:8px;border:1px solid var(--bar);background:#fff;color:var(--bar);border-radius:3px}
+.modes button.on{background:var(--bar);color:#fff}
+/* modal */
+#modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+#modal.open{display:flex}
+#modal .box{background:#fff;border-radius:4px;width:min(560px,100%);max-height:90vh;overflow:auto;box-shadow:0 10px 40px #0004}
+#modal .box h3{margin:0;background:var(--bar);color:#fff;padding:9px 14px;font-size:15px}
+#modal .box .in{padding:14px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:9px 18px;border-radius:4px;display:none;z-index:60}
+pre.wa{background:#e7fbe9;border:1px solid #b7e3bd;padding:12px;border-radius:6px;white-space:pre-wrap;font:13px/1.45 "Segoe UI",sans-serif;margin:0}
+.den input{width:90px;text-align:right}
+#print{display:none}
+@media (max-width:900px){.bill{grid-template-columns:1fr}#side{display:none}}
+/* thermal receipt */
+.rcpt{width:var(--pw,72mm);font:12px/1.35 "Courier New",monospace;color:#000;padding:2mm 0}
+.rcpt .c{text-align:center}.rcpt .h{font-size:15px;font-weight:700}
+.rcpt hr{border:0;border-top:1px dashed #000;margin:4px 0}
+.rcpt table{background:none}.rcpt td,.rcpt th{padding:1px 0;border:0;font-size:12px;background:none!important}
+.rcpt .r{text-align:right}
+.rcpt .big{font-size:16px;font-weight:700}
+.rcpt.kot td{font-size:15px;font-weight:700;padding:2px 0}
+.rcpt{page:thermal}
+/* A6 = 105 x 148 mm */
+.rcpt.a6{page:a6;width:93mm;font:13px/1.45 Arial,sans-serif;padding:0}
+.rcpt.a6 .h{font-size:20px}
+.rcpt.a6 hr{border-top:1px solid #000;margin:6px 0}
+.rcpt.a6 td,.rcpt.a6 th{font-size:13px;padding:3px 0}
+.rcpt.a6 th{border-bottom:1px solid #000!important}
+.rcpt.a6 .big,.rcpt.a6 .big td{font-size:18px}
+.rcpt.a6.kot td{font-size:17px}
+.cut{break-after:page;page-break-after:always;height:0}
+@page thermal{margin:0}
+@page a6{size:105mm 148mm;margin:6mm}
+@media print{
+  @page{margin:0}
+  body{display:block;background:#fff}
+  body>*:not(#print){display:none!important}
+  #print{display:block}
+}
+</style>
+</head>
+<body>
+<header id="top"><b id="hname">Hotel ERP</b><span class="scr" id="scrname">Gateway</span><span class="clock" id="clock"></span></header>
+<div id="wrap"><main id="main"></main><aside id="side"></aside></div>
+<div id="modal"><div class="box" id="mbox"></div></div>
+<div id="toast"></div>
+<div id="print"></div>
+
+<script>
+/* ================= DATA ================= */
+const KEY='hotelerp_v1';
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const pad=n=>String(n).padStart(2,'0');
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());};
+const nowTime=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());};
+const dmy=d=>d?d.split('-').reverse().join('-'):'';
+const r2=n=>Math.round((+n||0)*100)/100;
+const money=n=>'₹'+r2(n).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+const rs=n=>'₹'+r2(n).toLocaleString('en-IN');
+const fq=n=>String(+(+n||0).toFixed(3));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sum=(a,f)=>a.reduce((s,x)=>s+(+(typeof f==='function'?f(x):x[f])||0),0);
+const $=s=>document.querySelector(s);
+const MODES=['Cash','UPI','Card','Credit'];
+const DEN=[500,200,100,50,20,10,5,2,1];
+
+function seed(){
+  const stock=[['Paneer','kg',5,1,320],['Atta (Flour)','kg',25,5,35],['Rice','kg',20,5,60],['Milk','ltr',10,3,56],
+    ['Tea Leaves','kg',2,0.5,400],['Cold Drink','pcs',48,12,30],['Dal','kg',10,2,110],['Oil','ltr',15,3,140]]
+    .map(([name,unit,qty,min,rate])=>({id:uid(),name,unit,qty,min,rate}));
+  const S=n=>stock.find(x=>x.name.startsWith(n)).id;
+  const menu=[
+    ['Paneer Butter Masala','Main Course',220,[['Paneer',0.2],['Oil',0.03]]],
+    ['Dal Tadka','Main Course',150,[['Dal',0.1],['Oil',0.02]]],
+    ['Veg Thali','Thali',180,[['Rice',0.15],['Dal',0.05],['Atta',0.1]]],
+    ['Jeera Rice','Rice',120,[['Rice',0.2]]],
+    ['Butter Naan','Roti',40,[['Atta',0.08]]],
+    ['Tandoori Roti','Roti',20,[['Atta',0.06]]],
+    ['Masala Chai','Beverages',20,[['Milk',0.1],['Tea',0.005]]],
+    ['Cold Drink','Beverages',40,[['Cold',1]]],
+  ].map(([name,cat,price,r])=>({id:uid(),name,cat,price,recipe:r.map(([n,qty])=>({sid:S(n),qty}))}));
+  return {settings:{name:'Hotel Annapurna',address:'Main Road, Your City',phone:'',gstin:'',gst:5,owner:'',
+    footer:'Thank you! Visit again',width:80,billPaper:'A6',kotPaper:'A6'},menu,stock,bills:[],txns:[],cash:{},seq:{bill:0,kot:0}};
+}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.settings)return s;}catch(e){}return seed();}
+let D=load();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(D));}catch(e){alert('Data save nahi hua: '+e.message);}}
+save();
+
+/* ================= UI HELPERS ================= */
+const main=$('#main');
+let cur='gateway', gwSel=0;
+function toast(t){const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2200);}
+function modal(title,html){$('#mbox').innerHTML=`<h3>${esc(title)}</h3><div class="in">${html}</div>`;$('#modal').classList.add('open');
+  setTimeout(()=>{const f=$('#mbox [autofocus]')||$('#mbox input,#mbox select,#mbox button');f&&f.focus();},30);}
+function closeModal(){$('#modal').classList.remove('open');}
+const isModal=()=>$('#modal').classList.contains('open');
+$('#modal').addEventListener('mousedown',e=>{if(e.target.id==='modal')closeModal();});
+function waOpen(num,text){
+  let n=String(num||'').replace(/\D/g,'');
+  if(n.length===10)n='91'+n;
+  if(!n){toast('WhatsApp number nahi hai — Settings mein daalein');return;}
+  window.open('https://wa.me/'+n+'?text='+encodeURIComponent(text),'_blank');
+}
+function waOwner(text){if(!D.settings.owner){toast('Owner ka WhatsApp number Settings (G) mein daalein');return;}waOpen(D.settings.owner,text);}
+
+const MENU=[
+  ['B','Billing (New Bill)','bill','Transactions'],
+  ['L','Bill List / Reprint','bills'],
+  ['P','Purchase / Stock In','purchase'],
+  ['E','Expense / Payment Out','expense'],
+  ['I','Other Income / Receipt','income'],
+  ['D','Day Book','daybook','Reports'],
+  ['C','Cash Counter','cash'],
+  ['W','Day Report → WhatsApp','report'],
+  ['S','Stock Summary','stock'],
+  ['M','Menu Items','menu','Masters'],
+  ['G','Settings & Backup','settings','Utilities'],
+];
+const SCREENS={gateway:scrGateway,bill:scrBill,bills:scrBills,purchase:scrPurchase,expense:()=>scrVoucher('Expense'),
+  income:()=>scrVoucher('Receipt'),daybook:scrDaybook,cash:scrCash,report:scrReport,stock:scrStock,menu:scrMenu,settings:scrSettings};
+function go(s){cur=s;closeModal();const m=MENU.find(x=>x[2]===s);$('#scrname').textContent=m?m[1]:'Gateway of Hotel';
+  $('#hname').textContent=D.settings.name;main.scrollTop=0;SCREENS[s]();}
+function drawSide(){$('#side').innerHTML=`<button onclick="go('gateway')"><u>Esc</u>Gateway</button>`+
+  MENU.map(m=>`<button onclick="go('${m[2]}')"><u>${m[0]}</u>${m[1]}</button>`).join('');}
+setInterval(()=>{const d=new Date();$('#clock').textContent=d.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'})+'  '+d.toLocaleTimeString('en-IN');},1000);
+
+document.addEventListener('keydown',e=>{
+  const typing=['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
+  if(e.key==='Escape'){e.preventDefault();if(isModal())closeModal();else if(cur!=='gateway')go('gateway');return;}
+  if(isModal())return;
+  if(e.altKey){const m=MENU.find(x=>x[0]===e.key.toUpperCase());if(m){e.preventDefault();go(m[2]);return;}}
+  if(cur==='gateway'&&!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey){
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();gwSel=(gwSel+(e.key==='ArrowDown'?1:MENU.length-1))%MENU.length;scrGateway();return;}
+    if(e.key==='Enter'){e.preventDefault();go(MENU[gwSel][2]);return;}
+    const m=MENU.find(x=>x[0]===e.key.toUpperCase());if(m){e.preventDefault();go(m[2]);}
+  }
+  if(cur==='bill'&&e.ctrlKey&&e.key==='Enter'){e.preventDefault();saveBill();}
+});
+
+/* ================= CALCULATIONS ================= */
+function calc(items,disc,rate){
+  const sub=sum(items,i=>i.price*i.qty);disc=Math.min(+disc||0,sub);
+  const taxable=sub-disc,tax=r2(taxable*(+rate||0)/100),raw=taxable+tax,total=Math.round(raw);
+  return {sub:r2(sub),disc:r2(disc),taxable:r2(taxable),tax,round:r2(total-raw),total};
+}
+function summary(d){
+  const bills=D.bills.filter(b=>b.date===d&&!b.cancelled),tx=D.txns.filter(t=>t.date===d);
+  const by={};MODES.forEach(m=>by[m]=sum(bills.filter(b=>b.mode===m),'total'));
+  const rec=tx.filter(t=>t.type==='Receipt'),exp=tx.filter(t=>t.type==='Expense'),pur=tx.filter(t=>t.type==='Purchase');
+  const isCash=t=>t.mode==='Cash';
+  const cashIn=by.Cash+sum(rec.filter(isCash),'amount'),cashOut=sum(exp.filter(isCash),'amount')+sum(pur.filter(isCash),'amount');
+  const items={};bills.forEach(b=>b.items.forEach(i=>{items[i.name]=(items[i.name]||0)+i.qty;}));
+  const cr=cashRec(d),counted=countTotal(cr);
+  return {bills,by,sales:sum(bills,'total'),disc:sum(bills,'disc'),tax:sum(bills,'tax'),rec,exp,pur,
+    recT:sum(rec,'amount'),expT:sum(exp,'amount'),purT:sum(pur,'amount'),cashIn,cashOut,
+    opening:+cr.opening||0,expected:(+cr.opening||0)+cashIn-cashOut,counted,countedSaved:!!D.cash[d],
+    top:Object.entries(items).sort((a,b)=>b[1]-a[1]),cancelled:D.bills.filter(b=>b.date===d&&b.cancelled).length};
+}
+const lowStock=()=>D.stock.filter(s=>+s.qty<=+s.min);
+
+/* ================= GATEWAY ================= */
+function scrGateway(){
+  const s=summary(today());let sec='';
+  main.innerHTML=`<div class="gw"><div class="gwbox"><h3>Gateway of ${esc(D.settings.name)}</h3>${MENU.map((m,i)=>{
+    const h=m[3]?`<div class="sec">${m[3]}</div>`:'';
+    const label=m[1].replace(m[0],`<u>${m[0]}</u>`);
+    return h+`<div class="it ${i===gwSel?'on':''}" onclick="go('${m[2]}')">${label.includes('<u>')?label:`<u>${m[0]}</u> ${m[1]}`}</div>`;}).join('')}
+    <div style="height:10px"></div></div>
+    <div class="gwbox stats"><h3>Aaj ka Hisaab — ${dmy(today())}</h3>
+      <div class="stat"><span>Bills</span><b>${s.bills.length}</b></div>
+      <div class="stat"><span>Total Sales</span><b>${money(s.sales)}</b></div>
+      ${MODES.map(m=>`<div class="stat"><span class="muted">&nbsp;&nbsp;${m}</span><b>${money(s.by[m])}</b></div>`).join('')}
+      <div class="stat"><span>Expenses</span><b class="red">${money(s.expT)}</b></div>
+      <div class="stat"><span>Purchases</span><b class="red">${money(s.purT)}</b></div>
+      <div class="stat"><span>Cash in Hand (expected)</span><b class="green">${money(s.expected)}</b></div>
+      <div class="stat"><span>Low Stock Items</span><b class="${lowStock().length?'red':''}">${lowStock().length}</b></div>
+      <div style="padding:10px"><button class="btn wa" style="width:100%" onclick="go('report')">📲 Owner ko WhatsApp Report</button></div>
+    </div></div>
+    <p class="muted" style="text-align:center">Shortcut: letter dabaayein (B = Bill, D = Day Book …) · ↑↓ + Enter · Esc = wapas</p>`;
+}
+
+/* ================= BILLING ================= */
+let B=newB(),billCat=0;
+function newB(){return {table:'',cust:'',phone:'',disc:0,mode:'Cash',note:'',cart:[]};}
+function scrBill(){
+  const cats=['All',...new Set(D.menu.map(m=>m.cat))];if(billCat>=cats.length)billCat=0;
+  main.innerHTML=`<div class="title">Sales Voucher — New Bill <span class="r">Bill No: <b>${D.seq.bill+1}</b> · KOT No: <b>${D.seq.kot+1}</b> · ${dmy(today())}</span></div>
+  <div class="bill">
+    <div>
+      <input id="q" placeholder="🔍 Item search karein, Enter = add (e.g. naan)" autocomplete="off">
+      <div class="cats">${cats.map((c,i)=>`<button class="cat ${i===billCat?'on':''}" onclick="billCat=${i};scrBill()">${esc(c)}</button>`).join('')}</div>
+      <div id="items" class="items"></div>
+    </div>
+    <div class="card">
+      <div class="grid" style="grid-template-columns:90px 1fr 1fr">
+        <div><label>Table No</label><input id="b_table" value="${esc(B.table)}" oninput="B.table=this.value"></div>
+        <div><label>Customer Name</label><input value="${esc(B.cust)}" oninput="B.cust=this.value"></div>
+        <div><label>Mobile (WhatsApp)</label><input value="${esc(B.phone)}" oninput="B.phone=this.value" inputmode="tel"></div>
+      </div>
+      <div id="cart" style="margin-top:10px"></div>
+      <div class="grid" style="grid-template-columns:120px 1fr;margin-top:10px">
+        <div><label>Discount (₹)</label><input type="number" min="0" value="${B.disc||''}" oninput="B.disc=+this.value||0;drawTotals()"></div>
+        <div><label>Kitchen Note (KOT par chhapega)</label><input value="${esc(B.note)}" oninput="B.note=this.value" placeholder="e.g. less spicy"></div>
+      </div>
+      <div id="tot" class="tot" style="margin-top:10px"></div>
+      <label style="margin-top:8px">Payment Mode</label>
+      <div class="modes">${MODES.map(m=>`<button class="${B.mode===m?'on':''}" onclick="B.mode='${m}';scrBillModes()">${m==='Credit'?'Credit (Udhaar)':m}</button>`).join('')}</div>
+      <div class="btns">
+        <button class="btn ok" style="flex:1;padding:12px" onclick="saveBill()">💾 Save & Print (Bill + KOT) <small>Ctrl+Enter</small></button>
+        <button class="btn g" onclick="if(confirm('Bill clear karein?')){B=newB();scrBill();}">Clear</button>
+      </div>
+    </div>
+  </div>`;
+  const q=$('#q');q.oninput=drawItems;
+  q.onkeydown=e=>{if(e.key==='Enter'&&!e.ctrlKey&&q.value.trim()){e.preventDefault();const f=filtered()[0];if(f){addItem(f.id);q.value='';drawItems();}}};
+  drawItems();drawCart();q.focus();
+}
+function scrBillModes(){document.querySelectorAll('.modes button').forEach((b,i)=>b.classList.toggle('on',MODES[i]===B.mode));}
+function filtered(){
+  const cats=['All',...new Set(D.menu.map(m=>m.cat))],q=($('#q')?.value||'').toLowerCase().trim();
+  return D.menu.filter(m=>(billCat===0||m.cat===cats[billCat])&&(!q||m.name.toLowerCase().includes(q)));
+}
+function drawItems(){const f=filtered(),q=$('#q').value.trim();
+  $('#items').innerHTML=f.map((m,i)=>`<button class="item ${q&&i===0?'first':''}" onclick="addItem('${m.id}')">${esc(m.name)}<small>${rs(m.price)}</small></button>`).join('')||'<p class="muted">Koi item nahi mila. Menu Items (M) mein add karein.</p>';}
+function addItem(id){const m=D.menu.find(x=>x.id===id);if(!m)return;
+  const c=B.cart.find(x=>x.mid===id);if(c)c.qty++;else B.cart.push({mid:id,name:m.name,price:+m.price,qty:1});drawCart();}
+function setQty(i,v){v=+v;if(!(v>0))B.cart.splice(i,1);else B.cart[i].qty=v;drawCart();}
+function drawCart(){
+  $('#cart').innerHTML=B.cart.length?`<table><thead><tr><th>Item</th><th class="n">Rate</th><th>Qty</th><th class="n">Amount</th><th></th></tr></thead><tbody>
+    ${B.cart.map((c,i)=>`<tr><td>${esc(c.name)}</td><td class="n">${c.price}</td>
+      <td><div class="qty"><button onclick="setQty(${i},${c.qty-1})">−</button><input value="${c.qty}" onchange="setQty(${i},this.value)"><button onclick="setQty(${i},${c.qty+1})">+</button></div></td>
+      <td class="n">${r2(c.price*c.qty)}</td><td><button class="btn bad sm" onclick="setQty(${i},0)">✕</button></td></tr>`).join('')}</tbody></table>`
+    :'<p class="muted" style="text-align:center;padding:20px;border:1px dashed var(--line)">Left side se item select karein</p>';
+  drawTotals();
+}
+function drawTotals(){const t=calc(B.cart,B.disc,D.settings.gst),g=+D.settings.gst;
+  $('#tot').innerHTML=`<div><span>Sub Total (${sum(B.cart,'qty')} items)</span><b>${money(t.sub)}</b></div>
+  ${t.disc?`<div><span>Discount</span><b>− ${money(t.disc)}</b></div>`:''}
+  ${g?`<div><span>CGST ${g/2}% + SGST ${g/2}%</span><b>${money(t.tax)}</b></div>`:''}
+  ${t.round?`<div><span>Round Off</span><b>${t.round>0?'+':''}${t.round}</b></div>`:''}
+  <div class="big"><span>TOTAL</span><span>${money(t.total)}</span></div>`;}
+function saveBill(){
+  if(!B.cart.length){toast('Pehle item add karein');return;}
+  const t=calc(B.cart,B.disc,D.settings.gst),used={};
+  B.cart.forEach(c=>{const m=D.menu.find(x=>x.id===c.mid);(m?.recipe||[]).forEach(r=>{used[r.sid]=(used[r.sid]||0)+r.qty*c.qty;});});
+  const bill={id:uid(),no:++D.seq.bill,kot:++D.seq.kot,date:today(),time:nowTime(),table:B.table.trim(),cust:B.cust.trim(),phone:B.phone.trim(),
+    note:B.note.trim(),mode:B.mode,gstRate:+D.settings.gst,items:B.cart.map(c=>({...c})),...t,used:Object.entries(used).map(([sid,qty])=>({sid,qty}))};
+  applyStock(bill.used,-1);D.bills.push(bill);save();B=newB();
+  afterSave(bill);
+}
+function applyStock(used,sign){(used||[]).forEach(u=>{const s=D.stock.find(x=>x.id===u.sid);if(s)s.qty=+(+s.qty+sign*u.qty).toFixed(3);});}
+function afterSave(b){
+  scrBill();
+  modal(`Bill #${b.no} Saved — ${money(b.total)}`,`
+    <p>Bill save ho gaya aur stock update ho gaya. Ab print / WhatsApp karein:</p>
+    <div class="btns" style="flex-direction:column">
+      <button class="btn ok" autofocus onclick="printBill('${b.id}','both')">🖨️ Print Customer Bill + Kitchen KOT (2 receipts)</button>
+      <button class="btn g" onclick="printBill('${b.id}','bill')">🧾 Sirf Customer Bill</button>
+      <button class="btn g" onclick="printBill('${b.id}','kot')">👨‍🍳 Sirf Kitchen KOT</button>
+      ${b.phone?`<button class="btn wa" onclick="waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))">📲 Customer ko WhatsApp Bill</button>`:''}
+      <button class="btn wa" onclick="waOwner(billText(getBill('${b.id}')))">📲 Owner ko WhatsApp Bill</button>
+      <button class="btn g" onclick="closeModal();$('#q').focus()">➕ Naya Bill (Esc)</button>
+    </div>`);
+}
+const getBill=id=>D.bills.find(b=>b.id===id);
+
+/* ================= RECEIPTS ================= */
+function head(){const s=D.settings;return `<div class="c h">${esc(s.name)}</div><div class="c">${esc(s.address)}</div>
+  ${s.phone?`<div class="c">Ph: ${esc(s.phone)}</div>`:''}${s.gstin?`<div class="c">GSTIN: ${esc(s.gstin)}</div>`:''}`;}
+function billHTML(b){const g=b.gstRate;
+  return `<div class="rcpt${paper('bill')}">${head()}<hr><div class="c"><b>TAX INVOICE${b.cancelled?' (CANCELLED)':''}</b></div>
+  <div>Bill No: <b>${b.no}</b> &nbsp; ${dmy(b.date)} ${b.time}</div>
+  ${b.table?`<div>Table: <b>${esc(b.table)}</b></div>`:''}${b.cust?`<div>Customer: ${esc(b.cust)}</div>`:''}<hr>
+  <table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>
+  ${b.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${i.price}</td><td class="r">${r2(i.price*i.qty)}</td></tr>`).join('')}</table><hr>
+  <table><tr><td>Sub Total</td><td class="r">${b.sub.toFixed(2)}</td></tr>
+  ${b.disc?`<tr><td>Discount</td><td class="r">-${b.disc.toFixed(2)}</td></tr>`:''}
+  ${g?`<tr><td>CGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr><tr><td>SGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr>`:''}
+  ${b.round?`<tr><td>Round Off</td><td class="r">${b.round.toFixed(2)}</td></tr>`:''}</table><hr>
+  <table><tr class="big"><td>TOTAL</td><td class="r">₹${b.total.toFixed(2)}</td></tr></table>
+  <div>Paid by: ${b.mode}</div><hr><div class="c">${esc(D.settings.footer)}</div></div>`;}
+function kotHTML(b){
+  return `<div class="rcpt kot${paper('kot')}"><div class="c h">*** KITCHEN ORDER (KOT) ***</div><hr>
+  <div>KOT No: <b>${b.kot}</b> &nbsp; Bill: ${b.no}</div><div>${dmy(b.date)} &nbsp; ${b.time}</div>
+  <div class="big">Table: ${esc(b.table||'Parcel / Counter')}</div><hr>
+  <table><tr><th>Qty</th><th>Item</th></tr>${b.items.map(i=>`<tr><td>${i.qty} ×</td><td>${esc(i.name)}</td></tr>`).join('')}</table><hr>
+  ${b.note?`<div class="big">Note: ${esc(b.note)}</div><hr>`:''}<div class="c">Chef copy</div></div>`;}
+const paper=k=>(D.settings[k+'Paper']||'A6')==='A6'?' a6':'';
+function printDoc(parts){const p=$('#print');p.style.setProperty('--pw',(D.settings.width==58?'50mm':'72mm'));
+  p.innerHTML=parts.join('<div class="cut"></div>');setTimeout(()=>window.print(),60);}
+function printBill(id,what){const b=getBill(id);if(!b)return;
+  printDoc(what==='both'?[billHTML(b),kotHTML(b)]:what==='kot'?[kotHTML(b)]:[billHTML(b)]);}
+function billText(b){const s=D.settings;
+  return `*${s.name}*\n🧾 Bill No: ${b.no}  |  ${dmy(b.date)} ${b.time}${b.table?`\nTable: ${b.table}`:''}${b.cust?`\nCustomer: ${b.cust}`:''}\n--------------------\n`+
+  b.items.map(i=>`${i.name} × ${i.qty} = ₹${r2(i.price*i.qty)}`).join('\n')+
+  `\n--------------------\nSub Total: ₹${b.sub}${b.disc?`\nDiscount: -₹${b.disc}`:''}${b.tax?`\nGST (${b.gstRate}%): ₹${b.tax}`:''}\n*TOTAL: ₹${b.total}*\nPaid by: ${b.mode}\n\n${s.footer}`;}
+
+/* ================= BILL LIST ================= */
+let listDate=today();
+function scrBills(){
+  const bs=D.bills.filter(b=>b.date===listDate).sort((a,b)=>b.no-a.no);
+  main.innerHTML=`<div class="title">Bill List / Reprint <span class="r">Date: <input type="date" value="${listDate}" onchange="listDate=this.value;scrBills()"></span></div>
+  <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Bill</th><th>Time</th><th>Table</th><th>Customer</th><th>Items</th><th>Mode</th><th class="n">Total</th><th>Actions</th></tr></thead><tbody>
+  ${bs.map(b=>`<tr style="${b.cancelled?'opacity:.5;text-decoration:line-through':''}"><td><b>#${b.no}</b></td><td>${b.time}</td><td>${esc(b.table)}</td><td>${esc(b.cust)} ${b.phone?`<span class="muted">${esc(b.phone)}</span>`:''}</td>
+    <td>${b.items.map(i=>esc(i.name)+'×'+i.qty).join(', ')}</td><td>${b.mode}</td><td class="n">${money(b.total)}</td>
+    <td style="white-space:nowrap"><button class="btn sm" onclick="printBill('${b.id}','bill')">Bill</button>
+      <button class="btn sm" onclick="printBill('${b.id}','kot')">KOT</button>
+      <button class="btn wa sm" onclick="${b.phone?`waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))`:`waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WA</button>
+      ${b.cancelled?'':`<button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Is din koi bill nahi</td></tr>'}
+  </tbody><tfoot><tr><td colspan="6">Total (${bs.filter(b=>!b.cancelled).length} bills)</td><td class="n">${money(sum(bs.filter(b=>!b.cancelled),'total'))}</td><td></td></tr></tfoot></table></div>`;
+}
+function cancelBill(id){const b=getBill(id);if(!b||b.cancelled)return;
+  if(!confirm(`Bill #${b.no} (${money(b.total)}) cancel karein? Stock wapas jud jayega.`))return;
+  b.cancelled=true;applyStock(b.used,+1);save();toast('Bill cancel ho gaya');scrBills();}
+
+/* ================= PURCHASE / VOUCHERS ================= */
+function stockOpts(sel){return D.stock.map(s=>`<option value="${s.id}" ${s.id===sel?'selected':''}>${esc(s.name)} (${fq(s.qty)} ${esc(s.unit)})</option>`).join('');}
+function txList(type){const t=D.txns.filter(x=>x.type===type&&x.date===today()).reverse();
+  return `<div class="card" style="padding:0"><table><thead><tr><th>Time</th><th>Particulars</th><th>Mode</th><th class="n">Amount</th><th></th></tr></thead><tbody>
+  ${t.map(x=>`<tr><td>${x.time}</td><td><b>${esc(x.head||'')}</b> ${esc(x.desc)}${x.party?` <span class="muted">· ${esc(x.party)}</span>`:''}</td><td>${x.mode}</td><td class="n">${money(x.amount)}</td>
+    <td><button class="btn bad sm" onclick="delTx('${x.id}')">Delete</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">Aaj koi entry nahi</td></tr>'}
+  </tbody><tfoot><tr><td colspan="3">Aaj ka total</td><td class="n">${money(sum(t,'amount'))}</td><td></td></tr></tfoot></table></div>`;}
+function delTx(id){const t=D.txns.find(x=>x.id===id);if(!t||!confirm('Ye entry delete karein?'))return;
+  if(t.type==='Purchase'&&t.sid)applyStock([{sid:t.sid,qty:t.qty}],-1);
+  D.txns=D.txns.filter(x=>x.id!==id);save();go(cur);}
+function scrPurchase(){
+  main.innerHTML=`<div class="title">Purchase Voucher — Stock In <span class="r">${dmy(today())}</span></div>
+  <div class="card"><div class="grid">
+    <div><label>Stock Item</label><select id="p_item" onchange="const s=D.stock.find(x=>x.id===this.value);$('#p_rate').value=s?s.rate:'';pAmt()">${stockOpts()}</select></div>
+    <div><label>Qty</label><input id="p_qty" type="number" step="any" oninput="pAmt()"></div>
+    <div><label>Rate (₹ per unit)</label><input id="p_rate" type="number" step="any" value="${D.stock[0]?.rate||''}" oninput="pAmt()"></div>
+    <div><label>Amount (₹)</label><input id="p_amt" type="number" step="any"></div>
+    <div><label>Supplier</label><input id="p_party"></div>
+    <div><label>Payment</label><select id="p_mode">${MODES.map(m=>`<option>${m}</option>`).join('')}</select></div>
+  </div><div class="btns"><button class="btn ok" onclick="savePurchase()">💾 Save Purchase</button>
+  <button class="btn g" onclick="go('stock')">Stock dekhein</button></div>
+  <p class="muted">Credit = supplier ko baad mein dena hai (cash counter se nahi ghatega).</p></div>${txList('Purchase')}`;
+  $('#p_qty').focus();
+}
+function pAmt(){$('#p_amt').value=r2((+$('#p_qty').value||0)*(+$('#p_rate').value||0))||'';}
+function savePurchase(){const s=D.stock.find(x=>x.id===$('#p_item').value),qty=+$('#p_qty').value,amt=+$('#p_amt').value;
+  if(!s||!(qty>0)){toast('Item aur qty daalein');return;}
+  applyStock([{sid:s.id,qty}],+1);if(+$('#p_rate').value)s.rate=+$('#p_rate').value;
+  D.txns.push({id:uid(),type:'Purchase',date:today(),time:nowTime(),head:s.name,desc:`${fq(qty)} ${s.unit} @ ₹${$('#p_rate').value||0}`,
+    party:$('#p_party').value.trim(),amount:amt||0,mode:$('#p_mode').value,sid:s.id,qty});
+  save();toast('Purchase save — stock badh gaya');scrPurchase();}
+const HEADS={Expense:['Vegetables','Gas Cylinder','Salary / Wages','Electricity','Rent','Milk / Dairy','Maintenance','Transport','Other'],
+  Receipt:['Old Udhaar Received','Advance Booking','Owner Cash Added','Other Income']};
+function scrVoucher(type){const isE=type==='Expense';
+  main.innerHTML=`<div class="title">${isE?'Payment Voucher — Expense / Kharcha':'Receipt Voucher — Other Income'} <span class="r">${dmy(today())}</span></div>
+  <div class="card"><div class="grid">
+    <div><label>Head</label><input id="v_head" list="heads" placeholder="Select ya likhein"><datalist id="heads">${HEADS[type].map(h=>`<option>${h}</option>`).join('')}</datalist></div>
+    <div><label>Details</label><input id="v_desc"></div>
+    <div><label>${isE?'Paid To':'Received From'}</label><input id="v_party"></div>
+    <div><label>Amount (₹)</label><input id="v_amt" type="number" step="any"></div>
+    <div><label>Mode</label><select id="v_mode">${MODES.filter(m=>m!=='Credit').map(m=>`<option>${m}</option>`).join('')}</select></div>
+  </div><div class="btns"><button class="btn ok" onclick="saveVoucher('${type}')">💾 Save</button></div></div>${txList(type)}`;
+  $('#v_head').focus();
+}
+function saveVoucher(type){const amt=+$('#v_amt').value,head=$('#v_head').value.trim();
+  if(!(amt>0)||!head){toast('Head aur amount daalein');return;}
+  D.txns.push({id:uid(),type,date:today(),time:nowTime(),head,desc:$('#v_desc').value.trim(),party:$('#v_party').value.trim(),amount:amt,mode:$('#v_mode').value});
+  save();toast('Entry save ho gayi');scrVoucher(type);}
+
+/* ================= DAY BOOK ================= */
+let dbDate=today();
+function scrDaybook(){
+  const d=dbDate,e=[];
+  D.bills.filter(b=>b.date===d).forEach(b=>e.push({time:b.time,type:'Sales',part:`Bill #${b.no}${b.table?' · Table '+b.table:''}${b.cust?' · '+b.cust:''}${b.cancelled?' (CANCELLED)':''}`,mode:b.mode,
+    in:b.cancelled?0:b.total,out:0,x:b.cancelled}));
+  D.txns.filter(t=>t.date===d).forEach(t=>e.push({time:t.time,type:t.type==='Receipt'?'Receipt':t.type==='Expense'?'Payment':'Purchase',
+    part:`${t.head||''} ${t.desc||''}${t.party?' · '+t.party:''}`,mode:t.mode,in:t.type==='Receipt'?t.amount:0,out:t.type==='Receipt'?0:t.amount}));
+  e.sort((a,b)=>a.time.localeCompare(b.time));const s=summary(d);
+  main.innerHTML=`<div class="title">Day Book <span class="r">Date: <input type="date" value="${d}" onchange="dbDate=this.value;scrDaybook()"></span></div>
+  <div class="grid" style="margin-bottom:12px">
+    ${[['Total Sales',s.sales,'green'],['Other Income',s.recT,'green'],['Expenses',s.expT,'red'],['Purchases',s.purT,'red'],['Cash In',s.cashIn,'green'],['Cash Out',s.cashOut,'red'],['Cash in Hand (exp.)',s.expected,'']]
+      .map(([l,v,c])=>`<div class="card" style="margin:0"><label>${l}</label><div style="font-size:18px" class="${c}">${money(v)}</div></div>`).join('')}
+  </div>
+  <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Time</th><th>Voucher</th><th>Particulars</th><th>Mode</th><th class="n">Inward (₹)</th><th class="n">Outward (₹)</th></tr></thead><tbody>
+  ${e.map(r=>`<tr style="${r.x?'opacity:.5':''}"><td>${r.time}</td><td><b>${r.type}</b></td><td>${esc(r.part)}</td><td>${r.mode}</td><td class="n">${r.in?r2(r.in).toFixed(2):''}</td><td class="n">${r.out?r2(r.out).toFixed(2):''}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Koi entry nahi</td></tr>'}
+  </tbody><tfoot><tr><td colspan="4">Total</td><td class="n">${money(sum(e,'in'))}</td><td class="n">${money(sum(e,'out'))}</td></tr></tfoot></table></div>
+  <div class="card"><b>Mode-wise Sales:</b> ${MODES.map(m=>`${m}: ${money(s.by[m])}`).join(' · ')}</div>`;
+}
+
+/* ================= CASH COUNTER ================= */
+let ccDate=today();
+function prevClosing(d){const k=Object.keys(D.cash).filter(x=>x<d).sort().pop();return k?countTotal(D.cash[k]):0;}
+function cashRec(d){return D.cash[d]||{opening:prevClosing(d),den:{}};}
+function countTotal(c){return sum(DEN,v=>v*(+c.den?.[v]||0));}
+function scrCash(){
+  const d=ccDate,c=cashRec(d),s=summary(d);
+  main.innerHTML=`<div class="title">Cash Counter — Note Ginti <span class="r">Date: <input type="date" value="${d}" onchange="ccDate=this.value;scrCash()"></span></div>
+  <div class="bill">
+    <div class="card den"><table><thead><tr><th>Note / Coin</th><th></th><th>Kitne</th><th class="n">Amount</th></tr></thead><tbody>
+      ${DEN.map(v=>`<tr><td><b>₹ ${v}</b> <span class="muted">${v>=10?'note':'coin'}</span></td><td>×</td>
+        <td><input type="number" min="0" data-den="${v}" value="${c.den?.[v]||''}" oninput="ccCalc()"></td><td class="n" id="dl${v}"></td></tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="3">Total Cash Counted</td><td class="n" id="ccTot"></td></tr></tfoot></table></div>
+    <div class="card tot">
+      <div><span>Opening Cash</span><input id="cc_open" type="number" step="any" value="${c.opening||0}" style="width:130px;text-align:right" oninput="ccCalc()"></div>
+      <div><span>+ Cash Sales</span><b>${money(s.by.Cash)}</b></div>
+      <div><span>+ Other Cash Receipts</span><b>${money(s.cashIn-s.by.Cash)}</b></div>
+      <div><span>− Cash Expenses / Purchases</span><b>${money(s.cashOut)}</b></div>
+      <div class="big"><span>Expected Cash</span><span id="ccExp"></span></div>
+      <div><span>Counted Cash</span><b id="ccCnt"></b></div>
+      <div style="font-size:18px"><span>Difference</span><b id="ccDiff"></b></div>
+      <p class="muted">UPI ${money(s.by.UPI)} · Card ${money(s.by.Card)} · Udhaar ${money(s.by.Credit)} (cash mein nahi)</p>
+      <div class="btns"><button class="btn ok" onclick="saveCash()">💾 Save Cash Count</button>
+      <button class="btn wa" onclick="saveCash(true)">📲 Save & WhatsApp Owner</button></div>
+    </div>
+  </div>`;
+  ccCalc();
+}
+function ccGet(){const den={};document.querySelectorAll('[data-den]').forEach(i=>{if(+i.value)den[i.dataset.den]=+i.value;});return {opening:+$('#cc_open').value||0,den};}
+function ccCalc(){const c=ccGet(),s=summary(ccDate),tot=countTotal(c),exp=c.opening+s.cashIn-s.cashOut,df=tot-exp;
+  DEN.forEach(v=>$('#dl'+v).textContent=c.den[v]?money(v*c.den[v]):'');
+  $('#ccTot').textContent=money(tot);$('#ccExp').textContent=money(exp);$('#ccCnt').textContent=money(tot);
+  const e=$('#ccDiff');e.textContent=(df===0?'✔ Match ':df>0?'Excess +':'Short ')+money(Math.abs(df));e.className=df===0?'green':'red';}
+function saveCash(send){const c=ccGet();c.time=nowTime();D.cash[ccDate]=c;save();toast('Cash count save ho gaya');
+  if(send){const s=summary(ccDate),df=s.counted-s.expected;
+    waOwner(`*${D.settings.name}* — 💵 Cash Counter\n📅 ${dmy(ccDate)} ${c.time}\n\n`+DEN.filter(v=>c.den[v]).map(v=>`₹${v} × ${c.den[v]} = ₹${v*c.den[v]}`).join('\n')+
+      `\n--------------------\n*Counted: ₹${s.counted}*\nExpected: ₹${r2(s.expected)}\nDifference: ${df===0?'✔ Match':(df>0?'Excess +₹':'Short ₹')+Math.abs(r2(df))}`);}
+  scrCash();}
+
+/* ================= REPORT ================= */
+let rpDate=today();
+function reportText(d){const s=summary(d),st=D.settings,low=lowStock(),df=s.counted-s.expected;
+  let t=`*🏨 ${st.name} — Daily Report*\n📅 ${dmy(d)}\n\n*💰 SALES*\nBills: ${s.bills.length}${s.cancelled?` (Cancelled: ${s.cancelled})`:''}\n*Total Sales: ₹${r2(s.sales)}*\n`+
+    MODES.map(m=>`   ${m==='Credit'?'Udhaar':m}: ₹${r2(s.by[m])}`).join('\n')+
+    (s.disc?`\nDiscount: ₹${r2(s.disc)}`:'')+(s.tax?`\nGST: ₹${r2(s.tax)}`:'');
+  if(s.rec.length)t+=`\n\n*📥 Other Income: ₹${r2(s.recT)}*\n`+s.rec.map(x=>`   ${x.head}: ₹${x.amount} (${x.mode})`).join('\n');
+  t+=`\n\n*📤 Expenses: ₹${r2(s.expT)}*`+(s.exp.length?'\n'+s.exp.map(x=>`   ${x.head}${x.desc?' – '+x.desc:''}: ₹${x.amount}`).join('\n'):'');
+  t+=`\n\n*🛒 Purchases: ₹${r2(s.purT)}*`+(s.pur.length?'\n'+s.pur.map(x=>`   ${x.head} ${x.desc}: ₹${x.amount} (${x.mode})`).join('\n'):'');
+  t+=`\n\n*💵 CASH*\nOpening: ₹${r2(s.opening)}\nCash In: ₹${r2(s.cashIn)}\nCash Out: ₹${r2(s.cashOut)}\nExpected in Hand: ₹${r2(s.expected)}`+
+    (s.countedSaved?`\nCounted: ₹${r2(s.counted)}\nDifference: ${Math.abs(df)<0.01?'✔ Match':(df>0?'Excess +₹':'Short ₹')+Math.abs(r2(df))}`:'\n(Cash count abhi save nahi hua)');
+  t+=`\n\n*📊 Net (Sales + Income − Exp − Purchase): ₹${r2(s.sales+s.recT-s.expT-s.purT)}*`;
+  if(s.top.length)t+=`\n\n*🔥 Top Items*\n`+s.top.slice(0,5).map(([n,q],i)=>`${i+1}. ${n} × ${q}`).join('\n');
+  if(low.length)t+=`\n\n*⚠️ Low Stock*\n`+low.map(x=>`   ${x.name}: ${fq(x.qty)} ${x.unit} (min ${x.min})`).join('\n');
+  return t;}
+function scrReport(){const txt=reportText(rpDate);
+  main.innerHTML=`<div class="title">Day Report → WhatsApp <span class="r">Date: <input type="date" value="${rpDate}" onchange="rpDate=this.value;scrReport()"></span></div>
+  <div class="bill"><div><pre class="wa" id="rtxt">${esc(txt)}</pre></div>
+  <div class="card"><p>Ye report owner ko WhatsApp par jayegi:<br><b>${esc(D.settings.owner)||'<span class="red">Owner number set nahi hai — Settings (G)</span>'}</b></p>
+    <div class="btns" style="flex-direction:column">
+      <button class="btn wa" style="padding:12px" onclick="waOwner(reportText(rpDate))">📲 Owner ko WhatsApp bhejein</button>
+      <button class="btn g" onclick="navigator.clipboard.writeText(reportText(rpDate)).then(()=>toast('Copy ho gaya'))">📋 Copy Text</button>
+      <button class="btn g" onclick="printDoc(['<div class=rcpt><pre style=white-space:pre-wrap;font:inherit>'+esc(reportText(rpDate).replace(/\\*/g,''))+'</pre></div>'])">🖨️ Print Report</button>
+      <button class="btn g" onclick="go('cash')">💵 Pehle Cash Count karein</button>
+    </div>
+    <p class="muted">WhatsApp khulega, message ready hoga — bas Send dabaayein.</p></div></div>`;}
+
+/* ================= STOCK ================= */
+function scrStock(){const low=lowStock();
+  main.innerHTML=`<div class="title">Stock Summary <span class="r">${D.stock.length} items · Low: ${low.length}</span></div>
+  <div class="btns" style="margin:0 0 10px"><button class="btn" onclick="editStock()">➕ New Stock Item</button><button class="btn g" onclick="go('purchase')">Purchase / Stock In (P)</button></div>
+  <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Stock Item</th><th class="n">Closing Qty</th><th>Unit</th><th class="n">Min Level</th><th class="n">Rate</th><th class="n">Value</th><th>Status</th><th></th></tr></thead><tbody>
+  ${D.stock.map(s=>{const l=+s.qty<=+s.min;return `<tr><td><b>${esc(s.name)}</b></td><td class="n ${l?'red':''}">${fq(s.qty)}</td><td>${esc(s.unit)}</td><td class="n">${fq(s.min)}</td>
+    <td class="n">${r2(s.rate)}</td><td class="n">${money(s.qty*s.rate)}</td><td>${l?'<span class="red">⚠ Low</span>':'<span class="green">OK</span>'}</td>
+    <td style="white-space:nowrap"><button class="btn sm" onclick="editStock('${s.id}')">Edit</button> <button class="btn g sm" onclick="adjStock('${s.id}')">Physical Count</button></td></tr>`;}).join('')}
+  </tbody><tfoot><tr><td colspan="5">Total Stock Value</td><td class="n">${money(sum(D.stock,s=>s.qty*s.rate))}</td><td colspan="2"></td></tr></tfoot></table></div>
+  <p class="muted">Bill banne par Menu Item ki recipe ke hisaab se stock apne aap ghatta hai.</p>`;}
+function editStock(id){const s=D.stock.find(x=>x.id===id)||{name:'',unit:'kg',qty:0,min:0,rate:0};
+  modal(id?'Edit Stock Item':'New Stock Item',`<div class="grid">
+    <div><label>Name</label><input id="s_name" value="${esc(s.name)}" autofocus></div>
+    <div><label>Unit</label><input id="s_unit" list="units" value="${esc(s.unit)}"><datalist id="units"><option>kg</option><option>gm</option><option>ltr</option><option>pcs</option><option>pkt</option><option>dozen</option></datalist></div>
+    <div><label>${id?'Current Qty':'Opening Qty'}</label><input id="s_qty" type="number" step="any" value="${s.qty}"></div>
+    <div><label>Min Level (alert)</label><input id="s_min" type="number" step="any" value="${s.min}"></div>
+    <div><label>Rate (₹/unit)</label><input id="s_rate" type="number" step="any" value="${s.rate}"></div></div>
+    <div class="btns"><button class="btn ok" onclick="saveStock('${id||''}')">Save</button>
+    ${id?`<button class="btn bad" onclick="delStock('${id}')">Delete</button>`:''}<button class="btn g" onclick="closeModal()">Cancel</button></div>`);}
+function saveStock(id){const name=$('#s_name').value.trim();if(!name){toast('Naam daalein');return;}
+  const v={name,unit:$('#s_unit').value.trim()||'pcs',qty:+$('#s_qty').value||0,min:+$('#s_min').value||0,rate:+$('#s_rate').value||0};
+  if(id)Object.assign(D.stock.find(x=>x.id===id),v);else D.stock.push({id:uid(),...v});save();closeModal();go(cur);}
+function delStock(id){if(!confirm('Stock item delete karein? Recipes se bhi hat jayega.'))return;
+  D.stock=D.stock.filter(x=>x.id!==id);D.menu.forEach(m=>m.recipe=(m.recipe||[]).filter(r=>r.sid!==id));save();closeModal();go(cur);}
+function adjStock(id){const s=D.stock.find(x=>x.id===id),v=prompt(`${s.name} — physical count kitna hai? (${s.unit})\nAbhi system mein: ${fq(s.qty)}`,fq(s.qty));
+  if(v===null||v===''||isNaN(+v))return;s.qty=+v;save();toast('Stock update ho gaya');scrStock();}
+
+/* ================= MENU ================= */
+function scrMenu(){
+  main.innerHTML=`<div class="title">Menu Items (Masters) <span class="r">${D.menu.length} items · GST ${D.settings.gst}%</span></div>
+  <div class="btns" style="margin:0 0 10px"><button class="btn" onclick="editMenu()">➕ New Menu Item</button></div>
+  <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Item</th><th>Category</th><th class="n">Price</th><th>Recipe (stock usage per plate)</th><th></th></tr></thead><tbody>
+  ${D.menu.map(m=>`<tr><td><b>${esc(m.name)}</b></td><td>${esc(m.cat)}</td><td class="n">${rs(m.price)}</td>
+    <td class="muted">${(m.recipe||[]).map(r=>{const s=D.stock.find(x=>x.id===r.sid);return s?`${esc(s.name)} ${fq(r.qty)}${esc(s.unit)}`:'';}).filter(Boolean).join(', ')||'—'}</td>
+    <td><button class="btn sm" onclick="editMenu('${m.id}')">Edit</button></td></tr>`).join('')}</tbody></table></div>`;}
+function ingRow(sid,qty){return `<div class="grid ing" style="grid-template-columns:1fr 110px 34px;margin-bottom:6px"><select>${'<option value="">— stock item —</option>'+stockOpts(sid)}</select>
+  <input type="number" step="any" placeholder="qty" value="${qty??''}"><button class="btn bad sm" onclick="this.parentNode.remove()">✕</button></div>`;}
+function editMenu(id){const m=D.menu.find(x=>x.id===id)||{name:'',cat:'',price:'',recipe:[]};
+  modal(id?'Edit Menu Item':'New Menu Item',`<div class="grid">
+    <div><label>Item Name</label><input id="m_name" value="${esc(m.name)}" autofocus></div>
+    <div><label>Category</label><input id="m_cat" list="mcats" value="${esc(m.cat)}"><datalist id="mcats">${[...new Set(D.menu.map(x=>x.cat))].map(c=>`<option>${esc(c)}</option>`).join('')}</datalist></div>
+    <div><label>Price (₹)</label><input id="m_price" type="number" step="any" value="${m.price}"></div></div>
+    <label style="margin-top:12px">Recipe — 1 plate mein kitna stock lagta hai (optional, stock auto-minus ke liye)</label>
+    <div id="ings">${(m.recipe||[]).map(r=>ingRow(r.sid,r.qty)).join('')}</div>
+    <button class="btn g sm" onclick="$('#ings').insertAdjacentHTML('beforeend',ingRow())">+ Ingredient</button>
+    <div class="btns"><button class="btn ok" onclick="saveMenu('${id||''}')">Save</button>
+    ${id?`<button class="btn bad" onclick="delMenu('${id}')">Delete</button>`:''}<button class="btn g" onclick="closeModal()">Cancel</button></div>`);}
+function saveMenu(id){const name=$('#m_name').value.trim(),price=+$('#m_price').value;
+  if(!name||!(price>=0)){toast('Naam aur price daalein');return;}
+  const recipe=[...document.querySelectorAll('.ing')].map(r=>({sid:r.querySelector('select').value,qty:+r.querySelector('input').value})).filter(r=>r.sid&&r.qty>0);
+  const v={name,cat:$('#m_cat').value.trim()||'General',price,recipe};
+  if(id)Object.assign(D.menu.find(x=>x.id===id),v);else D.menu.push({id:uid(),...v});save();closeModal();scrMenu();}
+function delMenu(id){if(!confirm('Menu item delete karein?'))return;D.menu=D.menu.filter(x=>x.id!==id);save();closeModal();scrMenu();}
+
+/* ================= SETTINGS ================= */
+function scrSettings(){const s=D.settings;
+  const f=(k,l,t='text')=>`<div><label>${l}</label><input id="st_${k}" type="${t}" value="${esc(s[k])}"></div>`;
+  main.innerHTML=`<div class="title">Settings & Backup</div>
+  <div class="card"><h3 style="margin-top:0">Hotel Details (bill par chhapega)</h3><div class="grid">
+    ${f('name','Hotel Name')}${f('address','Address')}${f('phone','Phone')}${f('gstin','GSTIN (optional)')}
+    ${f('gst','GST % (0 = no GST)','number')}${f('owner','Owner WhatsApp Number','tel')}${f('footer','Bill Footer Message')}
+    ${['bill','kot'].map(k=>`<div><label>${k==='bill'?'Customer Bill':'Kitchen KOT'} Paper</label><select id="st_${k}Paper"><option value="A6" ${(s[k+'Paper']||'A6')==='A6'?'selected':''}>A6 (105 × 148 mm)</option><option value="thermal" ${s[k+'Paper']==='thermal'?'selected':''}>Thermal roll</option></select></div>`).join('')}
+    <div><label>Thermal Roll Size</label><select id="st_width"><option value="80" ${s.width!=58?'selected':''}>80 mm thermal</option><option value="58" ${s.width==58?'selected':''}>58 mm thermal</option></select></div>
+  </div><div class="btns"><button class="btn ok" onclick="saveSettings()">💾 Save Settings</button></div></div>
+  <div class="card"><h3 style="margin-top:0">Backup / Restore</h3>
+    <p class="muted">Saara data isi computer ke browser mein save hota hai. Roz ek backup file download kar lein.</p>
+    <div class="btns"><button class="btn" onclick="backup()">⬇️ Download Backup</button>
+    <label class="btn g" style="margin:0;color:var(--bar);font-size:14px">⬆️ Restore Backup<input type="file" accept=".json" style="display:none" onchange="restore(this.files[0])"></label>
+    <button class="btn bad" onclick="resetAll()">🗑️ Reset All Data</button></div></div>`;}
+function saveSettings(){['name','address','phone','gstin','owner','footer'].forEach(k=>D.settings[k]=$('#st_'+k).value.trim());
+  D.settings.gst=+$('#st_gst').value||0;D.settings.width=+$('#st_width').value;D.settings.billPaper=$('#st_billPaper').value;D.settings.kotPaper=$('#st_kotPaper').value;save();$('#hname').textContent=D.settings.name;toast('Settings save ho gayi');}
+function backup(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}));
+  a.download=`hotel-erp-backup-${today()}.json`;a.click();}
+function restore(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.settings||!x.bills)throw 0;
+  if(!confirm('Current data replace ho jayega. Restore karein?'))return;D=x;save();toast('Restore ho gaya');go('gateway');}catch(e){alert('Galat backup file');}};r.readAsText(f);}
+function resetAll(){if(prompt('Saara data delete hoga. Confirm ke liye RESET likhein')!=='RESET')return;D=seed();save();go('gateway');}
+
+drawSide();go('gateway');
+</script>
+</body>
+</html>
