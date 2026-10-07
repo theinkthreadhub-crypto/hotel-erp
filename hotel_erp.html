@@ -81,6 +81,21 @@ tfoot td{font-weight:700;background:#f8f4de}
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:9px 18px;border-radius:4px;display:none;z-index:60}
 pre.wa{background:#e7fbe9;border:1px solid #b7e3bd;padding:12px;border-radius:6px;white-space:pre-wrap;font:13px/1.45 "Segoe UI",sans-serif;margin:0}
 .den input{width:90px;text-align:right}
+/* growth features */
+.kds{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.kcard{background:#fff;border:2px solid var(--line);border-radius:6px;padding:10px}
+.kcard.new{border-color:var(--warn)}.kcard.late{border-color:var(--bad);background:#fff4f4}.kcard.ready{border-color:var(--ok);background:#f1fbf2}
+.kcard h4{margin:0 0 6px;display:flex;justify-content:space-between;font-size:15px}
+.kcard ul{margin:6px 0;padding-left:18px;font-size:15px;font-weight:600}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;background:#e8f1ee;color:var(--bar);font-weight:600}
+.tag.sw{background:#ffe6cc;color:#b45309}.tag.zo{background:#fde2e2;color:#b91c1c}.tag.qr{background:#e0e7ff;color:#3730a3}
+.pts{background:#fff8d6;border:1px dashed #e0c200;border-radius:4px;padding:6px 10px;margin-top:8px;display:flex;align-items:center;gap:8px;font-size:13px}
+.att button{min-width:34px;padding:4px 6px;border:1px solid #bdb59a;background:#fff;border-radius:3px;font-weight:700}
+.att button.P.on{background:var(--ok);color:#fff;border-color:var(--ok)}.att button.H.on{background:var(--warn);color:#fff;border-color:var(--warn)}.att button.A.on{background:var(--bad);color:#fff;border-color:var(--bad)}
+.qrbox{display:inline-block;text-align:center}.qrbox svg{display:block;margin:0 auto}
+.qrsheet{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm;padding:8mm;width:190mm;font:14px Arial,sans-serif;color:#000}
+.qrsheet .t{border:2px solid #000;border-radius:6px;padding:6mm;text-align:center;break-inside:avoid}
+.qrsheet .t b{font-size:22px;display:block}.qrsheet svg{width:55mm;height:55mm;margin:4mm auto}
 #print{display:none}
 @media (max-width:900px){.bill{grid-template-columns:1fr}#side{display:none}}
 /* thermal receipt */
@@ -100,6 +115,8 @@ pre.wa{background:#e7fbe9;border:1px solid #b7e3bd;padding:12px;border-radius:6p
 .rcpt.a6 th{border-bottom:1px solid #000!important}
 .rcpt.a6 .big,.rcpt.a6 .big td{font-size:18px}
 .rcpt.a6.kot td{font-size:17px}
+.rcpt .qr{display:flex;justify-content:center;gap:4mm;text-align:center;font-size:10px;margin:2mm 0}
+.rcpt .qr svg{width:24mm;height:24mm;display:block;margin:0 auto 1mm}
 .cut{break-after:page;page-break-after:always;height:0}
 @page thermal{margin:0}
 @page a6{size:105mm 148mm;margin:6mm}
@@ -119,6 +136,10 @@ pre.wa{background:#e7fbe9;border:1px solid #b7e3bd;padding:12px;border-radius:6p
 <div id="print"></div>
 
 <script>
+/* qrcode-generator 1.4.4 — (c) Kazuhiko Arase, MIT License */
+var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1})},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
+</script>
+<script>
 /* ================= DATA ================= */
 const KEY='hotelerp_v1';
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
@@ -133,7 +154,12 @@ const fq=n=>String(+(+n||0).toFixed(3));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sum=(a,f)=>a.reduce((s,x)=>s+(+(typeof f==='function'?f(x):x[f])||0),0);
 const $=s=>document.querySelector(s);
-const MODES=['Cash','UPI','Card','Credit'];
+const MODES=['Cash','UPI','Card','Credit','Online'];
+const SOURCES=['Dine-in','Parcel','QR Order','Swiggy','Zomato'];
+const srcTag=s=>s&&s!=='Dine-in'?`<span class="tag ${s==='Swiggy'?'sw':s==='Zomato'?'zo':s==='QR Order'?'qr':''}">${esc(s)}</span>`:'';
+const normPh=p=>{p=String(p||'').replace(/\D/g,'');return p.length>10?p.slice(-10):p;};
+function qrSvg(text){try{const q=qrcode(0,'M');q.addData(text);q.make();return q.createSvgTag({cellSize:2,margin:2,scalable:true});}catch(e){return '';}}
+const upiLink=amt=>{const s=D.settings;return s.upi?`upi://pay?pa=${String(s.upi).trim().replace(/[^\w.@-]/g,'')}&pn=${encodeURIComponent(s.name)}${amt?`&am=${(+amt).toFixed(2)}`:''}&cu=INR`:'';};
 const DEN=[500,200,100,50,20,10,5,2,1];
 
 function seed(){
@@ -152,9 +178,12 @@ function seed(){
     ['Cold Drink','Beverages',40,[['Cold',1]]],
   ].map(([name,cat,price,r])=>({id:uid(),name,cat,price,recipe:r.map(([n,qty])=>({sid:S(n),qty}))}));
   return {settings:{name:'Hotel Annapurna',address:'Main Road, Your City',phone:'',gstin:'',gst:5,owner:'',
-    footer:'Thank you! Visit again',width:80,billPaper:'A6',kotPaper:'A6'},menu,stock,bills:[],txns:[],cash:{},seq:{bill:0,kot:0}};
+    footer:'Thank you! Visit again',width:80,billPaper:'A6',kotPaper:'A6',...DEF_SET},menu,stock,bills:[],txns:[],cash:{},seq:{bill:0,kot:0},staff:[],att:{}};
 }
-function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.settings)return s;}catch(e){}return seed();}
+const DEF_SET={upi:'',review:'',orderWa:'',menuUrl:'',loyalty:true,ptsPer100:5,ptValue:1,minRedeem:50,swiggyPct:25,zomatoPct:25,kotLate:20};
+function migrate(s){s.settings={...DEF_SET,...s.settings};s.staff=s.staff||[];s.att=s.att||{};
+  (s.bills||[]).forEach(b=>{b.source=b.source||'Dine-in';if(!b.kotStatus)b.kotStatus='served';b.ptsEarned=b.ptsEarned||0;b.ptsUsed=b.ptsUsed||0;});return s;}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.settings)return migrate(s);}catch(e){}return seed();}
 let D=load();
 function save(){try{localStorage.setItem(KEY,JSON.stringify(D));}catch(e){alert('Data save nahi hua: '+e.message);}}
 save();
@@ -179,6 +208,7 @@ function waOwner(text){if(!D.settings.owner){toast('Owner ka WhatsApp number Set
 const MENU=[
   ['B','Billing (New Bill)','bill','Transactions'],
   ['L','Bill List / Reprint','bills'],
+  ['K','Kitchen Display (KOT)','kitchen'],
   ['P','Purchase / Stock In','purchase'],
   ['E','Expense / Payment Out','expense'],
   ['I','Other Income / Receipt','income'],
@@ -186,12 +216,17 @@ const MENU=[
   ['C','Cash Counter','cash'],
   ['W','Day Report → WhatsApp','report'],
   ['S','Stock Summary','stock'],
+  ['R','Customers & Loyalty','customers','Growth'],
+  ['Q','QR Menu & Online Orders','qr'],
+  ['A','Staff Attendance & Salary','staff'],
   ['M','Menu Items','menu','Masters'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
 const SCREENS={gateway:scrGateway,bill:scrBill,bills:scrBills,purchase:scrPurchase,expense:()=>scrVoucher('Expense'),
-  income:()=>scrVoucher('Receipt'),daybook:scrDaybook,cash:scrCash,report:scrReport,stock:scrStock,menu:scrMenu,settings:scrSettings};
-function go(s){cur=s;closeModal();const m=MENU.find(x=>x[2]===s);$('#scrname').textContent=m?m[1]:'Gateway of Hotel';
+  income:()=>scrVoucher('Receipt'),daybook:scrDaybook,cash:scrCash,report:scrReport,stock:scrStock,menu:scrMenu,settings:scrSettings,
+  kitchen:scrKitchen,customers:scrCustomers,qr:scrQR,staff:scrStaff};
+let kdsTimer=null;
+function go(s){cur=s;closeModal();clearInterval(kdsTimer);const m=MENU.find(x=>x[2]===s);$('#scrname').textContent=m?m[1]:'Gateway of Hotel';
   $('#hname').textContent=D.settings.name;main.scrollTop=0;SCREENS[s]();}
 function drawSide(){$('#side').innerHTML=`<button onclick="go('gateway')"><u>Esc</u>Gateway</button>`+
   MENU.map(m=>`<button onclick="go('${m[2]}')"><u>${m[0]}</u>${m[1]}</button>`).join('');}
@@ -219,17 +254,28 @@ function calc(items,disc,rate){
 function summary(d){
   const bills=D.bills.filter(b=>b.date===d&&!b.cancelled),tx=D.txns.filter(t=>t.date===d);
   const by={};MODES.forEach(m=>by[m]=sum(bills.filter(b=>b.mode===m),'total'));
+  const bySrc={};SOURCES.forEach(x=>bySrc[x]=sum(bills.filter(b=>(b.source||'Dine-in')===x),'total'));
+  const comm=r2(bySrc.Swiggy*(+D.settings.swiggyPct||0)/100+bySrc.Zomato*(+D.settings.zomatoPct||0)/100);
   const rec=tx.filter(t=>t.type==='Receipt'),exp=tx.filter(t=>t.type==='Expense'),pur=tx.filter(t=>t.type==='Purchase');
   const isCash=t=>t.mode==='Cash';
   const cashIn=by.Cash+sum(rec.filter(isCash),'amount'),cashOut=sum(exp.filter(isCash),'amount')+sum(pur.filter(isCash),'amount');
   const items={};bills.forEach(b=>b.items.forEach(i=>{items[i.name]=(items[i.name]||0)+i.qty;}));
   const cr=cashRec(d),counted=countTotal(cr);
-  return {bills,by,sales:sum(bills,'total'),disc:sum(bills,'disc'),tax:sum(bills,'tax'),rec,exp,pur,
+  return {bills,by,bySrc,comm,pts:sum(bills,'ptsUsed'),sales:sum(bills,'total'),disc:sum(bills,'disc'),tax:sum(bills,'tax'),rec,exp,pur,
     recT:sum(rec,'amount'),expT:sum(exp,'amount'),purT:sum(pur,'amount'),cashIn,cashOut,
     opening:+cr.opening||0,expected:(+cr.opening||0)+cashIn-cashOut,counted,countedSaved:!!D.cash[d],
     top:Object.entries(items).sort((a,b)=>b[1]-a[1]),cancelled:D.bills.filter(b=>b.date===d&&b.cancelled).length};
 }
 const lowStock=()=>D.stock.filter(s=>+s.qty<=+s.min);
+const pendingKots=()=>D.bills.filter(b=>!b.cancelled&&b.date===today()&&b.kotStatus&&b.kotStatus!=='served');
+function ptsBal(phone){const p=normPh(phone);if(p.length<10)return 0;
+  return D.bills.filter(b=>!b.cancelled&&normPh(b.phone)===p).reduce((t,b)=>t+(+b.ptsEarned||0)-(+b.ptsUsed||0),0);}
+function customers(){const m={};
+  D.bills.filter(b=>!b.cancelled&&normPh(b.phone).length===10).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).forEach(b=>{
+    const p=normPh(b.phone),c=m[p]||(m[p]={phone:p,name:'',visits:0,spend:0,first:b.date,last:b.date,pts:0,fav:{}});
+    if(b.cust)c.name=b.cust;c.visits++;c.spend+=b.total;c.last=b.date;c.pts+=(+b.ptsEarned||0)-(+b.ptsUsed||0);
+    b.items.forEach(i=>c.fav[i.name]=(c.fav[i.name]||0)+i.qty);});
+  return Object.values(m).map(c=>({...c,spend:r2(c.spend),fav:Object.entries(c.fav).sort((a,b)=>b[1]-a[1])[0]?.[0]||''}));}
 
 /* ================= GATEWAY ================= */
 function scrGateway(){
@@ -247,6 +293,8 @@ function scrGateway(){
       <div class="stat"><span>Purchases</span><b class="red">${money(s.purT)}</b></div>
       <div class="stat"><span>Cash in Hand (expected)</span><b class="green">${money(s.expected)}</b></div>
       <div class="stat"><span>Low Stock Items</span><b class="${lowStock().length?'red':''}">${lowStock().length}</b></div>
+      <div class="stat"><span>Pending KOT (Kitchen)</span><b class="${pendingKots().length?'red':''}">${pendingKots().length}</b></div>
+      ${SOURCES.filter(x=>s.bySrc[x]&&x!=='Dine-in').map(x=>`<div class="stat"><span class="muted">&nbsp;&nbsp;${x}</span><b>${money(s.bySrc[x])}</b></div>`).join('')}
       <div style="padding:10px"><button class="btn wa" style="width:100%" onclick="go('report')">📲 Owner ko WhatsApp Report</button></div>
     </div></div>
     <p class="muted" style="text-align:center">Shortcut: letter dabaayein (B = Bill, D = Day Book …) · ↑↓ + Enter · Esc = wapas</p>`;
@@ -254,7 +302,21 @@ function scrGateway(){
 
 /* ================= BILLING ================= */
 let B=newB(),billCat=0;
-function newB(){return {table:'',cust:'',phone:'',disc:0,mode:'Cash',note:'',cart:[]};}
+function newB(){return {table:'',cust:'',phone:'',disc:0,mode:'Cash',note:'',cart:[],source:'Dine-in',redeem:0};}
+const redeemRs=()=>r2((+B.redeem||0)*(+D.settings.ptValue||0));
+const totDisc=()=>(+B.disc||0)+redeemRs();
+function onPhone(v){B.phone=v;B.redeem=0;const p=normPh(v);
+  if(p.length===10){const old=D.bills.filter(b=>normPh(b.phone)===p&&b.cust).pop();if(old&&!B.cust){B.cust=old.cust;const i=$('#b_cust');if(i)i.value=old.cust;}}
+  drawPts();drawTotals();}
+function drawPts(){const e=$('#pts');if(!e)return;const st=D.settings,p=normPh(B.phone);
+  if(!st.loyalty||p.length!==10||B.source==='Swiggy'||B.source==='Zomato'){e.innerHTML='';return;}
+  const bal=ptsBal(p),visits=D.bills.filter(b=>!b.cancelled&&normPh(b.phone)===p).length;
+  e.innerHTML=`<div class="pts">⭐ <span>${visits?`Purana customer · ${visits} visit`:'Naya customer'} · Points: <b>${bal}</b> (= ${money(bal*st.ptValue)})</span>
+    ${B.redeem?`<b class="green">−${money(redeemRs())} redeemed</b><button class="btn g sm" onclick="B.redeem=0;drawPts();drawTotals()">Undo</button>`:
+    bal>=(+st.minRedeem||0)&&bal>0?`<button class="btn sm" onclick="redeemPts()">Redeem</button>`:`<span class="muted">min ${st.minRedeem} pts</span>`}</div>`;}
+function redeemPts(){const st=D.settings,bal=ptsBal(B.phone),t=calc(B.cart,B.disc,st.gst);
+  const maxPts=Math.floor(t.taxable/(+st.ptValue||1));B.redeem=Math.max(0,Math.min(bal,maxPts));
+  if(!B.redeem){toast('Pehle item add karein');return;}drawPts();drawTotals();}
 function scrBill(){
   const cats=['All',...new Set(D.menu.map(m=>m.cat))];if(billCat>=cats.length)billCat=0;
   main.innerHTML=`<div class="title">Sales Voucher — New Bill <span class="r">Bill No: <b>${D.seq.bill+1}</b> · KOT No: <b>${D.seq.kot+1}</b> · ${dmy(today())}</span></div>
@@ -267,9 +329,12 @@ function scrBill(){
     <div class="card">
       <div class="grid" style="grid-template-columns:90px 1fr 1fr">
         <div><label>Table No</label><input id="b_table" value="${esc(B.table)}" oninput="B.table=this.value"></div>
-        <div><label>Customer Name</label><input value="${esc(B.cust)}" oninput="B.cust=this.value"></div>
-        <div><label>Mobile (WhatsApp)</label><input value="${esc(B.phone)}" oninput="B.phone=this.value" inputmode="tel"></div>
+        <div><label>Customer Name</label><input id="b_cust" value="${esc(B.cust)}" oninput="B.cust=this.value"></div>
+        <div><label>Mobile (WhatsApp)</label><input value="${esc(B.phone)}" oninput="onPhone(this.value)" inputmode="tel"></div>
       </div>
+      <label style="margin-top:8px">Order Type</label>
+      <div class="modes" id="srcs">${SOURCES.map(x=>`<button class="${B.source===x?'on':''}" onclick="setSource('${x}')">${x}</button>`).join('')}</div>
+      <div id="pts"></div>
       <div id="cart" style="margin-top:10px"></div>
       <div class="grid" style="grid-template-columns:120px 1fr;margin-top:10px">
         <div><label>Discount (₹)</label><input type="number" min="0" value="${B.disc||''}" oninput="B.disc=+this.value||0;drawTotals()"></div>
@@ -277,7 +342,7 @@ function scrBill(){
       </div>
       <div id="tot" class="tot" style="margin-top:10px"></div>
       <label style="margin-top:8px">Payment Mode</label>
-      <div class="modes">${MODES.map(m=>`<button class="${B.mode===m?'on':''}" onclick="B.mode='${m}';scrBillModes()">${m==='Credit'?'Credit (Udhaar)':m}</button>`).join('')}</div>
+      <div class="modes" id="pmodes">${MODES.map(m=>`<button class="${B.mode===m?'on':''}" onclick="B.mode='${m}';scrBillModes()">${m==='Credit'?'Credit (Udhaar)':m}</button>`).join('')}</div>
       <div class="btns">
         <button class="btn ok" style="flex:1;padding:12px" onclick="saveBill()">💾 Save & Print (Bill + KOT) <small>Ctrl+Enter</small></button>
         <button class="btn g" onclick="if(confirm('Bill clear karein?')){B=newB();scrBill();}">Clear</button>
@@ -286,9 +351,11 @@ function scrBill(){
   </div>`;
   const q=$('#q');q.oninput=drawItems;
   q.onkeydown=e=>{if(e.key==='Enter'&&!e.ctrlKey&&q.value.trim()){e.preventDefault();const f=filtered()[0];if(f){addItem(f.id);q.value='';drawItems();}}};
-  drawItems();drawCart();q.focus();
+  drawItems();drawCart();drawPts();q.focus();
 }
-function scrBillModes(){document.querySelectorAll('.modes button').forEach((b,i)=>b.classList.toggle('on',MODES[i]===B.mode));}
+function scrBillModes(){document.querySelectorAll('#pmodes button').forEach((b,i)=>b.classList.toggle('on',MODES[i]===B.mode));}
+function setSource(x){B.source=x;if(x==='Swiggy'||x==='Zomato'){B.mode='Online';B.redeem=0;drawPts();drawTotals();}else if(B.mode==='Online')B.mode='Cash';
+  document.querySelectorAll('#srcs button').forEach((b,i)=>b.classList.toggle('on',SOURCES[i]===x));scrBillModes();}
 function filtered(){
   const cats=['All',...new Set(D.menu.map(m=>m.cat))],q=($('#q')?.value||'').toLowerCase().trim();
   return D.menu.filter(m=>(billCat===0||m.cat===cats[billCat])&&(!q||m.name.toLowerCase().includes(q)));
@@ -306,18 +373,24 @@ function drawCart(){
     :'<p class="muted" style="text-align:center;padding:20px;border:1px dashed var(--line)">Left side se item select karein</p>';
   drawTotals();
 }
-function drawTotals(){const t=calc(B.cart,B.disc,D.settings.gst),g=+D.settings.gst;
+function drawTotals(){
+  if(B.redeem){const room=sum(B.cart,i=>i.price*i.qty)-(+B.disc||0),mx=Math.max(0,Math.floor(room/(+D.settings.ptValue||1)));if(B.redeem>mx){B.redeem=mx;drawPts();}}
+  const t=calc(B.cart,totDisc(),D.settings.gst),g=+D.settings.gst,rr=redeemRs();
   $('#tot').innerHTML=`<div><span>Sub Total (${sum(B.cart,'qty')} items)</span><b>${money(t.sub)}</b></div>
-  ${t.disc?`<div><span>Discount</span><b>− ${money(t.disc)}</b></div>`:''}
+  ${t.disc-rr>0?`<div><span>Discount</span><b>− ${money(t.disc-rr)}</b></div>`:''}
+  ${rr?`<div><span>⭐ Loyalty (${B.redeem} pts)</span><b>− ${money(rr)}</b></div>`:''}
   ${g?`<div><span>CGST ${g/2}% + SGST ${g/2}%</span><b>${money(t.tax)}</b></div>`:''}
   ${t.round?`<div><span>Round Off</span><b>${t.round>0?'+':''}${t.round}</b></div>`:''}
   <div class="big"><span>TOTAL</span><span>${money(t.total)}</span></div>`;}
 function saveBill(){
   if(!B.cart.length){toast('Pehle item add karein');return;}
-  const t=calc(B.cart,B.disc,D.settings.gst),used={};
+  const st=D.settings,t=calc(B.cart,totDisc(),st.gst),used={};
   B.cart.forEach(c=>{const m=D.menu.find(x=>x.id===c.mid);(m?.recipe||[]).forEach(r=>{used[r.sid]=(used[r.sid]||0)+r.qty*c.qty;});});
+  const hasPh=normPh(B.phone).length===10,ptsUsed=hasPh?Math.min(+B.redeem||0,ptsBal(B.phone)):0;
+  const ptsEarned=st.loyalty&&hasPh&&B.source!=='Swiggy'&&B.source!=='Zomato'?Math.floor(t.total/100*(+st.ptsPer100||0)):0;
   const bill={id:uid(),no:++D.seq.bill,kot:++D.seq.kot,date:today(),time:nowTime(),table:B.table.trim(),cust:B.cust.trim(),phone:B.phone.trim(),
-    note:B.note.trim(),mode:B.mode,gstRate:+D.settings.gst,items:B.cart.map(c=>({...c})),...t,used:Object.entries(used).map(([sid,qty])=>({sid,qty}))};
+    note:B.note.trim(),mode:B.mode,source:B.source,kotStatus:'new',kotAt:Date.now(),ptsUsed,ptsEarned,loyaltyDisc:r2(ptsUsed*(+st.ptValue||0)),
+    gstRate:+st.gst,items:B.cart.map(c=>({...c})),...t,used:Object.entries(used).map(([sid,qty])=>({sid,qty}))};
   applyStock(bill.used,-1);D.bills.push(bill);save();B=newB();
   afterSave(bill);
 }
@@ -343,19 +416,28 @@ function head(){const s=D.settings;return `<div class="c h">${esc(s.name)}</div>
 function billHTML(b){const g=b.gstRate;
   return `<div class="rcpt${paper('bill')}">${head()}<hr><div class="c"><b>TAX INVOICE${b.cancelled?' (CANCELLED)':''}</b></div>
   <div>Bill No: <b>${b.no}</b> &nbsp; ${dmy(b.date)} ${b.time}</div>
-  ${b.table?`<div>Table: <b>${esc(b.table)}</b></div>`:''}${b.cust?`<div>Customer: ${esc(b.cust)}</div>`:''}<hr>
+  ${b.table?`<div>Table: <b>${esc(b.table)}</b></div>`:''}${b.source&&b.source!=='Dine-in'?`<div>Order: <b>${esc(b.source)}</b></div>`:''}${b.cust?`<div>Customer: ${esc(b.cust)}</div>`:''}<hr>
   <table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>
   ${b.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${i.price}</td><td class="r">${r2(i.price*i.qty)}</td></tr>`).join('')}</table><hr>
   <table><tr><td>Sub Total</td><td class="r">${b.sub.toFixed(2)}</td></tr>
-  ${b.disc?`<tr><td>Discount</td><td class="r">-${b.disc.toFixed(2)}</td></tr>`:''}
+  ${b.disc-(b.loyaltyDisc||0)>0?`<tr><td>Discount</td><td class="r">-${(b.disc-(b.loyaltyDisc||0)).toFixed(2)}</td></tr>`:''}
+  ${b.loyaltyDisc?`<tr><td>Loyalty (${b.ptsUsed} pts)</td><td class="r">-${b.loyaltyDisc.toFixed(2)}</td></tr>`:''}
   ${g?`<tr><td>CGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr><tr><td>SGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr>`:''}
   ${b.round?`<tr><td>Round Off</td><td class="r">${b.round.toFixed(2)}</td></tr>`:''}</table><hr>
   <table><tr class="big"><td>TOTAL</td><td class="r">₹${b.total.toFixed(2)}</td></tr></table>
-  <div>Paid by: ${b.mode}</div><hr><div class="c">${esc(D.settings.footer)}</div></div>`;}
+  <div>Paid by: ${b.mode}</div>${ptsLine(b)}<hr>${billQR(b)}<div class="c">${esc(D.settings.footer)}</div></div>`;}
+function ptsLine(b){if(!b.ptsEarned&&!b.ptsUsed)return '';
+  return `<div>⭐ Points earned: ${b.ptsEarned}${b.ptsUsed?` · used: ${b.ptsUsed}`:''} · Balance: <b>${ptsBalAt(b)}</b></div>`;}
+function ptsBalAt(b){const p=normPh(b.phone);return D.bills.filter(x=>!x.cancelled&&normPh(x.phone)===p&&x.no<=b.no)
+  .reduce((t,x)=>t+(+x.ptsEarned||0)-(+x.ptsUsed||0),0);}
+function billQR(b){const s=D.settings,q=[];
+  if(s.upi&&!b.cancelled&&['Cash','UPI','Credit'].includes(b.mode))q.push(`<div>${qrSvg(upiLink(b.total))}Scan & Pay ₹${b.total}</div>`);
+  if(s.review)q.push(`<div>${qrSvg(s.review)}Google par rating dein ⭐</div>`);
+  return q.length?`<div class="qr">${q.join('')}</div><hr>`:'';}
 function kotHTML(b){
   return `<div class="rcpt kot${paper('kot')}"><div class="c h">*** KITCHEN ORDER (KOT) ***</div><hr>
   <div>KOT No: <b>${b.kot}</b> &nbsp; Bill: ${b.no}</div><div>${dmy(b.date)} &nbsp; ${b.time}</div>
-  <div class="big">Table: ${esc(b.table||'Parcel / Counter')}</div><hr>
+  <div class="big">Table: ${esc(b.table||'Parcel / Counter')}</div>${b.source&&b.source!=='Dine-in'?`<div class="big">** ${esc(b.source).toUpperCase()} **</div>`:''}<hr>
   <table><tr><th>Qty</th><th>Item</th></tr>${b.items.map(i=>`<tr><td>${i.qty} ×</td><td>${esc(i.name)}</td></tr>`).join('')}</table><hr>
   ${b.note?`<div class="big">Note: ${esc(b.note)}</div><hr>`:''}<div class="c">Chef copy</div></div>`;}
 const paper=k=>(D.settings[k+'Paper']||'A6')==='A6'?' a6':'';
@@ -366,7 +448,10 @@ function printBill(id,what){const b=getBill(id);if(!b)return;
 function billText(b){const s=D.settings;
   return `*${s.name}*\n🧾 Bill No: ${b.no}  |  ${dmy(b.date)} ${b.time}${b.table?`\nTable: ${b.table}`:''}${b.cust?`\nCustomer: ${b.cust}`:''}\n--------------------\n`+
   b.items.map(i=>`${i.name} × ${i.qty} = ₹${r2(i.price*i.qty)}`).join('\n')+
-  `\n--------------------\nSub Total: ₹${b.sub}${b.disc?`\nDiscount: -₹${b.disc}`:''}${b.tax?`\nGST (${b.gstRate}%): ₹${b.tax}`:''}\n*TOTAL: ₹${b.total}*\nPaid by: ${b.mode}\n\n${s.footer}`;}
+  `\n--------------------\nSub Total: ₹${b.sub}${b.disc?`\nDiscount: -₹${b.disc}`:''}${b.tax?`\nGST (${b.gstRate}%): ₹${b.tax}`:''}\n*TOTAL: ₹${b.total}*\nPaid by: ${b.mode}`+
+  (b.ptsEarned||b.ptsUsed?`\n\n⭐ Points earned: ${b.ptsEarned}${b.ptsUsed?` | used: ${b.ptsUsed}`:''}\n⭐ Total points: *${ptsBalAt(b)}* (= ₹${r2(ptsBalAt(b)*(+s.ptValue||0))})`:'')+
+  (s.upi&&b.mode==='Credit'?`\n\n💳 UPI se pay karein: ${s.upi}`:'')+
+  (s.review?`\n\n🙏 Khana kaisa laga? Google par rating dein:\n${s.review}`:'')+`\n\n${s.footer}`;}
 
 /* ================= BILL LIST ================= */
 let listDate=today();
@@ -374,7 +459,7 @@ function scrBills(){
   const bs=D.bills.filter(b=>b.date===listDate).sort((a,b)=>b.no-a.no);
   main.innerHTML=`<div class="title">Bill List / Reprint <span class="r">Date: <input type="date" value="${listDate}" onchange="listDate=this.value;scrBills()"></span></div>
   <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Bill</th><th>Time</th><th>Table</th><th>Customer</th><th>Items</th><th>Mode</th><th class="n">Total</th><th>Actions</th></tr></thead><tbody>
-  ${bs.map(b=>`<tr style="${b.cancelled?'opacity:.5;text-decoration:line-through':''}"><td><b>#${b.no}</b></td><td>${b.time}</td><td>${esc(b.table)}</td><td>${esc(b.cust)} ${b.phone?`<span class="muted">${esc(b.phone)}</span>`:''}</td>
+  ${bs.map(b=>`<tr style="${b.cancelled?'opacity:.5;text-decoration:line-through':''}"><td><b>#${b.no}</b></td><td>${b.time}</td><td>${esc(b.table)} ${srcTag(b.source)}</td><td>${esc(b.cust)} ${b.phone?`<span class="muted">${esc(b.phone)}</span>`:''}</td>
     <td>${b.items.map(i=>esc(i.name)+'×'+i.qty).join(', ')}</td><td>${b.mode}</td><td class="n">${money(b.total)}</td>
     <td style="white-space:nowrap"><button class="btn sm" onclick="printBill('${b.id}','bill')">Bill</button>
       <button class="btn sm" onclick="printBill('${b.id}','kot')">KOT</button>
@@ -476,7 +561,7 @@ function scrCash(){
       <div class="big"><span>Expected Cash</span><span id="ccExp"></span></div>
       <div><span>Counted Cash</span><b id="ccCnt"></b></div>
       <div style="font-size:18px"><span>Difference</span><b id="ccDiff"></b></div>
-      <p class="muted">UPI ${money(s.by.UPI)} · Card ${money(s.by.Card)} · Udhaar ${money(s.by.Credit)} (cash mein nahi)</p>
+      <p class="muted">UPI ${money(s.by.UPI)} · Card ${money(s.by.Card)} · Udhaar ${money(s.by.Credit)} · Online ${money(s.by.Online)} (cash mein nahi)</p>
       <div class="btns"><button class="btn ok" onclick="saveCash()">💾 Save Cash Count</button>
       <button class="btn wa" onclick="saveCash(true)">📲 Save & WhatsApp Owner</button></div>
     </div>
@@ -499,7 +584,10 @@ let rpDate=today();
 function reportText(d){const s=summary(d),st=D.settings,low=lowStock(),df=s.counted-s.expected;
   let t=`*🏨 ${st.name} — Daily Report*\n📅 ${dmy(d)}\n\n*💰 SALES*\nBills: ${s.bills.length}${s.cancelled?` (Cancelled: ${s.cancelled})`:''}\n*Total Sales: ₹${r2(s.sales)}*\n`+
     MODES.map(m=>`   ${m==='Credit'?'Udhaar':m}: ₹${r2(s.by[m])}`).join('\n')+
-    (s.disc?`\nDiscount: ₹${r2(s.disc)}`:'')+(s.tax?`\nGST: ₹${r2(s.tax)}`:'');
+    (s.disc?`\nDiscount: ₹${r2(s.disc)}`:'')+(s.pts?` (loyalty ${s.pts} pts)`:'')+(s.tax?`\nGST: ₹${r2(s.tax)}`:'');
+  const srcs=SOURCES.filter(x=>s.bySrc[x]);
+  if(srcs.length>1||(srcs[0]&&srcs[0]!=='Dine-in'))t+=`\n\n*🛵 Order Type*\n`+srcs.map(x=>`   ${x}: ₹${r2(s.bySrc[x])}`).join('\n')+
+    (s.comm?`\n   Est. Swiggy/Zomato commission: −₹${s.comm}`:'');
   if(s.rec.length)t+=`\n\n*📥 Other Income: ₹${r2(s.recT)}*\n`+s.rec.map(x=>`   ${x.head}: ₹${x.amount} (${x.mode})`).join('\n');
   t+=`\n\n*📤 Expenses: ₹${r2(s.expT)}*`+(s.exp.length?'\n'+s.exp.map(x=>`   ${x.head}${x.desc?' – '+x.desc:''}: ₹${x.amount}`).join('\n'):'');
   t+=`\n\n*🛒 Purchases: ₹${r2(s.purT)}*`+(s.pur.length?'\n'+s.pur.map(x=>`   ${x.head} ${x.desc}: ₹${x.amount} (${x.mode})`).join('\n'):'');
@@ -575,6 +663,213 @@ function saveMenu(id){const name=$('#m_name').value.trim(),price=+$('#m_price').
   if(id)Object.assign(D.menu.find(x=>x.id===id),v);else D.menu.push({id:uid(),...v});save();closeModal();scrMenu();}
 function delMenu(id){if(!confirm('Menu item delete karein?'))return;D.menu=D.menu.filter(x=>x.id!==id);save();closeModal();scrMenu();}
 
+/* ================= KITCHEN DISPLAY ================= */
+function scrKitchen(){clearInterval(kdsTimer);
+  const ks=pendingKots().sort((a,b)=>a.kot-b.kot),late=+D.settings.kotLate||20,
+    served=D.bills.filter(b=>!b.cancelled&&b.date===today()&&b.kotStatus==='served').length;
+  main.innerHTML=`<div class="title">Kitchen Display — KOT Screen <span class="r">Pending: <b>${ks.length}</b> · Served aaj: ${served}</span></div>
+  ${ks.length?`<div class="kds">${ks.map(b=>{const m=Math.max(0,Math.floor((Date.now()-(b.kotAt||Date.now()))/60000)),
+      cls=b.kotStatus==='ready'?'ready':m>=late?'late':'new';
+    return `<div class="kcard ${cls}"><h4><span>KOT #${b.kot} · ${esc(b.table||'Parcel')}</span><span class="${m>=late&&cls!=='ready'?'red':'muted'}">${m} min</span></h4>
+      <div>${srcTag(b.source)} <span class="muted">Bill #${b.no} · ${b.time}</span></div>
+      <ul>${b.items.map(i=>`<li>${i.qty} × ${esc(i.name)}</li>`).join('')}</ul>
+      ${b.note?`<div class="red">📝 ${esc(b.note)}</div>`:''}
+      <div class="btns">${b.kotStatus==='ready'?`<button class="btn ok" style="flex:1" onclick="kotSet('${b.id}','served')">🍽️ Served</button>`:
+        `<button class="btn ok" style="flex:1" onclick="kotSet('${b.id}','ready')">✔ Ready</button>`}
+        <button class="btn g sm" onclick="printBill('${b.id}','kot')">🖨️</button></div></div>`;}).join('')}</div>
+    <div class="btns"><button class="btn g" onclick="if(confirm('Saare KOT served mark karein?')){pendingKots().forEach(b=>b.kotStatus='served');save();scrKitchen();}">Sab Served mark karein</button></div>`
+  :'<div class="card" style="text-align:center;padding:40px"><h2 style="margin:0">✅ Koi pending order nahi</h2><p class="muted">Naya bill banega to KOT yahan aayega.</p></div>'}
+  <p class="muted">🟠 Naya · 🔴 ${late} min se zyada · 🟢 Ready. Screen har 30 sec refresh hoti hai. Isi computer/tablet par chalta hai — alag kitchen tablet ke liye cloud sync version chahiye.</p>`;
+  kdsTimer=setInterval(()=>{if(cur==='kitchen'&&!isModal())scrKitchen();},30000);
+}
+function kotSet(id,st){const b=getBill(id);if(!b)return;b.kotStatus=st;b[st+'At']=Date.now();save();toast(st==='ready'?`KOT #${b.kot} Ready`:`KOT #${b.kot} Served`);scrKitchen();}
+
+/* ================= CUSTOMERS & LOYALTY ================= */
+let custQ='',custSort='last',camp=null;
+const daysAgo=d=>Math.round((new Date(today())-new Date(d))/864e5);
+function custTarget(all,t){return t==='repeat'?all.filter(c=>c.visits>1):t==='inactive'?all.filter(c=>daysAgo(c.last)>=30):
+  t==='top'?[...all].sort((a,b)=>b.spend-a.spend).slice(0,20):t==='points'?all.filter(c=>c.pts>=(+D.settings.minRedeem||1)):all;}
+function scrCustomers(){const all=customers(),q=custQ.toLowerCase();
+  const list=all.filter(c=>!q||c.name.toLowerCase().includes(q)||c.phone.includes(q))
+    .sort((a,b)=>custSort==='spend'?b.spend-a.spend:custSort==='visits'?b.visits-a.visits:b.last.localeCompare(a.last));
+  const st=D.settings;
+  main.innerHTML=`<div class="title">Customers & Loyalty <span class="r">${all.length} customers · Loyalty ${st.loyalty?'ON':'OFF'}</span></div>
+  <div class="grid" style="margin-bottom:12px">
+    ${[['Total Customers',all.length],['Repeat (2+ visit)',all.filter(c=>c.visits>1).length],['30+ din se nahi aaye',all.filter(c=>daysAgo(c.last)>=30).length],
+      ['Points pending',sum(all,'pts')+' pts']].map(([l,v])=>`<div class="card" style="margin:0"><label>${l}</label><div style="font-size:20px;font-weight:700">${v}</div></div>`).join('')}
+  </div>
+  <div class="card"><h3 style="margin-top:0">📣 WhatsApp Offer Bhejein</h3>
+    <div class="grid" style="grid-template-columns:200px 1fr">
+      <div><label>Kisko bhejna hai</label><select id="c_t">
+        <option value="all">Sab customers</option><option value="repeat">Repeat customers</option><option value="inactive">30+ din se nahi aaye</option>
+        <option value="top">Top 20 (sabse zyada kharcha)</option><option value="points">Jinke points redeem ho sakte</option></select></div>
+      <div><label>Message — {name} aur {points} apne aap bhar jayega</label><textarea id="c_msg" rows="3">Namaste {name} ji 🙏
+${st.name} mein is weekend 10% OFF! Aapke paas {points} loyalty points bhi hain. Aaiye, intezaar hai 😊</textarea></div>
+    </div><div class="btns"><button class="btn wa" onclick="campStart()">📲 Ek-ek karke bhejna shuru karein</button></div>
+    <p class="muted">WhatsApp har customer ke liye khulega, bas Send dabaayein. Bulk auto-send ke liye WhatsApp Business API chahiye.</p></div>
+  <div class="btns" style="margin:0 0 10px;align-items:center">
+    <input id="c_q" placeholder="🔍 Naam ya mobile" value="${esc(custQ)}" style="max-width:240px" oninput="custQ=this.value;clearTimeout(scrCustomers.t);scrCustomers.t=setTimeout(()=>{scrCustomers();const i=$('#c_q');i.focus();i.setSelectionRange(i.value.length,i.value.length);},300)">
+    <select style="max-width:180px" onchange="custSort=this.value;scrCustomers()">${[['last','Last visit'],['spend','Sabse zyada kharcha'],['visits','Sabse zyada visit']].map(([v,l])=>`<option value="${v}" ${custSort===v?'selected':''}>${l}</option>`).join('')}</select>
+    <button class="btn g" onclick="custCSV()">⬇️ Excel (CSV)</button></div>
+  <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Customer</th><th>Mobile</th><th class="n">Visits</th><th class="n">Total Spend</th><th>Last Visit</th><th class="n">Points</th><th>Favourite</th><th></th></tr></thead><tbody>
+  ${list.map(c=>`<tr><td><b>${esc(c.name||'—')}</b></td><td>${c.phone}</td><td class="n">${c.visits}</td><td class="n">${money(c.spend)}</td>
+    <td>${dmy(c.last)} <span class="${daysAgo(c.last)>=30?'red':'muted'}">(${daysAgo(c.last)}d)</span></td><td class="n"><b>${c.pts}</b></td><td>${esc(c.fav)}</td>
+    <td><button class="btn wa sm" onclick="waOpen('${c.phone}','Namaste ${esc(c.name).replace(/'/g,'')} ji 🙏\\n${esc(st.name).replace(/'/g,'')} — aapke loyalty points: ${c.pts} (= ₹${r2(c.pts*st.ptValue)})')">WA</button></td></tr>`).join('')
+    ||'<tr><td colspan="8" class="muted">Abhi koi customer nahi. Bill mein mobile number daalne par yahan aayenge.</td></tr>'}
+  </tbody></table></div>
+  <p class="muted">Loyalty: har ₹100 par ${st.ptsPer100} points · 1 point = ₹${st.ptValue} · Min ${st.minRedeem} points par redeem. Settings (G) mein badlein.</p>`;}
+function campStart(){const msg=$('#c_msg').value.trim(),list=custTarget(customers(),$('#c_t').value);
+  if(!msg){toast('Message likhein');return;}if(!list.length){toast('Is group mein koi customer nahi');return;}
+  camp={list,i:0,msg};campStep();}
+function campStep(){if(!camp)return;if(camp.i>=camp.list.length){modal('Offer bhej diya ✅',`<p>${camp.list.length} customers ko message ready kiya.</p><div class="btns"><button class="btn" onclick="closeModal()">OK</button></div>`);camp=null;return;}
+  const c=camp.list[camp.i];
+  modal(`Offer — ${camp.i+1} / ${camp.list.length}`,`<p><b>${esc(c.name||'Customer')}</b> · ${c.phone} · ${c.visits} visit · ${c.pts} pts</p>
+    <pre class="wa">${esc(campMsg(c))}</pre>
+    <div class="btns"><button class="btn wa" autofocus onclick="waOpen('${c.phone}',campMsg(camp.list[camp.i]));camp.i++;campStep()">📲 Send & Next</button>
+    <button class="btn g" onclick="camp.i++;campStep()">Skip</button><button class="btn bad" onclick="camp=null;closeModal()">Stop</button></div>`);}
+const campMsg=c=>camp.msg.replace(/\{name\}/g,c.name||'Sir/Madam').replace(/\{points\}/g,c.pts);
+function custCSV(){const rows=[['Name','Mobile','Visits','Total Spend','First Visit','Last Visit','Points','Favourite']]
+  .concat(customers().map(c=>[c.name,c.phone,c.visits,c.spend,c.first,c.last,c.pts,c.fav]));
+  const csv=rows.map(r=>r.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+csv],{type:'text/csv'}));a.download=`customers-${today()}.csv`;a.click();}
+
+/* ================= QR MENU & ONLINE ORDERS ================= */
+const orderWa=()=>{let n=String(D.settings.orderWa||D.settings.phone||'').replace(/\D/g,'');return n.length===10?'91'+n:n;};
+const tableUrl=t=>{const u=String(D.settings.menuUrl||'').trim();return u?u+(u.includes('?')?'&':'?')+'t='+encodeURIComponent(t):
+  (orderWa()?`https://wa.me/${orderWa()}?text=${encodeURIComponent(`Namaste! ${t==='Parcel'?'Parcel':'Table '+t} — menu bhejiye`)}`:'');};
+function scrQR(){const st=D.settings;
+  main.innerHTML=`<div class="title">QR Menu & Online Orders</div>
+  <div class="bill"><div>
+    <div class="card"><h3 style="margin-top:0">1️⃣ Online Menu Page</h3>
+      <p>Customer table par QR scan karega → mobile par menu khulega → items chunkar <b>WhatsApp par order</b> bhejega. Koi app ya server nahi chahiye.</p>
+      <div class="btns"><button class="btn" onclick="dlMenuPage()">⬇️ Menu Page Download (menu.html)</button></div>
+      <p class="muted" style="margin-bottom:4px">Free mein online karne ke liye: <b>app.netlify.com/drop</b> par file drag karein, ya GitHub Pages use karein. Jo link mile woh niche daalein. Menu badalne par file dobara download karke upload karein.</p>
+      <div class="grid" style="grid-template-columns:1fr auto;align-items:end">
+        <div><label>Menu Page Link (online)</label><input id="q_url" value="${esc(st.menuUrl)}" placeholder="https://myhotel.netlify.app"></div>
+        <button class="btn ok" onclick="D.settings.menuUrl=$('#q_url').value.trim();save();toast('Link save ho gaya');scrQR()">Save</button></div>
+      <p class="muted">Orders is number par aayenge: <b>${esc(st.orderWa||st.phone)||'<span class="red">Settings (G) mein Order WhatsApp number daalein</span>'}</b></p></div>
+    <div class="card"><h3 style="margin-top:0">2️⃣ Table QR Print</h3>
+      ${st.menuUrl?'':'<p class="red">Menu link nahi hai — abhi QR scan karne par WhatsApp chat khulegi. Menu page online karke link daalein.</p>'}
+      <div class="grid" style="grid-template-columns:1fr 1fr auto;align-items:end">
+        <div><label>Kitne table</label><input id="q_n" type="number" min="1" max="60" value="10"></div>
+        <div><label>Parcel QR bhi?</label><select id="q_p"><option value="1">Haan</option><option value="0">Nahi</option></select></div>
+        <button class="btn" onclick="printTableQR()">🖨️ Print QR (A4)</button></div></div>
+    <div class="card"><h3 style="margin-top:0">3️⃣ UPI Payment Standee</h3>
+      ${st.upi?`<div class="qrbox" style="width:150px">${qrSvg(upiLink())}<small>${esc(st.upi)}</small></div>
+        <div class="btns"><button class="btn" onclick="printUPI()">🖨️ Counter ke liye Print</button></div>`:'<p class="red">Settings (G) mein UPI ID daalein. Phir bill par bhi amount wala QR chhapega.</p>'}</div>
+  </div>
+  <div class="card"><h3 style="margin-top:0">📥 WhatsApp Order → Bill</h3>
+    <p class="muted">Customer ka WhatsApp order message yahan paste karein. Items apne aap bill mein aa jayenge.</p>
+    <textarea id="q_txt" rows="12" placeholder="🛒 NEW ORDER&#10;Table: 4&#10;Name: Ravi&#10;&#10;2 x Butter Naan&#10;1 x Dal Tadka"></textarea>
+    <div class="btns"><button class="btn ok" onclick="importOrder($('#q_txt').value)">➡️ Bill mein daalein</button>
+      <button class="btn g" onclick="navigator.clipboard.readText().then(t=>{$('#q_txt').value=t;}).catch(()=>toast('Khud paste karein (Ctrl+V)'))">📋 Paste</button></div></div>
+  </div>`;}
+function importOrder(txt){txt=String(txt||'');if(!txt.trim()){toast('Order text paste karein');return;}
+  const get=k=>(txt.match(new RegExp('^\\W*'+k+'\\s*[:\\-]\\s*(.+)$','im'))||[])[1]?.replace(/\*/g,'').trim()||'';
+  const cart=[],miss=[];
+  txt.split(/\r?\n/).forEach(l=>{const m=l.replace(/\*/g,'').match(/^\s*(\d+(?:\.\d+)?)\s*[x×X]\s*(.+?)\s*(?:[-=–:]\s*₹.*)?$/);if(!m)return;
+    const n=m[2].toLowerCase().trim(),it=D.menu.find(x=>x.name.toLowerCase()===n)||D.menu.find(x=>x.name.toLowerCase().startsWith(n))||D.menu.find(x=>n.startsWith(x.name.toLowerCase()));
+    if(!it){miss.push(m[2]);return;}const c=cart.find(x=>x.mid===it.id);if(c)c.qty+=+m[1];else cart.push({mid:it.id,name:it.name,price:+it.price,qty:+m[1]});});
+  if(!cart.length){toast('Koi item match nahi hua. Format: 2 x Butter Naan');return;}
+  B=newB();B.cart=cart;B.source='QR Order';const tb=get('Table');B.table=/parcel/i.test(tb)?'':tb;if(/parcel/i.test(tb))B.source='Parcel';
+  B.cust=get('Name');B.phone=get('Phone')||get('Mobile');B.note=get('Note');go('bill');
+  if(miss.length)setTimeout(()=>alert('Ye items menu mein nahi mile, khud add karein:\n• '+miss.join('\n• ')),100);else toast('Order bill mein aa gaya — check karke Save karein');}
+function printTableQR(){const n=Math.min(60,Math.max(1,+$('#q_n').value||1)),st=D.settings,ts=[...Array(n)].map((_,i)=>String(i+1));
+  if($('#q_p').value==='1')ts.push('Parcel');if(!tableUrl('1')){toast('Pehle menu link ya Order WhatsApp number daalein');return;}
+  $('#print').style.removeProperty('--pw');$('#print').innerHTML=`<div class="qrsheet">${ts.map(t=>`<div class="t"><div>${esc(st.name)}</div>${qrSvg(tableUrl(t))}
+    <b>${t==='Parcel'?'PARCEL / TAKEAWAY':'TABLE '+t}</b><div>📱 Scan karein · Menu dekhein · WhatsApp par order</div></div>`).join('')}</div>`;setTimeout(()=>window.print(),80);}
+function printUPI(){const st=D.settings;$('#print').innerHTML=`<div class="qrsheet" style="grid-template-columns:1fr"><div class="t"><b>${esc(st.name)}</b>
+  ${qrSvg(upiLink())}<b>Scan & Pay — UPI</b><div>${esc(st.upi)}</div><div>GPay · PhonePe · Paytm · BHIM</div></div></div>`;setTimeout(()=>window.print(),80);}
+function dlMenuPage(){const st=D.settings,wa=orderWa();if(!wa){toast('Pehle Settings (G) mein Order WhatsApp number daalein');return;}
+  const data=JSON.stringify({name:st.name,address:st.address,phone:st.phone,wa,gst:+st.gst||0,upi:st.upi||'',
+    menu:D.menu.map(m=>({n:m.name,c:m.cat||'General',p:+m.price}))}).replace(/</g,'\\u003c');
+  const html=['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
+'<title>'+esc(st.name)+' — Menu</title><style>',
+'*{box-sizing:border-box}body{margin:0;font:15px/1.4 system-ui,Segoe UI,Arial,sans-serif;background:#fffdf5;color:#1d1d1d;padding-bottom:90px}',
+'header{background:#1d5c63;color:#fff;padding:16px;text-align:center}header h1{margin:0;font-size:22px}header p{margin:4px 0 0;opacity:.85;font-size:13px}',
+'.tb{display:inline-block;background:#f5c400;color:#000;font-weight:700;border-radius:12px;padding:2px 12px;margin-top:8px}',
+'.cats{display:flex;gap:6px;overflow-x:auto;padding:10px;position:sticky;top:0;background:#fffdf5;border-bottom:1px solid #eee}',
+'.cats button{flex:none;border:1px solid #1d5c63;background:#fff;color:#1d5c63;border-radius:16px;padding:6px 14px;font:inherit}.cats button.on{background:#1d5c63;color:#fff}',
+'input{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font:inherit}.wrap{padding:0 12px}h3{margin:16px 0 6px;color:#1d5c63}',
+'.it{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #eee;border-radius:8px;padding:10px 12px;margin-bottom:8px}',
+'.it b{display:block}.it span{color:#1d5c63;font-weight:700}.q{display:flex;align-items:center;gap:8px}',
+'.q button{width:34px;height:34px;border-radius:50%;border:1px solid #1d5c63;background:#fff;color:#1d5c63;font-size:18px}.q button.add{width:auto;border-radius:16px;padding:0 16px;background:#1d5c63;color:#fff;font-size:14px}',
+'.bar{position:fixed;left:0;right:0;bottom:0;background:#1fa855;color:#fff;padding:14px 16px;display:none;align-items:center;justify-content:space-between;font-size:16px;font-weight:700;cursor:pointer}',
+'.f{padding:12px;display:grid;gap:8px}footer{text-align:center;color:#777;font-size:12px;padding:16px}',
+'</style></head><body><header><h1 id="hn"></h1><p id="ha"></p><div class="tb" id="tb"></div></header>',
+'<div class="cats" id="cats"></div><div class="wrap" id="list"></div>',
+'<div class="f"><input id="nm" placeholder="Aapka naam (optional)"><input id="ph" placeholder="Mobile number (points ke liye)" inputmode="tel"><input id="nt" placeholder="Note — e.g. kam teekha"></div>',
+'<footer>Order WhatsApp par jayega · Prices + GST as applicable</footer><div class="bar" id="bar" onclick="send()"><span id="bt"></span><span>WhatsApp par Order ➜</span></div>',
+'<script>var D='+data+';',
+'var T=(new URLSearchParams(location.search).get("t")||"").trim(),C={},cat="All";',
+'function e(s){return String(s).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;"}[c]})}',
+'document.getElementById("hn").textContent=D.name;document.getElementById("ha").textContent=D.address;document.title=D.name+" — Menu";',
+'document.getElementById("tb").textContent=T?(/parcel/i.test(T)?"Parcel / Takeaway":"Table "+T):"Online Order";',
+'function cats(){var c=["All"];D.menu.forEach(function(m){if(c.indexOf(m.c)<0)c.push(m.c)});document.getElementById("cats").innerHTML=c.map(function(x){return "<button class=\\""+(x==cat?"on":"")+"\\" onclick=\\"cat=this.textContent;draw()\\">"+e(x)+"</button>"}).join("")}',
+'function draw(){cats();var h="",last="";D.menu.forEach(function(m,i){if(cat!="All"&&m.c!=cat)return;if(m.c!=last){h+="<h3>"+e(m.c)+"</h3>";last=m.c}var q=C[i]||0;',
+'h+="<div class=\\"it\\"><div><b>"+e(m.n)+"</b><span>₹"+m.p+"</span></div><div class=\\"q\\">"+(q?"<button onclick=\\"set("+i+",-1)\\">−</button><b>"+q+"</b><button onclick=\\"set("+i+",1)\\">+</button>":"<button class=\\"add\\" onclick=\\"set("+i+",1)\\">ADD</button>")+"</div></div>"});',
+'document.getElementById("list").innerHTML=h;var n=0,t=0;for(var k in C){n+=C[k];t+=C[k]*D.menu[k].p}var b=document.getElementById("bar");b.style.display=n?"flex":"none";document.getElementById("bt").textContent=n+" items · ₹"+t}',
+'function set(i,d){C[i]=(C[i]||0)+d;if(C[i]<=0)delete C[i];draw()}',
+'function send(){var tb=T||prompt("Table number likhein (ya Parcel)")||"";if(!tb)return;var L=["🛒 *NEW ORDER* — "+D.name,"Table: "+tb],nm=document.getElementById("nm").value.trim(),ph=document.getElementById("ph").value.trim(),nt=document.getElementById("nt").value.trim();',
+'if(nm)L.push("Name: "+nm);if(ph)L.push("Phone: "+ph);L.push("");var t=0;for(var k in C){L.push(C[k]+" x "+D.menu[k].n+" = ₹"+C[k]*D.menu[k].p);t+=C[k]*D.menu[k].p}',
+'L.push("","Total: ₹"+t+(D.gst?" + GST":""));if(nt)L.push("Note: "+nt);location.href="https://wa.me/"+D.wa+"?text="+encodeURIComponent(L.join("\\n"))}',
+'draw();<\/script></body></html>'].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));a.download='menu.html';a.click();
+  toast('menu.html download ho gaya — ise online upload karein');}
+
+/* ================= STAFF ================= */
+let stDate=today(),stMonth=today().slice(0,7);
+const STATUS={P:'Present',H:'Half Day',A:'Absent'};
+const daysInMonth=m=>new Date(+m.slice(0,4),+m.slice(5,7),0).getDate();
+function staffMonth(s,m){const days=Object.keys(D.att).filter(d=>d.startsWith(m)).map(d=>D.att[d][s.id]).filter(Boolean);
+  const P=days.filter(x=>x==='P').length,H=days.filter(x=>x==='H').length,A=days.filter(x=>x==='A').length;
+  const earned=r2((+s.salary||0)/daysInMonth(m)*(P+H/2));
+  const tx=D.txns.filter(t=>t.staffId===s.id),adv=sum(tx.filter(t=>t.head==='Staff Advance'&&t.date.startsWith(m)),'amount'),
+    paid=sum(tx.filter(t=>t.head==='Salary / Wages'&&t.salMonth===m),'amount');
+  return {P,H,A,earned,adv,paid,payable:r2(Math.max(0,earned-adv-paid))};}
+function scrStaff(){const att=D.att[stDate]||{},act=D.staff.filter(s=>!s.left);
+  main.innerHTML=`<div class="title">Staff Attendance & Salary <span class="r">${act.length} staff</span></div>
+  <div class="bill"><div class="card att"><div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h3 style="margin:0;flex:1">📅 Haaziri</h3>
+      <input type="date" value="${stDate}" style="width:auto" onchange="stDate=this.value;scrStaff()"></div>
+    <table><tbody>${act.map(s=>`<tr><td><b>${esc(s.name)}</b><br><small class="muted">${esc(s.role||'')}</small></td>
+      <td style="white-space:nowrap">${Object.keys(STATUS).map(k=>`<button class="${k} ${att[s.id]===k?'on':''}" title="${STATUS[k]}" onclick="markAtt('${s.id}','${k}')">${k}</button>`).join(' ')}</td>
+      <td><button class="btn g sm" onclick="staffAdv('${s.id}')">Advance</button></td></tr>`).join('')||'<tr><td class="muted">Pehle staff add karein →</td></tr>'}</tbody></table>
+    ${act.length?`<div class="btns"><button class="btn ok" onclick="D.att[stDate]=D.att[stDate]||{};D.staff.filter(s=>!s.left).forEach(s=>{if(!D.att[stDate][s.id])D.att[stDate][s.id]='P'});save();scrStaff()">✔ Baaki sab Present</button></div>`:''}
+    <p class="muted">P = Present · H = Half day · A = Absent</p></div>
+  <div class="card"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">👥 Staff List</h3><button class="btn sm" onclick="editStaff()">➕ Add Staff</button></div>
+    <table style="margin-top:8px"><thead><tr><th>Naam</th><th>Kaam</th><th class="n">Salary/Month</th><th></th></tr></thead><tbody>
+    ${D.staff.map(s=>`<tr style="${s.left?'opacity:.5':''}"><td>${esc(s.name)}${s.left?' (left)':''}</td><td>${esc(s.role||'')}</td><td class="n">${rs(s.salary)}</td><td><button class="btn sm" onclick="editStaff('${s.id}')">Edit</button></td></tr>`).join('')}</tbody></table></div></div>
+  <div class="card" style="padding:0;overflow:auto"><div class="title" style="margin:0">Salary Sheet <span class="r">Month: <input type="month" value="${stMonth}" onchange="stMonth=this.value;scrStaff()"></span></div>
+    <table><thead><tr><th>Naam</th><th class="n">Salary</th><th class="n">P</th><th class="n">H</th><th class="n">A</th><th class="n">Earned</th><th class="n">Advance</th><th class="n">Paid</th><th class="n">Payable</th><th></th></tr></thead><tbody>
+    ${D.staff.map(s=>{const m=staffMonth(s,stMonth);if(s.left&&!m.P&&!m.H&&!m.adv&&!m.paid)return '';
+      return `<tr><td><b>${esc(s.name)}</b></td><td class="n">${rs(s.salary)}</td><td class="n green">${m.P}</td><td class="n">${m.H}</td><td class="n red">${m.A}</td>
+      <td class="n">${money(m.earned)}</td><td class="n">${m.adv?money(m.adv):''}</td><td class="n">${m.paid?money(m.paid):''}</td><td class="n"><b>${money(m.payable)}</b></td>
+      <td style="white-space:nowrap">${m.payable>0?`<button class="btn ok sm" onclick="paySalary('${s.id}')">Pay</button>`:''} ${s.phone?`<button class="btn wa sm" onclick="waOpen('${esc(s.phone)}',slipText('${s.id}'))">Slip</button>`:''}</td></tr>`;}).join('')}
+    </tbody></table></div>
+  <p class="muted">Salary = (Monthly salary ÷ mahine ke din) × (Present + Half/2). Paid leave / weekly off ke din P mark karein. Advance aur salary payment Expense mein bhi jud jaate hain.</p>`;}
+function markAtt(id,k){const a=D.att[stDate]=D.att[stDate]||{};if(a[id]===k)delete a[id];else a[id]=k;save();scrStaff();}
+function staffAdv(id){const s=D.staff.find(x=>x.id===id),v=+prompt(`${s.name} ko kitna advance diya? (₹, Cash)`);if(!(v>0))return;
+  D.txns.push({id:uid(),type:'Expense',date:today(),time:nowTime(),head:'Staff Advance',desc:s.name,party:s.name,amount:v,mode:'Cash',staffId:id});save();toast('Advance save — Expense mein juda');scrStaff();}
+function paySalary(id){const s=D.staff.find(x=>x.id===id),m=staffMonth(s,stMonth);
+  const v=+prompt(`${s.name} — ${stMonth} salary\nEarned ${m.earned} − Advance ${m.adv} − Paid ${m.paid}\n\nKitna dena hai? (₹)`,m.payable);if(!(v>0))return;
+  const mode=confirm('Cash mein diya? (Cancel = UPI)')?'Cash':'UPI';
+  D.txns.push({id:uid(),type:'Expense',date:today(),time:nowTime(),head:'Salary / Wages',desc:`${s.name} — ${stMonth}`,party:s.name,amount:v,mode,staffId:id,salMonth:stMonth});
+  save();toast('Salary entry save');scrStaff();}
+function slipText(id){const s=D.staff.find(x=>x.id===id),m=staffMonth(s,stMonth);
+  return `*${D.settings.name} — Salary Slip*\n👤 ${s.name}${s.role?' ('+s.role+')':''}\n📅 ${stMonth}\n\nMonthly Salary: ₹${s.salary}\nPresent: ${m.P} · Half: ${m.H} · Absent: ${m.A}\nEarned: ₹${m.earned}\nAdvance: −₹${m.adv}\nPaid: ₹${m.paid}\n*Baaki: ₹${m.payable}*`;}
+function editStaff(id){const s=D.staff.find(x=>x.id===id)||{name:'',role:'',phone:'',salary:''};
+  modal(id?'Edit Staff':'New Staff',`<div class="grid">
+    <div><label>Naam</label><input id="sf_name" value="${esc(s.name)}" autofocus></div>
+    <div><label>Kaam</label><input id="sf_role" list="roles" value="${esc(s.role)}"><datalist id="roles"><option>Chef</option><option>Helper</option><option>Waiter</option><option>Cashier</option><option>Cleaner</option><option>Delivery</option></datalist></div>
+    <div><label>Mobile (WhatsApp)</label><input id="sf_phone" value="${esc(s.phone)}" inputmode="tel"></div>
+    <div><label>Monthly Salary (₹)</label><input id="sf_sal" type="number" value="${s.salary}"></div></div>
+    <div class="btns"><button class="btn ok" onclick="saveStaff('${id||''}')">Save</button>
+    ${id?`<button class="btn bad" onclick="const x=D.staff.find(y=>y.id==='${id}');x.left=!x.left;save();closeModal();scrStaff()">${s.left?'Wapas Active':'Kaam chhod diya'}</button>`:''}
+    <button class="btn g" onclick="closeModal()">Cancel</button></div>`);}
+function saveStaff(id){const name=$('#sf_name').value.trim();if(!name){toast('Naam daalein');return;}
+  const v={name,role:$('#sf_role').value.trim(),phone:$('#sf_phone').value.trim(),salary:+$('#sf_sal').value||0};
+  if(id)Object.assign(D.staff.find(x=>x.id===id),v);else D.staff.push({id:uid(),...v});save();closeModal();scrStaff();}
+
 /* ================= SETTINGS ================= */
 function scrSettings(){const s=D.settings;
   const f=(k,l,t='text')=>`<div><label>${l}</label><input id="st_${k}" type="${t}" value="${esc(s[k])}"></div>`;
@@ -585,17 +880,24 @@ function scrSettings(){const s=D.settings;
     ${['bill','kot'].map(k=>`<div><label>${k==='bill'?'Customer Bill':'Kitchen KOT'} Paper</label><select id="st_${k}Paper"><option value="A6" ${(s[k+'Paper']||'A6')==='A6'?'selected':''}>A6 (105 × 148 mm)</option><option value="thermal" ${s[k+'Paper']==='thermal'?'selected':''}>Thermal roll</option></select></div>`).join('')}
     <div><label>Thermal Roll Size</label><select id="st_width"><option value="80" ${s.width!=58?'selected':''}>80 mm thermal</option><option value="58" ${s.width==58?'selected':''}>58 mm thermal</option></select></div>
   </div><div class="btns"><button class="btn ok" onclick="saveSettings()">💾 Save Settings</button></div></div>
+  <div class="card"><h3 style="margin-top:0">Growth Features</h3><div class="grid">
+    ${f('upi','UPI ID (bill par Scan & Pay QR)')}${f('review','Google Review Link')}${f('orderWa','Order WhatsApp Number (QR orders)','tel')}${f('menuUrl','Online Menu Page Link')}
+    <div><label>Loyalty Points</label><select id="st_loyalty"><option value="1" ${s.loyalty?'selected':''}>ON</option><option value="0" ${s.loyalty?'':'selected'}>OFF</option></select></div>
+    ${f('ptsPer100','Points per ₹100 bill','number')}${f('ptValue','1 Point = ₹','number')}${f('minRedeem','Min points to redeem','number')}
+    ${f('swiggyPct','Swiggy commission %','number')}${f('zomatoPct','Zomato commission %','number')}${f('kotLate','KOT late alert (minutes)','number')}
+  </div><div class="btns"><button class="btn ok" onclick="saveSettings()">💾 Save Settings</button></div></div>
   <div class="card"><h3 style="margin-top:0">Backup / Restore</h3>
     <p class="muted">Saara data isi computer ke browser mein save hota hai. Roz ek backup file download kar lein.</p>
     <div class="btns"><button class="btn" onclick="backup()">⬇️ Download Backup</button>
     <label class="btn g" style="margin:0;color:var(--bar);font-size:14px">⬆️ Restore Backup<input type="file" accept=".json" style="display:none" onchange="restore(this.files[0])"></label>
     <button class="btn bad" onclick="resetAll()">🗑️ Reset All Data</button></div></div>`;}
-function saveSettings(){['name','address','phone','gstin','owner','footer'].forEach(k=>D.settings[k]=$('#st_'+k).value.trim());
+function saveSettings(){['name','address','phone','gstin','owner','footer','upi','review','orderWa','menuUrl'].forEach(k=>D.settings[k]=$('#st_'+k).value.trim());
+  ['ptsPer100','ptValue','minRedeem','swiggyPct','zomatoPct','kotLate'].forEach(k=>D.settings[k]=+$('#st_'+k).value||0);D.settings.loyalty=$('#st_loyalty').value==='1';
   D.settings.gst=+$('#st_gst').value||0;D.settings.width=+$('#st_width').value;D.settings.billPaper=$('#st_billPaper').value;D.settings.kotPaper=$('#st_kotPaper').value;save();$('#hname').textContent=D.settings.name;toast('Settings save ho gayi');}
 function backup(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(D,null,1)],{type:'application/json'}));
   a.download=`hotel-erp-backup-${today()}.json`;a.click();}
 function restore(f){if(!f)return;const r=new FileReader();r.onload=()=>{try{const x=JSON.parse(r.result);if(!x.settings||!x.bills)throw 0;
-  if(!confirm('Current data replace ho jayega. Restore karein?'))return;D=x;save();toast('Restore ho gaya');go('gateway');}catch(e){alert('Galat backup file');}};r.readAsText(f);}
+  if(!confirm('Current data replace ho jayega. Restore karein?'))return;D=migrate(x);save();toast('Restore ho gaya');go('gateway');}catch(e){alert('Galat backup file');}};r.readAsText(f);}
 function resetAll(){if(prompt('Saara data delete hoga. Confirm ke liye RESET likhein')!=='RESET')return;D=seed();save();go('gateway');}
 
 drawSide();go('gateway');
