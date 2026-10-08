@@ -312,6 +312,17 @@ body.kitchen-mode .kcard ul{font-size:19px}
 .att button.P.on{background:var(--ok);color:#fff;border-color:var(--ok)}
 .att button.H.on{background:var(--warn);color:#fff;border-color:var(--warn)}
 .att button.A.on{background:var(--bad);color:#fff;border-color:var(--bad)}
+.att button.W.on{background:#7c3aed;color:#fff;border-color:#7c3aed}
+.att-grid{font-size:11px}
+.att-grid th,.att-grid td{padding:4px 3px;text-align:center;border:1px solid var(--border);min-width:22px}
+.att-grid th:first-child,.att-grid td:first-child{text-align:left;padding:4px 8px;min-width:110px;position:sticky;left:0;background:#fff;z-index:1}
+.att-grid td.c{cursor:pointer;font-weight:800;user-select:none}
+.att-grid td.c:hover{outline:2px solid var(--primary)}
+.att-grid td.P{background:#dcfce7;color:#166534}
+.att-grid td.H{background:#fef3c7;color:#92400e}
+.att-grid td.A{background:#fee2e2;color:#991b1b}
+.att-grid td.W{background:#ede9fe;color:#5b21b6}
+.att-grid .tdy{box-shadow:inset 0 0 0 2px var(--primary)}
 .qrbox{display:inline-block;text-align:center}
 .qrbox svg{display:block;margin:0 auto;width:150px;height:150px}
 .qrsheet{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm;padding:8mm;width:190mm;font:14px Arial,sans-serif;color:#000}
@@ -4749,53 +4760,86 @@ function dlMenuPage(){
 
 /* ================= STAFF ATTENDANCE & SALARY ================= */
 let stDate = today(), stMonth = today().slice(0, 7);
-const ATT_STATUS = {P: 'Present', H: 'Half Day', A: 'Absent'};
+const ATT_STATUS = {P: 'Present', H: 'Half Day', A: 'Absent', W: 'Weekly Off (paid)'};
 const daysInMonth = m => new Date(+m.slice(0, 4), +m.slice(5, 7), 0).getDate();
 
-// Days worked in a month: the number typed in the salary sheet wins; otherwise daily attendance (P + H/2)
-function staffMonth(s, m){
+// Days worked come from attendance automatically: P = 1, W (paid weekly off) = 1, H = 0.5.
+// A number typed in the salary sheet is kept only as a manual override.
+function attCounts(s, m){
   const days = Object.keys(D.att).filter(d => d.startsWith(m)).map(d => D.att[d][s.id]).filter(Boolean);
-  const P = days.filter(x => x === 'P').length, H = days.filter(x => x === 'H').length, A = days.filter(x => x === 'A').length;
+  const c = k => days.filter(x => x === k).length;
+  const P = c('P'), H = c('H'), A = c('A'), W = c('W');
+  return {P, H, A, W, auto: P + W + H / 2, marked: days.length};
+}
+
+function staffMonth(s, m){
+  const ac = attCounts(s, m);
   const manual = ((D.salaryDays || {})[m] || {})[s.id];
-  const worked = manual !== undefined && manual !== '' ? +manual : P + H / 2;
+  const isManual = manual !== undefined && manual !== '';
+  const worked = isManual ? +manual : ac.auto;
   const earned = r2((+s.salary || 0) / daysInMonth(m) * worked);
   const tx = D.txns.filter(t => t.staffId === s.id);
   const adv = sum(tx.filter(t => t.head === 'Staff Advance' && t.date.startsWith(m)), 'amount');
   const paid = sum(tx.filter(t => t.head === 'Staff Salary / Wages' && t.salMonth === m), 'amount');
-  return {P, H, A, worked, manual: manual !== undefined && manual !== '', earned, adv, paid, payable: r2(Math.max(0, earned - adv - paid))};
+  return {...ac, worked, manual: isManual, earned, adv, paid, payable: r2(Math.max(0, earned - adv - paid))};
 }
 
-let showDailyAtt = false;
+let showMonthGrid = true;
 
 function scrStaff(){
   const att = D.att[stDate] || {}, act = D.staff.filter(s => !s.left), dim = daysInMonth(stMonth);
   const rows = D.staff.filter(s => { const m = staffMonth(s, stMonth); return !s.left || m.worked || m.adv || m.paid; });
   const tot = rows.reduce((t, s) => { const m = staffMonth(s, stMonth); t.earned += m.earned; t.adv += m.adv; t.paid += m.paid; t.pay += m.payable; return t; }, {earned: 0, adv: 0, paid: 0, pay: 0});
+  const marked = act.filter(s => att[s.id]).length;
   main.innerHTML = `
   <div class="title">
-    <span>Staff Salary</span>
-    <span class="r">Month: <input type="month" value="${stMonth}" style="width:auto" onchange="stMonth=this.value;scrStaff()"> · ${dim} din ka mahina · ${act.length} active staff</span>
+    <span>Staff Haaziri & Salary</span>
+    <span class="r">${act.length} active staff</span>
+  </div>
+
+  <div class="card att">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <h3 style="margin:0;flex:1">Aaj ki Haaziri <span class="muted" style="font-size:12px;font-weight:600">(${marked}/${act.length} lagi)</span></h3>
+      <input type="date" value="${stDate}" style="width:auto" onchange="stDate=this.value;scrStaff()">
+    </div>
+    <table><tbody>
+      ${act.map(s => `
+        <tr>
+          <td><b>${esc(s.name)}</b><br><small class="muted">${esc(s.role || '')}</small></td>
+          <td style="white-space:nowrap">${Object.keys(ATT_STATUS).map(k => `<button class="${k} ${att[s.id] === k ? 'on' : ''}" title="${ATT_STATUS[k]}" onclick="markAtt('${s.id}','${k}')">${k}</button>`).join(' ')}</td>
+        </tr>`).join('') || '<tr><td class="muted">Pehle neeche "+ Add Staff" se staff jodein</td></tr>'}
+    </tbody></table>
+    ${act.length ? `<div class="btns"><button class="btn ok" onclick="markAllPresent()">Baaki Sab Present</button></div>` : ''}
+    <p class="muted" style="margin-bottom:0">P = Present · H = Half Day · A = Absent · W = Weekly Off (paid, poora din gina jata hai). Jo haaziri lagegi, salary mein "Din Aaye" usi se apne aap banega.</p>
   </div>
 
   <div class="card" style="padding:0;overflow:auto">
     <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-      <div><b style="font-size:15px">Salary Sheet — sabke "Din Aaye" ek saath bharein</b>
-        <div class="muted" style="font-size:12px">Har line mein kitne din kaam kiya likhein (half day = 0.5). Salary apne aap banegi. Phir "Sab Save Karein".</div></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn g sm" onclick="fillDaysFromAtt()">Roz ki Haaziri se Bharein</button>
-        <button class="btn g sm" onclick="fillDaysFull()">Sabko Poore ${dim} Din</button>
-      </div>
+      <b style="font-size:15px">Poore Mahine ki Haaziri</b>
+      <span>Month: <input type="month" value="${stMonth}" style="width:auto" onchange="stMonth=this.value;scrStaff()">
+        <button class="btn g sm" onclick="showMonthGrid=!showMonthGrid;scrStaff()">${showMonthGrid ? 'Chhupayein' : 'Dikhayein'}</button></span>
+    </div>
+    ${showMonthGrid ? monthGridHTML(act, dim) : ''}
+  </div>
+
+  <div class="card" style="padding:0;overflow:auto">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+      <b style="font-size:15px">Salary Sheet — ${stMonth} (${dim} din ka mahina)</b>
+      <div class="muted" style="font-size:12px">"Din Aaye" haaziri se apne aap aata hai. Kisi ka badalna ho to number badal kar "Save" karein (wo "Manual" ho jayega).</div>
     </div>
     <table>
-      <thead><tr><th>Naam</th><th class="n">Monthly Salary</th><th class="n" style="width:110px">Din Aaye</th><th class="n">Banti Salary</th><th class="n">Advance</th><th class="n">Diya</th><th class="n">Baaki (Payable)</th><th></th></tr></thead>
+      <thead><tr><th>Naam</th><th class="n">Monthly Salary</th><th class="n" style="width:140px">Din Aaye</th><th class="n">Banti Salary</th><th class="n">Advance</th><th class="n">Diya</th><th class="n">Baaki (Payable)</th><th></th></tr></thead>
       <tbody>
         ${rows.map(s => {
           const m = staffMonth(s, stMonth);
           return `
             <tr data-staff="${s.id}">
-              <td><b>${esc(s.name)}</b>${s.left ? ' <span class="muted">(left)</span>' : ''}<br><small class="muted">${esc(s.role || '')}${!m.manual && (m.P || m.H || m.A) ? ` · Haaziri: P ${m.P} / H ${m.H} / A ${m.A}` : ''}</small></td>
+              <td><b>${esc(s.name)}</b>${s.left ? ' <span class="muted">(left)</span>' : ''}<br><small class="muted">P ${m.P} · W ${m.W} · H ${m.H} · A ${m.A}</small></td>
               <td class="n">${rs(s.salary)}</td>
-              <td class="n"><input class="sd-days" type="number" min="0" max="${dim}" step="0.5" value="${m.manual || m.worked ? m.worked : ''}" placeholder="0" style="width:90px;text-align:right" oninput="salRowCalc(this)"></td>
+              <td class="n">
+                <input class="sd-days" type="number" min="0" max="${dim}" step="0.5" value="${m.worked}" style="width:80px;text-align:right" oninput="salRowCalc(this)">
+                <div style="font-size:10px;margin-top:2px">${m.manual ? `<span class="red">Manual</span> · <a href="javascript:void(0)" onclick="resetDays('${s.id}')">Auto karein (${m.auto})</a>` : '<span class="green">Auto (haaziri se)</span>'}</div>
+              </td>
               <td class="n sd-earned">${money(m.earned)}</td>
               <td class="n">${m.adv ? money(m.adv) : ''}</td>
               <td class="n">${m.paid ? money(m.paid) : ''}</td>
@@ -4811,8 +4855,8 @@ function scrStaff(){
       ${rows.length ? `<tfoot><tr><td colspan="3">Total</td><td class="n" id="sd-tot-earned">${money(tot.earned)}</td><td class="n">${money(tot.adv)}</td><td class="n">${money(tot.paid)}</td><td class="n" id="sd-tot-pay">${money(tot.pay)}</td><td></td></tr></tfoot>` : ''}
     </table>
     ${rows.length ? `<div class="btns" style="padding:0 16px 14px">
-      <button class="btn ok" onclick="saveSalaryDays()">Sab Save Karein</button>
-      <button class="btn" onclick="saveSalaryDays(true);payAllSalary()">Save + Sabko Salary Pay</button>
+      <button class="btn ok" onclick="saveSalaryDays()">Badlaav Save Karein</button>
+      <button class="btn" onclick="if(saveSalaryDays(true))payAllSalary()">Sabko Salary Pay</button>
     </div>` : ''}
   </div>
 
@@ -4835,82 +4879,75 @@ function scrStaff(){
       </tbody>
     </table>
   </div>
+  <p class="muted">Banti Salary = Monthly Salary ÷ ${dim} × Din Aaye (P + W + H/2) − Advance. Advance aur salary payment apne aap Expense mein judte hain.</p>`;
+}
 
-  <div class="card att">
-    <div style="display:flex;align-items:center;gap:8px">
-      <h3 style="margin:0;flex:1">Roz ki Haaziri (optional)</h3>
-      <button class="btn g sm" onclick="showDailyAtt=!showDailyAtt;scrStaff()">${showDailyAtt ? 'Chhupayein' : 'Kholein'}</button>
-    </div>
-    ${showDailyAtt ? `
-      <div style="margin:10px 0"><input type="date" value="${stDate}" style="width:auto" onchange="stDate=this.value;scrStaff()"></div>
-      <table><tbody>
-        ${act.map(s => `
-          <tr>
-            <td><b>${esc(s.name)}</b><br><small class="muted">${esc(s.role || '')}</small></td>
-            <td style="white-space:nowrap">${Object.keys(ATT_STATUS).map(k => `<button class="${k} ${att[s.id] === k ? 'on' : ''}" title="${ATT_STATUS[k]}" onclick="markAtt('${s.id}','${k}')">${k}</button>`).join(' ')}</td>
-          </tr>`).join('') || '<tr><td class="muted">Koi staff nahi</td></tr>'}
-      </tbody></table>
-      ${act.length ? `<div class="btns"><button class="btn ok" onclick="markAllPresent()">Baaki Sab Present</button></div>` : ''}
-      <p class="muted" style="margin-bottom:0">P = Present · H = Half Day · A = Absent. Mahine ke end mein "Roz ki Haaziri se Bharein" dabane par ye din salary sheet mein aa jaate hain.</p>` :
-      '<p class="muted" style="margin:8px 0 0">Roz haaziri lagana zaroori nahi. Mahine ke end mein upar salary sheet mein seedhe din bhar dein.</p>'}
-  </div>
-  <p class="muted">Banti Salary = Monthly Salary ÷ ${dim} (mahine ke din) × Din Aaye. Weekly off / chhutti ke paid din bhi "Din Aaye" mein jodein. Advance aur salary payment apne aap Expense mein judte hain (Day Book aur Cash Counter mein dikhte hain).</p>`;
+// Month grid: click a cell to cycle  P → H → A → W → blank
+const ATT_CYCLE = ['P', 'H', 'A', 'W', ''];
+function monthGridHTML(act, dim){
+  if(!act.length) return '<p class="muted" style="padding:12px 16px;margin:0">Koi staff nahi</p>';
+  const days = [...Array(dim)].map((_, i) => `${stMonth}-${pad(i + 1)}`);
+  return `<table class="att-grid">
+    <thead><tr><th>Naam</th>${days.map(d => `<th class="${d === today() ? 'tdy' : ''}">${+d.slice(8)}</th>`).join('')}<th class="n">Din</th></tr></thead>
+    <tbody>${act.map(s => `<tr><td><b>${esc(s.name)}</b></td>${days.map(d => {
+      const v = (D.att[d] || {})[s.id] || '';
+      return `<td class="c ${v} ${d === today() ? 'tdy' : ''}" onclick="cycleAtt('${s.id}','${d}')">${v}</td>`;
+    }).join('')}<td class="n"><b>${attCounts(s, stMonth).auto}</b></td></tr>`).join('')}</tbody>
+  </table>
+  <p class="muted" style="font-size:11px;padding:6px 16px 10px;margin:0">Kisi bhi khane par click: P → H → A → W → khaali. Purane din ki galti yahin theek karein.</p>`;
+}
+
+function cycleAtt(id, d){
+  const a = D.att[d] = D.att[d] || {};
+  const next = ATT_CYCLE[(ATT_CYCLE.indexOf(a[id] || '') + 1) % ATT_CYCLE.length];
+  if(next) a[id] = next;
+  else delete a[id];
+  save();
+  scrStaff();
+}
+
+function resetDays(id){
+  const mo = (D.salaryDays || {})[stMonth];
+  if(mo) delete mo[id];
+  save();
+  scrStaff();
 }
 
 // Live recalculation while typing days in the salary sheet
 function salRowCalc(inp){
-  const tr = inp.closest('tr'), s = D.staff.find(x => x.id === tr.dataset.staff);
-  if(!s) return;
-  const m = staffMonth(s, stMonth), days = Math.max(0, +inp.value || 0);
-  const earned = r2((+s.salary || 0) / daysInMonth(stMonth) * days);
-  tr.querySelector('.sd-earned').textContent = money(earned);
-  tr.querySelector('.sd-pay').innerHTML = `<b>${money(Math.max(0, earned - m.adv - m.paid))}</b>`;
   let te = 0, tp = 0;
   document.querySelectorAll('tr[data-staff]').forEach(row => {
     const st = D.staff.find(x => x.id === row.dataset.staff), mm = staffMonth(st, stMonth);
     const e = r2((+st.salary || 0) / daysInMonth(stMonth) * Math.max(0, +row.querySelector('.sd-days').value || 0));
+    const p = Math.max(0, e - mm.adv - mm.paid);
+    if(row === inp.closest('tr')){
+      row.querySelector('.sd-earned').textContent = money(e);
+      row.querySelector('.sd-pay').innerHTML = `<b>${money(p)}</b>`;
+    }
     te += e;
-    tp += Math.max(0, e - mm.adv - mm.paid);
+    tp += p;
   });
   if($('#sd-tot-earned')) $('#sd-tot-earned').textContent = money(te);
   if($('#sd-tot-pay')) $('#sd-tot-pay').textContent = money(tp);
 }
 
-function fillDaysFromAtt(){
-  document.querySelectorAll('tr[data-staff]').forEach(tr => {
-    const s = D.staff.find(x => x.id === tr.dataset.staff), att = Object.keys(D.att).filter(d => d.startsWith(stMonth)).map(d => D.att[d][s.id]);
-    const v = att.filter(x => x === 'P').length + att.filter(x => x === 'H').length / 2;
-    const inp = tr.querySelector('.sd-days');
-    inp.value = v || '';
-    salRowCalc(inp);
-  });
-  toast('Roz ki haaziri se din bhar diye — check karke "Sab Save Karein"');
-}
-
-function fillDaysFull(){
-  const dim = daysInMonth(stMonth);
-  document.querySelectorAll('tr[data-staff]').forEach(tr => {
-    const inp = tr.querySelector('.sd-days');
-    if(inp.value === '') inp.value = dim;
-    salRowCalc(inp);
-  });
-  toast(`Khaali lines mein ${dim} din bhar diye`);
-}
-
+// Only numbers that differ from the attendance count are stored (as manual overrides)
 function saveSalaryDays(silent){
   const dim = daysInMonth(stMonth);
   if(!D.salaryDays) D.salaryDays = {};
   const mo = D.salaryDays[stMonth] = D.salaryDays[stMonth] || {};
   let bad = '';
   document.querySelectorAll('tr[data-staff]').forEach(tr => {
-    const v = tr.querySelector('.sd-days').value.trim(), id = tr.dataset.staff;
-    if(v === ''){ delete mo[id]; return; }
-    if(isNaN(+v) || +v < 0 || +v > dim){ bad = D.staff.find(x => x.id === id).name; return; }
+    const id = tr.dataset.staff, s = D.staff.find(x => x.id === id), v = tr.querySelector('.sd-days').value.trim();
+    const auto = attCounts(s, stMonth).auto;
+    if(v === '' || +v === auto){ delete mo[id]; return; }
+    if(isNaN(+v) || +v < 0 || +v > dim){ bad = s.name; return; }
+    if(mo[id] !== +v) audit('Salary Din Manual', `${s.name} ${stMonth}: haaziri ${auto} → ${+v} din`);
     mo[id] = +v;
   });
   if(bad){ toast(`${bad}: din 0 se ${dim} ke beech daalein`); return false; }
   save();
-  if(!silent){ toast('Sabki salary ke din save ho gaye'); scrStaff(); }
+  if(!silent){ toast('Save ho gaya'); scrStaff(); }
   return true;
 }
 
@@ -4918,7 +4955,7 @@ function payAllSalary(){
   const due = D.staff.map(s => ({s, m: staffMonth(s, stMonth)})).filter(x => x.m.payable > 0);
   if(!due.length){ toast('Is mahine kisi ki salary baaki nahi'); scrStaff(); return; }
   const total = sum(due, x => x.m.payable);
-  if(!confirm(`${stMonth} — ${due.length} staff ko kul ${money(total)} salary deni hai:\n\n` + due.map(x => `${x.s.name}: ${money(x.m.payable)}`).join('\n') + '\n\nSabko pay karein?')){ scrStaff(); return; }
+  if(!confirm(`${stMonth} — ${due.length} staff ko kul ${money(total)} salary deni hai:\n\n` + due.map(x => `${x.s.name}: ${x.m.worked} din → ${money(x.m.payable)}`).join('\n') + '\n\nSabko pay karein?')){ scrStaff(); return; }
   const mode = confirm('Cash mein diya? (Cancel = UPI / Bank)') ? 'Cash' : 'UPI';
   due.forEach(({s, m}) => D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: m.payable, mode, staffId: s.id, salMonth: stMonth}));
   audit('Salary Paid', `${stMonth}: ${due.length} staff (${mode})`, total);
@@ -4965,7 +5002,7 @@ function paySalary(id){
 
 function slipText(id){
   const s = D.staff.find(x => x.id === id), m = staffMonth(s, stMonth);
-  return `*${D.settings.name} — Salary Slip*\n${s.name}${s.role ? ' (' + s.role + ')' : ''}\nMonth: ${stMonth}\n\nMonthly Salary: ₹${s.salary}\nDin Aaye: ${m.worked} / ${daysInMonth(stMonth)}\nEarned: ₹${m.earned}\nAdvance: −₹${m.adv}\nPaid: ₹${m.paid}\n*Baaki: ₹${m.payable}*`;
+  return `*${D.settings.name} — Salary Slip*\n${s.name}${s.role ? ' (' + s.role + ')' : ''}\nMonth: ${stMonth}\n\nMonthly Salary: ₹${s.salary}\nDin Aaye: ${m.worked} / ${daysInMonth(stMonth)} (P ${m.P} · W ${m.W} · H ${m.H} · A ${m.A})\nEarned: ₹${m.earned}\nAdvance: −₹${m.adv}\nPaid: ₹${m.paid}\n*Baaki: ₹${m.payable}*`;
 }
 
 function editStaff(id){

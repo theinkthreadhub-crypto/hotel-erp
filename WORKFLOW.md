@@ -193,10 +193,11 @@ flowchart TD
 
 ### 5.2 Staff Salary (A) — mahine mein ek baar
 1. Staff add karte waqt hi **Monthly Salary** daalein (ek baar). Har mahine wahi chalti hai.
-2. Mahine ke end mein **Staff Salary (A)** → mahina chunein → har staff ke saamne **"Din Aaye"** likhein (half day = 0.5). Salary turant ban jaati hai.
-   - Roz haaziri lagayi ho to **"Roz ki Haaziri se Bharein"**; sab poore din aaye to **"Sabko Poore Din"**.
-3. **Sab Save Karein** → phir **"Save + Sabko Salary Pay"** (ek click mein sabki salary, Cash/UPI) ya har line par alag **Pay**.
-4. Banti Salary = Monthly Salary ÷ mahine ke din × Din Aaye − Advance. Payment Expense mein apne aap judta hai.
+2. **Roz haaziri:** Staff (A) → "Aaj ki Haaziri" → P / H / A / W (W = Weekly Off, paid) ya **"Baaki Sab Present"**.
+3. **"Din Aaye" apne aap banta hai:** P + W + H/2. Purane din ki galti **"Poore Mahine ki Haaziri"** chart mein khane par click karke theek karein.
+4. Mahine ke end mein Salary Sheet dekhein → **"Sabko Salary Pay"** (ek click, Cash/UPI) ya har line par **Pay**.
+5. Kisi ke din haath se badalne hon to number badal kar Save — wo "Manual" dikhega (Audit Log mein bhi). "Auto karein" se wapas haaziri wala.
+6. Banti Salary = Monthly Salary ÷ mahine ke din × Din Aaye − Advance. Payment Expense mein apne aap judta hai.
 5. **Slip** → staff ko WhatsApp par salary slip.
 
 ### 5.3 Multi-Outlet (O) — ek se zyada branch
