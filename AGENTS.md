@@ -23,13 +23,12 @@ internet dependency at runtime. All data lives on the customer's PC.
 | `app_main.py` | Main-counter launcher + LAN server on fixed port 8000 (`0.0.0.0`). Keeps the shared database in `setu-db.json` with daily `Backups/`, serves phones/tablets, opens the pywebview window. `--server` = no window. Data dir: `%LOCALAPPDATA%\AghanyaDevanyaERP\Data`. |
 | `Aghanya-Devanya-Hotel-ERP.spec`, `Build-New-EXE.bat` | PyInstaller build. The `.bat` passes its own flags and does not use the `.spec`. Keep both in sync if you add bundled files. |
 | `manifest.json`, `sw.js` | PWA install + offline cache. |
-| `keygen.py`, `build_activation_vault.py`, `sync_keys.py`, `*Activation-Keys*.bat` | Vendor-side license key tooling. `sync_keys.py` rewrites the key arrays inside `hotel_erp.html`. |
-| `preinstalled_keys.json` | Key list used by the tooling. |
+| `keygen.py`, `Generate-Activation-Keys.bat` | Vendor-only license key signer (ECDSA P-256). Needs `setu-license-private.pem`, which is **never** in git (`*.pem` ignored). `python keygen.py <INSTALL-ID> <plan>`. |
 | `favicon.ico`, `icon-*.png`, `logo.png` | Branding assets. |
 
 Not in git (see `.gitignore`): `build/`, `dist/`, `*.exe`, `*.bak`,
-`Activation_Keys/`, `Activation-Keys-*.txt`. **Never commit generated activation
-keys or EXE binaries.**
+`Activation_Keys/`, `Activation-Keys-*.txt`, `*.pem`. **Never commit the private signing key,
+generated activation keys or EXE binaries.**
 
 ## Run and check
 
@@ -71,7 +70,7 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   `SCREENS` maps each screenKey to a render function. `go(key)` checks auth and license, then renders
   into `#main`. Screens are plain functions that set `main.innerHTML` from template strings.
   A new screen needs a `MENU` row, a `SCREENS` entry and a `scrXxx()` function.
-  Hotkeys must be unique. Letters already used: B Z L P E I D C W S M T Q R A O N H X F U Y K G. Free: J V.
+  Hotkeys must be unique. Letters already used: B Z L P E I D C W S M T Q R A O N H X F U Y V K G. Free: J.
 - **UI helpers:** `modal(title, html)`, `closeModal()`, `tryCloseModal()`, `toast(msg)`,
   `waOpen(phone, text)`, `waOwner(text)`, `printDoc([htmlParts])`.
   Money is formatted with `money()` / `rs()` and rounded with `r2()`. Dates are `YYYY-MM-DD` strings from `today()`.
@@ -99,6 +98,22 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Tokens:** `nextToken()` restarts daily (`seq.tokenDate`); only Takeaway bills / parcel QR orders get one when `settings.tokenOn`.
 - **Captain app:** `captainSend()` merges the waiter's items into the table's kaccha bill via `kacchaToB()` + `saveKacchaBill(true, true)`.
 - **Multi-outlet:** there is no cloud. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
+- **License:** keys are `SETU-...` strings = 13-byte payload (kind, days/minutes, install-ID hash, serial,
+  issue day) + 64-byte ECDSA signature, base32. `getActivationKeyInfo()` verifies with WebCrypto against
+  `LIC_PUBKEY` and `settings.installId` (needs a secure context: 127.0.0.1 / localhost / https).
+  Used keys go to `subscription.usedKeys`. `subscription.lastSeen` blocks clock rollback.
+  Built-in `AD-DEMO-*` keys work once per install and never shorten a running license.
+  Never put real keys, salts or private keys in the page.
+- **Staff & permissions:** `activeUser = {name, role: 'admin'|'cashier', access: 'manager'|'cashier'|'captain'}`.
+  Staff log in with their own PIN (`staff[].pin/access`). `go()` blocks `CASHIER_BLOCK` screens and keeps
+  captains on `CAPTAIN_ALLOW`. Sensitive actions call `withManager(label, fn)` (manager PIN modal) and
+  `audit(action, detail, amount, ref, approvedBy)`. `AUDIT_ALERTS` feed the Audit screen (V), dashboard and daily report.
+  Keep both when you add a new way to remove money or food from the books.
+- **GST type:** `gstRate()` (0 for composition / unregistered) — never read `settings.gst` directly for totals.
+  Bills store `scheme`; `billTitle()` prints TAX INVOICE / BILL OF SUPPLY / BILL. FSSAI number prints in `head()`.
+- **Printing:** `directPrint()` (desktop server + `printMode: 'direct'`) builds ESC/POS with `EscPos` and POSTs
+  `/api/print` (RAW job via winspool, no dialog). KOT items are split by `catPrinters[category]` in `directKot()`.
+  Otherwise `printDoc()` uses the browser dialog. Thermal receipts are ASCII only (`asciiSafe`).
 - **License:** `activateLicenseKey()` / `getSubscriptionInfo()` / `checkExpiryLock()`.
   Changes here affect revenue. Do not loosen checks, add bypasses or print key lists unless the owner explicitly asks.
 
@@ -115,6 +130,9 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Service worker** must never cache `/api/*` (see `sw.js`).
 - **Port is fixed** on purpose. A random port used to change the browser origin and made data look lost.
 - **Corrupt data** is copied aside (`setu-db.json.corrupt-*`, `hotelerp_v1_corrupt_*`), never overwritten.
+- **Server writes:** `SetuStore.write()` updates version/memory only after `os.replace` succeeds (retries on
+  Windows locks). Failures go to `setu-server.log`. Keep that order or a restart loses data.
+- **Async license:** activation functions are `async` (WebCrypto). Await them.
 - **Paper sizes.** Keep `paper()` and `printDoc()` working for both A6 and 58/80 mm thermal printing.
 
 ## Conventions

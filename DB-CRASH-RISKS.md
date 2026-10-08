@@ -46,6 +46,8 @@ Setu Desktop App (EXE) ab ek **chhota server** chalata hai, aur database **brows
 - **#1 Storage:** 5 MB ki limit khatam. File GBs tak badh sakti hai.
 - **#2 Port:** Port 8000 fixed hai. Setu pehle se khula ho to wahi khulta hai. Koi doosra program port le le to saaf error aata hai, random port nahi.
 - **#3 Corrupt data:** Kharab file `setu-db.json.corrupt-<time>` naam se alag rakh di jaati hai, overwrite nahi hoti. Har save "atomic" hai (temp file → replace), power cut par aadhi file nahi banti.
+- **Save fail hona (antivirus ne file pakdi):** Server 10 baar retry karta hai. Phir bhi fail ho to version aage nahi badhta, device dobara bhejta hai, aur error `Data\setu-server.log` mein likha jata hai. Footer mein laal "connection toota" dikhe to ye log file vendor ko bhejein.
+- **Do server ek port par:** Windows par ab mumkin nahi (port share band).
 - **#4 Do window / phone / tablet:** Har device apna badlaav version ke saath bhejta hai. Takraav hone par record-by-record merge hota hai. Duplicate bill/KOT number apne aap naye ho jaate hain.
 - **#6 Backup:** `Data\Backups\setu-YYYY-MM-DD.json` roz apne aap banta hai (60 din tak). Phir bhi PC ke bahar backup zaroor rakhein.
 - **#7 Address:** Data file mein hai, isliye `localhost` / `127.0.0.1` / phone ka IP, sab ek hi data dekhte hain.

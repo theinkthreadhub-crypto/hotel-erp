@@ -33,20 +33,21 @@ flowchart TD
 
 ### 1.1 Naye client ko key dena
 1. Client se payment lein (1 mahina / 2 / 3 / 6 mahine / 1 saal / Lifetime).
-2. Folder mein **`Generate-Activation-Keys.bat`** chalayein → plan chunein → kitni keys chahiye likhein.
-3. Keys screen par dikhengi aur `Activation_Keys/` folder mein Excel, CSV aur TXT mein save hongi.
-4. Ek key client ko WhatsApp/SMS par bhejein. Format: `AD-01M-XXXX-YYYY`.
-5. Ek key sirf ek baar chalti hai. Di gayi key ko Excel mein "used / client ka naam" mark kar lein.
+2. Client se uska **Install ID** lein (jaise `SETU-7F3K-92QD`). Ye Setu ki Sign Up / Lock / License screen par "Copy" button ke saath dikhta hai.
+3. **`Generate-Activation-Keys.bat`** chalayein → Install ID → plan (`1m 2m 3m 6m 1y life`) → hotel ka naam.
+4. Lambi key (`SETU-AEAQ...`) client ko WhatsApp par bhejein. Client use **copy-paste** karega.
+5. Har key **sirf usi computer** par aur **sirf ek baar** chalti hai. Record `Activation_Keys/Setu_Issued_Keys.csv` mein apne aap save hota hai.
 
-> `Activation_Keys/` folder kabhi GitHub par ya kisi ko share na karein. Isme bechne wali keys hain.
+> **`setu-license-private.pem`** sirf aapke paas rehni chahiye (backup pen-drive/Drive par). Ye kho gayi to nayi keys nahi banengi; kisi ko mili to wo keys bana lega. GitHub par kabhi nahi.
+> Demo dikhane ke liye `AD-DEMO-24HR-TEST` (har PC par ek baar).
 
 ### 1.2 Client ke PC par install
 1. Pen-drive se ye files client ke PC par ek folder mein copy karein: `Aghanya-Devanya-Hotel-ERP.exe` (ya `hotel_erp.html` + icons).
 2. **`Install-Aghanya-Devanya-ERP-Setup.bat`** chalayein. Desktop aur Start Menu par Setu ka icon ban jayega.
 3. Icon par double-click → Setu khulega.
 
-### 1.3 Excel mein khud ki keys likhi hain to
-- **`Sync-Activation-Keys.bat`** chalayein → keys software mein jud jayengi → **`Build-New-EXE.bat`** se nayi EXE banayein.
+### 1.3 Purani `AD-01M-...` keys
+- Wo ab kaam nahi karti (koi bhi unhe bana sakta tha). Jo clients pehle activate ho chuke hain, unka license expiry tak chalta rahega. Renewal par nayi `SETU-...` key dein.
 
 ---
 
@@ -69,7 +70,10 @@ flowchart TD
 | Loyalty ON/OFF, points per ₹100, 1 point = ₹, min redeem | Customer points |
 | KOT late alert (minutes) | Kitchen screen par laal alert |
 | Zomato/Swiggy commission % | Report mein net kamai |
-| Admin PIN, Cashier PIN | Staff login |
+| Admin PIN, Cashier PIN | Owner aur purana common cashier login |
+| GST Type (Regular / Composition / Registered nahi), FSSAI No. | Bill ka title (Tax Invoice / Bill of Supply) aur FSSAI number bill par |
+| Cashier max discount % | Isse zyada discount par Manager PIN lagega |
+| Printer Setup | Thermal printer par bina popup print, Tandoor/Chinese/Bar ke alag KOT printer, auto KOT, cash drawer |
 
 ### 2.3 Menu (M)
 1. **"+ Menu Items Add Karein (Ek Saath)"** dabayein.
@@ -81,7 +85,10 @@ flowchart TD
 - **New Stock Item** → naam, unit, opening qty, min alert level, rate.
 - Bill banne par recipe ke hisaab se stock apne aap kam hota hai. Min se neeche jaane par "Low Stock" alert aata hai.
 
-### 2.5 Staff (A)
+### 2.5 Staff (A) + Login PIN
+- Har staff ko **Software Access** dein: Captain (sirf order), Cashier (billing), Manager (sab + approval), aur apna **4-6 digit PIN**.
+- Cashier/Captain login: Sign In → "Billing Staff / Cashier" → apna PIN. Phone par bhi wahi PIN.
+- Bill cancel, KOT ke baad item hatana, entry delete, limit se zyada discount aur Settings/Reports par **Manager PIN** maanga jata hai.
 - **+ Add Staff** → naam, kaam (Chef/Waiter…), mobile, monthly salary.
 
 ### 2.6 QR Menu (Q) — optional
@@ -153,6 +160,8 @@ flowchart TD
 
 ## Bhaag 4 — Din Khatam (Closing)
 
+0. **Audit Log (V)** dekhein: kisne bill cancel kiya, KOT ke baad item hataya, discount diya, duplicate bill print kiya, galla short. Ye sab daily WhatsApp report mein bhi aata hai.
+
 1. **Bill List (L):** aaj ke bills check karein. Galat bill ho to **Cancel** (stock wapas judta hai).
 2. **Day Book (D):** saari entries aur mode-wise sale.
 3. **Cash Counter (C):** galle ke note ginkar daalein → Expected vs Counted → **Save & WhatsApp Owner**.
@@ -200,6 +209,7 @@ flowchart TD
 2. Client vendor ko payment karta hai → vendor nayi key deta hai (Bhaag 1.1).
 3. Client: **Aghanya Devanya License (K)** ya Settings → key daalein → **Activate**. Bache hue din + naye din jud jaate hain.
 4. Expire ho gaya to poori screen lock ho jaati hai → lock screen par nayi key daalte hi software khul jaata hai. **Data safe rehta hai.**
+5. Computer ki date peeche ki gayi ho to bhi lock ho jata hai. Sahi date lagayein ya nayi key dein.
 
 ---
 
@@ -239,7 +249,8 @@ flowchart LR
 | W | WhatsApp Report | H | Table Reservations |
 | F | Reports & Tally | X | Token Display |
 | U | Suppliers & Udhaar | Y | Zomato/Swiggy Settlement |
-| K | License | G | Settings & Backup |
+| V | Audit Log (Chori Check) | K | License |
+| G | Settings & Backup | | |
 
 **Esc** = wapas · **Ctrl+Enter** = Pakka Bill · **Alt + letter** = kisi bhi screen se seedha jump
 

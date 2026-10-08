@@ -27,13 +27,11 @@ Hotel aur restaurant ke liye fully offline, standalone ERP POS software. Ye soft
 - Saara data usi computer par `localStorage` + `IndexedDB` aur `%LOCALAPPDATA%\AghanyaDevanyaERP\Data` mein surakshit rehta hai.
 - Kahi bahar internet par data nahi jata. Daily backup ke liye **Settings → Download JSON Backup** button diya gaya hai.
 
-### 4. 1-Month Activation Key Licensing (Online Payment Hata Diya Gaya)
-- Software se online Razorpay aur UPI payment gateways hata diye gaye hain.
-- Software **Aghanya Devanya Enterprises** dwara issue kiye gaye **30-Day Activation Keys** par chalta hai:
-  - Format: `AD-30D-XXXX-YYYY`
-  - Har key se software **ek mahine (30 din)** ke liye chalta hai.
-  - Software mein 60 pre-installed keys inbuilt hain aur mathematical cryptographic verification bhi hai.
-  - Ek key ek hi baar use ho sakti hai (anti-reuse protection).
+### 4. Signed Activation Keys (Tod-proof Licensing)
+- Software **Aghanya Devanya Enterprises** dwara issue ki gayi **digital signature wali keys** par chalta hai (`SETU-AEAQ...`, copy-paste).
+- Har computer ka ek **Install ID** hota hai (jaise `SETU-7F3K-92QD`). Key usi ID ke liye banti hai, doosre PC par nahi chalti.
+- Software ke andar koi key ya key banane ka formula nahi hai. Keys sirf vendor ki private key file (`setu-license-private.pem`) se banti hain.
+- Ek key ek hi baar use ho sakti hai. Computer ki date peeche karne par software lock ho jata hai.
 - **Strict 30-Day Full Screen Lock:** 30 din poore hote hi software poori tarah se block / lock ho jata hai. Screen par Aghanya Devanya Enterprises ka official lock screen khulta hai jisme naya key daalne par hi software aage chalega.
 
 ### 5. Premium Growth Add-ons (Sidebar → "Growth Add-ons")
@@ -56,11 +54,11 @@ Hotel aur restaurant ke liye fully offline, standalone ERP POS software. Ye soft
 
 ## Aghanya Devanya Enterprises ke liye Nayi Keys Generate Karna
 
-Jab bhi koi client payment kare aur use agle 1 mahine ki key deni ho:
-1. Folder mein **`Generate-Activation-Keys.bat`** par double click karein.
-2. Poochega kitni keys generate karni hain (e.g. 5, 10, 20).
-3. System instantly valid cryptographic keys screen par dikha dega aur unhe ek text file (`Activation-Keys-YYYYMMDD.txt`) mein save kar dega.
-4. Client ko ek key WhatsApp ya SMS par bhej dein.
+Jab bhi koi client payment kare:
+1. Client se uska **Install ID** lein (Setu ki Sign Up / License screen par "Copy" button ke saath).
+2. **`Generate-Activation-Keys.bat`** par double click → Install ID → plan (`1m 2m 3m 6m 1y life`) → hotel ka naam.
+3. Bani hui poori key client ko WhatsApp par bhejein. Record `Activation_Keys/Setu_Issued_Keys.csv` mein save hota hai.
+4. **`setu-license-private.pem`** isi folder mein honi chahiye. Iska backup rakhein aur kisi ko na dein.
 
 ---
 

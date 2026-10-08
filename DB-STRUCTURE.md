@@ -128,6 +128,14 @@ Saari dates `YYYY-MM-DD` string mein hoti hain aur time `HH:MM` mein. Paisa ₹ 
 | `kotLate` | number | `20` | Kitchen alert (minutes) |
 | `tokenOn` | boolean | `false` | Takeaway bills par token number |
 | `outletCode` | string | `OUT-XXXX` (random) | Is outlet ki pehchaan (multi-outlet) |
+| `installId` | string | `SETU-XXXX-XXXX` (random) | License key isi se bandhi hoti hai |
+| `gstScheme` | string | `regular` | `regular` / `composition` (Bill of Supply, GST 0) / `none` |
+| `fssai` | string | `""` | FSSAI number (bill par) |
+| `maxDiscPct` | number | `10` | Cashier ki discount limit %; zyada par Manager PIN |
+| `printMode` | string | `dialog` | `dialog` (print box) / `direct` (thermal, bina popup) |
+| `billPrinter`, `kotPrinter` | string | `""` | Windows printer ke naam |
+| `catPrinters` | object | `{}` | `{ "Chinese": "Printer naam" }` — section-wise KOT |
+| `autoKot`, `drawerKick` | boolean | `false` | KOT apne aap print · Cash bill par galla khole |
 
 ---
 
@@ -142,6 +150,7 @@ Saari dates `YYYY-MM-DD` string mein hoti hain aur time `HH:MM` mein. Paisa ₹ 
 | `monthlyPrice` | number | `999` (sirf history mein dikhane ke liye) |
 | `registeredEntity` | string | Hamesha "Aghanya Devanya Enterprises" |
 | `usedKeys` | string[] | Use ho chuki keys (dobara use rokne ke liye) |
+| `lastSeen` | number | Setu ne aakhri baar kab chala (ms). Date peeche karne par lock |
 | `history` | object[] | `{date, time, amount, method, status, txnId: "KEY-<key>"}` |
 
 `daysLeft`, `isExpired` aur `isExpiring` save nahi hote. Ye `getSubscriptionInfo()` har baar hisaab lagata hai.
@@ -201,6 +210,10 @@ Stock badalta hai: bill save par minus, bill cancel par plus, purchase par plus,
 | `loyaltyDisc` | number | `disc` mein se kitna loyalty ka tha |
 | `used` | `{sid, qty}[]` | Kitna stock ghata (cancel par wapas judta hai) |
 | `cancelled` | boolean | Cancel hua to `true` (bill delete nahi hota) |
+| `cancelledBy` | string | Kis Manager ne cancel approve kiya |
+| `by` | string | Kis staff ne bill banaya |
+| `scheme` | string | Bill ke waqt ka GST type (`regular` / `composition` / `none`) |
+| `prints` | number | Customer copy kitni baar print hui (2+ = DUPLICATE COPY) |
 
 **Hisaab:** `calc(items, disc, gst)` se: `taxable = sub − disc`, `tax = taxable × gst%`, `total = round(taxable + tax)`.
 
@@ -286,6 +299,7 @@ Reject karne par order delete ho jata hai. Handover par ek `bills[]` entry banti
 | `items` | `{name, qty}[]` | Sirf naye items (delta) |
 | `note` | string | Kitchen note |
 | `token` | number | Takeaway token (Token Display ke liye) |
+| `by` | string | Kis staff/captain ne order bheja |
 | `status` | string | `new` → `ready` → `served` |
 | `readyAt`, `servedAt` | number | Timestamps |
 
@@ -300,6 +314,8 @@ Sirf **pichhle 7 din** ke KOT rakhe jaate hain.
 | `id` | string | Unique ID |
 | `name`, `role`, `phone` | string | Details |
 | `salary` | number | Monthly salary |
+| `access` | string | `""` / `captain` / `cashier` / `manager` — software login |
+| `pin` | string | Staff ka login PIN (4-6 digit). ⚠️ plain text |
 | `left` | boolean | Kaam chhod diya (record rehta hai) |
 
 `att{}`: key = date → `{ [staffId]: "P" | "H" | "A" }`
@@ -324,6 +340,21 @@ Key = doosre outlet ka `outletCode`. Value = us outlet ki summary file:
 ```
 
 Isme pichhle 90 din ke totals hote hain. **Customer ka naam ya number nahi jaata.** Is outlet ki apni summary live banti hai, save nahi hoti.
+
+## 16a. `audit[]` — Kisne Kya Kiya (Chori Check)
+
+| Field | Type | Matlab |
+|---|---|---|
+| `id`, `at` | string, number | ID, timestamp |
+| `date`, `time` | string | Kab |
+| `user`, `role` | string | Kisne kiya (staff naam, access) |
+| `action` | string | `Login`, `Bill Cancel`, `KOT ke baad item hataya`, `Discount`, `Duplicate Bill Print`, `Voucher Delete`, `Cash Short`, `Stock Adjust`, `Menu Rate Change`, `Galat Manager PIN`, `Settings Change`, `Backup Restore`… |
+| `detail` | string | Bill no., table, items |
+| `amount` | number | ₹ asar |
+| `ref` | string | Bill / table / entry ki ID |
+| `approvedBy` | string | Kis Manager ne PIN se approve kiya |
+
+Lagbhag 20,000 entries tak rakhi jaati hain.
 
 ## 16b. `reservations[]` — Table Booking
 
