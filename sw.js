@@ -1,5 +1,5 @@
 // Aghanya Devanya Restaurant & Hotel ERP - Service Worker
-const CACHE_NAME = 'aghanya-devanya-erp-v1';
+const CACHE_NAME = 'aghanya-devanya-erp-v2';
 const ASSETS = [
   './',
   './hotel_erp.html',

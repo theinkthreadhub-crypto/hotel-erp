@@ -36,6 +36,15 @@ Hotel aur restaurant ke liye fully offline, standalone ERP POS software. Ye soft
   - Ek key ek hi baar use ho sakti hai (anti-reuse protection).
 - **Strict 30-Day Full Screen Lock:** 30 din poore hote hi software poori tarah se block / lock ho jata hai. Screen par Aghanya Devanya Enterprises ka official lock screen khulta hai jisme naya key daalne par hi software aage chalega.
 
+### 5. Premium Growth Add-ons (Sidebar → "Growth Add-ons")
+- **Kitchen Display (T):** Table ka Kaccha Bill save karne, Pakka Bill banane ya Zomato/Swiggy order accept karne par KOT turant kitchen screen par aata hai. Running table mein sirf naye items ka KOT jaata hai. "Full Screen Kitchen Mode" kitchen ke second monitor ke liye hai.
+- **QR Menu & Table Orders (Q):** `menu.html` download karke online daalein, har table ka QR print karein. Customer WhatsApp par order bhejta hai; message paste karte hi items us table ke Kaccha Bill mein jud jaate hain aur KOT seedha kitchen mein jaata hai.
+- **Customers, Loyalty & Offers (R):** Bill par mobile number daalne se customer database banta hai. Har ₹100 par points milte hain, billing par redeem hote hain. Group chun kar WhatsApp offer ek-ek karke bhejein, CSV export karein.
+- **Google Review link aur UPI QR:** Settings mein daalne par printed bill par QR aur WhatsApp bill mein review link aata hai.
+- **Swiggy/Zomato entry:** Online Orders desk par manual "+ Zomato / + Swiggy Order Entry" button. Daily report mein commission ke baad net amount.
+- **Staff Attendance & Salary (A):** P/H/A haaziri, advance, salary payment (Expense mein apne aap judta hai), WhatsApp salary slip.
+- **Multi-Outlet Owner Dashboard (O):** Har outlet apni summary file download karke owner ko bhejta hai; owner saari files import karke sab outlets ka sales, online, kharcha aur net ek jagah dekhta hai.
+
 ---
 
 ## Aghanya Devanya Enterprises ke liye Nayi Keys Generate Karna
