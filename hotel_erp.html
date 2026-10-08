@@ -3419,11 +3419,24 @@ class EscPos {
   line(t = ''){ return this.text(t).raw(0x0a); }
   align(a){ return this.raw(0x1b, 0x61, a === 'center' ? 1 : a === 'right' ? 2 : 0); }
   bold(on){ return this.raw(0x1b, 0x45, on ? 1 : 0); }
-  size(big){ return this.raw(0x1d, 0x21, big ? 0x11 : 0x00); }
+  // big = double width + height (short text only); 'tall' = double height, same width (safe for full lines)
+  size(big){ return this.raw(0x1d, 0x21, big === 'tall' ? 0x01 : big ? 0x11 : 0x00); }
   center(t, big){ this.align('center'); if(big) this.size(true).bold(true); this.line(t); if(big) this.size(false).bold(false); return this.align('left'); }
   hr(c = '-'){ return this.line(c.repeat(this.cols)); }
   lr(l, r){ l = asciiSafe(l); r = asciiSafe(r); const w = this.cols - r.length - 1; return this.line((l.length > w ? l.slice(0, w) : l).padEnd(w) + ' ' + r); }
-  wrap(t, w){ const out = []; t = asciiSafe(t); while(t.length > w){ out.push(t.slice(0, w)); t = t.slice(w); } out.push(t); return out; }
+  // Word wrap; only words longer than the column are cut
+  wrap(t, w){
+    const out = [];
+    let cur = '';
+    asciiSafe(t).split(/\s+/).filter(Boolean).forEach(word => {
+      while(word.length > w){ if(cur){ out.push(cur); cur = ''; } out.push(word.slice(0, w)); word = word.slice(w); }
+      if(!cur) cur = word;
+      else if(cur.length + 1 + word.length <= w) cur += ' ' + word;
+      else { out.push(cur); cur = word; }
+    });
+    out.push(cur);
+    return out;
+  }
   items(list){
     const wide = this.cols >= 42, qW = 4, rW = wide ? 8 : 0, aW = 9, nW = this.cols - qW - rW - aW;
     this.bold(true).line('Item'.padEnd(nW) + 'Qty'.padStart(qW) + (wide ? 'Rate'.padStart(rW) : '') + 'Amt'.padStart(aW)).bold(false);
@@ -3466,7 +3479,7 @@ function escBill(b){
   if(b.loyaltyDisc) e.lr(`Loyalty (${b.ptsUsed} pts)`, '-' + b.loyaltyDisc.toFixed(2));
   if(g){ e.lr(`CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`SGST @${g / 2}%`, (b.tax / 2).toFixed(2)); }
   if(b.round) e.lr('Round Off', b.round.toFixed(2));
-  e.hr().size(true).bold(true).lr('TOTAL', 'Rs.' + b.total.toFixed(2)).size(false).bold(false);
+  e.hr().size('tall').bold(true).lr('TOTAL', 'Rs.' + b.total.toFixed(2)).size(false).bold(false);
   e.line('Paid by: ' + b.mode);
   if(b.ptsEarned || b.ptsUsed) e.line(`Points earned: ${b.ptsEarned}${b.ptsUsed ? ' | used: ' + b.ptsUsed : ''} | Balance: ${ptsBalAt(b)}`);
   e.hr();
@@ -3500,7 +3513,7 @@ function escKaccha(k){
   if(k.cust) e.line('Customer: ' + k.cust);
   e.hr().items(k.cart).hr().lr('Sub Total', t.sub.toFixed(2));
   if(t.disc) e.lr('Discount', '-' + t.disc.toFixed(2));
-  e.size(true).bold(true).lr('TOTAL', 'Rs.' + t.total.toFixed(2)).size(false).bold(false);
+  e.size('tall').bold(true).lr('TOTAL', 'Rs.' + t.total.toFixed(2)).size(false).bold(false);
   return e.cut().bytes();
 }
 

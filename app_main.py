@@ -194,17 +194,35 @@ class SetuStore:
     def data(self):
         return json.loads(self.raw)
 
+    def log(self, msg):
+        try:
+            with open(os.path.join(self.dir, 'setu-server.log'), 'a', encoding='utf-8') as f:
+                f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + msg + '\n')
+        except Exception:
+            pass
+
     def write(self, data_obj):
-        self.version += 1
-        self.saved_at = int(time.time() * 1000)
-        self.raw = json.dumps(data_obj, ensure_ascii=False)
-        doc = '{"version": %d, "savedAt": %d, "data": %s}' % (self.version, self.saved_at, self.raw)
+        # Nothing changes in memory until the file is safely on disk, so a failed
+        # write can never leave the server "ahead" of what survives a restart.
+        version = self.version + 1
+        saved_at = int(time.time() * 1000)
+        raw = json.dumps(data_obj, ensure_ascii=False)
+        doc = '{"version": %d, "savedAt": %d, "data": %s}' % (version, saved_at, raw)
         tmp = self.path + '.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             f.write(doc)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, self.path)       # atomic swap: a power cut leaves old or new, never half
+        for attempt in range(10):
+            try:
+                os.replace(tmp, self.path)   # atomic swap: a power cut leaves old or new, never half
+                break
+            except PermissionError:
+                # Antivirus / indexer may hold the file for a moment on Windows
+                if attempt == 9:
+                    raise
+                time.sleep(0.2)
+        self.version, self.saved_at, self.raw = version, saved_at, raw
         # One rolling backup per day (last write of the day wins)
         try:
             shutil.copy2(self.path, os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json'))
@@ -352,7 +370,11 @@ def make_handler(base_dir, store, port):
                         return self.send_json(403, {'error': 'main counter only'})
                     if not force and int(body.get('baseVersion', -1)) != store.version:
                         return self.send_db_conflict()
-                    store.write(data)
+                    try:
+                        store.write(data)
+                    except Exception as e:
+                        store.log(f'SAVE FAILED v{store.version + 1}: {e!r}')
+                        return self.send_json(500, {'error': 'save failed: ' + str(e)})
                     return self.send_json(200, {'version': store.version, 'savedAt': store.saved_at})
             return self.send_json(404, {'error': 'not found'})
 
@@ -383,6 +405,9 @@ def port_busy(port):
 
 def start_server(base_dir, data_dir, port):
     store = SetuStore(data_dir)
+    store.log(f'Server start: port {port}, database version {store.version}')
+    # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
+    http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
     httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port))
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
