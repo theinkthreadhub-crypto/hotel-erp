@@ -1,5 +1,5 @@
 // Setu - Restaurant & Hotel POS - Service Worker
-const CACHE_NAME = 'setu-pos-v3';
+const CACHE_NAME = 'setu-pos-v4';
 const ASSETS = [
   './',
   './hotel_erp.html',
@@ -31,6 +31,8 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
+  // Live database calls must always reach the main counter, never a cache
+  if (new URL(event.request.url).pathname.startsWith('/api/')) return;
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
       if (cachedResponse) {

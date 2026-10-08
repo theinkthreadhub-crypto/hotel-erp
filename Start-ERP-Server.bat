@@ -1,6 +1,6 @@
 @echo off
-title Aghanya Devanya Hotel ERP Server
-echo Starting Aghanya Devanya Hotel ERP Server on port 8000...
+title Setu - LAN Server
+echo Starting Setu LAN server on port 8000 (phones/tablets can connect on the same WiFi)...
 cd /d "%~dp0"
-python -m http.server 8000
+python app_main.py --server
 pause

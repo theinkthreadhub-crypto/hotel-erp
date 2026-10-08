@@ -19,8 +19,8 @@ internet dependency at runtime. All data lives on the customer's PC.
 
 | File | Purpose |
 |---|---|
-| `hotel_erp.html` | The entire app: CSS, HTML shell and all JavaScript (~4.8k lines). Almost all work happens here. |
-| `app_main.py` | Desktop launcher: serves the folder on `127.0.0.1:8000` (or a free port) and opens it in a pywebview window. Data dir: `%LOCALAPPDATA%\AghanyaDevanyaERP\Data`. |
+| `hotel_erp.html` | The entire app: CSS, HTML shell and all JavaScript (~5.7k lines). Almost all work happens here. |
+| `app_main.py` | Main-counter launcher + LAN server on fixed port 8000 (`0.0.0.0`). Keeps the shared database in `setu-db.json` with daily `Backups/`, serves phones/tablets, opens the pywebview window. `--server` = no window. Data dir: `%LOCALAPPDATA%\AghanyaDevanyaERP\Data`. |
 | `Aghanya-Devanya-Hotel-ERP.spec`, `Build-New-EXE.bat` | PyInstaller build. The `.bat` passes its own flags and does not use the `.spec`. Keep both in sync if you add bundled files. |
 | `manifest.json`, `sw.js` | PWA install + offline cache. |
 | `keygen.py`, `build_activation_vault.py`, `sync_keys.py`, `*Activation-Keys*.bat` | Vendor-side license key tooling. `sync_keys.py` rewrites the key arrays inside `hotel_erp.html`. |
@@ -34,9 +34,11 @@ keys or EXE binaries.**
 ## Run and check
 
 ```bash
-python -m http.server 8000
+python app_main.py --server --port 8000 --data ./test-data
 ```
-Then open `http://localhost:8000/hotel_erp.html`. Use **"1-Click Demo Login"** (demo / demo)
+Then open `http://127.0.0.1:8000/hotel_erp.html` (main counter) and `http://<LAN-IP>:8000/hotel_erp.html`
+(acts as a phone: asks for the Manager/Cashier PIN). `python -m http.server` still works and runs the
+app in **browser mode** (localStorage, no LAN). Use **"1-Click Demo Login"** (demo / demo)
 and the test license key `AD-DEMO-24HR-TEST`.
 
 There is no build step and no test suite. Before committing:
@@ -52,18 +54,24 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 
 - **Two `<script>` blocks.** The first is the vendored MIT `qrcode-generator` 1.4.4
   (used by `qrSvg()`). Do not edit it. The second is the app.
-- **State:** one global object `D`, loaded by `load()` from `localStorage['hotelerp_v1']`.
-  Persist with `save()`, which also mirrors to IndexedDB and refreshes the badges.
-  Always call `save()` after mutating `D`.
+- **State:** one global object `D`. Always call `save()` after mutating `D`. Two storage modes:
+  - **LAN / desktop mode** (`SRV.on`, page served by `app_main.py`): `save()` debounces `srvPush()`, which POSTs
+    the whole `D` with `baseVersion`. On HTTP 409 the client runs `merge3(base, mine, theirs)` (record-level
+    3-way merge by `id`, key-level for maps, `seq` takes the max, duplicate new bill/KOT numbers are renumbered)
+    and retries. `srvPoll()` checks `/api/version` every 2.5 s and reloads `D`; `srvRefreshScreen()` re-renders
+    live screens. Never write code that assumes `D` is only changed by this device.
+  - **Browser mode** (no `/api/ping`): `load()` / `save()` use `localStorage['hotelerp_v1']` + an IndexedDB mirror.
+- **LAN auth:** requests from 127.0.0.1 are trusted. Other devices call `/api/login` with the Manager or Cashier
+  PIN and send `X-Setu-Token`. First upload and forced restore/reset (`SRV.forceNext`) are main-counter / admin only.
 - **Schema migration:** `seed()` defines a fresh install. `ensureGrowth(s)` back-fills
-  newer fields (settings defaults in `GROWTH_DEFAULTS`, `kots`, `staff`, `att`, `outlets`).
+  newer fields (settings defaults in `GROWTH_DEFAULTS`, `kots`, `staff`, `att`, `outlets`, `reservations`, `seq.token`).
   When you add a field, give it a default in **both** places. `load()`, `restore()` and
   `resetAll()` all pass through `ensureGrowth`.
 - **Navigation:** `MENU` holds the rows `[hotkey, label, screenKey, sidebarCategory]`.
   `SCREENS` maps each screenKey to a render function. `go(key)` checks auth and license, then renders
   into `#main`. Screens are plain functions that set `main.innerHTML` from template strings.
   A new screen needs a `MENU` row, a `SCREENS` entry and a `scrXxx()` function.
-  Hotkeys must be unique. Letters already used: B Z L P E I D C W S M T Q R A O K G.
+  Hotkeys must be unique. Letters already used: B Z L P E I D C W S M T Q R A O N H X F U Y K G. Free: J V.
 - **UI helpers:** `modal(title, html)`, `closeModal()`, `tryCloseModal()`, `toast(msg)`,
   `waOpen(phone, text)`, `waOwner(text)`, `printDoc([htmlParts])`.
   Money is formatted with `money()` / `rs()` and rounded with `r2()`. Dates are `YYYY-MM-DD` strings from `today()`.
@@ -85,7 +93,12 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   Loyalty discount is part of `bill.disc` and is also kept in `bill.loyaltyDisc` for display.
 - **Customers** are derived from bills that carry a 10-digit phone number (`customers()`).
 - **Stock:** each menu item `recipe` holds `[{sid, qty}]`. `applyStock(bill.used, ±1)` runs on bill save and on bill cancel.
-- **Multi-outlet:** there is no server. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
+- **Money that is not income/expense:** `NON_INCOME_HEADS` (wallet top-ups, Zomato/Swiggy settlements) and
+  `NON_EXPENSE_HEADS` (supplier payments) move cash but are excluded from margin in `summary()`, so sales/purchases are not counted twice.
+- **Wallet:** balance = top-up receipts (`txn.phone`) − bills with `mode: 'Wallet'` (`walletBal()`).
+- **Tokens:** `nextToken()` restarts daily (`seq.tokenDate`); only Takeaway bills / parcel QR orders get one when `settings.tokenOn`.
+- **Captain app:** `captainSend()` merges the waiter's items into the table's kaccha bill via `kacchaToB()` + `saveKacchaBill(true, true)`.
+- **Multi-outlet:** there is no cloud. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
 - **License:** `activateLicenseKey()` / `getSubscriptionInfo()` / `checkExpiryLock()`.
   Changes here affect revenue. Do not loosen checks, add bypasses or print key lists unless the owner explicitly asks.
 
@@ -99,6 +112,9 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Downloads.** `backup()`, `menu.html`, CSV and outlet exports use blob links. They work in the
   browser and in the EXE, but not inside sandboxed preview iframes.
 - **Line endings.** The repo uses LF. Keep LF when you write files.
+- **Service worker** must never cache `/api/*` (see `sw.js`).
+- **Port is fixed** on purpose. A random port used to change the browser origin and made data look lost.
+- **Corrupt data** is copied aside (`setu-db.json.corrupt-*`, `hotelerp_v1_corrupt_*`), never overwritten.
 - **Paper sizes.** Keep `paper()` and `printDoc()` working for both A6 and 58/80 mm thermal printing.
 
 ## Conventions

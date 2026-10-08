@@ -89,6 +89,18 @@ flowchart TD
 2. **Sab Tables ke QR Print** karein → har table par chipkayein.
 3. UPI ID ho to **Counter ke liye UPI standee** print karein.
 
+### 2.7 Phone / Tablet Jodna (Captain App, Kitchen Tablet, Owner Phone)
+1. Main Counter PC par **Setu Desktop App (EXE)** chalayein. (Bina window ke sirf server: `Start-ERP-Server.bat`)
+2. Windows Firewall poochhe to **Private network → Allow** karein.
+3. **Settings (G) → "Phone / Tablet Connect"** mein QR aur link dikhega (jaise `http://192.168.1.6:8000/hotel_erp.html`).
+4. Phone/tablet ko **usi WiFi** se jodein → QR scan karein → **Manager ya Cashier PIN** daalein. Ek baar jud gaya to dobara PIN nahi maangta.
+5. Waiter ke phone par **Captain App (N)**, kitchen tablet par **Kitchen Display (T) → Full Screen**, counter ke TV par **Token Display (X) → Full Screen**.
+
+> Saara data Main Counter PC par rehta hai. Wo PC band ho to phone/tablet kaam nahi karenge.
+
+### 2.8 Token System (Takeaway / QSR) — optional
+- **Settings (G) → Takeaway Token System: ON.** Har parcel bill par token number (roz 1 se) chhapta hai.
+
 ---
 
 ## Bhaag 3 — Roz ka Kaam (Order se Payment tak)
@@ -98,12 +110,13 @@ flowchart TD
 2. Kitchen ke tablet/second monitor par **Kitchen Display (T)** → **Full Screen Kitchen Mode**.
 3. **Cash Counter (C)** mein opening cash (galla) check karein.
 
-### 3.2 Order aane ke 5 raaste
+### 3.2 Order aane ke 6 raaste
 
 | Order kahan se | Kya karein | KOT |
 |---|---|---|
 | **Dine-In table** | Billing (B) → Dine-In → table chunein → items → **Save Kaccha Bill (KOT)** | Kitchen screen par turant |
-| **Parcel / Takeaway** | Billing → Takeaway → items → **Finalize & Pakka Bill** | Pakka bill par |
+| **Waiter ka phone (Captain App)** | Captain App (N) → table → items (+/−) → **KOT Bhejein** | Turant, counter par table ka Kaccha Bill bhi update |
+| **Parcel / Takeaway** | Billing → Takeaway → items → **Finalize & Pakka Bill** (Token ON ho to token no. milta hai) | Pakka bill par |
 | **QR menu (WhatsApp)** | QR Menu (Q) → message paste → **Order Lein + KOT Bhejein** | Turant, us table ke Kaccha Bill mein |
 | **Zomato / Swiggy (tablet se)** | Zomato & Swiggy Live (Z) → **+ Zomato/Swiggy Order Entry** → items + Order ID → Pakka Bill | Pakka bill par |
 | **Zomato / Swiggy (live desk)** | Order card par **Accept & Print KOT** → Ready → **Handover & Settle** | Accept karte hi |
@@ -117,17 +130,22 @@ flowchart TD
 ### 3.4 Kitchen
 1. KOT card aata hai: Orange = naya, Red = der ho rahi hai, Green = ready.
 2. Khana tayyar → **Food Ready** → serve hone par **Served**.
+3. Token wala parcel "Food Ready" hote hi **Token Display (X)** par "Collect Karein" mein aa jata hai.
+
+### 3.4b Table Booking (H)
+- Phone par booking aaye → **Table Reservations (H)** → naam, time, log, table → Save → WhatsApp confirmation.
+- Aaj ki booked table Billing aur Captain App mein **"Reserved 20:00"** dikhti hai. Customer aaye to status **Aa Gaye**.
 
 ### 3.5 Bill aur Payment
 1. Table kholein → discount (agar ho) → customer ka **mobile number** daalein.
 2. Purana customer ho to naam apne aap aa jata hai aur **loyalty points** dikhte hain → **Redeem Points** (optional).
-3. Payment mode chunein: Cash / UPI / Card / Credit (Udhaar).
+3. Payment mode chunein: Cash / UPI / Card / Credit (Udhaar) / **Wallet** (customer ka advance balance — mobile number daalte hi dikhta hai).
 4. **Finalize & Pakka Bill** (Ctrl+Enter) → table free.
 5. Print: Customer Bill + KOT, ya sirf Bill.
 6. **Customer WhatsApp Bill** → bill + points + Google review link customer ko chala jata hai.
 
 ### 3.6 Din ke beech ke kharche
-- **Purchase (P):** saamaan aaya → stock badhta hai.
+- **Purchase (P):** saamaan aaya → stock badhta hai. Supplier ka naam zaroor likhein. Paisa baad mein dena ho to mode **Credit**.
 - **Expense (E):** gas, sabzi, bijli, staff advance…
 - **Other Income (I):** purana udhaar aaya, advance booking…
 
@@ -150,6 +168,19 @@ flowchart TD
 1. Group chunein: Sab / Repeat / 30+ din se nahi aaye / Top 20 / Points wale.
 2. Message likhein (`{name}`, `{points}` apne aap bharte hain) → **Ek-ek karke WhatsApp** → har customer par Send.
 3. **Excel (CSV)** se customer list nikalein.
+4. **Wallet Top-up:** customer advance de → **+ Wallet Top-up** → mobile, naam, amount → WhatsApp par balance. Agle bill mein mode **Wallet**.
+
+### 5.1b Suppliers & Udhaar (U)
+- Har supplier ka kul kharid, udhaar, diya aur **baaki** dikhta hai. **Pay** → Cash/UPI → baaki ghat jata hai. **Ledger** se poori history.
+
+### 5.1c Zomato / Swiggy Settlement (Y)
+1. Date range chunein → Gross sale, commission, **aana chahiye**.
+2. Bank mein payout aaye → **+ Payment Aaya** → amount + UTR.
+3. **Farak** dikhe to Zomato/Swiggy partner app ki payout statement se milaayein.
+
+### 5.1d Reports & Tally (F)
+- Aaj / Kal / 7 Din / Is Mahine → Summary, Item-wise, Category, Hourly, Payment Mode, Channel, **GST Summary**, Discounts, Cancelled, Kharcha, Top Customers.
+- Har report **Excel (CSV)** mein. CA ke liye **Tally XML Export** (Tally mein pehle ledgers banayein: Sales, CGST, SGST, Round Off, Cash, UPI, Card, Credit Sales, Customer Wallet, Zomato, Swiggy).
 
 ### 5.2 Staff Salary (A)
 1. Salary Sheet → mahina chunein → Earned − Advance − Paid = **Payable**.
@@ -204,8 +235,11 @@ flowchart LR
 | E | Expense | R | Customers & Loyalty |
 | I | Other Income | A | Staff & Salary |
 | D | Day Book | O | Multi-Outlet |
-| C | Cash Counter | K | License |
-| W | WhatsApp Report | G | Settings & Backup |
+| C | Cash Counter | N | Captain App |
+| W | WhatsApp Report | H | Table Reservations |
+| F | Reports & Tally | X | Token Display |
+| U | Suppliers & Udhaar | Y | Zomato/Swiggy Settlement |
+| K | License | G | Settings & Backup |
 
 **Esc** = wapas · **Ctrl+Enter** = Pakka Bill · **Alt + letter** = kisi bhi screen se seedha jump
 
@@ -213,7 +247,8 @@ flowchart LR
 
 ## Dhyan Rakhein
 
-- **Backup roz lein.** Data sirf usi computer par rehta hai.
-- **Kitchen Display** usi computer ya uske second monitor par chalta hai. Alag tablet ke liye abhi network sync nahi hai.
+- **Desktop App** roz apne aap backup banata hai (`Data\Backups`, 60 din). Phir bhi hafte mein ek baar backup **PC ke bahar** rakhein.
+- **Phone/tablet** sirf restaurant ke WiFi par chalte hain. Ghar se dekhne ke liye cloud chahiye, jo abhi nahi hai.
+- **Zomato/Swiggy** orders haath se entry hote hain. Seedha API connection ke liye unki partner approval chahiye.
 - **WhatsApp offers** ek-ek karke jaate hain. Bulk auto-send ke liye WhatsApp Business API chahiye.
 - **Multi-Outlet** file se judta hai, live nahi.

@@ -10,7 +10,11 @@ Setu mein SQL jaisi tables nahi hain. Poora database **ek JSON object `D`** hai.
 
 | Store | Key / Naam | Kya hai |
 |---|---|---|
-| localStorage | `hotelerp_v1` | **Main database** — poora `D` object (JSON string) |
+| **Server file (Desktop / LAN mode)** | `%LOCALAPPDATA%\AghanyaDevanyaERP\Data\setu-db.json` | **Main database** jab Setu Desktop App (EXE) ya `app_main.py` se chale — `{version, savedAt, data: D}`. Saare devices (PC, phone, tablet) yahi padhte/likhte hain |
+| Server file | `Data\Backups\setu-YYYY-MM-DD.json` | Roz ka auto-backup (60 din) |
+| Server file | `Data\setu-devices.json` | Jude hue phone/tablet ke login tokens |
+| localStorage | `hotelerp_v1` | **Browser mode** ka database (aur Desktop mode mein pehli baar file mein shift hone wala purana data) |
+| localStorage | `setu_device_token` | Phone/tablet ka LAN login token |
 | localStorage | `hotelerp_auth` | Abhi login hua user (session) — `{name, role, time}` |
 | IndexedDB | DB `AghanyaDevanyaERP_DB` (v2) → store `erp_state` → record `id: "primary"` | Mirror copy — `{id, data: D, updated: <timestamp>}`. Abhi sirf likha jata hai, padha nahi jata |
 | Backup file | `restaurant-pos-backup-YYYY-MM-DD.json` | Poora `D`, haath se download |
@@ -68,10 +72,11 @@ D = {
   cash: { "2026-10-08": ... }, // §12 cash counter
   onlineOrders: [ ... ],  // §13 Zomato / Swiggy desk
   kots: [ ... ],          // §14 kitchen display tickets
+  reservations: [ ... ],  // §16b table bookings
   staff: [ ... ],         // §15 employees
   att: { "2026-10-08": {...} }, // §15 attendance
   outlets: { "OUT-AB12": ... }, // §16 imported branch summaries
-  seq: { bill: 0, kot: 0 },     // §17 running numbers
+  seq: { bill: 0, kot: 0, token: 0, tokenDate: "" }, // §17 running numbers
   demoCleanupDone: true         // §17 one-time flag
 }
 ```
@@ -121,6 +126,7 @@ Saari dates `YYYY-MM-DD` string mein hoti hain aur time `HH:MM` mein. Paisa ₹ 
 | `ptValue` | number | `1` | 1 point = ₹ |
 | `minRedeem` | number | `50` | Kam se kam points redeem ke liye |
 | `kotLate` | number | `20` | Kitchen alert (minutes) |
+| `tokenOn` | boolean | `false` | Takeaway bills par token number |
 | `outletCode` | string | `OUT-XXXX` (random) | Is outlet ki pehchaan (multi-outlet) |
 
 ---
@@ -180,7 +186,8 @@ Stock badalta hai: bill save par minus, bill cancel par plus, purchase par plus,
 | `table` | string | Table ya reference |
 | `cust`, `phone` | string | Customer naam, mobile. **Customer database isi se banta hai** |
 | `note` | string | Kitchen note |
-| `mode` | string | `Cash` / `UPI` / `Card` / `Credit` / `Zomato Pay` / `Swiggy Pay` |
+| `mode` | string | `Cash` / `UPI` / `Card` / `Credit` / `Wallet` / `Zomato Pay` / `Swiggy Pay` |
+| `token` | number | Takeaway token number (0 = nahi) |
 | `gstRate` | number | Bill ke waqt ka GST % |
 | `items` | `{mid, name, price, qty}[]` | Dishes. `mid` → `menu.id`, aur naam/price bill ke waqt ke copy hote hain |
 | `sub` | number | Items ka total |
@@ -226,14 +233,25 @@ Key = table naam (jaise `"T-4"`). Pakka bill bante hi entry delete ho jaati hai.
 | `id` | string | Unique ID |
 | `type` | string | `Purchase` / `Expense` / `Receipt` |
 | `date`, `time` | string | Kab |
-| `head` | string | Category (jaise "Gas Cylinder", "Staff Salary / Wages", "Staff Advance") |
+| `head` | string | Category (jaise "Gas Cylinder", "Staff Salary / Wages", "Staff Advance"). Khaas heads neeche dekhein |
 | `desc` | string | Details |
 | `party` | string | Kisko diya / kisse aaya |
 | `amount` | number | ₹ |
 | `mode` | string | `Cash` / `UPI` / `Card` / `Credit` |
 | `sid`, `qty` | string, number | *(Purchase)* kaunsa stock, kitna aaya |
 | `staffId` | string | *(Salary/Advance)* → `staff.id` |
+| `phone` | string | *(Customer Wallet Topup)* customer mobile |
 | `salMonth` | string | *(Salary)* `YYYY-MM` |
+
+**Khaas heads** (cash hilta hai, lekin margin mein kamai/kharcha nahi gine jaate, taaki do baar na gine):
+
+| Head | Type | Kyun |
+|---|---|---|
+| `Customer Wallet Topup` | Receipt | Customer ne advance diya. Kamai tab ginee jaati hai jab bill Wallet se pay ho |
+| `Zomato Settlement` / `Swiggy Settlement` | Receipt | Bank mein payout aaya. Sale pehle hi bill mein ginee ja chuki hai |
+| `Supplier Payment` | Expense | Udhaar chukaya. Kharid pehle hi Purchase mein ginee ja chuki hai |
+
+Supplier ka baaki = `Credit` mode Purchases − `Supplier Payment` (party naam se). Wallet balance = Topups − `Wallet` mode bills (phone se).
 
 ## 12. `cash{}` — Cash Counter
 
@@ -267,6 +285,7 @@ Reject karne par order delete ho jata hai. Handover par ek `bills[]` entry banti
 | `channel` | string | `Dine-In` / `Takeaway` / `Zomato` / `Swiggy` |
 | `items` | `{name, qty}[]` | Sirf naye items (delta) |
 | `note` | string | Kitchen note |
+| `token` | number | Takeaway token (Token Display ke liye) |
 | `status` | string | `new` → `ready` → `served` |
 | `readyAt`, `servedAt` | number | Timestamps |
 
@@ -306,12 +325,28 @@ Key = doosre outlet ka `outletCode`. Value = us outlet ki summary file:
 
 Isme pichhle 90 din ke totals hote hain. **Customer ka naam ya number nahi jaata.** Is outlet ki apni summary live banti hai, save nahi hoti.
 
+## 16b. `reservations[]` — Table Booking
+
+| Field | Type | Matlab |
+|---|---|---|
+| `id` | string | Unique ID |
+| `name`, `phone` | string | Customer |
+| `date`, `time` | string | Booking kab ki hai |
+| `people` | number | Kitne log |
+| `table` | string | Table (khaali = baad mein) |
+| `note` | string | Birthday, window seat… |
+| `status` | string | `booked` / `arrived` / `cancelled` / `noshow` |
+| `createdAt` | number | Timestamp |
+
+Aaj ki `booked` reservation wali table Billing aur Captain App mein "Reserved HH:MM" dikhti hai.
+
 ## 17. Baaki
 
 | Field | Matlab |
 |---|---|
 | `seq.bill` | Aakhri bill number. Naya bill = `++seq.bill` |
 | `seq.kot` | Aakhri KOT number. Running table ke har naye KOT par bhi badhta hai |
+| `seq.token`, `seq.tokenDate` | Takeaway token number. Har din 1 se shuru (`nextToken()`) |
 | `demoCleanupDone` | `true` = purana demo-data cleanup dobara kabhi nahi chalega |
 
 ---

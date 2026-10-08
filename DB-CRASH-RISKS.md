@@ -25,17 +25,32 @@ Ye document batata hai ki Setu ka data kin-kin haalaton mein kho sakta hai, khar
 
 | # | Khatra | Kitna gambhir | Kitna sambhav | Status |
 |---|---|---|---|---|
-| 1 | Storage bhar jana (quota full) | 🔴 Bahut | 🔴 Pakka, 1–3 mahine mein | **Open** |
-| 2 | Port badalne se data "gayab" (EXE) | 🔴 Bahut | 🟠 Kabhi-kabhi | **Open** |
-| 3 | Data kharab hone par khaali data se overwrite | 🔴 Bahut | 🟢 Kam | **Open** |
-| 4 | Do window/tab ek saath (Kitchen + Billing) | 🔴 Bahut | 🟠 Browser mode mein | **Open** |
-| 5 | Galat / purana backup restore | 🟠 Medium | 🟠 Kabhi-kabhi | **Open** |
-| 6 | Browser / Windows data clear | 🔴 Bahut | 🟠 Kabhi-kabhi | Backup se hi bachav |
-| 7 | Alag address se kholna | 🟠 Medium | 🟠 Kabhi-kabhi | **Open** |
+| 1 | Storage bhar jana (quota full) | 🔴 Bahut | 🔴 Pakka, 1–3 mahine mein | ✅ **Fixed** (Desktop/LAN) · Browser mode mein warning |
+| 2 | Port badalne se data "gayab" (EXE) | 🔴 Bahut | 🟠 Kabhi-kabhi | ✅ **Fixed** |
+| 3 | Data kharab hone par khaali data se overwrite | 🔴 Bahut | 🟢 Kam | ✅ **Fixed** |
+| 4 | Do window/tab ek saath (Kitchen + Billing) | 🔴 Bahut | 🟠 Browser mode mein | ✅ **Fixed** (Desktop/LAN) · Browser mode mein abhi bhi |
+| 5 | Galat / purana backup restore | 🟠 Medium | 🟠 Kabhi-kabhi | 🟡 Aadha (sirf Main Counter / Manager restore kar sakta hai) |
+| 6 | Browser / Windows data clear | 🔴 Bahut | 🟠 Kabhi-kabhi | 🟡 Desktop mein roz auto-backup (60 din) |
+| 7 | Alag address se kholna | 🟠 Medium | 🟠 Kabhi-kabhi | ✅ **Fixed** (Desktop/LAN: data address par nahi, file mein) |
 | 8 | System date/time galat | 🟡 Kam | 🟠 Kabhi-kabhi | **Open** |
 | 9 | Power cut / PC crash | 🟡 Kam | 🟠 Kabhi-kabhi | Theek hai |
 | 10 | "Dal Tadka" menu par har start par data delete | 🔴 Bahut | Pakka tha | ✅ **Fixed** |
 | 11 | IndexedDB store na banna | 🟡 Kam | Pakka tha | ✅ **Fixed** |
+
+---
+
+## Naya Update (8 Oct 2026) — LAN Server Mode
+
+Setu Desktop App (EXE) ab ek **chhota server** chalata hai, aur database **browser mein nahi, file mein** (`%LOCALAPPDATA%\AghanyaDevanyaERP\Data\setu-db.json`) save hota hai. Isse:
+
+- **#1 Storage:** 5 MB ki limit khatam. File GBs tak badh sakti hai.
+- **#2 Port:** Port 8000 fixed hai. Setu pehle se khula ho to wahi khulta hai. Koi doosra program port le le to saaf error aata hai, random port nahi.
+- **#3 Corrupt data:** Kharab file `setu-db.json.corrupt-<time>` naam se alag rakh di jaati hai, overwrite nahi hoti. Har save "atomic" hai (temp file → replace), power cut par aadhi file nahi banti.
+- **#4 Do window / phone / tablet:** Har device apna badlaav version ke saath bhejta hai. Takraav hone par record-by-record merge hota hai. Duplicate bill/KOT number apne aap naye ho jaate hain.
+- **#6 Backup:** `Data\Backups\setu-YYYY-MM-DD.json` roz apne aap banta hai (60 din tak). Phir bhi PC ke bahar backup zaroor rakhein.
+- **#7 Address:** Data file mein hai, isliye `localhost` / `127.0.0.1` / phone ka IP, sab ek hi data dekhte hain.
+
+**Browser mode** (`hotel_erp.html` seedha browser mein, ya test link) mein purane khatre (#1, #4) abhi bhi hain. Wahan 80% storage bharte hi warning aati hai. Asli restaurant mein hamesha **Desktop App** chalayein.
 
 ---
 
@@ -211,12 +226,12 @@ Ye sab **alag database** hain:
 
 | Order | Kaam | Kyun pehle |
 |---|---|---|
-| 1 | Main database IndexedDB par shift + storage warning | Har client ke saath 1–3 mahine mein hoga |
-| 2 | Fixed port + single instance (EXE) | "Data gayab" ki sabse aam shikayat banegi |
-| 3 | Do window ka merge / ek hi window lock | Kitchen Display ke saath bills kho sakte hain |
-| 4 | Corrupt data par overwrite band + IndexedDB se recovery | Ek baar mein poora data jaata hai |
+| 1 | ~~Main database file par shift + storage warning~~ ✅ Ho gaya | — |
+| 2 | ~~Fixed port + single instance (EXE)~~ ✅ Ho gaya | — |
+| 3 | ~~Do window / device ka merge~~ ✅ Ho gaya | — |
+| 4 | ~~Corrupt data par overwrite band~~ ✅ Ho gaya | — |
 | 5 | Restore se pehle preview + auto-backup + license protect | Galat restore se nuksaan |
-| 6 | Roz auto-backup / reminder | Har khatre ka aakhri bachav |
+| 6 | ~~Roz auto-backup~~ ✅ Desktop mein ho gaya · PC ke bahar copy abhi bhi haath se | — |
 
 ## Client ke liye 5 Niyam (abhi se)
 

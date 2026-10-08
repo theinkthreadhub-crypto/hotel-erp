@@ -45,6 +45,13 @@ Hotel aur restaurant ke liye fully offline, standalone ERP POS software. Ye soft
 - **Staff Attendance & Salary (A):** P/H/A haaziri, advance, salary payment (Expense mein apne aap judta hai), WhatsApp salary slip.
 - **Multi-Outlet Owner Dashboard (O):** Har outlet apni summary file download karke owner ko bhejta hai; owner saari files import karke sab outlets ka sales, online, kharcha aur net ek jagah dekhta hai.
 
+### 6. LAN Mode + Petpooja jaise Features
+- **LAN Server:** Desktop App (EXE) ab Main Counter server hai. Database file mein (`setu-db.json`), roz auto-backup, koi 5 MB limit nahi. Phone/tablet usi WiFi par Settings → "Phone / Tablet Connect" ke QR se judte hain (PIN se).
+- **Captain App (N):** Waiter phone se table chun kar order bhejta hai → KOT kitchen mein, counter par Kaccha Bill update.
+- **Kitchen Tablet / Token Display (X):** Alag tablet par KOT screen, counter TV par token "Collect Karein".
+- **Table Reservations (H), Token System, Customer Wallet, Suppliers & Udhaar (U), Zomato/Swiggy Settlement (Y), Reports + Tally XML Export (F).**
+- Bina server ke (`hotel_erp.html` seedha browser mein) Setu purane "browser mode" mein chalta hai.
+
 ---
 
 ## Aghanya Devanya Enterprises ke liye Nayi Keys Generate Karna

@@ -322,6 +322,44 @@ body.kitchen-mode .kcard ul{font-size:19px}
 .tag.zomato{background:var(--zomato-light);color:var(--zomato)}
 .tag.swiggy{background:var(--swiggy-light);color:var(--swiggy)}
 .tag.qr{background:#e0e7ff;color:#3730a3}
+
+/* Captain app (phones) */
+.cap-tables{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:12px}
+.cap-tbl{background:#fff;border:2px solid var(--border);border-radius:12px;padding:16px 10px;display:flex;flex-direction:column;gap:4px;align-items:center;font-size:16px}
+.cap-tbl span{font-size:11px;color:var(--text-muted)}
+.cap-tbl.occ{border-color:#f59e0b;background:#fffbeb}
+.cap-tbl.occ span{color:#b45309;font-weight:700}
+.cap-items{display:flex;flex-direction:column;gap:8px;padding-bottom:90px}
+.cap-item{display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.cap-item small{display:block;color:var(--primary);font-weight:700}
+.cap-item .qty button{width:36px;height:36px;font-size:18px}
+.cap-bar{position:sticky;bottom:0;display:flex;gap:8px;background:var(--bg);padding:10px 0;border-top:1px solid var(--border)}
+.cap-bar .btn{white-space:nowrap;padding:12px 18px;font-size:15px}
+.cap-bar .btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* Token display (TV) */
+.tok-wrap{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.tok-col{background:#fff;border:2px solid var(--border);border-radius:14px;padding:16px;min-height:300px}
+.tok-col h3{margin:0 0 12px;font-size:22px;color:#b45309}
+.tok-col.ready{border-color:var(--ok);background:#f0fdf4}
+.tok-col.ready h3{color:#15803d}
+.tok-list{display:flex;flex-wrap:wrap;gap:12px}
+.tok{font:800 44px/1 'JetBrains Mono',monospace;padding:14px 20px;border-radius:12px;background:#fef3c7;color:#92400e;min-width:110px;text-align:center}
+.tok-col.ready .tok{background:#16a34a;color:#fff;animation:pulse 1.6s infinite}
+
+/* Phones and small tablets (LAN devices) */
+@media (max-width:700px){
+  #top{flex-wrap:wrap;gap:6px;padding:8px 10px}
+  #top .scr,.online-pill-wrap,#btn-pwa-install,#top .clock,.brand-sub{display:none}
+  #top .user-pill{gap:6px}
+  #main{padding:10px}
+  #app-footer{flex-direction:column;gap:4px;font-size:10px}
+  .title{flex-wrap:wrap;font-size:15px}
+  .title .r{margin-left:0;flex-wrap:wrap}
+  .dash-welcome{flex-direction:column;align-items:flex-start;gap:12px;padding:18px}
+  .tok-wrap{grid-template-columns:1fr}
+  .tok{font-size:32px;min-width:80px}
+}
 @page thermal{margin:0}
 @page a6{size:105mm 148mm;margin:6mm}
 @media print{
@@ -565,6 +603,8 @@ body.kitchen-mode .kcard ul{font-size:19px}
   <div style="display:flex;align-items:center;gap:10px">
     <span id="footer-lic-text" style="color:#38bdf8;cursor:pointer" onclick="openSubscriptionModal()">Monthly License: Active</span>
     <span class="footer-sep">|</span>
+    <span id="srv-status" style="display:none;font-weight:700"></span>
+    <span class="footer-sep">|</span>
     <span style="cursor:pointer" onclick="triggerPWAInstall()">Desktop App & Offline Storage Active</span>
   </div>
 </footer>
@@ -594,7 +634,10 @@ const fq = n => String(+(+n || 0).toFixed(3));
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sum = (a,f) => a.reduce((s,x) => s + (+(typeof f === 'function' ? f(x) : x[f]) || 0), 0);
 const $ = s => document.querySelector(s);
-const MODES = ['Cash','UPI','Card','Credit','Zomato Pay','Swiggy Pay'];
+const MODES = ['Cash','UPI','Card','Credit','Wallet','Zomato Pay','Swiggy Pay'];
+// Money movements that are not income / expense (they only move cash or settle earlier sales/purchases)
+const NON_INCOME_HEADS = ['Customer Wallet Topup','Zomato Settlement','Swiggy Settlement'];
+const NON_EXPENSE_HEADS = ['Supplier Payment'];
 const DEN = [500,200,100,50,20,10,5,2,1];
 
 function seed(){
@@ -646,6 +689,7 @@ function seed(){
     staff: [],
     att: {},
     outlets: {},
+    reservations: [],
     demoCleanupDone: true,
     seq: { bill: 0, kot: 0 }
   };
@@ -662,7 +706,8 @@ const GROWTH_DEFAULTS = {
   ptValue: 1,
   minRedeem: 50,
   kotLate: 20,
-  outletCode: ''
+  outletCode: '',
+  tokenOn: false
 };
 
 function ensureGrowth(s){
@@ -671,6 +716,9 @@ function ensureGrowth(s){
   if(!Array.isArray(s.staff)) s.staff = [];
   if(!s.att || typeof s.att !== 'object') s.att = {};
   if(!s.outlets || typeof s.outlets !== 'object') s.outlets = {};
+  if(!Array.isArray(s.reservations)) s.reservations = [];
+  if(!s.seq) s.seq = { bill: 0, kot: 0 };
+  if(!s.seq.token) s.seq.token = 0;
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
   if(!s.settings.outletCode) s.settings.outletCode = 'OUT-' + Math.random().toString(36).slice(2,6).toUpperCase();
   return s;
@@ -739,7 +787,13 @@ function load(){
       if(s.settings.swiggyEnabled === undefined) s.settings.swiggyEnabled = false;
       return ensureGrowth(s);
     }
-  }catch(e){}
+  }catch(e){
+    // Unreadable data must never be overwritten by an empty database
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw) localStorage.setItem(KEY + '_corrupt_' + Date.now(), raw);
+    }catch(e2){}
+  }
   return ensureGrowth(seed());
 }
 
@@ -781,11 +835,278 @@ function mirrorToIndexedDB(data){
 }
 
 function save(){
-  try{ localStorage.setItem(KEY, JSON.stringify(D)); }catch(e){ alert('Data save nahi hua: ' + e.message); }
-  mirrorToIndexedDB(D);
+  if(SRV.on){
+    // LAN/desktop mode: the main-counter PC keeps the database on disk
+    SRV.edits++;
+    SRV.dirty = true;
+    clearTimeout(SRV.timer);
+    SRV.timer = setTimeout(srvPush, 150);
+  } else {
+    let json = '';
+    try{
+      json = JSON.stringify(D);
+      localStorage.setItem(KEY, json);
+    }catch(e){
+      alert('Data save nahi hua: ' + e.message + '\n\nTurant Settings → Download JSON Backup karein aur vendor ko batayein. Desktop App (EXE) mein ye limit nahi hai.');
+    }
+    // Browser storage is ~5M characters; warn well before it fills up
+    if(json.length > 4000000 && !save.warned){
+      save.warned = true;
+      setTimeout(() => alert('Storage lagbhag bhar gaya hai (' + Math.round(json.length / 50000) + '%). Backup lein aur Setu Desktop App (EXE) par shift karein, jahan data file mein save hota hai.'), 50);
+    }
+    mirrorToIndexedDB(D);
+  }
   updateOnlinePills();
   updateSubscriptionUI();
 }
+
+/* ================= LAN SERVER SYNC (main counter PC + phones / tablets) ================= */
+// When Setu is served by app_main.py the database lives in one file on the main PC.
+// Every device keeps a copy in D, pushes its edits with the version it started from,
+// and on a version clash merges (base, mine, theirs) record by record.
+const SRV = { on: false, local: true, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
+const TOKEN_KEY = 'setu_device_token';
+const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const lsSet = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
+
+function srvFetch(path, opts = {}){
+  const headers = {'Content-Type': 'application/json', ...(opts.headers || {})};
+  if(SRV.token) headers['X-Setu-Token'] = SRV.token;
+  return fetch(path, {...opts, headers, cache: 'no-store'});
+}
+
+async function srvDetect(){
+  if(location.protocol === 'file:') return false;
+  try{
+    const r = await fetch('/api/ping', {cache: 'no-store'});
+    if(!r.ok) return false;
+    const j = await r.json();
+    SRV.local = !!j.local;
+    return j.setu === true;
+  }catch(e){ return false; }
+}
+
+const jeq = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+const isPlainObj = x => !!x && typeof x === 'object' && !Array.isArray(x);
+
+function mergeNode(b, m, t, depth){
+  if(jeq(m, b)) return t;          // only the other device changed it
+  if(jeq(t, b)) return m;          // only this device changed it
+  if(jeq(m, t)) return m;
+  if(Array.isArray(m) && Array.isArray(t)){
+    if(m.concat(t).every(x => isPlainObj(x) && x.id)) return mergeById(Array.isArray(b) ? b : [], m, t, depth);
+    if(m.concat(t).every(x => typeof x !== 'object')) return [...new Set(m.concat(t))];   // e.g. usedKeys
+    return m;
+  }
+  if(isPlainObj(m) && isPlainObj(t) && depth < 6){
+    const bo = isPlainObj(b) ? b : {}, out = {};
+    new Set([...Object.keys(m), ...Object.keys(t), ...Object.keys(bo)]).forEach(k => {
+      const inM = k in m, inT = k in t, inB = k in bo;
+      if(!inM && !inT) return;
+      if(!inM){ if(inB && jeq(t[k], bo[k])) return; out[k] = t[k]; return; }   // I deleted it
+      if(!inT){ if(inB && jeq(m[k], bo[k])) return; out[k] = m[k]; return; }   // they deleted it
+      out[k] = mergeNode(bo[k], m[k], t[k], depth + 1);
+    });
+    return out;
+  }
+  return m;                        // both changed one value: this device wins
+}
+
+function mergeById(b, m, t, depth){
+  const bm = new Map(b.map(x => [x.id, x])), mm = new Map(m.map(x => [x.id, x])), tm = new Map(t.map(x => [x.id, x]));
+  const out = [], seen = new Set();
+  t.concat(m).forEach(x => {
+    if(seen.has(x.id)) return;
+    seen.add(x.id);
+    const bx = bm.get(x.id), mx = mm.get(x.id), tx = tm.get(x.id);
+    let v;
+    if(mx && tx) v = mergeNode(bx, mx, tx, depth + 1);
+    else if(mx) v = bx && jeq(mx, bx) ? null : mx;   // they deleted it
+    else v = bx && jeq(tx, bx) ? null : tx;          // I deleted it
+    if(v) out.push(v);
+  });
+  return out;
+}
+
+function merge3(base, mine, theirs){
+  const out = mergeNode(base || {}, mine, theirs, 0);
+  // Running numbers must never go backwards
+  out.seq = {...(theirs.seq || {}), ...(mine.seq || {})};
+  const ms = mine.seq || {}, ts = theirs.seq || {};
+  ['bill', 'kot'].forEach(k => out.seq[k] = Math.max(+ms[k] || 0, +ts[k] || 0));
+  // Tokens restart daily, so the newer day wins before comparing numbers
+  const md = ms.tokenDate || '', td = ts.tokenDate || '';
+  out.seq.tokenDate = md > td ? md : td;
+  out.seq.token = md === td ? Math.max(+ms.token || 0, +ts.token || 0) : (md > td ? +ms.token || 0 : +ts.token || 0);
+  // Two devices may have used the same bill / KOT number: give this device's new ones fresh numbers
+  [['bills', 'bill'], ['kots', 'kot']].forEach(([list, key]) => {
+    const theirIds = new Set((theirs[list] || []).map(x => x.id)), baseIds = new Set(((base || {})[list] || []).map(x => x.id));
+    const taken = new Set((theirs[list] || []).map(x => x.no));
+    (out[list] || []).forEach(x => {
+      if(!theirIds.has(x.id) && !baseIds.has(x.id) && taken.has(x.no)) x.no = ++out.seq[key];
+      taken.add(x.no);
+    });
+  });
+  return out;
+}
+
+function srvStatus(ok){
+  SRV.online = ok;
+  const e = $('#srv-status');
+  if(!e) return;
+  e.style.display = 'inline';
+  e.textContent = ok ? (SRV.local ? 'Main Counter · LAN Server ON' : 'Connected to Main Counter') : 'Main Counter se connection toota — data save nahi ho raha';
+  e.style.color = ok ? '#34d399' : '#ef4444';
+}
+
+async function srvLoad(text){
+  const j = JSON.parse(text);
+  SRV.version = j.version;
+  SRV.base = JSON.parse(text).data;
+  return j;
+}
+
+// Returns true when D holds the server copy and the app can start
+async function srvInitData(){
+  let r;
+  try{ r = await srvFetch('/api/db'); }catch(e){ srvStatus(false); return false; }
+  if(r.status === 401){ showConnectScreen(); return false; }
+  const j = await srvLoad(await r.text());
+  if(j.version === 0 || !j.data){
+    if(!SRV.local){
+      showConnectScreen('Main Counter PC par Setu abhi setup nahi hua hai. Pehle wahan Sign Up karein.');
+      return false;
+    }
+    // First run of the LAN server: move this PC's browser data into the server file
+    SRV.base = null;
+    SRV.dirty = true;
+    SRV.edits++;
+    await srvPush();
+    return true;
+  }
+  D = ensureGrowth(j.data);
+  srvStatus(true);
+  return true;
+}
+
+async function srvPush(){
+  if(!SRV.on) return;
+  if(SRV.busy){ SRV.again = true; return; }
+  SRV.busy = true;
+  try{
+    for(let attempt = 0; attempt < 6 && SRV.dirty; attempt++){
+      const edits = SRV.edits, snapshot = JSON.stringify(D), force = SRV.forceNext;
+      const r = await srvFetch('/api/db', {method: 'POST', body: `{"baseVersion":${SRV.version},"force":${force},"data":${snapshot}}`});
+      if(r.ok){
+        const j = await r.json();
+        SRV.version = j.version;
+        SRV.base = JSON.parse(snapshot);
+        SRV.forceNext = false;
+        if(SRV.edits === edits) SRV.dirty = false;
+        srvStatus(true);
+        continue;
+      }
+      if(r.status === 409){
+        const prevBase = SRV.base;
+        const j = await srvLoad(await r.text());   // SRV.base becomes a separate copy of theirs
+        D = ensureGrowth(merge3(prevBase, D, j.data));
+        srvRefreshScreen();
+        continue;
+      }
+      if(r.status === 401){ showConnectScreen(); return; }
+      if(r.status === 403){
+        // Restore / reset is allowed only from the main counter PC or a Manager device
+        SRV.forceNext = false;
+        SRV.dirty = false;
+        SRV.version = -1;   // next poll reloads the server copy
+        alert('Backup Restore / Reset sirf Main Counter PC ya Manager PIN wale device se ho sakta hai.');
+        return;
+      }
+      throw new Error('HTTP ' + r.status);
+    }
+  }catch(e){
+    srvStatus(false);
+    setTimeout(srvPush, 3000);
+  }finally{
+    SRV.busy = false;
+    if(SRV.again){ SRV.again = false; srvPush(); }
+  }
+}
+
+async function srvPoll(){
+  if(!SRV.on || SRV.busy || SRV.dirty) return;
+  try{
+    const r = await srvFetch('/api/version');
+    if(r.status === 401){ showConnectScreen(); return; }
+    const j = await r.json();
+    srvStatus(true);
+    if(j.version === SRV.version || SRV.busy || SRV.dirty) return;
+    const r2 = await srvFetch('/api/db');
+    const fresh = await srvLoad(await r2.text());
+    D = ensureGrowth(fresh.data);
+    srvRefreshScreen();
+  }catch(e){ srvStatus(false); }
+}
+
+const LIVE_SCREENS = ['gateway', 'kitchen', 'online', 'bills', 'captain', 'tokens', 'reservations', 'daybook', 'settlement'];
+function srvRefreshScreen(){
+  updateOnlinePills();
+  updateSubscriptionUI();
+  if(!activeUser || isModal()) return;
+  const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
+  if(cur === 'bill'){ if(!typing) scrBill(); return; }
+  if(LIVE_SCREENS.includes(cur) && !typing && SCREENS[cur]){ drawSide(); SCREENS[cur](); }
+}
+
+window.addEventListener('beforeunload', e => {
+  if(SRV.on && SRV.dirty){ e.preventDefault(); e.returnValue = ''; }
+});
+
+// Phones / tablets on the restaurant WiFi connect once with the Manager or Cashier PIN
+function showConnectScreen(msg){
+  $('#login-screen').style.display = 'none';
+  let el = $('#connect-screen');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'connect-screen';
+    el.style.cssText = 'position:fixed;inset:0;background:radial-gradient(circle at 50% 10%,#1e293b 0%,#0f172a 100%);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div class="login-card">
+      <img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px;margin:0 auto 10px;display:block;border:1px solid #e2e8f0;background:#fff">
+      <h2>Setu — Device Connect</h2>
+      <p class="subtitle">Ye phone/tablet Main Counter PC se judega (restaurant WiFi)</p>
+      ${msg ? `<div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px">${esc(msg)}</div>` : ''}
+      <form id="connect-form" style="text-align:left">
+        <div class="login-field">
+          <label>Manager ya Cashier PIN</label>
+          <input id="connect_pin" type="password" inputmode="numeric" required placeholder="PIN" autocomplete="off">
+        </div>
+        <div id="connect_err" style="color:var(--bad);font-size:12px;font-weight:600;margin-bottom:10px;display:none"></div>
+        <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">Connect</button>
+      </form>
+      <div style="margin-top:14px;font-size:11px;color:#64748b">Powered by <strong>Aghanya Devanya Enterprises</strong></div>
+    </div>`;
+  el.style.display = 'flex';
+  $('#connect-form').onsubmit = async ev => {
+    ev.preventDefault();
+    const err = $('#connect_err');
+    try{
+      const r = await fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin: $('#connect_pin').value.trim()})});
+      if(!r.ok){ err.textContent = r.status === 403 ? 'Galat PIN' : 'Main Counter se connection nahi hua'; err.style.display = 'block'; return; }
+      const j = await r.json();
+      SRV.token = j.token;
+      lsSet(TOKEN_KEY, j.token);
+      activeUser = {name: j.role === 'admin' ? 'Manager' : 'Staff', role: j.role === 'admin' ? 'admin' : 'cashier', time: Date.now()};
+      lsSet(AUTH_KEY, JSON.stringify(activeUser));
+      el.style.display = 'none';
+      if(await srvInitData()) startUI();
+    }catch(e){ err.textContent = 'Main Counter se connection nahi hua'; err.style.display = 'block'; }
+  };
+  setTimeout(() => $('#connect_pin')?.focus(), 50);
+}
+
 save();
 
 /* ================= AUDIO CHIME FOR INCOMING ORDERS ================= */
@@ -1779,7 +2100,33 @@ function customers(){
       c.pts += (+b.ptsEarned || 0) - (+b.ptsUsed || 0);
       b.items.forEach(i => c.fav[i.name] = (c.fav[i.name] || 0) + i.qty);
     });
-  return Object.values(m).map(c => ({...c, spend: r2(c.spend), fav: Object.entries(c.fav).sort((a,b) => b[1] - a[1])[0]?.[0] || ''}));
+  // Customers who only topped up their wallet so far
+  D.txns.filter(t => t.type === 'Receipt' && t.head === 'Customer Wallet Topup' && normPh(t.phone).length === 10).forEach(t => {
+    const p = normPh(t.phone);
+    if(!m[p]) m[p] = {phone: p, name: t.party || '', visits: 0, spend: 0, first: t.date, last: t.date, pts: 0, fav: {}};
+  });
+  return Object.values(m).map(c => ({...c, spend: r2(c.spend), wallet: walletBal(c.phone), fav: Object.entries(c.fav).sort((a,b) => b[1] - a[1])[0]?.[0] || ''}));
+}
+
+function walletTopup(phone){
+  const ph = normPh(prompt('Customer ka 10-digit mobile number', phone || '') || '');
+  if(ph.length !== 10){ if(ph) toast('Sahi 10-digit number daalein'); return; }
+  const known = customers().find(c => c.phone === ph);
+  const name = (prompt('Customer ka naam', known?.name || '') || '').trim();
+  const v = +prompt(`Wallet mein kitna jodna hai? (₹)
+Abhi balance: ${money(walletBal(ph))}`);
+  if(!(v > 0)) return;
+  const mode = confirm('Cash mein liya? (Cancel = UPI)') ? 'Cash' : 'UPI';
+  D.txns.push({id: uid(), type: 'Receipt', date: today(), time: nowTime(), head: 'Customer Wallet Topup', desc: name, party: name, phone: ph, amount: v, mode});
+  save();
+  toast(`${name || ph} ke wallet mein ${money(v)} jude · Balance ${money(walletBal(ph))}`);
+  if(cur === 'customers') scrCustomers();
+  if(confirm('Customer ko WhatsApp par wallet balance bhejein?')){
+    waOpen(ph, `Namaste ${name || ''} ji,
+${D.settings.name} wallet mein ₹${v} jud gaye.
+Aapka wallet balance: ₹${walletBal(ph)}
+Agli visit par bill isi se pay karein!`);
+  }
 }
 
 // Kitchen tickets: only items not yet sent to the kitchen become a new KOT
@@ -1809,6 +2156,7 @@ function pushKot(t){
     channel: t.channel || 'Dine-In',
     items: t.items.map(i => ({name: i.name, qty: i.qty})),
     note: t.note || '',
+    token: t.token || 0,
     status: 'new'
   };
   D.kots.push(k);
@@ -1818,6 +2166,21 @@ function pushKot(t){
   return k;
 }
 const pendingKots = () => (D.kots || []).filter(k => k.status !== 'served');
+
+// Customer prepaid wallet: top-ups are Receipt vouchers, spends are bills paid by 'Wallet'
+function walletBal(phone){
+  const p = normPh(phone);
+  if(p.length !== 10) return 0;
+  const inn = sum(D.txns.filter(t => t.type === 'Receipt' && t.head === 'Customer Wallet Topup' && normPh(t.phone) === p), 'amount');
+  const out = sum(D.bills.filter(b => !b.cancelled && b.mode === 'Wallet' && normPh(b.phone) === p), 'total');
+  return r2(inn - out);
+}
+
+// Takeaway token numbers restart every day
+function nextToken(){
+  if(D.seq.tokenDate !== today()){ D.seq.tokenDate = today(); D.seq.token = 0; }
+  return ++D.seq.token;
+}
 
 const MENU = [
   ['B','Billing Desk (New Bill)','bill','Transactions'],
@@ -1836,6 +2199,12 @@ const MENU = [
   ['R','Customers, Loyalty & Offers','customers','Growth Add-ons'],
   ['A','Staff Attendance & Salary','staff','Growth Add-ons'],
   ['O','Multi-Outlet Owner Dashboard','outlets','Growth Add-ons'],
+  ['N','Captain App (Mobile Orders)','captain','Operations'],
+  ['H','Table Reservations','reservations','Operations'],
+  ['X','Token Display (TV)','tokens','Operations'],
+  ['F','Reports & Tally Export','reports','Accounts'],
+  ['U','Suppliers & Udhaar','suppliers','Accounts'],
+  ['Y','Zomato/Swiggy Settlement','settlement','Accounts'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -1859,7 +2228,13 @@ const SCREENS = {
   qr: scrQR,
   customers: scrCustomers,
   staff: scrStaff,
-  outlets: scrOutlets
+  outlets: scrOutlets,
+  captain: scrCaptain,
+  reservations: scrReservations,
+  tokens: scrTokens,
+  reports: scrReports,
+  suppliers: scrSuppliers,
+  settlement: scrSettlement
 };
 
 let kdsTimer = null;
@@ -1868,7 +2243,7 @@ function go(s){
   if(checkExpiryLock()) return;
   cur = s;
   clearInterval(kdsTimer);
-  if(s !== 'kitchen') document.body.classList.remove('kitchen-mode');
+  if(s !== 'kitchen' && s !== 'tokens') document.body.classList.remove('kitchen-mode');
   closeModal();
   const m = MENU.find(x => x[2] === s);
   $('#scrname').innerHTML = `<span class="dot"></span>${m ? m[1] : 'Gateway of Restaurant'}`;
@@ -1938,10 +2313,11 @@ function calc(items, disc, rate){
 function summary(d){
   const bills = D.bills.filter(b => b.date === d && !b.cancelled), tx = D.txns.filter(t => t.date === d);
   const by = {}; MODES.forEach(m => by[m] = sum(bills.filter(b => b.mode === m), 'total'));
-  const rec = tx.filter(t => t.type === 'Receipt'), exp = tx.filter(t => t.type === 'Expense'), pur = tx.filter(t => t.type === 'Purchase');
+  const recAll = tx.filter(t => t.type === 'Receipt'), expAll = tx.filter(t => t.type === 'Expense'), pur = tx.filter(t => t.type === 'Purchase');
+  const rec = recAll.filter(t => !NON_INCOME_HEADS.includes(t.head)), exp = expAll.filter(t => !NON_EXPENSE_HEADS.includes(t.head));
   const isCash = t => t.mode === 'Cash';
-  const cashIn = by.Cash + sum(rec.filter(isCash), 'amount');
-  const cashOut = sum(exp.filter(isCash), 'amount') + sum(pur.filter(isCash), 'amount');
+  const cashIn = by.Cash + sum(recAll.filter(isCash), 'amount');
+  const cashOut = sum(expAll.filter(isCash), 'amount') + sum(pur.filter(isCash), 'amount');
   const items = {};
   bills.forEach(b => b.items.forEach(i => { items[i.name] = (items[i.name] || 0) + i.qty; }));
   const cr = cashRec(d), counted = countTotal(cr);
@@ -1955,6 +2331,9 @@ function summary(d){
   return {
     bills, by, sales: sum(bills,'total'), disc: sum(bills,'disc'), tax: sum(bills,'tax'),
     rec, exp, pur, recT: sum(rec,'amount'), expT: sum(exp,'amount'), purT: sum(pur,'amount'),
+    walletTopT: sum(recAll.filter(t => t.head === 'Customer Wallet Topup'), 'amount'),
+    settleT: sum(recAll.filter(t => /Settlement$/.test(t.head || '')), 'amount'),
+    supPayT: sum(expAll.filter(t => t.head === 'Supplier Payment'), 'amount'),
     cashIn, cashOut, opening: +cr.opening || 0, expected: (+cr.opening || 0) + cashIn - cashOut,
     counted, countedSaved: !!D.cash[d], top: Object.entries(items).sort((a,b) => b[1] - a[1]),
     cancelled: D.bills.filter(b => b.date === d && b.cancelled).length,
@@ -2510,6 +2889,7 @@ function newB(tbl = 'T-1', channel = 'Dine-In'){
     cart: [],
     redeem: 0,
     sent: {},
+    token: 0,
     isKaccha: false,
     createdAt: nowTime()
   }; 
@@ -2539,13 +2919,17 @@ function drawPts(){
   const e = $('#pts');
   if(!e) return;
   const st = D.settings, p = normPh(B.phone);
-  if(!st.loyalty || p.length !== 10 || isAggregator(B.channel)){ e.innerHTML = ''; return; }
+  if(p.length !== 10 || isAggregator(B.channel)){ e.innerHTML = ''; return; }
+  const wb = walletBal(p);
+  const walletLine = wb > 0 ? `<span>Wallet: <b class="green">${money(wb)}</b>${B.mode !== 'Wallet' ? ` <button class="btn g sm" onclick="B.mode='Wallet';scrBillModes();drawPts()">Wallet se Pay</button>` : ''}</span>` : '';
+  if(!st.loyalty){ e.innerHTML = walletLine ? `<div class="pts">${walletLine}</div>` : ''; return; }
   const bal = ptsBal(p), visits = D.bills.filter(b => !b.cancelled && normPh(b.phone) === p).length;
   e.innerHTML = `<div class="pts">
     <span><b>${visits ? `Purana customer · ${visits} visit` : 'Naya customer'}</b> · Loyalty Points: <b>${bal}</b> (= ${money(bal * st.ptValue)})</span>
     ${B.redeem
       ? `<b class="green">− ${money(redeemRs())} redeemed</b><button class="btn g sm" onclick="B.redeem=0;drawPts();drawTotals()">Undo</button>`
       : (bal >= (+st.minRedeem || 0) && bal > 0 ? `<button class="btn sm" onclick="redeemPts()">Redeem Points</button>` : `<span class="muted">Min ${st.minRedeem} points par redeem</span>`)}
+    ${walletLine}
   </div>`;
 }
 
@@ -2616,7 +3000,7 @@ function scrBill(){
             <button type="button" class="tbl-chip ${isSelected ? 'active' : ''} ${isOccupied ? 'occupied' : ''}" onclick="switchTable('${esc(tbl)}')">
               <span class="pulse-dot"></span>
               <span>${esc(tbl)}</span>
-              ${isOccupied ? `<b style="font-size:11px">₹${tblTotal}</b>` : '<span style="font-size:10px;opacity:.7">Free</span>'}
+              ${isOccupied ? `<b style="font-size:11px">₹${tblTotal}</b>` : tableRsv(tbl) ? `<span style="font-size:10px;color:#7c3aed;font-weight:800">Rsv ${esc(tableRsv(tbl).time)}</span>` : '<span style="font-size:10px;opacity:.7">Free</span>'}
             </button>
           `;
         }).join('')}
@@ -2866,20 +3250,7 @@ function switchTable(tbl){
 
   if(D.kaccha[tbl]){
     const k = D.kaccha[tbl];
-    B = {
-      channel: 'Dine-In',
-      table: k.table,
-      cust: k.cust || '',
-      phone: k.phone || '',
-      note: k.note || '',
-      disc: k.disc || 0,
-      mode: k.mode || 'Cash',
-      cart: k.cart.map(c => ({...c})),
-      redeem: k.redeem || 0,
-      sent: {...(k.sent || {})},
-      isKaccha: true,
-      createdAt: k.createdAt || nowTime()
-    };
+    B = kacchaToB(k);
     toast(`Table ${tbl} ka Kaccha Bill load hua (${k.cart.length} items)`);
   } else {
     B = newB(tbl, 'Dine-In');
@@ -2887,7 +3258,25 @@ function switchTable(tbl){
   scrBill();
 }
 
-function saveKacchaBill(silent = false){
+function kacchaToB(k){
+  return {
+    channel: 'Dine-In',
+    table: k.table,
+    cust: k.cust || '',
+    phone: k.phone || '',
+    note: k.note || '',
+    disc: k.disc || 0,
+    mode: k.mode || 'Cash',
+    cart: k.cart.map(c => ({...c})),
+    redeem: k.redeem || 0,
+    sent: {...(k.sent || {})},
+    token: 0,
+    isKaccha: true,
+    createdAt: k.createdAt || nowTime()
+  };
+}
+
+function saveKacchaBill(silent = false, noRender = false){
   const sub = getSubscriptionInfo();
   if(sub.isExpired){
     toast('License Expired! Kripya pehle 1-Month Activation Key enter karein.');
@@ -2942,7 +3331,7 @@ function saveKacchaBill(silent = false){
       </div>
     `);
   }
-  scrBill();
+  if(!noRender) scrBill();
 }
 
 function cancelKacchaOrder(tbl){
@@ -2980,6 +3369,12 @@ function finalizePakkaBill(){
     (m?.recipe || []).forEach(r => { used[r.sid] = (used[r.sid] || 0) + r.qty * c.qty; });
   });
   const ptsEarned = st.loyalty && hasPh ? Math.floor(t.total / 100 * (+st.ptsPer100 || 0)) : 0;
+  if(B.mode === 'Wallet'){
+    if(normPh(B.phone).length !== 10){ toast('Wallet se payment ke liye customer ka mobile number daalein'); return; }
+    const wb = walletBal(B.phone);
+    if(wb < t.total){ toast(`Wallet balance kam hai (${money(wb)}). Customers (R) mein top-up karein`); return; }
+  }
+  const token = B.token || (st.tokenOn && ch === 'Takeaway' ? nextToken() : 0);
 
   const bill = {
     id: uid(),
@@ -3000,13 +3395,14 @@ function finalizePakkaBill(){
     ptsUsed,
     ptsEarned,
     loyaltyDisc: Math.min(loyaltyDisc, t.disc),
+    token,
     used: Object.entries(used).map(([sid, qty]) => ({sid, qty}))
   };
 
   applyStock(bill.used, -1);
   D.bills.push(bill);
   // Send only the items the kitchen has not seen yet (running tables already sent theirs)
-  pushKot({no: bill.kot, table: tbl, channel: bill.channel, items: cartDelta(B.cart, B.sent), note: bill.note});
+  pushKot({no: bill.kot, table: token ? `Token ${token}` : tbl, channel: bill.channel, items: cartDelta(B.cart, B.sent), note: bill.note, token});
   
   if(B.channel === 'Dine-In' && D.kaccha[tbl]){
     delete D.kaccha[tbl];
@@ -3018,6 +3414,8 @@ function finalizePakkaBill(){
 
   modal(`Pakka Bill #${bill.no} Saved — ${money(bill.total)}`, `
     <p style="margin:0 0 12px;font-size:13px"><b class="green">Pakka Bill finalize ho gaya!</b> Order <b>${esc(tbl)}</b> (${esc(bill.channel)}) settled.</p>
+    ${bill.token ? `<p style="margin:0 0 12px;font-size:28px;font-weight:800;text-align:center;color:var(--primary-dark)">TOKEN #${bill.token}</p>` : ''}
+    ${bill.mode === 'Wallet' ? `<p class="pts" style="margin:0 0 12px">Wallet se ${money(bill.total)} kata · Bacha balance: <b>${money(walletBal(bill.phone))}</b></p>` : ''}
     ${bill.ptsEarned || bill.ptsUsed ? `<p class="pts" style="margin:0 0 12px">Loyalty: <b>+${bill.ptsEarned}</b> points mile${bill.ptsUsed ? ` · ${bill.ptsUsed} use hue` : ''} · Balance: <b>${ptsBalAt(bill)}</b></p>` : ''}
     <div class="btns" style="flex-direction:column">
       <button class="btn ok" autofocus onclick="printBill('${bill.id}','both')">Print Customer Bill + Kitchen KOT (2 Receipts)</button>
@@ -3050,6 +3448,7 @@ function billHTML(b){
   const channelBadge = b.channel && b.channel !== 'Dine-In' ? ` [${b.channel.toUpperCase()}]` : '';
   return `<div class="rcpt${paper('bill')}">${head()}<hr><div class="c"><b>TAX INVOICE${b.cancelled?' (CANCELLED)':''}${channelBadge}</b></div>
   <div>Bill No: <b>#${b.no}</b> &nbsp; ${dmy(b.date)} ${b.time}</div>
+  ${b.token ? `<div class="c big">TOKEN #${b.token}</div>` : ''}
   ${b.table ? `<div>Table/Ref: <b>${esc(b.table)}</b></div>` : ''}${b.cust ? `<div>Customer: ${esc(b.cust)}</div>` : ''}<hr>
   <table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>
   ${b.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${i.price}</td><td class="r">${r2(i.price*i.qty)}</td></tr>`).join('')}</table><hr>
@@ -3104,7 +3503,7 @@ function kacchaHTML(k){
 function kotHTML(b){
   return `<div class="rcpt kot${paper('kot')}"><div class="c h">*** KITCHEN ORDER (KOT) ***</div><hr>
   <div>KOT No: <b>${b.kot}</b> &nbsp; ${esc(b.table || 'Counter')}</div>
-  <div>${dmy(b.date || today())} &nbsp; ${b.time || nowTime()}</div><hr>
+  <div>${dmy(b.date || today())} &nbsp; ${b.time || nowTime()}</div>${b.token ? `<div class="c h">TOKEN #${b.token}</div>` : ''}<hr>
   <table><tr><th>Qty</th><th>Item</th></tr>${b.items.map(i => `<tr><td>${i.qty} ×</td><td>${esc(i.name)}</td></tr>`).join('')}</table><hr>
   ${b.note ? `<div class="big">Note: ${esc(b.note)}</div><hr>` : ''}<div class="c">Chef Copy</div></div>`;
 }
@@ -3270,7 +3669,7 @@ function scrPurchase(){
       <div><label>Rate (₹ per unit)</label><input id="p_rate" type="number" step="any" value="${D.stock[0]?.rate||''}" oninput="pAmt()"></div>
       <div><label>Total Amount (₹)</label><input id="p_amt" type="number" step="any"></div>
       <div><label>Supplier / Vendor</label><input id="p_party" placeholder="e.g. Shyam Dairy"></div>
-      <div><label>Payment Mode</label><select id="p_mode">${MODES.filter(m=>!m.includes('Pay')).map(m => `<option>${m}</option>`).join('')}</select></div>
+      <div><label>Payment Mode</label><select id="p_mode">${MODES.filter(m=>!m.includes('Pay') && m !== 'Wallet').map(m => `<option>${m}</option>`).join('')}</select></div>
     </div>
     <div class="btns">
       <button class="btn ok" onclick="savePurchase()">Save Purchase</button>
@@ -3301,8 +3700,8 @@ function savePurchase(){
 }
 
 const HEADS = {
-  Expense: ['Vegetables','Gas Cylinder','Staff Salary / Wages','Staff Advance','Electricity Bill','Rent','Milk / Dairy','Maintenance','Transport / Auto','Cleaning / Laundry','Other Expense'],
-  Receipt: ['Old Udhaar Received','Advance Room / Party Booking','Owner Cash Added','Scrap / Other Income']
+  Expense: ['Vegetables','Gas Cylinder','Staff Salary / Wages','Staff Advance','Supplier Payment','Electricity Bill','Rent','Milk / Dairy','Maintenance','Transport / Auto','Cleaning / Laundry','Other Expense'],
+  Receipt: ['Old Udhaar Received','Advance Room / Party Booking','Owner Cash Added','Scrap / Other Income','Customer Wallet Topup','Zomato Settlement','Swiggy Settlement']
 };
 
 function scrVoucher(type){
@@ -3318,7 +3717,7 @@ function scrVoucher(type){
       <div><label>Details / Remark</label><input id="v_desc" placeholder="e.g. Gas refill 2 cylinder"></div>
       <div><label>${isE ? 'Paid To' : 'Received From'}</label><input id="v_party" placeholder="Name"></div>
       <div><label>Amount (₹)</label><input id="v_amt" type="number" step="any"></div>
-      <div><label>Payment Mode</label><select id="v_mode">${MODES.filter(m => m !== 'Credit' && !m.includes('Pay')).map(m => `<option>${m}</option>`).join('')}</select></div>
+      <div><label>Payment Mode</label><select id="v_mode">${MODES.filter(m => m !== 'Credit' && m !== 'Wallet' && !m.includes('Pay')).map(m => `<option>${m}</option>`).join('')}</select></div>
     </div>
     <div class="btns"><button class="btn ok" onclick="saveVoucher('${type}')">Save Voucher</button></div>
   </div>${txList(type)}`;
@@ -3507,6 +3906,12 @@ function reportText(d){
   t += `\n\n*Purchases: ₹${r2(s.purT)}*` + (s.pur.length ? '\n' + s.pur.map(x => `   ${x.head} ${x.desc}: ₹${x.amount} (${x.mode})`).join('\n') : '');
   t += `\n\n*CASH DRAWER ACCOUNT*\nOpening: ₹${r2(s.opening)}\nCash In: ₹${r2(s.cashIn)}\nCash Out: ₹${r2(s.cashOut)}\nExpected Cash: ₹${r2(s.expected)}` +
     (s.countedSaved ? `\nCounted Cash: ₹${r2(s.counted)}\nDiff: ${Math.abs(df)<0.01?'Match':(df>0?'Excess +₹':'Short ₹')+Math.abs(r2(df))}` : '\n(Cash count abhi save nahi hua)');
+  if(s.walletTopT || s.settleT || s.supPayT){
+    t += `\n\n*Paisa Aaya/Gaya (kamai-kharcha nahi)*` +
+      (s.walletTopT ? `\n   Customer Wallet Topup: ₹${r2(s.walletTopT)}` : '') +
+      (s.settleT ? `\n   Zomato/Swiggy Settlement mila: ₹${r2(s.settleT)}` : '') +
+      (s.supPayT ? `\n   Supplier ko Payment: ₹${r2(s.supPayT)}` : '');
+  }
   t += `\n\n*Net Profit/Margin: ₹${r2(s.sales+s.recT-s.expT-s.purT)}*`;
   if(s.top.length) t += `\n\n*Top Dishes*\n` + s.top.slice(0,5).map(([n,q],i) => `${i+1}. ${n} × ${q}`).join('\n');
   if(low.length) t += `\n\n*Low Stock Alerts*\n` + low.map(x => `   ${x.name}: ${fq(x.qty)} ${x.unit} (min ${x.min})`).join('\n');
@@ -3835,11 +4240,13 @@ function scrKitchen(){
 
   kdsTimer = setInterval(() => {
     if(cur !== 'kitchen' || isModal()) return;
-    // Pick up KOTs saved from another window of this software
-    try{
-      const fresh = JSON.parse(localStorage.getItem(KEY));
-      if(fresh && Array.isArray(fresh.kots)) D.kots = fresh.kots;
-    }catch(e){}
+    // Browser mode only: pick up KOTs saved from another window (LAN mode syncs by itself)
+    if(!SRV.on){
+      try{
+        const fresh = JSON.parse(localStorage.getItem(KEY));
+        if(fresh && Array.isArray(fresh.kots)) D.kots = fresh.kots;
+      }catch(e){}
+    }
     scrKitchen();
   }, 15000);
 }
@@ -3862,7 +4269,7 @@ function kotSet(id, status){
 function printKotTicket(id){
   const k = (D.kots || []).find(x => x.id === id);
   if(!k) return;
-  printDoc([kotHTML({kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note})]);
+  printDoc([kotHTML({kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note, token: k.token})]);
 }
 
 /* ================= CUSTOMERS, LOYALTY & WHATSAPP OFFERS ================= */
@@ -3930,11 +4337,12 @@ ${esc(st.name)} mein is weekend 10% OFF! Aapke paas {points} loyalty points bhi 
       ${[['last','Last visit'],['spend','Sabse zyada kharcha'],['visits','Sabse zyada visit']].map(([v,l]) => `<option value="${v}" ${custSort===v?'selected':''}>${l}</option>`).join('')}
     </select>
     <button class="btn g" onclick="custCSV()">Excel (CSV) Download</button>
+    <button class="btn ok" onclick="walletTopup()">+ Wallet Top-up</button>
   </div>
 
   <div class="card" style="padding:0;overflow:auto">
     <table>
-      <thead><tr><th>Customer</th><th>Mobile</th><th class="n">Visits</th><th class="n">Total Spend</th><th>Last Visit</th><th class="n">Points</th><th>Favourite Dish</th><th></th></tr></thead>
+      <thead><tr><th>Customer</th><th>Mobile</th><th class="n">Visits</th><th class="n">Total Spend</th><th>Last Visit</th><th class="n">Points</th><th class="n">Wallet</th><th>Favourite Dish</th><th></th></tr></thead>
       <tbody>
         ${list.map(c => `
           <tr>
@@ -3944,9 +4352,10 @@ ${esc(st.name)} mein is weekend 10% OFF! Aapke paas {points} loyalty points bhi 
             <td class="n">${money(c.spend)}</td>
             <td>${dmy(c.last)} <span class="${daysAgo(c.last) >= 30 ? 'red' : 'muted'}">(${daysAgo(c.last)}d)</span></td>
             <td class="n"><b>${c.pts}</b></td>
+            <td class="n">${c.wallet ? `<b class="green">${money(c.wallet)}</b>` : '—'}</td>
             <td>${esc(c.fav)}</td>
-            <td><button class="btn wa sm" onclick="waPoints('${c.phone}')">WhatsApp</button></td>
-          </tr>`).join('') || '<tr><td colspan="8" class="muted" style="text-align:center;padding:20px">Abhi koi customer nahi. Bill mein customer ka mobile number daalne par yahan apne aap aayenge.</td></tr>'}
+            <td style="white-space:nowrap"><button class="btn wa sm" onclick="waPoints('${c.phone}')">WhatsApp</button> <button class="btn g sm" onclick="walletTopup('${c.phone}')">Top-up</button></td>
+          </tr>`).join('') || '<tr><td colspan="9" class="muted" style="text-align:center;padding:20px">Abhi koi customer nahi. Bill mein customer ka mobile number daalne par yahan apne aap aayenge.</td></tr>'}
       </tbody>
     </table>
   </div>
@@ -4103,7 +4512,8 @@ function importOrder(txt){
   if(note) B.note = B.note ? B.note + ' | ' + note : note;
 
   if(isParcel){
-    pushKot({table: 'Parcel' + (name ? ' · ' + name : ''), channel: 'Takeaway', items, note});
+    if(D.settings.tokenOn) B.token = nextToken();
+    pushKot({table: (B.token ? `Token ${B.token}` : 'Parcel') + (name ? ' · ' + name : ''), channel: 'Takeaway', items, note, token: B.token});
     B.sent = sentMap(B.cart);
     save();
     scrBill();
@@ -4508,12 +4918,481 @@ function outletsText(){
     `\n\n*TOTAL SALES: ₹${r2(sum(outs, o => o.r.sales))}*\n*TOTAL NET: ₹${r2(sum(outs, o => o.r.net))}*`;
 }
 
+/* ================= CAPTAIN APP (waiter mobile ordering) ================= */
+let cap = {table: '', cart: [], cat: 'All', q: '', note: ''};
+
+function scrCaptain(){
+  const tables = D.settings.tables || [];
+  if(!cap.table){
+    main.innerHTML = `
+    <div class="title"><span>Captain App — Table Chunein</span><span class="r">${Object.keys(D.kaccha || {}).length} occupied</span></div>
+    <div class="cap-tables">
+      ${tables.map(t => {
+        const k = D.kaccha[t], r = tableRsv(t);
+        return `<button class="cap-tbl ${k ? 'occ' : ''}" onclick="capOpen(${JSON.stringify(t).replace(/"/g, '&quot;')})">
+          <b>${esc(t)}</b>
+          <span>${k ? money(calc(k.cart, k.disc, D.settings.gst).total) + ' · ' + sum(k.cart, 'qty') + ' items' : r ? 'Reserved ' + esc(r.time) : 'Free'}</span>
+        </button>`;
+      }).join('')}
+    </div>
+    <p class="muted" style="font-size:12px">Phone par: Settings (G) → "Phone / Tablet Connect" wala link kholein. Order bhejte hi KOT Kitchen Display par chala jata hai.</p>`;
+    return;
+  }
+
+  const cats = ['All', ...new Set(D.menu.map(m => m.cat))];
+  const q = cap.q.toLowerCase();
+  const list = D.menu.filter(m => (cap.cat === 'All' || m.cat === cap.cat) && (!q || m.name.toLowerCase().includes(q)));
+  const k = D.kaccha[cap.table];
+  const n = sum(cap.cart, 'qty');
+  main.innerHTML = `
+  <div class="title">
+    <button class="btn g sm" onclick="if(!cap.cart.length||confirm('Naye items abhi bheje nahi gaye. Wapas jaayein?')){cap.table='';cap.cart=[];scrCaptain()}">← Tables</button>
+    <span>${esc(cap.table)}</span>
+    <span class="r">${k ? `Chal raha: <b>${money(calc(k.cart, k.disc, D.settings.gst).total)}</b>` : 'Naya order'}</span>
+  </div>
+  ${k ? `<div class="card" style="padding:10px 14px;font-size:13px"><b>Pehle bheja:</b> ${k.cart.map(i => esc(i.name) + ' × ' + i.qty).join(', ')}</div>` : ''}
+  <input id="cap_q" placeholder="Dish search karein..." value="${esc(cap.q)}" oninput="cap.q=this.value;clearTimeout(scrCaptain.t);scrCaptain.t=setTimeout(()=>{scrCaptain();const i=$('#cap_q');i.focus();i.setSelectionRange(i.value.length,i.value.length);},250)">
+  <div class="cats">${cats.map(c => `<button class="cat ${c === cap.cat ? 'on' : ''}" onclick="cap.cat=${JSON.stringify(c).replace(/"/g, '&quot;')};scrCaptain()">${esc(c)}</button>`).join('')}</div>
+  <div class="cap-items">
+    ${list.map(m => {
+      const c = cap.cart.find(x => x.mid === m.id);
+      return `<div class="cap-item">
+        <div><b>${esc(m.name)}</b><small>${rs(m.price)}</small></div>
+        <div class="qty">
+          ${c ? `<button onclick="capQty('${m.id}',-1)">−</button><b style="min-width:24px;text-align:center">${c.qty}</b>` : ''}
+          <button onclick="capQty('${m.id}',1)" style="${c ? '' : 'width:auto;padding:0 14px;background:var(--primary);color:#fff;border-color:var(--primary)'}">${c ? '+' : 'ADD'}</button>
+        </div>
+      </div>`;
+    }).join('') || '<p class="muted">Koi dish nahi mili</p>'}
+  </div>
+  <div class="cap-bar">
+    <input id="cap_note" placeholder="Note (kam teekha...)" value="${esc(cap.note)}" oninput="cap.note=this.value">
+    <button class="btn ok" ${n ? '' : 'disabled'} onclick="captainSend()">KOT Bhejein${n ? ` (${n})` : ''}</button>
+  </div>`;
+}
+
+function capOpen(t){
+  cap = {table: t, cart: [], cat: 'All', q: '', note: ''};
+  scrCaptain();
+}
+
+function capQty(mid, d){
+  const m = D.menu.find(x => x.id === mid);
+  if(!m) return;
+  let c = cap.cart.find(x => x.mid === mid);
+  if(!c){ c = {mid, name: m.name, price: +m.price, qty: 0}; cap.cart.push(c); }
+  c.qty += d;
+  if(c.qty <= 0) cap.cart = cap.cart.filter(x => x.mid !== mid);
+  scrCaptain();
+}
+
+function captainSend(){
+  if(!cap.cart.length) return;
+  const tbl = cap.table, k = D.kaccha[tbl];
+  B = k ? kacchaToB(k) : newB(tbl, 'Dine-In');
+  cap.cart.forEach(i => {
+    const c = B.cart.find(x => x.mid === i.mid);
+    if(c) c.qty += i.qty;
+    else B.cart.push({...i});
+  });
+  if(cap.note.trim()) B.note = cap.note.trim();
+  saveKacchaBill(true, true);
+  toast(`${tbl}: ${sum(cap.cart, 'qty')} items ka KOT kitchen mein gaya`);
+  B = newB('T-1', 'Dine-In');
+  cap = {table: '', cart: [], cat: 'All', q: '', note: ''};
+  scrCaptain();
+}
+
+/* ================= TABLE RESERVATIONS ================= */
+let rsvDate = today();
+const RSV_STATUS = {booked: 'Booked', arrived: 'Aa Gaye', cancelled: 'Cancel', noshow: 'Nahi Aaye'};
+
+function tableRsv(t){
+  return (D.reservations || []).filter(r => r.date === today() && r.table === t && r.status === 'booked').sort((a,b) => a.time.localeCompare(b.time))[0];
+}
+
+function scrReservations(){
+  const list = (D.reservations || []).filter(r => r.date === rsvDate).sort((a,b) => a.time.localeCompare(b.time));
+  const people = sum(list.filter(r => r.status !== 'cancelled'), 'people');
+  main.innerHTML = `
+  <div class="title">
+    <span>Table Reservations</span>
+    <span class="r">Date: <input type="date" value="${rsvDate}" onchange="rsvDate=this.value;scrReservations()"> · ${list.length} bookings · ${people} log</span>
+  </div>
+  <div class="card">
+    <div class="grid">
+      <div><label>Customer Naam *</label><input id="rv_name"></div>
+      <div><label>Mobile</label><input id="rv_phone" inputmode="tel"></div>
+      <div><label>Date *</label><input id="rv_date" type="date" value="${rsvDate}"></div>
+      <div><label>Time *</label><input id="rv_time" type="time" value="20:00"></div>
+      <div><label>Kitne Log</label><input id="rv_people" type="number" min="1" value="2"></div>
+      <div><label>Table</label><select id="rv_table"><option value="">— Baad mein —</option>${(D.settings.tables || []).map(t => `<option>${esc(t)}</option>`).join('')}</select></div>
+      <div><label>Note</label><input id="rv_note" placeholder="Birthday, window seat..."></div>
+    </div>
+    <div class="btns"><button class="btn ok" onclick="saveRsv()">Booking Save Karein</button></div>
+  </div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>Time</th><th>Customer</th><th class="n">Log</th><th>Table</th><th>Note</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        ${list.map(r => `
+          <tr style="${r.status === 'cancelled' || r.status === 'noshow' ? 'opacity:.5' : ''}">
+            <td><b>${esc(r.time)}</b></td>
+            <td>${esc(r.name)} ${r.phone ? `<span class="muted">(${esc(r.phone)})</span>` : ''}</td>
+            <td class="n">${r.people}</td>
+            <td>${esc(r.table || '—')}</td>
+            <td>${esc(r.note || '')}</td>
+            <td><select style="width:auto;padding:4px 8px" onchange="setRsv('${r.id}',this.value)">${Object.entries(RSV_STATUS).map(([k,v]) => `<option value="${k}" ${r.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+            <td style="white-space:nowrap">
+              ${r.phone ? `<button class="btn wa sm" onclick="waRsv('${r.id}')">WhatsApp</button>` : ''}
+              <button class="btn bad sm" onclick="delRsv('${r.id}')">✕</button>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:18px">Is din koi booking nahi</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Aaj ki booking wali table Billing aur Captain App mein "Reserved" dikhti hai.</p>`;
+}
+
+function saveRsv(){
+  const name = $('#rv_name').value.trim(), date = $('#rv_date').value, time = $('#rv_time').value;
+  if(!name || !date || !time){ toast('Naam, date aur time daalein'); return; }
+  const r = {id: uid(), name, phone: $('#rv_phone').value.trim(), date, time, people: +$('#rv_people').value || 1, table: $('#rv_table').value, note: $('#rv_note').value.trim(), status: 'booked', createdAt: Date.now()};
+  D.reservations.push(r);
+  save();
+  rsvDate = date;
+  toast('Booking save ho gayi');
+  scrReservations();
+  if(r.phone && confirm('Customer ko WhatsApp par confirmation bhejein?')) waRsv(r.id);
+}
+
+function setRsv(id, st){
+  const r = D.reservations.find(x => x.id === id);
+  if(!r) return;
+  r.status = st;
+  save();
+  scrReservations();
+}
+
+function delRsv(id){
+  if(!confirm('Booking delete karein?')) return;
+  D.reservations = D.reservations.filter(x => x.id !== id);
+  save();
+  scrReservations();
+}
+
+function waRsv(id){
+  const r = D.reservations.find(x => x.id === id);
+  if(!r) return;
+  waOpen(r.phone, `Namaste ${r.name} ji,\n${D.settings.name} mein aapki table booking confirm hai.\nDate: ${dmy(r.date)}\nTime: ${r.time}\nLog: ${r.people}${r.table ? `\nTable: ${r.table}` : ''}\n\nIntezaar rahega!`);
+}
+
+/* ================= TOKEN DISPLAY (customer-facing screen) ================= */
+function scrTokens(){
+  clearInterval(kdsTimer);
+  const ks = (D.kots || []).filter(k => k.token && k.date === today() && k.status !== 'served');
+  const prep = ks.filter(k => k.status === 'new').map(k => k.token), ready = ks.filter(k => k.status === 'ready').map(k => k.token);
+  const kmode = document.body.classList.contains('kitchen-mode');
+  main.innerHTML = `
+  <div class="title">
+    <span>Token Display</span>
+    <span class="r">
+      ${D.settings.tokenOn ? '' : '<span class="red">Token system OFF hai — Settings (G) mein ON karein</span>'}
+      <button class="btn g sm" onclick="document.body.classList.toggle('kitchen-mode');scrTokens()">${kmode ? 'Exit Full Screen' : 'Full Screen (TV)'}</button>
+    </span>
+  </div>
+  <div class="tok-wrap">
+    <div class="tok-col"><h3>Taiyaar Ho Raha Hai</h3><div class="tok-list">${[...new Set(prep)].map(t => `<span class="tok">${t}</span>`).join('') || '<p class="muted">—</p>'}</div></div>
+    <div class="tok-col ready"><h3>Collect Karein</h3><div class="tok-list">${[...new Set(ready)].map(t => `<span class="tok">${t}</span>`).join('') || '<p class="muted">—</p>'}</div></div>
+  </div>
+  <p class="muted">Kitchen Display par "Food Ready" dabate hi token yahan "Collect Karein" mein aa jata hai, aur "Served" par hat jata hai.</p>`;
+  kdsTimer = setInterval(() => {
+    if(cur !== 'tokens') return;
+    if(!SRV.on){
+      try{ const fresh = JSON.parse(localStorage.getItem(KEY)); if(fresh && Array.isArray(fresh.kots)) D.kots = fresh.kots; }catch(e){}
+    }
+    scrTokens();
+  }, 5000);
+}
+
+/* ================= SUPPLIERS & PAYABLES ================= */
+const supKey = n => String(n || '').trim().toLowerCase();
+
+function suppliers(){
+  const m = {};
+  D.txns.forEach(t => {
+    const isPur = t.type === 'Purchase', isPay = t.type === 'Expense' && t.head === 'Supplier Payment';
+    if((!isPur && !isPay) || !String(t.party || '').trim()) return;
+    const k = supKey(t.party);
+    const s = m[k] || (m[k] = {key: k, name: t.party.trim(), purchases: 0, credit: 0, paid: 0, last: t.date, count: 0});
+    if(isPur){ s.purchases += +t.amount || 0; s.count++; if(t.mode === 'Credit') s.credit += +t.amount || 0; }
+    else s.paid += +t.amount || 0;
+    if(t.date > s.last) s.last = t.date;
+  });
+  return Object.values(m).map(s => ({...s, due: r2(s.credit - s.paid)})).sort((a,b) => b.due - a.due);
+}
+
+function scrSuppliers(){
+  const list = suppliers();
+  main.innerHTML = `
+  <div class="title"><span>Suppliers & Udhaar (Payables)</span><span class="r">Kul baaki: <b class="red">${money(sum(list, 'due'))}</b></span></div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>Supplier</th><th class="n">Purchases</th><th class="n">Kul Kharid</th><th class="n">Udhaar (Credit)</th><th class="n">Diya</th><th class="n">Baaki</th><th>Last</th><th></th></tr></thead>
+      <tbody>
+        ${list.map(s => `
+          <tr>
+            <td><b>${esc(s.name)}</b></td>
+            <td class="n">${s.count}</td>
+            <td class="n">${money(s.purchases)}</td>
+            <td class="n">${money(s.credit)}</td>
+            <td class="n">${money(s.paid)}</td>
+            <td class="n ${s.due > 0 ? 'red' : 'green'}"><b>${money(s.due)}</b></td>
+            <td>${dmy(s.last)}</td>
+            <td style="white-space:nowrap">
+              ${s.due > 0 ? `<button class="btn ok sm" onclick="paySupplier(${JSON.stringify(s.key).replace(/"/g, '&quot;')})">Pay</button>` : ''}
+              <button class="btn g sm" onclick="supLedger(${JSON.stringify(s.key).replace(/"/g, '&quot;')})">Ledger</button>
+            </td>
+          </tr>`).join('') || '<tr><td colspan="8" class="muted" style="text-align:center;padding:18px">Purchase (P) mein Supplier ka naam daalne par yahan aayega. Udhaar ke liye Payment Mode "Credit" chunein.</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <p class="muted">Supplier ko payment "Supplier Payment" Expense voucher banta hai: cash counter se ghatta hai, lekin kharche mein dobara nahi gina jata (kharid pehle hi Purchase mein ginee gayi hai).</p>`;
+}
+
+function paySupplier(key){
+  const s = suppliers().find(x => x.key === key);
+  if(!s) return;
+  const v = +prompt(`${s.name} — baaki ${money(s.due)}\nKitna payment kiya? (₹)`, s.due);
+  if(!(v > 0)) return;
+  const mode = confirm('Cash mein diya? (Cancel = UPI)') ? 'Cash' : 'UPI';
+  D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Supplier Payment', desc: 'Udhaar chukaya', party: s.name, amount: v, mode});
+  save();
+  toast(`${s.name} ko ${money(v)} payment save`);
+  scrSuppliers();
+}
+
+function supLedger(key){
+  const s = suppliers().find(x => x.key === key);
+  const rows = D.txns.filter(t => supKey(t.party) === key && (t.type === 'Purchase' || t.head === 'Supplier Payment')).sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time));
+  let bal = 0;
+  modal(`${s ? s.name : ''} — Ledger`, `
+    <table>
+      <thead><tr><th>Date</th><th>Details</th><th>Mode</th><th class="n">Kharid</th><th class="n">Diya</th><th class="n">Baaki</th></tr></thead>
+      <tbody>${rows.map(t => {
+        const isPur = t.type === 'Purchase';
+        if(isPur && t.mode === 'Credit') bal += +t.amount || 0;
+        if(!isPur) bal -= +t.amount || 0;
+        return `<tr><td>${dmy(t.date)}</td><td>${esc(t.head)} ${esc(t.desc || '')}</td><td>${t.mode}</td><td class="n">${isPur ? money(t.amount) : ''}</td><td class="n">${isPur ? '' : money(t.amount)}</td><td class="n">${money(bal)}</td></tr>`;
+      }).join('')}</tbody>
+    </table>
+    <div class="btns"><button class="btn g" onclick="closeModal()">Close</button></div>`);
+}
+
+/* ================= ZOMATO / SWIGGY SETTLEMENT ================= */
+let stlFrom = addDays(today(), -6), stlTo = today();
+
+function scrSettlement(){
+  const st = D.settings;
+  const rows = ['Zomato', 'Swiggy'].map(ch => {
+    const bills = D.bills.filter(b => !b.cancelled && b.channel === ch && b.date >= stlFrom && b.date <= stlTo);
+    const gross = sum(bills, 'total'), pct = +(ch === 'Zomato' ? st.zomatoComm : st.swiggyComm) || 0;
+    const comm = r2(gross * pct / 100), expected = r2(gross - comm);
+    const got = sum(D.txns.filter(t => t.type === 'Receipt' && t.head === ch + ' Settlement' && t.date >= stlFrom && t.date <= stlTo), 'amount');
+    return {ch, n: bills.length, gross, pct, comm, expected, got, diff: r2(expected - got)};
+  });
+  const entries = D.txns.filter(t => t.type === 'Receipt' && /^(Zomato|Swiggy) Settlement$/.test(t.head)).slice(-20).reverse();
+  main.innerHTML = `
+  <div class="title">
+    <span>Zomato / Swiggy Settlement Milaan</span>
+    <span class="r">From <input type="date" value="${stlFrom}" onchange="stlFrom=this.value;scrSettlement()"> To <input type="date" value="${stlTo}" onchange="stlTo=this.value;scrSettlement()"></span>
+  </div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>Platform</th><th class="n">Orders</th><th class="n">Gross Sale</th><th class="n">Commission</th><th class="n">Aana Chahiye</th><th class="n">Aaya (Bank)</th><th class="n">Farak</th><th></th></tr></thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td><span class="tag ${r.ch.toLowerCase()}">${r.ch}</span></td>
+            <td class="n">${r.n}</td>
+            <td class="n">${money(r.gross)}</td>
+            <td class="n">${money(r.comm)} <span class="muted">(${r.pct}%)</span></td>
+            <td class="n"><b>${money(r.expected)}</b></td>
+            <td class="n green">${money(r.got)}</td>
+            <td class="n ${Math.abs(r.diff) < 1 ? 'green' : 'red'}"><b>${Math.abs(r.diff) < 1 ? 'Match' : money(r.diff)}</b></td>
+            <td><button class="btn ok sm" onclick="addSettlement('${r.ch}')">+ Payment Aaya</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Pichhli Settlement Entries</h3>
+    ${entries.map(t => `<div class="breakdown-row"><span>${dmy(t.date)} · <b>${esc(t.head)}</b> ${esc(t.desc || '')}</span><b class="green">${money(t.amount)}</b></div>`).join('') || '<p class="muted">Abhi koi entry nahi</p>'}
+  </div>
+  <p class="muted">Commission % Settings (G) mein badlein. Asli payout mein ads, packaging, TDS bhi kat sakte hain. Farak dikhe to Zomato/Swiggy partner app ki payout statement milaayein.</p>`;
+}
+
+function addSettlement(ch){
+  const v = +prompt(`${ch} se bank mein kitna payment aaya? (₹)`);
+  if(!(v > 0)) return;
+  const ref = prompt('UTR / Reference (optional)', '') || '';
+  D.txns.push({id: uid(), type: 'Receipt', date: today(), time: nowTime(), head: ch + ' Settlement', desc: `${dmy(stlFrom)}–${dmy(stlTo)}${ref ? ' · ' + ref : ''}`, party: ch, amount: v, mode: 'UPI'});
+  save();
+  toast(`${ch} settlement ${money(v)} save`);
+  scrSettlement();
+}
+
+/* ================= ADVANCED REPORTS + TALLY EXPORT ================= */
+let rptFrom = today(), rptTo = today(), rptTab = 'summary';
+
+function rptBills(all){
+  return D.bills.filter(b => b.date >= rptFrom && b.date <= rptTo && (all || !b.cancelled));
+}
+
+function rptData(){
+  const bs = rptBills(false);
+  const group = (keyFn, valFn) => {
+    const m = {};
+    bs.forEach(b => keyFn(b).forEach(([k, q, a]) => { const x = m[k] || (m[k] = {k, q: 0, a: 0, n: 0}); x.q += q; x.a += a; x.n++; }));
+    return Object.values(m).sort((a,b) => b.a - a.a);
+  };
+  const catOf = id => (D.menu.find(m => m.id === id) || {}).cat || 'Other';
+  return {
+    summary: () => {
+      const tx = D.txns.filter(t => t.date >= rptFrom && t.date <= rptTo);
+      const sales = sum(bs, 'total');
+      return {head: ['Cheez', 'Value'], rows: [
+        ['Bills', bs.length], ['Total Sales', money(sales)], ['Average Bill', money(bs.length ? sales / bs.length : 0)],
+        ['Sub Total (items)', money(sum(bs, 'sub'))], ['Discount (loyalty samet)', money(sum(bs, 'disc'))], ['GST', money(sum(bs, 'tax'))],
+        ['Cancelled Bills', rptBills(true).filter(b => b.cancelled).length],
+        ['Kharcha (Expense)', money(sum(tx.filter(t => t.type === 'Expense' && !NON_EXPENSE_HEADS.includes(t.head)), 'amount'))],
+        ['Kharid (Purchase)', money(sum(tx.filter(t => t.type === 'Purchase'), 'amount'))],
+        ['Customers (mobile wale, alag-alag)', new Set(bs.filter(b => normPh(b.phone).length === 10).map(b => normPh(b.phone))).size]
+      ]};
+    },
+    items: () => ({head: ['Dish', 'Qty', 'Amount'], rows: group(b => b.items.map(i => [i.name, i.qty, i.price * i.qty])).map(x => [x.k, fq(x.q), money(x.a)])}),
+    category: () => ({head: ['Category', 'Qty', 'Amount'], rows: group(b => b.items.map(i => [catOf(i.mid), i.qty, i.price * i.qty])).map(x => [x.k, fq(x.q), money(x.a)])}),
+    hourly: () => {
+      const m = {};
+      bs.forEach(b => { const h = (b.time || '00').slice(0, 2); const x = m[h] || (m[h] = {n: 0, a: 0}); x.n++; x.a += b.total; });
+      return {head: ['Ghanta', 'Bills', 'Sales'], rows: Object.keys(m).sort().map(h => [`${h}:00 – ${h}:59`, m[h].n, money(m[h].a)])};
+    },
+    payment: () => ({head: ['Payment Mode', 'Bills', 'Amount'], rows: group(b => [[b.mode, 1, b.total]]).map(x => [x.k, x.n, money(x.a)])}),
+    channel: () => ({head: ['Channel', 'Bills', 'Amount'], rows: group(b => [[b.channel || 'Dine-In', 1, b.total]]).map(x => [x.k, x.n, money(x.a)])}),
+    gst: () => {
+      const m = {};
+      bs.forEach(b => { const g = +b.gstRate || 0; const x = m[g] || (m[g] = {n: 0, taxable: 0, tax: 0, total: 0}); x.n++; x.taxable += b.taxable; x.tax += b.tax; x.total += b.total; });
+      return {head: ['GST %', 'Bills', 'Taxable', 'CGST', 'SGST', 'Total'], rows: Object.keys(m).sort((a,b) => a - b).map(g => [g + '%', m[g].n, money(m[g].taxable), money(m[g].tax / 2), money(m[g].tax / 2), money(m[g].total)])};
+    },
+    cancelled: () => ({head: ['Bill', 'Date', 'Time', 'Table', 'Amount'], rows: rptBills(true).filter(b => b.cancelled).map(b => ['#' + b.no, dmy(b.date), b.time, b.table, money(b.total)])}),
+    discount: () => ({head: ['Bill', 'Date', 'Customer', 'Discount', 'Total'], rows: bs.filter(b => b.disc > 0).map(b => ['#' + b.no, dmy(b.date), b.cust || '—', money(b.disc), money(b.total)])}),
+    expenses: () => {
+      const m = {};
+      D.txns.filter(t => t.date >= rptFrom && t.date <= rptTo && (t.type === 'Expense' || t.type === 'Purchase')).forEach(t => {
+        const k = t.type === 'Purchase' ? 'Purchase: ' + (t.head || '') : t.head || 'Other';
+        m[k] = (m[k] || 0) + (+t.amount || 0);
+      });
+      return {head: ['Head', 'Amount'], rows: Object.entries(m).sort((a,b) => b[1] - a[1]).map(([k, v]) => [k, money(v)])};
+    },
+    customers: () => {
+      const m = {};
+      bs.filter(b => normPh(b.phone).length === 10).forEach(b => { const p = normPh(b.phone); const x = m[p] || (m[p] = {name: b.cust || '', n: 0, a: 0}); if(b.cust) x.name = b.cust; x.n++; x.a += b.total; });
+      return {head: ['Customer', 'Mobile', 'Bills', 'Spend'], rows: Object.entries(m).sort((a,b) => b[1].a - a[1].a).slice(0, 50).map(([p, x]) => [x.name || '—', p, x.n, money(x.a)])};
+    }
+  };
+}
+
+const RPT_TABS = [['summary','Summary'],['items','Item-wise'],['category','Category-wise'],['hourly','Hourly'],['payment','Payment Mode'],['channel','Channel'],['gst','GST Summary'],['discount','Discounts'],['cancelled','Cancelled'],['expenses','Kharcha'],['customers','Top Customers']];
+
+function scrReports(){
+  const r = rptData()[rptTab]();
+  main.innerHTML = `
+  <div class="title">
+    <span>Reports</span>
+    <span class="r">
+      From <input type="date" value="${rptFrom}" onchange="rptFrom=this.value;scrReports()">
+      To <input type="date" value="${rptTo}" onchange="rptTo=this.value;scrReports()">
+    </span>
+  </div>
+  <div class="cats" style="margin-bottom:8px">
+    <button class="cat" onclick="rptFrom=rptTo=today();scrReports()">Aaj</button>
+    <button class="cat" onclick="rptFrom=rptTo=addDays(today(),-1);scrReports()">Kal</button>
+    <button class="cat" onclick="rptFrom=addDays(today(),-6);rptTo=today();scrReports()">7 Din</button>
+    <button class="cat" onclick="rptFrom=today().slice(0,8)+'01';rptTo=today();scrReports()">Is Mahine</button>
+  </div>
+  <div class="cats" style="margin-bottom:12px">
+    ${RPT_TABS.map(([k, l]) => `<button class="cat ${rptTab === k ? 'on' : ''}" onclick="rptTab='${k}';scrReports()">${l}</button>`).join('')}
+  </div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr>${r.head.map((h, i) => `<th class="${i ? 'n' : ''}">${h}</th>`).join('')}</tr></thead>
+      <tbody>${r.rows.map(row => `<tr>${row.map((c, i) => `<td class="${i ? 'n' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${r.head.length}" class="muted" style="text-align:center;padding:18px">Is date range mein data nahi</td></tr>`}</tbody>
+    </table>
+  </div>
+  <div class="btns">
+    <button class="btn g" onclick="rptCSV()">Ye Report Excel (CSV)</button>
+    <button class="btn" onclick="tallyExport()">Tally XML Export (Sales)</button>
+  </div>
+  <p class="muted">Tally XML: har din aur har payment mode ka ek Sales voucher. Tally mein ye ledgers pehle bana lein: Sales, CGST, SGST, Round Off, Cash, UPI, Card, Credit Sales, Customer Wallet, Zomato, Swiggy. Import: Gateway of Tally → Import Data → Vouchers.</p>`;
+}
+
+function rptCSV(){
+  const r = rptData()[rptTab]();
+  downloadCSV([r.head].concat(r.rows.map(row => row.map(c => String(c).replace(/₹/g, '').replace(/,/g, '')))), `report-${rptTab}-${rptFrom}-to-${rptTo}.csv`);
+}
+
+const TALLY_LEDGER = {Cash: 'Cash', UPI: 'UPI', Card: 'Card', Credit: 'Credit Sales', Wallet: 'Customer Wallet', 'Zomato Pay': 'Zomato', 'Swiggy Pay': 'Swiggy'};
+
+function tallyExport(){
+  const bs = rptBills(false);
+  if(!bs.length){ toast('Is date range mein bills nahi'); return; }
+  const x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const amt = n => r2(n).toFixed(2);
+  const groups = {};
+  bs.forEach(b => {
+    const k = b.date + '|' + b.mode;
+    const g = groups[k] || (groups[k] = {date: b.date, mode: b.mode, n: 0, taxable: 0, tax: 0, round: 0, total: 0});
+    g.n++; g.taxable += b.taxable; g.tax += b.tax; g.round += b.round; g.total += b.total;
+  });
+  const entry = (ledger, amount, debit) => `
+        <ALLLEDGERENTRIES.LIST>
+          <LEDGERNAME>${x(ledger)}</LEDGERNAME>
+          <ISDEEMEDPOSITIVE>${debit ? 'Yes' : 'No'}</ISDEEMEDPOSITIVE>
+          <AMOUNT>${debit ? '-' : ''}${amt(Math.abs(amount))}</AMOUNT>
+        </ALLLEDGERENTRIES.LIST>`;
+  const vouchers = Object.values(groups).map(g => {
+    const total = r2(g.total), cgst = r2(g.tax / 2), sgst = r2(g.tax - cgst), round = r2(total - r2(g.taxable) - cgst - sgst);
+    return `
+    <TALLYMESSAGE xmlns:UDF="TallyUDF">
+      <VOUCHER VCHTYPE="Sales" ACTION="Create">
+        <DATE>${g.date.replace(/-/g, '')}</DATE>
+        <VOUCHERTYPENAME>Sales</VOUCHERTYPENAME>
+        <NARRATION>${x(`Setu POS: ${g.n} bills, ${g.mode}, ${dmy(g.date)}`)}</NARRATION>${entry(TALLY_LEDGER[g.mode] || g.mode, total, true)}${entry('Sales', g.taxable, false)}${cgst ? entry('CGST', cgst, false) : ''}${sgst ? entry('SGST', sgst, false) : ''}${round ? entry('Round Off', round, round < 0 ? true : false) : ''}
+      </VOUCHER>
+    </TALLYMESSAGE>`;
+  }).join('');
+  const xml = `<ENVELOPE>
+  <HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER>
+  <BODY><IMPORTDATA>
+    <REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME></REQUESTDESC>
+    <REQUESTDATA>${vouchers}
+    </REQUESTDATA>
+  </IMPORTDATA></BODY>
+</ENVELOPE>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([xml], {type: 'application/xml'}));
+  a.download = `tally-sales-${rptFrom}-to-${rptTo}.xml`;
+  a.click();
+  toast(`${Object.keys(groups).length} Sales vouchers Tally XML mein export hue`);
+}
+
 /* ================= SETTINGS & SECURITY ================= */
 function scrSettings(){
   const s = D.settings;
   const f = (k, l, t='text') => `<div><label>${l}</label><input id="st_${k}" type="${t}" value="${esc(s[k])}"></div>`;
   main.innerHTML = `
   <div class="title">Restaurant Settings, Online Aggregators & Backup</div>
+  <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Check ho raha hai...</p></div>
   
   <div class="card">
     <h3 style="margin-top:0">Restaurant Details (Printed on Bills)</h3>
@@ -4532,13 +5411,13 @@ function scrSettings(){
 
   <!-- Online Aggregators Integration (Zomato & Swiggy) -->
   <div class="card" style="border-left:4px solid var(--zomato)">
-    <h3 style="margin-top:0">Zomato & Swiggy Integration Settings</h3>
-    <p class="muted">Apne restaurant ko Zomato aur Swiggy Merchant APIs ke saath connect karein:</p>
+    <h3 style="margin-top:0">Zomato & Swiggy Settings</h3>
+    <p class="muted">Zomato/Swiggy orders Setu mein <b>haath se entry</b> hote hain (Online Orders desk → "+ Zomato / + Swiggy Order Entry"). Commission % se report aur Settlement (Y) mein net payout ka hisaab banta hai.</p>
     <div class="grid">
       <div>
         <label>Zomato Integration Status</label>
         <select id="st_zomatoEnabled">
-          <option value="1" ${s.zomatoEnabled ? 'selected' : ''}>Active / Connected</option>
+          <option value="1" ${s.zomatoEnabled ? 'selected' : ''}>ON (Zomato par listed)</option>
           <option value="0" ${!s.zomatoEnabled ? 'selected' : ''}>Disabled</option>
         </select>
       </div>
@@ -4554,7 +5433,7 @@ function scrSettings(){
       <div>
         <label>Swiggy Integration Status</label>
         <select id="st_swiggyEnabled">
-          <option value="1" ${s.swiggyEnabled ? 'selected' : ''}>Active / Connected</option>
+          <option value="1" ${s.swiggyEnabled ? 'selected' : ''}>ON (Swiggy par listed)</option>
           <option value="0" ${!s.swiggyEnabled ? 'selected' : ''}>Disabled</option>
         </select>
       </div>
@@ -4568,7 +5447,7 @@ function scrSettings(){
       </div>
     </div>
     <div style="margin-top:10px;font-size:12px;color:var(--text-muted);background:var(--surface);padding:8px 12px;border-radius:6px">
-      <b>Webhook Integration Endpoint:</b> <code>http://localhost:8000/api/orders/webhook</code> (Auto-receives instant live orders)
+      Seedha API connection (orders apne aap aana) ke liye Zomato/Swiggy se POS-partner approval chahiye. Ye abhi Setu mein nahi hai.
     </div>
   </div>
 
@@ -4584,6 +5463,7 @@ function scrSettings(){
       ${f('ptValue','1 Point = ₹','number')}
       ${f('minRedeem','Min points to redeem','number')}
       ${f('kotLate','Kitchen KOT late alert (minutes)','number')}
+      <div><label>Takeaway Token System</label><select id="st_tokenOn"><option value="1" ${s.tokenOn?'selected':''}>ON (har parcel bill par token no.)</option><option value="0" ${s.tokenOn?'':'selected'}>OFF</option></select></div>
     </div>
     <p class="muted" style="margin-bottom:0;font-size:12px">Google Review link: Google Maps par apna restaurant kholein → "Share" ya "Ask for reviews" → link copy karke yahan daalein.</p>
   </div>
@@ -4676,13 +5556,40 @@ function scrSettings(){
 
   <div class="card">
     <h3 style="margin-top:0">Data Backup & Restore</h3>
-    <p class="muted">Saara restaurant data aapke computer ke offline storage (LocalStorage + IndexedDB) mein surakshit hai. Roz din khatam hone par ek backup file download karein.</p>
+    <p class="muted">${SRV.on
+      ? 'Data Main Counter PC par file mein save hota hai aur roz ka auto-backup <b>%LOCALAPPDATA%\\AghanyaDevanyaERP\\Data\\Backups</b> mein banta hai (60 din). Phir bhi hafte mein ek baar backup PC ke bahar (pen-drive / Google Drive) rakhein.'
+      : 'Browser mode: data isi browser mein save hai (limit ~5 MB). Roz din khatam hone par ek backup file download karein.'}</p>
     <div class="btns">
       <button class="btn" onclick="backup()">Download JSON Backup</button>
       <label class="btn g" style="margin:0;cursor:pointer">Restore Backup File<input type="file" accept=".json" style="display:none" onchange="restore(this.files[0])"></label>
       <button class="btn bad" onclick="resetAll()">Reset All Data</button>
     </div>
   </div>`;
+  drawNetCard();
+}
+
+async function drawNetCard(){
+  const el = $('#net-card');
+  if(!el) return;
+  const headT = '<h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3>';
+  if(!SRV.on){
+    el.innerHTML = headT + `<p class="muted" style="margin:0">Abhi Setu browser mode mein chal raha hai, isliye doosre device nahi jud sakte. Phone/tablet jodne ke liye Main Counter PC par <b>Setu Desktop App (EXE)</b> chalayein, ya <code>python app_main.py --server</code>.</p>`;
+    return;
+  }
+  let info = {ips: [], port: location.port || 80};
+  try{ info = await (await fetch('/api/info', {cache: 'no-store'})).json(); }catch(e){}
+  const urls = (info.ips || []).map(ip => `http://${ip}:${info.port}/hotel_erp.html`);
+  el.innerHTML = headT + (urls.length ? `
+    <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+      <div class="qrbox">${qrSvg(urls[0])}<small>Phone se scan karein</small></div>
+      <div style="font-size:13px;line-height:1.7">
+        <b>1.</b> Phone/tablet ko restaurant ke <b>usi WiFi</b> se jodein.<br>
+        <b>2.</b> QR scan karein ya ye link kholein:<br>
+        ${urls.map(u => `<code style="font-size:13px;font-weight:700">${esc(u)}</code>`).join('<br>')}<br>
+        <b>3.</b> Manager ya Cashier PIN daalein → <b>Captain App (N)</b> ya <b>Kitchen Display (T)</b> kholein.<br>
+        <span class="muted">Windows Firewall poochhe to "Private network" par Allow karein. Ye PC band hone par doosre device kaam nahi karenge.</span>
+      </div>
+    </div>` : '<p class="muted" style="margin:0">Is PC ka network address nahi mila. PC ko WiFi/LAN se jodein.</p>');
 }
 
 function activateSettingsKey(){
@@ -4708,6 +5615,7 @@ function saveSettings(){
     if($('#st_'+k)) D.settings[k] = +$('#st_'+k).value || 0;
   });
   if($('#st_loyalty')) D.settings.loyalty = $('#st_loyalty').value === '1';
+  if($('#st_tokenOn')) D.settings.tokenOn = $('#st_tokenOn').value === '1';
   D.settings.gst = +$('#st_gst').value || 0;
   D.settings.width = +$('#st_width').value;
   D.settings.billPaper = $('#st_billPaper').value;
@@ -4744,6 +5652,7 @@ function restore(f){
       if(!x.settings || !x.bills) throw 0;
       if(!confirm('Current data replace ho jayega. Restore karein?')) return;
       D = ensureGrowth(x);
+      SRV.forceNext = true;
       save();
       toast('Backup restore ho gaya');
       go('gateway');
@@ -4755,16 +5664,29 @@ function restore(f){
 function resetAll(){
   if(prompt('Saara data delete ho jayega. Confirm karne ke liye RESET likhein') !== 'RESET') return;
   D = ensureGrowth(seed());
+  SRV.forceNext = true;
   save();
   go('gateway');
 }
 
 /* ================= INIT ================= */
-initIndexedDB();
-drawSide();
-checkAuth();
-updateSubscriptionUI();
-if(activeUser) go('gateway');
+function startUI(){
+  initIndexedDB();
+  drawSide();
+  checkAuth();
+  updateSubscriptionUI();
+  if(activeUser) go('gateway');
+}
+
+(async function boot(){
+  if(await srvDetect()){
+    SRV.on = true;
+    SRV.token = lsGet(TOKEN_KEY) || '';
+    if(!(await srvInitData())) return;   // connect screen is showing
+    setInterval(srvPoll, 2500);
+  }
+  startUI();
+})();
 
 // Register Service Worker for 100% offline computer execution
 if('serviceWorker' in navigator){
