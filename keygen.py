@@ -1,191 +1,161 @@
 # -*- coding: utf-8 -*-
 """
-Aghanya Devanya Enterprises - Multi-Tier Activation Key Generator Tool
-Supports:
-- 1 Month (30 Days)
-- 2 Months (60 Days)
-- 3 Months (Quarterly - 90 Days)
-- 6 Months (Half-Yearly - 180 Days)
-- 1 Year (Annual - 365 Days)
-- Lifetime (Universal Common Key & Individual Keys)
-Auto-saves to Excel (.xlsx), CSV (.csv), and text files in Activation_Keys/
+Setu License Key Generator — Aghanya Devanya Enterprises (vendor only)
+
+Keys are digitally signed (ECDSA P-256). The software only contains the PUBLIC key,
+so nobody can create keys without the private key file `setu-license-private.pem`.
+Every key is tied to one installation: the client reads its Install ID
+(e.g. SETU-7F3K-92QD) from the Setu Sign Up / License screen and sends it to you.
+
+  python keygen.py init                         one time: create the private key (KEEP IT SAFE)
+  python keygen.py                              interactive
+  python keygen.py <INSTALL-ID> <plan> [hotel]  plan: 1m 2m 3m 6m 1y life demo1h demo24h
+  python keygen.py verify <KEY> <INSTALL-ID>
+
+Requires: pip install cryptography
 """
 import os
 import sys
-import random
-import datetime
 import csv
-import json
+import base64
+import hashlib
+import secrets
+import datetime
 
-SALT = "AGHANYA_DEVANYA_2026"
-CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.utils import decode_dss_signature, encode_dss_signature
+from cryptography.exceptions import InvalidSignature
 
-TIER_CONFIGS = {
-    "1": {"id": "01M", "name": "1 Month (30 Days)", "days": 30, "is_lifetime": False},
-    "2": {"id": "02M", "name": "2 Months (60 Days)", "days": 60, "is_lifetime": False},
-    "3": {"id": "03M", "name": "3 Months (Quarterly - 90 Days)", "days": 90, "is_lifetime": False},
-    "4": {"id": "06M", "name": "6 Months (Half-Yearly - 180 Days)", "days": 180, "is_lifetime": False},
-    "5": {"id": "01Y", "name": "1 Year (Annual - 365 Days)", "days": 365, "is_lifetime": False},
-    "6": {"id": "LIFE", "name": "Lifetime Unlimited Access", "days": 99999, "is_lifetime": True}
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PRIVATE_KEY_FILE = os.path.join(BASE_DIR, 'setu-license-private.pem')
+ISSUED_CSV = os.path.join(BASE_DIR, 'Activation_Keys', 'Setu_Issued_Keys.csv')
+EPOCH = datetime.date(2026, 1, 1)
+B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+
+# kind: 1 = days, 2 = minutes (demo), 3 = lifetime
+PLANS = {
+    '1m':      (1, 30,  '1 Month (30 Days)'),
+    '2m':      (1, 60,  '2 Months (60 Days)'),
+    '3m':      (1, 90,  '3 Months (90 Days)'),
+    '6m':      (1, 180, '6 Months (180 Days)'),
+    '1y':      (1, 365, '1 Year (365 Days)'),
+    'life':    (3, 0,   'Lifetime'),
+    'demo1h':  (2, 60,  'Demo (1 Hour)'),
+    'demo24h': (2, 1440, 'Demo (24 Hours)'),
 }
 
-UNIVERSAL_LIFETIME_KEY = "AD-LIFETIME-MASTER-ENTERPRISE-2026"
 
-def compute_checksum(code: str) -> str:
-    val = 5381
-    for c in (code + SALT):
-        val = ((val << 5) + val + ord(c)) & 0xFFFFFFFF
-    return format(val, '08X')[:4]
+def b32encode(data):
+    bits = ''.join(f'{b:08b}' for b in data)
+    bits += '0' * (-len(bits) % 5)
+    return ''.join(B32[int(bits[i:i + 5], 2)] for i in range(0, len(bits), 5))
 
-def generate_key(tier_id: str) -> str:
-    code = ''.join(random.choice(CHARS) for _ in range(4))
-    csum = compute_checksum(code)
-    return f"AD-{tier_id}-{code}-{csum}"
 
-def verify_key(key: str) -> dict:
-    k = key.strip().upper()
-    if k in [UNIVERSAL_LIFETIME_KEY, "AD-LIFETIME-ALL-HOTELS-COMMON-KEY", "AD-LIFETIME-PRO-2026"]:
-        return {"valid": True, "plan": "Lifetime Enterprise", "days": 99999, "lifetime": True}
-    parts = k.split('-')
-    if len(parts) == 4 and parts[0] == 'AD':
-        tier, code, csum = parts[1], parts[2], parts[3]
-        if csum == compute_checksum(code):
-            for cfg in TIER_CONFIGS.values():
-                if cfg["id"] == tier:
-                    return {"valid": True, "plan": cfg["name"], "days": cfg["days"], "lifetime": cfg["is_lifetime"]}
-    return {"valid": False, "plan": None, "days": 0, "lifetime": False}
+def b32decode(text, nbytes):
+    bits = ''.join(f'{B32.index(c):05b}' for c in text)
+    return bytes(int(bits[i:i + 8], 2) for i in range(0, nbytes * 8, 8))
 
-def append_to_vault(new_keys_info: list):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    vault_dir = os.path.join(base_dir, "Activation_Keys")
-    os.makedirs(vault_dir, exist_ok=True)
-    csv_path = os.path.join(vault_dir, "Aghanya_Devanya_Activation_Keys.csv")
-    xlsx_path = os.path.join(vault_dir, "Aghanya_Devanya_Activation_Keys.xlsx")
 
-    # Append to CSV
-    file_exists = os.path.exists(csv_path)
-    with open(csv_path, 'a', newline='', encoding='utf-8') as cf:
-        writer = csv.writer(cf)
-        if not file_exists:
-            writer.writerow(["Sr_No", "Activation_Key", "Plan_Duration", "Days_Validity", "License_Type", "Assigned_Hotel_Name", "Status", "Notes"])
-        for item in new_keys_info:
-            writer.writerow([
-                "NEW",
-                item["key"],
-                item["plan"],
-                "Lifetime" if item["lifetime"] else item["days"],
-                "Generated Key",
-                item.get("hotel", "Unassigned"),
-                "Available",
-                f"Generated on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
-            ])
+def clean_install_id(install_id):
+    return ''.join(c for c in install_id.upper() if c.isalnum())
 
-    # Also update Excel if openpyxl available
+
+def install_hash(install_id):
+    return hashlib.sha256(clean_install_id(install_id).encode('ascii')).digest()[:4]
+
+
+def load_private_key():
+    if not os.path.exists(PRIVATE_KEY_FILE):
+        sys.exit('Private key nahi mili. Pehle chalayein: python keygen.py init')
+    with open(PRIVATE_KEY_FILE, 'rb') as f:
+        return serialization.load_pem_private_key(f.read(), password=None)
+
+
+def public_key_b64(priv):
+    raw = priv.public_key().public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    return base64.b64encode(raw).decode('ascii')
+
+
+def make_key(install_id, plan):
+    kind, value, _ = PLANS[plan]
+    issued = (datetime.date.today() - EPOCH).days
+    payload = bytes([1, kind]) + value.to_bytes(2, 'big') + install_hash(install_id) + secrets.token_bytes(3) + issued.to_bytes(2, 'big')
+    der = load_private_key().sign(payload, ec.ECDSA(hashes.SHA256()))
+    r, s = decode_dss_signature(der)
+    sig = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
+    body = b32encode(payload + sig)
+    return 'SETU-' + '-'.join(body[i:i + 8] for i in range(0, len(body), 8))
+
+
+def verify_key(key, install_id):
+    text = ''.join(c for c in key.upper() if c in B32)
+    if not text.startswith('SETU'):
+        return None
+    raw = b32decode(text[4:], 77)
+    payload, sig = raw[:13], raw[13:]
+    pub = load_private_key().public_key()
     try:
-        import openpyxl
-        if os.path.exists(xlsx_path):
-            wb = openpyxl.load_workbook(xlsx_path)
-            ws = wb["All_Keys_Master"] if "All_Keys_Master" in wb.sheetnames else wb.active
-            for item in new_keys_info:
-                ws.append([
-                    ws.max_row,
-                    item["key"],
-                    item["plan"],
-                    "Lifetime" if item["lifetime"] else item["days"],
-                    "Generated Key",
-                    item.get("hotel", "Unassigned"),
-                    "Available",
-                    f"Generated on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}"
-                ])
-            wb.save(xlsx_path)
-    except Exception:
-        pass
+        pub.verify(encode_dss_signature(int.from_bytes(sig[:32], 'big'), int.from_bytes(sig[32:], 'big')), payload, ec.ECDSA(hashes.SHA256()))
+    except InvalidSignature:
+        return None
+    if payload[4:8] != install_hash(install_id):
+        return None
+    return {'kind': payload[1], 'value': int.from_bytes(payload[2:4], 'big')}
+
+
+def log_key(install_id, plan, hotel, key):
+    os.makedirs(os.path.dirname(ISSUED_CSV), exist_ok=True)
+    new = not os.path.exists(ISSUED_CSV)
+    with open(ISSUED_CSV, 'a', newline='', encoding='utf-8') as f:
+        w = csv.writer(f)
+        if new:
+            w.writerow(['Date', 'Hotel', 'Install_ID', 'Plan', 'Key'])
+        w.writerow([datetime.datetime.now().strftime('%Y-%m-%d %H:%M'), hotel, install_id, PLANS[plan][2], key])
+
+
+def cmd_init():
+    if os.path.exists(PRIVATE_KEY_FILE):
+        sys.exit('Private key pehle se hai. Ise dobara mat banayein, warna purani saari keys bekaar ho jayengi.')
+    priv = ec.generate_private_key(ec.SECP256R1())
+    with open(PRIVATE_KEY_FILE, 'wb') as f:
+        f.write(priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
+    print('Private key bani:', PRIVATE_KEY_FILE)
+    print('Is file ka backup pen-drive / Google Drive par rakhein. Kisi ko na dein. GitHub par kabhi na daalein.')
+    print('\nhotel_erp.html mein LIC_PUBKEY ye rakhein:\n' + public_key_b64(priv))
+
 
 def main():
-    print("=" * 68)
-    print("      AGHANYA DEVANYA ENTERPRISES — ACTIVATION KEY GENERATOR")
-    print("=" * 68)
-    print("Plan / Duration Options:")
-    print("  [1] 1 Month   (30 Days)")
-    print("  [2] 2 Months  (60 Days)")
-    print("  [3] 3 Months  (Quarterly - 90 Days)")
-    print("  [4] 6 Months  (Half-Yearly - 180 Days)")
-    print("  [5] 1 Year    (Annual - 365 Days)")
-    print("  [6] Lifetime  (Permanent Unlimited Access)")
-    print("  [7] View Universal Master Lifetime Key")
-    print("  [8] Re-build Full Master Excel Catalog & Vault")
-    print("=" * 68)
+    args = sys.argv[1:]
+    if args[:1] == ['init']:
+        return cmd_init()
+    if args[:1] == ['pubkey']:
+        return print(public_key_b64(load_private_key()))
+    if args[:1] == ['verify'] and len(args) >= 3:
+        r = verify_key(args[1], args[2])
+        return print('VALID' if r else 'INVALID', r or '')
 
-    choice = sys.argv[1] if len(sys.argv) > 1 else input("Select Plan Option (1-8, Default 1): ").strip()
-    if not choice:
-        choice = "1"
+    print('=' * 64)
+    print('   SETU LICENSE KEY GENERATOR — Aghanya Devanya Enterprises')
+    print('=' * 64)
+    install_id = args[0] if args else input('Client ka Install ID (jaise SETU-7F3K-92QD): ').strip()
+    if len(clean_install_id(install_id)) < 8:
+        sys.exit('Galat Install ID')
+    print('Plans: ' + ', '.join(f'{k} = {v[2]}' for k, v in PLANS.items()))
+    plan = args[1] if len(args) > 1 else (input('Plan (Default 1m): ').strip().lower() or '1m')
+    if plan not in PLANS:
+        sys.exit('Galat plan')
+    hotel = args[2] if len(args) > 2 else input('Hotel ka naam (optional): ').strip()
 
-    if choice == "7":
-        print("\n" + "*" * 68)
-        print("  UNIVERSAL COMMON LIFETIME KEY (WORKS ON ALL CONNECTED HOTELS):")
-        print(f"  --> {UNIVERSAL_LIFETIME_KEY} <--")
-        print("*" * 68)
-        print("Note: Provide this key to any hotel for one-click lifetime permanent unlock!\n")
-        return
+    key = make_key(install_id, plan)
+    log_key(install_id, plan, hotel, key)
+    print('\n' + '*' * 64)
+    print(f'  {PLANS[plan][2]} — {hotel or install_id}')
+    print('  Ye poori key client ko WhatsApp par bhejein (copy-paste):\n')
+    print(key)
+    print('*' * 64)
+    print('Record saved:', ISSUED_CSV)
 
-    if choice == "8":
-        import build_activation_vault
-        build_activation_vault.build_vault()
-        import sync_keys
-        sync_keys.sync_keys()
-        print("\nMaster Excel Catalog re-built & synchronized with software!")
-        return
 
-    if choice not in TIER_CONFIGS:
-        choice = "1"
-
-    cfg = TIER_CONFIGS[choice]
-    count_str = sys.argv[2] if len(sys.argv) > 2 else input(f"How many keys to generate for '{cfg['name']}'? (Default 5): ").strip()
-    try:
-        count = int(count_str) if count_str else 5
-    except ValueError:
-        count = 5
-
-    hotel_name = input("Assigned Hotel / Client Name (Optional, Press Enter to skip): ").strip()
-
-    print(f"\nGenerating {count} keys for: {cfg['name']}...")
-    generated = []
-    for i in range(1, count + 1):
-        k = generate_key(cfg["id"])
-        item = {
-            "key": k,
-            "plan": cfg["name"],
-            "days": cfg["days"],
-            "lifetime": cfg["is_lifetime"],
-            "hotel": hotel_name or "Unassigned"
-        }
-        generated.append(item)
-        print(f"  {i:2d}. {k}  -->  {cfg['name']}")
-
-    # Save to vault & sync
-    append_to_vault(generated)
-    
-    # Run sync so software immediately accepts new keys
-    try:
-        import sync_keys
-        sync_keys.sync_keys()
-    except Exception:
-        pass
-
-    # Save output to text file
-    ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    fname = f"New-Keys-{cfg['id']}-{ts}.txt"
-    with open(fname, 'w', encoding='utf-8') as f:
-        f.write("=" * 68 + "\n")
-        f.write(f"   AGHANYA DEVANYA ENTERPRISES — {cfg['name'].upper()}\n")
-        f.write(f"   Generated on: {datetime.datetime.now().strftime('%d-%b-%Y %I:%M %p')}\n")
-        if hotel_name:
-            f.write(f"   Client / Hotel: {hotel_name}\n")
-        f.write("=" * 68 + "\n\n")
-        for i, itm in enumerate(generated, 1):
-            f.write(f"{i:2d}. {itm['key']}\n")
-    print(f"\nKeys successfully added to Excel/CSV and saved in: {fname}")
-    print("=" * 68)
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

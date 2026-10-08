@@ -417,8 +417,9 @@ body.kitchen-mode .kcard ul{font-size:19px}
 
       <div class="login-field" style="background:#f0f9ff;border:1.5px solid #bae6fd;border-radius:10px;padding:12px;margin-bottom:14px">
         <label style="font-weight:700;color:#0369a1">Aghanya Devanya 1-Month Activation Key *</label>
-        <input id="signup_key" required placeholder="AD-30D-XXXX-YYYY" class="key-input" style="background:#fff;padding:10px 12px;font-size:14px">
-        <small style="color:#0284c7;display:block;margin-top:5px;font-size:11px">Aghanya Devanya Enterprises dwara prapt 30-dino ki activation key yahan enter karein.</small>
+        <input id="signup_key" required placeholder="SETU-XXXXXXXX-... (poori key paste karein)" class="key-input" style="background:#fff;padding:10px 12px;font-size:14px">
+        <small style="color:#0284c7;display:block;margin-top:5px;font-size:11px">Neeche wala Install ID Aghanya Devanya Enterprises ko bhejein. Wo isi computer ke liye key bhejenge, use yahan paste karein.</small>
+        <div class="inst-id" style="margin-top:6px"></div>
       </div>
 
       <div id="signup_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
@@ -525,15 +526,17 @@ body.kitchen-mode .kcard ul{font-size:19px}
     <div style="background:#f8fafc;border:1.5px dashed #cbd5e1;border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:left">
       <div style="font-size:11px;font-weight:800;color:#0369a1;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Licensing & Renewal Authority</div>
       <div style="font-size:15px;font-weight:800;color:#0f172a">Aghanya Devanya Enterprises</div>
-      <div style="font-size:12px;color:#475569;margin-top:2px">Monthly Payment direct karke naya 30-Day Key prapt karein.</div>
+      <div style="font-size:12px;color:#475569;margin-top:2px">Payment karke apna Install ID bhejein aur nayi key prapt karein.</div>
+      <div id="lock-reason" style="display:none;margin-top:8px;font-size:12px;font-weight:700;color:#b91c1c"></div>
+      <div class="inst-id" style="margin-top:6px"></div>
       <div style="font-size:12px;font-weight:700;color:#0284c7;margin-top:4px">Official Offline Licensing Support</div>
     </div>
 
     <!-- Activation Form -->
     <form onsubmit="handleLockScreenActivation(event)" style="text-align:left">
       <div class="login-field" style="margin-bottom:12px">
-        <label style="font-weight:700;color:#1e293b">Enter New 30-Day Activation Key</label>
-        <input id="lock_input_key" required placeholder="AD-30D-XXXX-YYYY" class="key-input" style="padding:11px 14px;font-size:15px">
+        <label style="font-weight:700;color:#1e293b">Nayi Activation Key Paste Karein</label>
+        <input id="lock_input_key" required placeholder="SETU-XXXXXXXX-... (poori key paste karein)" class="key-input" style="padding:11px 14px;font-size:15px">
       </div>
       <div id="lock_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none">Galat ya Expired Key! Kripya sahi key enter karein.</div>
       <button class="btn ok" style="width:100%;padding:12px;font-size:14px;font-weight:700;border-radius:8px" type="submit">Verify Key & Unlock Software</button>
@@ -707,7 +710,16 @@ const GROWTH_DEFAULTS = {
   minRedeem: 50,
   kotLate: 20,
   outletCode: '',
-  tokenOn: false
+  tokenOn: false,
+  maxDiscPct: 10,
+  printMode: 'dialog',
+  billPrinter: '',
+  kotPrinter: '',
+  catPrinters: {},
+  autoKot: false,
+  drawerKick: false,
+  gstScheme: 'regular',
+  fssai: ''
 };
 
 function ensureGrowth(s){
@@ -717,10 +729,12 @@ function ensureGrowth(s){
   if(!s.att || typeof s.att !== 'object') s.att = {};
   if(!s.outlets || typeof s.outlets !== 'object') s.outlets = {};
   if(!Array.isArray(s.reservations)) s.reservations = [];
+  if(!Array.isArray(s.audit)) s.audit = [];
   if(!s.seq) s.seq = { bill: 0, kot: 0 };
   if(!s.seq.token) s.seq.token = 0;
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
   if(!s.settings.outletCode) s.settings.outletCode = 'OUT-' + Math.random().toString(36).slice(2,6).toUpperCase();
+  if(!s.settings.installId) s.settings.installId = newInstallId();
   return s;
 }
 
@@ -1098,10 +1112,14 @@ function showConnectScreen(msg){
       const j = await r.json();
       SRV.token = j.token;
       lsSet(TOKEN_KEY, j.token);
-      activeUser = {name: j.role === 'admin' ? 'Manager' : 'Staff', role: j.role === 'admin' ? 'admin' : 'cashier', time: Date.now()};
+      activeUser = {name: j.name || (j.role === 'admin' ? 'Manager' : 'Staff'), role: j.role === 'admin' ? 'admin' : 'cashier', access: j.role === 'admin' ? 'manager' : j.role, time: Date.now()};
       lsSet(AUTH_KEY, JSON.stringify(activeUser));
       el.style.display = 'none';
-      if(await srvInitData()) startUI();
+      if(await srvInitData()){
+        audit('Login', `${activeUser.name} (${activeUser.access}) · phone/tablet`);
+        save();
+        startUI();
+      }
     }catch(e){ err.textContent = 'Main Counter se connection nahi hua'; err.style.display = 'block'; }
   };
   setTimeout(() => $('#connect_pin')?.focus(), 50);
@@ -1136,334 +1154,120 @@ function updateOnlinePills(){
   if(sBadge) sBadge.textContent = pendingSwiggy;
 }
 
-/* ================= 1-MONTH ACTIVATION KEY ENGINE (AGHANYA DEVANYA ENTERPRISES) ================= */
-const PREINSTALLED_KEYS = [
-  "AD-LIFETIME-MASTER-ENTERPRISE-2026",
-  "AD-LIFETIME-ALL-HOTELS-COMMON-KEY",
-  "AD-LIFETIME-PRO-2026",
-  "AD-LIFETIME-HOTEL-ERP-VIP",
-  "AD-01M-HWGQ-6701",
-  "AD-01M-496R-7A17",
-  "AD-01M-AFHU-29F0",
-  "AD-01M-G6A9-7FED",
-  "AD-01M-WP3S-B9DC",
-  "AD-01M-YY2E-8030",
-  "AD-01M-XFUU-93A9",
-  "AD-01M-7KVB-3F53",
-  "AD-01M-ZZ75-43DC",
-  "AD-01M-F39H-82C3",
-  "AD-01M-593S-4209",
-  "AD-01M-48BQ-C0E8",
-  "AD-01M-JDG5-4B6E",
-  "AD-01M-8K8Q-5DCE",
-  "AD-01M-H78S-4A4F",
-  "AD-01M-3V83-6E07",
-  "AD-01M-5NUT-3A5E",
-  "AD-01M-ACK7-A9CE",
-  "AD-01M-9ZNS-64C4",
-  "AD-01M-9795-1DC8",
-  "AD-01M-CUW7-BB7A",
-  "AD-01M-G6S6-9CE3",
-  "AD-01M-M58E-55BD",
-  "AD-01M-T9ZG-FBF2",
-  "AD-01M-N4K6-1F78",
-  "AD-02M-AFA6-36A7",
-  "AD-02M-FNRH-D33E",
-  "AD-02M-CTYK-2DA0",
-  "AD-02M-AW9J-41D8",
-  "AD-02M-Q8JU-0AF1",
-  "AD-02M-F4LJ-6FDC",
-  "AD-02M-V42K-0A01",
-  "AD-02M-N2AG-762F",
-  "AD-02M-2EDY-BB8F",
-  "AD-02M-YBB8-907A",
-  "AD-02M-WV6W-0757",
-  "AD-02M-H97L-30B3",
-  "AD-02M-KP5X-8184",
-  "AD-02M-7QE3-9361",
-  "AD-02M-CNMC-93E3",
-  "AD-02M-D6N8-94E4",
-  "AD-02M-BJPJ-3383",
-  "AD-02M-LM2T-5B94",
-  "AD-02M-54F2-691A",
-  "AD-02M-VMYM-B197",
-  "AD-02M-S794-D071",
-  "AD-02M-U7MW-7880",
-  "AD-02M-86HT-0F54",
-  "AD-02M-GPQA-888C",
-  "AD-02M-F7X4-3173",
-  "AD-03M-MBYL-8007",
-  "AD-03M-YPHT-10DE",
-  "AD-03M-PUTJ-E947",
-  "AD-03M-GSG5-99D6",
-  "AD-03M-LGDY-4FB0",
-  "AD-03M-MGWT-0C22",
-  "AD-03M-EUWL-FF5D",
-  "AD-03M-SSEA-340B",
-  "AD-03M-4S4A-8854",
-  "AD-03M-DGRB-D5A6",
-  "AD-03M-VHGY-8509",
-  "AD-03M-W7C3-35C5",
-  "AD-03M-WP75-0508",
-  "AD-03M-HZS2-4F23",
-  "AD-03M-UYD5-43D7",
-  "AD-03M-BUXU-DEC2",
-  "AD-03M-HV4W-0250",
-  "AD-03M-BXND-5ACB",
-  "AD-03M-HLHH-65EB",
-  "AD-03M-CJYV-D717",
-  "AD-03M-B5JY-D6D6",
-  "AD-03M-422R-35EF",
-  "AD-03M-4QJM-9F53",
-  "AD-03M-B3SK-DFC4",
-  "AD-03M-QBBT-F69A",
-  "AD-06M-84SW-5F76",
-  "AD-06M-JFMC-FA99",
-  "AD-06M-SXWD-205B",
-  "AD-06M-AR8D-FFD2",
-  "AD-06M-QK3Z-2EB2",
-  "AD-06M-QTXN-FEE0",
-  "AD-06M-ZY77-1DC1",
-  "AD-06M-8VNL-3DA9",
-  "AD-06M-4K9A-8405",
-  "AD-06M-Y4CM-B648",
-  "AD-06M-FVZS-25DC",
-  "AD-06M-JGBP-F310",
-  "AD-06M-VC32-4D8D",
-  "AD-06M-LGFK-C653",
-  "AD-06M-2XSV-5C7B",
-  "AD-06M-CNLU-D421",
-  "AD-06M-UUYJ-3133",
-  "AD-06M-2NA8-FAC0",
-  "AD-06M-5YLB-19B3",
-  "AD-06M-MWKL-A701",
-  "AD-06M-BHAZ-FBCF",
-  "AD-06M-EZVP-B9F1",
-  "AD-06M-KRJG-1835",
-  "AD-06M-W9GE-43CB",
-  "AD-06M-2SVH-5CBE",
-  "AD-01Y-Y89H-C723",
-  "AD-01Y-RY7Y-6A2E",
-  "AD-01Y-FEF9-A985",
-  "AD-01Y-VSQL-7C69",
-  "AD-01Y-W5XW-734F",
-  "AD-01Y-93WM-065A",
-  "AD-01Y-N7QY-3CE9",
-  "AD-01Y-Y42P-0BFE",
-  "AD-01Y-K6J5-7F6E",
-  "AD-01Y-TXHW-3B23",
-  "AD-01Y-T6SK-C4CF",
-  "AD-01Y-TQXK-1FD4",
-  "AD-01Y-HTU7-187B",
-  "AD-01Y-33BX-404E",
-  "AD-01Y-4XG9-6BC2",
-  "AD-01Y-P5YX-8EA6",
-  "AD-01Y-D3MA-A30B",
-  "AD-01Y-TSJX-887C",
-  "AD-01Y-488X-7D88",
-  "AD-01Y-ACQH-BBB5",
-  "AD-01Y-TWBP-8B88",
-  "AD-01Y-7TZF-581A",
-  "AD-01Y-NAGK-2591",
-  "AD-01Y-XQ7P-2885",
-  "AD-01Y-LVF4-394D",
-  "AD-LIFE-JGBT-3744",
-  "AD-LIFE-4CMQ-489D",
-  "AD-LIFE-8XXY-6678",
-  "AD-LIFE-W8S9-0F0D",
-  "AD-LIFE-WSC9-01F0",
-  "AD-LIFE-JB8Z-B9CB",
-  "AD-LIFE-S7NZ-4080",
-  "AD-LIFE-T3VP-5974",
-  "AD-LIFE-D4EV-7BEF",
-  "AD-LIFE-8FW9-BE67",
-  "AD-LIFE-WXZM-8D7A",
-  "AD-LIFE-EMS2-B7AE",
-  "AD-LIFE-GPB7-A5F2",
-  "AD-LIFE-RP5J-BB30",
-  "AD-LIFE-PT9J-08E5",
-  "AD-LIFE-WZ3N-F6B3",
-  "AD-LIFE-KKKJ-0491",
-  "AD-LIFE-DCTV-EF2C",
-  "AD-LIFE-MJTY-A1FF",
-  "AD-LIFE-J7LM-F74A",
-  "AD-LIFE-DMK4-F57C",
-  "AD-LIFE-9BVQ-9306",
-  "AD-LIFE-ZF74-4E9F",
-  "AD-LIFE-KWKC-2FB9",
-  "AD-LIFE-8ADG-C148"
-];
-const VAULT_KEY_MAP = {"AD-LIFETIME-MASTER-ENTERPRISE-2026": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFETIME-ALL-HOTELS-COMMON-KEY": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFETIME-PRO-2026": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFETIME-HOTEL-ERP-VIP": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-01M-HWGQ-6701": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-496R-7A17": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-AFHU-29F0": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-G6A9-7FED": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-WP3S-B9DC": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-YY2E-8030": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-XFUU-93A9": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-7KVB-3F53": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-ZZ75-43DC": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-F39H-82C3": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-593S-4209": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-48BQ-C0E8": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-JDG5-4B6E": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-8K8Q-5DCE": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-H78S-4A4F": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-3V83-6E07": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-5NUT-3A5E": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-ACK7-A9CE": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-9ZNS-64C4": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-9795-1DC8": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-CUW7-BB7A": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-G6S6-9CE3": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-M58E-55BD": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-T9ZG-FBF2": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-01M-N4K6-1F78": {"days": 30, "plan": "1 Month (30 Days)", "lifetime": false}, "AD-02M-AFA6-36A7": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-FNRH-D33E": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-CTYK-2DA0": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-AW9J-41D8": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-Q8JU-0AF1": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-F4LJ-6FDC": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-V42K-0A01": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-N2AG-762F": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-2EDY-BB8F": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-YBB8-907A": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-WV6W-0757": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-H97L-30B3": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-KP5X-8184": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-7QE3-9361": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-CNMC-93E3": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-D6N8-94E4": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-BJPJ-3383": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-LM2T-5B94": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-54F2-691A": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-VMYM-B197": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-S794-D071": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-U7MW-7880": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-86HT-0F54": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-GPQA-888C": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-02M-F7X4-3173": {"days": 60, "plan": "2 Months (60 Days)", "lifetime": false}, "AD-03M-MBYL-8007": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-YPHT-10DE": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-PUTJ-E947": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-GSG5-99D6": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-LGDY-4FB0": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-MGWT-0C22": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-EUWL-FF5D": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-SSEA-340B": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-4S4A-8854": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-DGRB-D5A6": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-VHGY-8509": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-W7C3-35C5": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-WP75-0508": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-HZS2-4F23": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-UYD5-43D7": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-BUXU-DEC2": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-HV4W-0250": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-BXND-5ACB": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-HLHH-65EB": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-CJYV-D717": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-B5JY-D6D6": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-422R-35EF": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-4QJM-9F53": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-B3SK-DFC4": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-03M-QBBT-F69A": {"days": 90, "plan": "3 Months (Quarterly)", "lifetime": false}, "AD-06M-84SW-5F76": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-JFMC-FA99": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-SXWD-205B": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-AR8D-FFD2": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-QK3Z-2EB2": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-QTXN-FEE0": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-ZY77-1DC1": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-8VNL-3DA9": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-4K9A-8405": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-Y4CM-B648": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-FVZS-25DC": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-JGBP-F310": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-VC32-4D8D": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-LGFK-C653": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-2XSV-5C7B": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-CNLU-D421": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-UUYJ-3133": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-2NA8-FAC0": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-5YLB-19B3": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-MWKL-A701": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-BHAZ-FBCF": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-EZVP-B9F1": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-KRJG-1835": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-W9GE-43CB": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-06M-2SVH-5CBE": {"days": 180, "plan": "6 Months (Half-Yearly)", "lifetime": false}, "AD-01Y-Y89H-C723": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-RY7Y-6A2E": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-FEF9-A985": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-VSQL-7C69": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-W5XW-734F": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-93WM-065A": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-N7QY-3CE9": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-Y42P-0BFE": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-K6J5-7F6E": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-TXHW-3B23": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-T6SK-C4CF": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-TQXK-1FD4": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-HTU7-187B": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-33BX-404E": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-4XG9-6BC2": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-P5YX-8EA6": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-D3MA-A30B": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-TSJX-887C": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-488X-7D88": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-ACQH-BBB5": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-TWBP-8B88": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-7TZF-581A": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-NAGK-2591": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-XQ7P-2885": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-01Y-LVF4-394D": {"days": 365, "plan": "1 Year (Annual)", "lifetime": false}, "AD-LIFE-JGBT-3744": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-4CMQ-489D": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-8XXY-6678": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-W8S9-0F0D": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-WSC9-01F0": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-JB8Z-B9CB": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-S7NZ-4080": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-T3VP-5974": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-D4EV-7BEF": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-8FW9-BE67": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-WXZM-8D7A": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-EMS2-B7AE": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-GPB7-A5F2": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-RP5J-BB30": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-PT9J-08E5": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-WZ3N-F6B3": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-KKKJ-0491": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-DCTV-EF2C": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-MJTY-A1FF": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-J7LM-F74A": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-DMK4-F57C": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-9BVQ-9306": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-ZF74-4E9F": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-KWKC-2FB9": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}, "AD-LIFE-8ADG-C148": {"days": 99999, "plan": "Lifetime Unlimited Access", "lifetime": true}};
+/* ================= SIGNED LICENSE KEYS (AGHANYA DEVANYA ENTERPRISES) ================= */
+// Keys are signed with the vendor's private key (keygen.py). This page only holds the
+// PUBLIC key, so keys cannot be forged, and each key is tied to this install's ID.
+const LIC_PUBKEY = 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M=';
+const LIC_B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const LIC_EPOCH = Date.UTC(2026, 0, 1);
 
-const UNIVERSAL_COMMON_KEYS = [
-  "AD-LIFETIME-MASTER-ENTERPRISE-2026",
-  "AD-LIFETIME-ALL-HOTELS-COMMON-KEY",
-  "AD-LIFETIME-PRO-2026",
-  "AD-LIFETIME-HOTEL-ERP-VIP"
-];
-
+// Built-in demo keys work once per installation (for showing the software to a new client)
 const SPECIAL_DEMO_KEYS = {
-  "AD-DEMO-2MIN-TEST": { plan: "Quick Live Test (2 Minutes)", minutes: 2, isDemo: true },
-  "AD-DEMO-5MIN-TEST": { plan: "Demo Test (5 Minutes)", minutes: 5, isDemo: true },
-  "AD-DEMO-1HR-TEST": { plan: "Demo Test (1 Hour)", minutes: 60, isDemo: true },
-  "AD-DEMO-24HR-TEST": { plan: "Demo Test (24 Hours)", minutes: 1440, isDemo: true }
+  'AD-DEMO-2MIN-TEST': { plan: 'Quick Live Test (2 Minutes)', minutes: 2 },
+  'AD-DEMO-5MIN-TEST': { plan: 'Demo Test (5 Minutes)', minutes: 5 },
+  'AD-DEMO-1HR-TEST': { plan: 'Demo Test (1 Hour)', minutes: 60 },
+  'AD-DEMO-24HR-TEST': { plan: 'Demo Test (24 Hours)', minutes: 1440 }
 };
 
-function computeKeyChecksum(code){
-  const salt = 'AGHANYA_DEVANYA_2026';
-  let val = 5381;
-  const str = code + salt;
-  for(let i = 0; i < str.length; i++){
-    val = ((val << 5) + val + str.charCodeAt(i)) & 0xFFFFFFFF;
-  }
-  return (val >>> 0).toString(16).toUpperCase().padStart(8, '0').substring(0, 4);
+const cleanInstallId = id => String(id || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const licClean = k => String(k || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
+
+function newInstallId(){
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // own alphabet: runs before the constants above exist
+  const r = new Uint8Array(8);
+  (window.crypto || {}).getRandomValues ? crypto.getRandomValues(r) : r.forEach((_, i) => r[i] = Math.random() * 256);
+  const s = [...r].map(b => A[b & 31]).join('');
+  return `SETU-${s.slice(0, 4)}-${s.slice(4, 8)}`;
 }
 
-function getActivationKeyInfo(keyStr){
-  keyStr = (keyStr || '').trim().toUpperCase();
-  if(!keyStr) return { valid: false };
-
-  // 0. Special Demo / Test Keys for live testing auto-lock
-  if(SPECIAL_DEMO_KEYS[keyStr]){
-    const d = SPECIAL_DEMO_KEYS[keyStr];
-    return {
-      valid: true,
-      plan: d.plan,
-      days: +(d.minutes / 1440).toFixed(4),
-      minutes: d.minutes,
-      isLifetime: false,
-      isUniversal: true,
-      isDemo: true
-    };
-  }
-
-  // 1. Universal Common Lifetime Keys (Works for all hotels)
-  if(UNIVERSAL_COMMON_KEYS.includes(keyStr)){
-    return {
-      valid: true,
-      plan: 'Lifetime Enterprise License',
-      days: 99999,
-      isLifetime: true,
-      isUniversal: true
-    };
-  }
-
-  // 2. Excel / CSV Synced Master Vault Map
-  if(typeof VAULT_KEY_MAP !== 'undefined' && VAULT_KEY_MAP[keyStr]){
-    const m = VAULT_KEY_MAP[keyStr];
-    return {
-      valid: true,
-      plan: m.plan || (m.lifetime ? 'Lifetime Enterprise' : m.days + ' Days Plan'),
-      days: m.days || 30,
-      isLifetime: !!m.lifetime || m.days >= 99999,
-      isUniversal: false
-    };
-  }
-
-  // 3. Cryptographic Algorithmic Verification: AD-[TIER]-[CODE]-[CHECKSUM]
-  const parts = keyStr.split('-');
-  if(parts.length === 4 && parts[0] === 'AD'){
-    const tier = parts[1];
-    const code = parts[2];
-    const csum = parts[3];
-    if(computeKeyChecksum(code) === csum){
-      if(tier.startsWith('MIN')){
-        const mins = parseInt(tier.replace('MIN',''), 10) || 5;
-        return { valid: true, plan: `Demo Test (${mins} Minutes)`, days: +(mins/1440).toFixed(4), minutes: mins, isLifetime: false, isUniversal: false, isDemo: true };
-      }
-      if(['01M', '30D', '1M'].includes(tier)){
-        return { valid: true, plan: '1 Month (30 Days)', days: 30, isLifetime: false, isUniversal: false };
-      }
-      if(['02M', '60D', '2M'].includes(tier)){
-        return { valid: true, plan: '2 Months (60 Days)', days: 60, isLifetime: false, isUniversal: false };
-      }
-      if(['03M', '90D', '3M', 'QTR'].includes(tier)){
-        return { valid: true, plan: '3 Months Quarterly (90 Days)', days: 90, isLifetime: false, isUniversal: false };
-      }
-      if(['06M', '180D', '6M', 'HALF'].includes(tier)){
-        return { valid: true, plan: '6 Months Half-Yearly (180 Days)', days: 180, isLifetime: false, isUniversal: false };
-      }
-      if(['01Y', '365D', '1Y', 'YEAR'].includes(tier)){
-        return { valid: true, plan: '1 Year Annual (365 Days)', days: 365, isLifetime: false, isUniversal: false };
-      }
-      if(['LIFE', 'LIFETIME'].includes(tier)){
-        return { valid: true, plan: 'Lifetime Enterprise License', days: 99999, isLifetime: true, isUniversal: false };
-      }
-    }
-  }
-
-  // 4. Pre-installed list fallback
-  if(typeof PREINSTALLED_KEYS !== 'undefined' && PREINSTALLED_KEYS.includes(keyStr)){
-    const isLife = keyStr.includes('LIFE') || keyStr.includes('LIFETIME');
-    return {
-      valid: true,
-      plan: isLife ? 'Lifetime Enterprise License' : 'Monthly Plan (30 Days)',
-      days: isLife ? 99999 : 30,
-      isLifetime: isLife,
-      isUniversal: false
-    };
-  }
-
-  return { valid: false };
+function b32ToBytes(text, n){
+  let bits = '';
+  for(const c of text) bits += LIC_B32.indexOf(c).toString(2).padStart(5, '0');
+  const out = new Uint8Array(n);
+  for(let i = 0; i < n; i++) out[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+  return out;
 }
 
-function verifyActivationKey(keyStr){
-  return getActivationKeyInfo(keyStr).valid;
-}
-
-function isKeyUsed(keyStr){
-  keyStr = (keyStr || '').trim().toUpperCase();
-  // Universal master keys can be used across multiple hotels
-  if(UNIVERSAL_COMMON_KEYS.includes(keyStr)){
-    return false;
+async function getActivationKeyInfo(keyStr){
+  const raw = String(keyStr || '').trim().toUpperCase();
+  if(SPECIAL_DEMO_KEYS[raw]){
+    const d = SPECIAL_DEMO_KEYS[raw];
+    return { valid: true, id: raw, plan: d.plan, minutes: d.minutes, days: +(d.minutes / 1440).toFixed(4), isLifetime: false, isDemo: true };
   }
-  return (D.subscription && Array.isArray(D.subscription.usedKeys) && D.subscription.usedKeys.includes(keyStr));
+  const text = licClean(raw);
+  if(!text.startsWith('SETU') || text.length < 4 + 124) return { valid: false, reason: 'format' };
+  if(!(window.crypto && crypto.subtle)) return { valid: false, reason: 'secure' };
+  try{
+    const bytes = b32ToBytes(text.slice(4, 4 + 124), 77);
+    const payload = bytes.slice(0, 13), sig = bytes.slice(13);
+    const pub = await crypto.subtle.importKey('raw', Uint8Array.from(atob(LIC_PUBKEY), c => c.charCodeAt(0)), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload);
+    if(!ok || payload[0] !== 1) return { valid: false, reason: 'signature' };
+    const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cleanInstallId(D.settings.installId))));
+    if([0, 1, 2, 3].some(i => ih[i] !== payload[4 + i])) return { valid: false, reason: 'install' };
+    const kind = payload[1], value = (payload[2] << 8) | payload[3];
+    const id = text.slice(0, 4 + 124);
+    if(kind === 3) return { valid: true, id, plan: 'Lifetime Enterprise License', days: 99999, isLifetime: true };
+    if(kind === 2) return { valid: true, id, plan: `Demo (${value} Minutes)`, minutes: value, days: +(value / 1440).toFixed(4), isLifetime: false, isDemo: true };
+    const names = {30: '1 Month (30 Days)', 60: '2 Months (60 Days)', 90: '3 Months (90 Days)', 180: '6 Months (180 Days)', 365: '1 Year (365 Days)'};
+    if(kind === 1) return { valid: true, id, plan: names[value] || `${value} Days Plan`, days: value, isLifetime: false };
+  }catch(e){}
+  return { valid: false, reason: 'format' };
 }
 
-function activateLicenseKey(keyStr, reason = 'Key Activation'){
-  keyStr = (keyStr || '').trim().toUpperCase();
-  const info = getActivationKeyInfo(keyStr);
+const LIC_ERRORS = {
+  format: 'Galat Activation Key! Aghanya Devanya Enterprises dwara bheji gayi poori key copy-paste karein.',
+  signature: 'Ye key asli nahi hai. Kripya Aghanya Devanya Enterprises se sahi key lein.',
+  install: 'Ye key kisi doosre computer ke liye bani hai. Apna Install ID vendor ko bhej kar nayi key lein.',
+  secure: 'Key sirf Main Counter PC par activate ho sakti hai (Setu Desktop App mein).'
+};
+
+async function activateLicenseKey(keyStr, reason = 'Key Activation'){
+  const info = await getActivationKeyInfo(keyStr);
   if(!info.valid){
-    return { success: false, message: 'Galat Activation Key! Kripya Aghanya Devanya Enterprises dwara di gayi valid key enter karein.' };
+    return { success: false, message: LIC_ERRORS[info.reason] || LIC_ERRORS.format };
   }
-  if(isKeyUsed(keyStr)){
+  if(!D.subscription.usedKeys) D.subscription.usedKeys = [];
+  if(D.subscription.usedKeys.includes(info.id)){
     return { success: false, message: 'Yeh Activation Key pehle se use ki ja chuki hai! Kripya nayi key enter karein.' };
+  }
+  // A short demo key must never cut down a longer license that is still running
+  const cur = getSubscriptionInfo();
+  if(info.minutes && !cur.isExpired && (cur.isLifetime || (cur.diffMs || 0) > info.minutes * 60000)){
+    return { success: false, message: 'Aapka license pehle se active hai. Demo key ki zarurat nahi.' };
   }
 
   if(info.isLifetime){
     D.subscription.isLifetime = true;
-    D.subscription.planName = info.plan || 'Lifetime Enterprise License';
+    D.subscription.planName = info.plan;
     D.subscription.validUntil = '2099-12-31';
     D.subscription.status = 'lifetime';
   } else {
     D.subscription.isLifetime = false;
     D.subscription.planName = info.plan;
     if(info.minutes){
-      // Minutes-based test key (e.g. 2 min, 5 min, 1 hour)
-      const nowMs = Date.now();
-      D.subscription.validUntil = new Date(nowMs + info.minutes * 60000).toISOString();
-      D.subscription.status = 'active';
+      D.subscription.validUntil = new Date(Date.now() + info.minutes * 60000).toISOString();
     } else {
       const currentSub = getSubscriptionInfo();
       let baseDate = today();
-      if(!currentSub.isExpired && D.subscription.validUntil && !currentSub.isLifetime){
+      if(!currentSub.isExpired && D.subscription.validUntil && !currentSub.isLifetime && !D.subscription.validUntil.includes('T')){
         baseDate = D.subscription.validUntil;
       }
       D.subscription.validUntil = addDays(baseDate, info.days);
-      D.subscription.status = 'active';
     }
+    D.subscription.status = 'active';
   }
-
-  if(!D.subscription.usedKeys) D.subscription.usedKeys = [];
-  if(!info.isUniversal) D.subscription.usedKeys.push(keyStr);
+  // A new key also clears a clock-tamper lock
+  D.subscription.lastSeen = Date.now();
+  D.subscription.usedKeys.push(info.id);
   if(!D.subscription.history) D.subscription.history = [];
   D.subscription.history.unshift({
     date: today(),
     time: nowTime(),
     amount: D.subscription.monthlyPrice || 999,
     method: `${reason} [${info.plan}]`,
-    status: info.isLifetime ? 'Lifetime Active' : `Active (+${info.days} Days)`,
-    txnId: 'KEY-' + keyStr
+    status: info.isLifetime ? 'Lifetime Active' : `Active (+${info.minutes ? info.minutes + ' min' : info.days + ' Days'})`,
+    txnId: 'KEY-' + info.id.slice(0, 16)
   });
 
   save();
@@ -1477,6 +1281,7 @@ let activeUser = null;
 let selectedLoginRole = 'admin';
 
 function showLoginView(view){
+  fillInstallIds();
   const vSignup = $('#login-view-signup');
   const vSignin = $('#login-view-signin');
   if(!vSignup || !vSignin) return;
@@ -1546,7 +1351,7 @@ function checkAuth(){
   return false;
 }
 
-function handleSignUpSubmit(e){
+async function handleSignUpSubmit(e){
   e.preventDefault();
   const hotelName = ($('#signup_hotel_name')?.value || '').trim();
   const ownerName = ($('#signup_owner_name')?.value || '').trim();
@@ -1584,7 +1389,7 @@ function handleSignUpSubmit(e){
   }
 
   // Verify and consume initial 1-month activation key
-  const act = activateLicenseKey(key, 'Sign-Up 1st Month Activation');
+  const act = await activateLicenseKey(key, 'Sign-Up 1st Month Activation');
   if(!act.success){
     showErr(act.message);
     $('#signup_key')?.focus();
@@ -1642,7 +1447,9 @@ function handleSignInSubmit(e){
   if(role === 'admin'){
     const uid = ($('#login_user_id')?.value || '').trim();
     const pin = ($('#login_pin')?.value || '').trim();
-    const isDemoLogin = (uid.toLowerCase() === 'demo' && (pin.toLowerCase() === 'demo' || pin === 'demo123' || pin === '1234'));
+    // Demo login exists only until a real owner signs up; afterwards demo/demo must not open a real restaurant
+    const demoAllowed = !D.auth || !D.auth.isRegistered || D.auth.userId === 'demo';
+    const isDemoLogin = demoAllowed && (uid.toLowerCase() === 'demo' && (pin.toLowerCase() === 'demo' || pin === 'demo123' || pin === '1234'));
     if(isDemoLogin){
       userName = 'Demo Hotel Admin';
       if(!D.auth || !D.auth.isRegistered){
@@ -1668,17 +1475,31 @@ function handleSignInSubmit(e){
     const sName = ($('#login_cashier_name')?.value || '').trim() || 'Cashier';
     const cPin = ($('#login_cashier_pin')?.value || '').trim();
     const validCashierPin = D.settings.cashierPin || '1111';
+    const st = staffByPin(cPin);
 
+    if(st){
+      userName = st.name;
+      role = st.access === 'manager' ? 'admin' : 'cashier';
+      if(err) err.style.display = 'none';
+      activeUser = { name: userName, role, access: st.access, staffId: st.id, time: Date.now() };
+      return finishLogin();
+    }
     if(cPin !== validCashierPin){
-      if(err){ err.textContent = 'Galat Cashier PIN! Dubara koshish karein.'; err.style.display = 'block'; }
+      if(err){ err.textContent = 'Galat PIN! Dubara koshish karein.'; err.style.display = 'block'; }
       return;
     }
     userName = sName;
   }
 
   if(err) err.style.display = 'none';
-  activeUser = { name: userName, role, time: Date.now() };
+  activeUser = { name: userName, role, access: role === 'admin' ? 'manager' : 'cashier', time: Date.now() };
+  finishLogin();
+}
+
+function finishLogin(){
   localStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
+  audit('Login', `${activeUser.name} (${activeUser.access || activeUser.role})`);
+  save();
   updateUserUI();
   $('#login-screen').style.display = 'none';
   toast('Welcome, ' + activeUser.name + '!');
@@ -1687,11 +1508,13 @@ function handleSignInSubmit(e){
   if(checkExpiryLock()){
     return;
   }
-  go('gateway');
+  go(activeUser.access === 'captain' ? 'captain' : 'gateway');
 }
 
 function logout(){
   if(!confirm('Logout karna chahte hain?')) return;
+  audit('Logout', activeUser ? activeUser.name : '');
+  save();
   activeUser = null;
   localStorage.removeItem(AUTH_KEY);
   sessionStorage.removeItem(AUTH_KEY);
@@ -1733,6 +1556,11 @@ function getSubscriptionInfo(){
       status: 'lifetime',
       planName: D.subscription.planName || 'Lifetime Enterprise License'
     };
+  }
+
+  // Clock turned back by more than a day since Setu last ran: treat as expired
+  if((+D.subscription.lastSeen || 0) - Date.now() > 86400000){
+    return { ...D.subscription, daysLeft: 0, isExpired: true, isExpiring: false, isLifetime: false, status: 'expired', clockTampered: true };
   }
 
   const validUntil = D.subscription.validUntil;
@@ -1834,13 +1662,36 @@ function updateSubscriptionUI(){
   }
 }
 
+function installIdHTML(){
+  const id = D.settings.installId || '';
+  return `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:#fff;border:1.5px dashed #0284c7;border-radius:8px;padding:6px 10px;font-size:12px">
+    <span>Install ID:</span><b style="font-family:'JetBrains Mono',monospace;font-size:14px;letter-spacing:1px;color:#0f172a">${esc(id)}</b>
+    <button type="button" class="btn g sm" onclick="navigator.clipboard.writeText('${esc(id)}').then(()=>toast('Install ID copy ho gaya'))">Copy</button>
+  </div>`;
+}
+function fillInstallIds(){
+  document.querySelectorAll('.inst-id').forEach(e => e.innerHTML = installIdHTML());
+}
+
 function checkExpiryLock(){
   const s = getSubscriptionInfo();
   const lockEl = $('#lock-screen');
   updateSubscriptionUI();
   if(!lockEl) return false;
+
+  // Remember the latest time seen, so turning the PC clock back cannot extend a license
+  if(!s.clockTampered && Date.now() > (+D.subscription.lastSeen || 0) + 600000){
+    D.subscription.lastSeen = Date.now();
+    save();
+  }
   
   if(s.isExpired){
+    fillInstallIds();
+    const why = $('#lock-reason');
+    if(why){
+      why.style.display = s.clockTampered ? 'block' : 'none';
+      why.textContent = s.clockTampered ? 'Computer ki Date/Time peeche ki gayi hai. Sahi date lagayein, ya vendor se nayi key lein.' : '';
+    }
     lockEl.style.display = 'flex';
     document.body.style.overflow = 'hidden';
     closeModal();
@@ -1858,13 +1709,13 @@ function hideLockScreen(){
   document.body.style.overflow = '';
 }
 
-function handleLockScreenActivation(e){
+async function handleLockScreenActivation(e){
   e.preventDefault();
   const inp = $('#lock_input_key');
   const key = (inp?.value || '').trim().toUpperCase();
   const err = $('#lock_err');
 
-  const act = activateLicenseKey(key, 'Lock-Screen 1-Month Renewal');
+  const act = await activateLicenseKey(key, 'Lock-Screen 1-Month Renewal');
   if(!act.success){
     if(err){
       err.textContent = act.message;
@@ -1922,12 +1773,13 @@ function openActivationModal(forced = false){
       <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px">
         <label style="font-size:12px;font-weight:700;color:#0f172a;margin-bottom:6px">Enter New 1-Month Activation Key (30 Days)</label>
         <div style="display:flex;gap:8px">
-          <input id="inp_modal_lic_key" placeholder="AD-30D-XXXX-YYYY" class="key-input" style="background:#fff">
+          <input id="inp_modal_lic_key" placeholder="SETU-XXXXXXXX-... (poori key paste karein)" class="key-input" style="background:#fff">
           <button class="btn ok" style="white-space:nowrap;font-weight:700" onclick="submitModalKey()">Activate Key</button>
         </div>
         <small class="muted" style="display:block;margin-top:6px;font-size:11px">
-          Aghanya Devanya Enterprises ko monthly payment karke prapt hui 30-dino ki key yahan daalein.
+          Payment ke baad ye Install ID Aghanya Devanya Enterprises ko bhejein. Wo isi computer ki key bhejenge.
         </small>
+        ${installIdHTML()}
       </div>
 
       <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12px;line-height:1.4">
@@ -1942,13 +1794,13 @@ function openActivationModal(forced = false){
   `);
 }
 
-function submitModalKey(){
+async function submitModalKey(){
   const key = ($('#inp_modal_lic_key')?.value || '').trim().toUpperCase();
   if(!key){
     toast('Kripya Activation Key enter karein');
     return;
   }
-  const act = activateLicenseKey(key, 'Manual Modal Key Activation');
+  const act = await activateLicenseKey(key, 'Manual Modal Key Activation');
   if(!act.success){
     alert(act.message);
     return;
@@ -2154,15 +2006,17 @@ function pushKot(t){
     at: Date.now(),
     table: t.table || 'Counter',
     channel: t.channel || 'Dine-In',
-    items: t.items.map(i => ({name: i.name, qty: i.qty})),
+    items: t.items.map(i => ({mid: i.mid, name: i.name, qty: i.qty})),
     note: t.note || '',
     token: t.token || 0,
+    by: activeUser ? activeUser.name : '',
     status: 'new'
   };
   D.kots.push(k);
   // Keep only the last 7 days of kitchen tickets
   const cutoff = addDays(today(), -7);
   D.kots = D.kots.filter(x => x.date >= cutoff);
+  if(D.settings.autoKot && directPrint()) setTimeout(() => directKot({kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note, token: k.token, by: k.by}), 0);
   return k;
 }
 const pendingKots = () => (D.kots || []).filter(k => k.status !== 'served');
@@ -2174,6 +2028,64 @@ function walletBal(phone){
   const inn = sum(D.txns.filter(t => t.type === 'Receipt' && t.head === 'Customer Wallet Topup' && normPh(t.phone) === p), 'amount');
   const out = sum(D.bills.filter(b => !b.cancelled && b.mode === 'Wallet' && normPh(b.phone) === p), 'total');
   return r2(inn - out);
+}
+
+/* ================= STAFF PINS, MANAGER APPROVAL & AUDIT LOG ================= */
+const isManager = () => !!activeUser && activeUser.role === 'admin';
+const staffByPin = pin => pin ? (D.staff || []).find(x => !x.left && x.access && String(x.pin) === String(pin)) : null;
+
+// Returns the approver's name for a valid manager / owner PIN, else ''
+function managerByPin(pin){
+  pin = String(pin || '');
+  if(!pin) return '';
+  if(pin === String(D.settings.adminPin || '') || pin === String((D.auth || {}).password || '')) return (D.auth && D.auth.ownerName) || 'Owner';
+  const st = staffByPin(pin);
+  return st && st.access === 'manager' ? st.name : '';
+}
+
+// Sensitive actions: managers go straight through, others need a manager PIN on the spot
+function withManager(label, fn){
+  if(isManager()){ fn(activeUser.name); return; }
+  modal('Manager Approval Chahiye', `
+    <p style="margin:0 0 10px;font-size:13px"><b>${esc(label)}</b><br><span class="muted">Ye kaam sirf Manager/Owner ki permission se ho sakta hai. Ye entry Audit Log mein jayegi.</span></p>
+    <form id="mgr-form">
+      <input id="mgr_pin" type="password" inputmode="numeric" placeholder="Manager PIN" autocomplete="off" autofocus>
+      <div id="mgr_err" class="red" style="font-size:12px;margin-top:6px;display:none">Galat Manager PIN</div>
+      <div class="btns"><button class="btn ok" type="submit">Approve</button><button class="btn g" type="button" onclick="closeModal()">Cancel</button></div>
+    </form>`);
+  $('#mgr-form').onsubmit = ev => {
+    ev.preventDefault();
+    const by = managerByPin($('#mgr_pin').value.trim());
+    if(!by){
+      $('#mgr_err').style.display = 'block';
+      audit('Galat Manager PIN', label);
+      save();
+      return;
+    }
+    closeModal();
+    fn(by);
+  };
+}
+
+function audit(action, detail, amount, ref, approvedBy){
+  if(!Array.isArray(D.audit)) D.audit = [];
+  D.audit.push({
+    id: uid(), at: Date.now(), date: today(), time: nowTime(),
+    user: activeUser ? activeUser.name : 'System', role: activeUser ? (activeUser.access || activeUser.role) : '',
+    action, detail: detail || '', amount: +amount || 0, ref: ref || '', approvedBy: approvedBy || ''
+  });
+  // Keep about a year of history
+  if(D.audit.length > 20000) D.audit = D.audit.slice(-20000);
+}
+
+// Actions an owner should look at every day
+const AUDIT_ALERTS = ['Bill Cancel', 'Running Table Cancel', 'KOT ke baad item hataya', 'Voucher Delete', 'Duplicate Bill Print', 'Cash Short', 'Galat Manager PIN', 'Menu Rate Change', 'Stock Adjust'];
+function auditSummary(d){
+  const rows = (D.audit || []).filter(a => a.date === d && AUDIT_ALERTS.includes(a.action));
+  const by = {};
+  rows.forEach(a => { const x = by[a.action] || (by[a.action] = {n: 0, amt: 0}); x.n++; x.amt += Math.abs(+a.amount || 0); });
+  const disc = (D.audit || []).filter(a => a.date === d && a.action === 'Discount');
+  return {rows, by, discN: disc.length, discAmt: sum(disc, 'amount')};
 }
 
 // Takeaway token numbers restart every day
@@ -2205,6 +2117,7 @@ const MENU = [
   ['F','Reports & Tally Export','reports','Accounts'],
   ['U','Suppliers & Udhaar','suppliers','Accounts'],
   ['Y','Zomato/Swiggy Settlement','settlement','Accounts'],
+  ['V','Audit Log (Chori Check)','audit','Accounts'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -2234,13 +2147,25 @@ const SCREENS = {
   tokens: scrTokens,
   reports: scrReports,
   suppliers: scrSuppliers,
-  settlement: scrSettlement
+  settlement: scrSettlement,
+  audit: scrAudit
 };
 
 let kdsTimer = null;
-function go(s){
+const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit'];
+const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens'];
+
+function go(s, approved){
   if(!activeUser && !checkAuth()) return;
   if(checkExpiryLock()) return;
+  if(activeUser.access === 'captain' && !CAPTAIN_ALLOW.includes(s)){
+    if(!approved){ s = 'captain'; }
+  }
+  if(!approved && !isManager() && CASHIER_BLOCK.includes(s)){
+    const m = MENU.find(x => x[2] === s);
+    withManager(`${m ? m[1] : s} kholna`, () => go(s, true));
+    return;
+  }
   cur = s;
   clearInterval(kdsTimer);
   if(s !== 'kitchen' && s !== 'tokens') document.body.classList.remove('kitchen-mode');
@@ -2303,6 +2228,10 @@ document.addEventListener('keydown', e => {
 });
 
 /* ================= CALCULATIONS ================= */
+// Composition-scheme and unregistered restaurants must not charge GST on the bill
+const gstRate = () => (D.settings.gstScheme || 'regular') === 'regular' ? (+D.settings.gst || 0) : 0;
+const billTitle = b => ({composition: 'BILL OF SUPPLY', none: 'BILL'})[b.scheme] || 'TAX INVOICE';
+
 function calc(items, disc, rate){
   const sub = sum(items || [], i => i.price * i.qty);
   disc = Math.min(+disc || 0, sub);
@@ -2352,7 +2281,7 @@ function scrGateway(){
   
   const subInfo = getSubscriptionInfo();
   const kacchaEntries = Object.entries(D.kaccha || {});
-  const totalKacchaAmt = sum(kacchaEntries, ([_, k]) => calc(k.cart, k.disc, D.settings.gst).total);
+  const totalKacchaAmt = sum(kacchaEntries, ([_, k]) => calc(k.cart, k.disc, gstRate()).total);
   const pendingOnline = (D.onlineOrders || []).filter(o => o.status === 'new').length;
 
   main.innerHTML = `
@@ -2457,6 +2386,15 @@ function scrGateway(){
         <button class="btn zomato" style="padding:10px 18px" onclick="go('online')">Open Online Orders Desk</button>
       </div>
     ` : ''}
+
+    ${isManager() && auditSummary(today()).rows.length ? `
+      <div class="card" style="border-left:5px solid var(--bad);background:#fff5f5;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <b style="color:var(--bad)">Aaj ${auditSummary(today()).rows.length} audit alerts</b>
+          <p style="margin:2px 0 0;font-size:13px">${Object.entries(auditSummary(today()).by).map(([k, v]) => `${esc(k)}: ${v.n}`).join(' · ')}</p>
+        </div>
+        <button class="btn bad" onclick="audType='alerts';go('audit')">Audit Log Dekhein</button>
+      </div>` : ''}
 
     <!-- Quick Action Launchpad Tiles -->
     <div class="section-title">
@@ -2762,7 +2700,7 @@ function simulateIncomingOrder(channel){
     qty: Math.floor(1 + Math.random() * 2)
   }));
 
-  const t = calc(items, 0, D.settings.gst);
+  const t = calc(items, 0, gstRate());
   const order = {
     id: uid(),
     channel,
@@ -2832,7 +2770,8 @@ function handoverOnlineOrder(id){
     phone: o.custPhone,
     note: o.note || `Rider: ${o.riderName}`,
     mode: o.channel === 'Zomato' ? 'Zomato Pay' : 'Swiggy Pay',
-    gstRate: +D.settings.gst,
+    gstRate: gstRate(),
+    scheme: D.settings.gstScheme || 'regular',
     items: o.items.map(c => ({...c})),
     sub: o.sub,
     disc: o.disc || 0,
@@ -2871,6 +2810,7 @@ function printOnlineKOT(id){
     items: o.items,
     note: `OTP: ${o.otp} | Cust: ${o.custName} | ${o.note || ''}`
   };
+  if(directPrint()){ directKot(dummy); return; }
   printDoc([kotHTML(dummy)]);
 }
 
@@ -2934,7 +2874,7 @@ function drawPts(){
 }
 
 function redeemPts(){
-  const st = D.settings, bal = ptsBal(B.phone), t = calc(B.cart, B.disc, st.gst);
+  const st = D.settings, bal = ptsBal(B.phone), t = calc(B.cart, B.disc, gstRate());
   const maxPts = Math.floor(t.taxable / (+st.ptValue || 1));
   B.redeem = Math.max(0, Math.min(bal, maxPts));
   if(!B.redeem){ toast('Pehle item add karein'); return; }
@@ -2948,7 +2888,7 @@ function scrBill(){
   
   const tables = D.settings.tables || ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8', 'T-9', 'T-10', 'Parcel'];
   const kacchaEntries = Object.entries(D.kaccha || {});
-  const totalKacchaAmt = sum(kacchaEntries, ([_, k]) => calc(k.cart, k.disc, D.settings.gst).total);
+  const totalKacchaAmt = sum(kacchaEntries, ([_, k]) => calc(k.cart, k.disc, gstRate()).total);
   const isCurrentTableKaccha = !!D.kaccha[B.table];
 
   main.innerHTML = `
@@ -2995,7 +2935,7 @@ function scrBill(){
         ${tables.map(tbl => {
           const isOccupied = !!D.kaccha[tbl];
           const isSelected = B.table === tbl;
-          const tblTotal = isOccupied ? calc(D.kaccha[tbl].cart, D.kaccha[tbl].disc, D.settings.gst).total : 0;
+          const tblTotal = isOccupied ? calc(D.kaccha[tbl].cart, D.kaccha[tbl].disc, gstRate()).total : 0;
           return `
             <button type="button" class="tbl-chip ${isSelected ? 'active' : ''} ${isOccupied ? 'occupied' : ''}" onclick="switchTable('${esc(tbl)}')">
               <span class="pulse-dot"></span>
@@ -3100,7 +3040,7 @@ function scrBill(){
     ${kacchaEntries.length ? `
       <div class="active-tables-grid">
         ${kacchaEntries.map(([tbl, k]) => {
-          const kt = calc(k.cart, k.disc, D.settings.gst);
+          const kt = calc(k.cart, k.disc, gstRate());
           const isSelected = B.table === tbl;
           return `
             <div class="active-table-card ${isSelected ? 'selected' : ''}" onclick="switchTable('${esc(tbl)}')">
@@ -3193,9 +3133,26 @@ function addItem(id){
 
 function setQty(i, v){
   v = +v;
-  if(!(v > 0)) B.cart.splice(i, 1);
-  else B.cart[i].qty = v;
-  drawCart();
+  const c = B.cart[i];
+  if(!c) return;
+  const newQty = v > 0 ? v : 0, sentQty = (B.sent || {})[c.mid] || 0;
+  const apply = () => {
+    const ci = B.cart.indexOf(c);
+    if(ci < 0) return;
+    if(!(newQty > 0)) B.cart.splice(ci, 1);
+    else B.cart[ci].qty = newQty;
+    drawCart();
+  };
+  // Removing food the kitchen already received is the classic leak: needs a manager
+  if(newQty < sentQty && newQty < c.qty){
+    withManager(`KOT ke baad ${c.name} kam karna (${c.qty} → ${newQty})`, by => {
+      audit('KOT ke baad item hataya', `${B.table}: ${c.name} ${c.qty} → ${newQty}`, r2((c.qty - newQty) * c.price), B.table, by);
+      apply();
+      save();
+    });
+    return;
+  }
+  apply();
 }
 
 function drawCart(){
@@ -3226,7 +3183,7 @@ function drawCart(){
 }
 
 function drawTotals(){
-  const t = calc(B.cart, billDisc(), D.settings.gst), g = +D.settings.gst, lr = Math.min(redeemRs(), t.disc);
+  const t = calc(B.cart, billDisc(), gstRate()), g = gstRate(), lr = Math.min(redeemRs(), t.disc);
   $('#tot').innerHTML = `
     <div><span>Sub Total (${sum(B.cart,'qty')} items)</span><b>${money(t.sub)}</b></div>
     ${t.disc - lr > 0 ? `<div><span>Discount</span><b>− ${money(t.disc - lr)}</b></div>` : ''}
@@ -3293,7 +3250,7 @@ function saveKacchaBill(silent = false, noRender = false){
     toast('Pehle item add karein');
     return;
   }
-  const t = calc(B.cart, billDisc(), D.settings.gst);
+  const t = calc(B.cart, billDisc(), gstRate());
   const existing = D.kaccha[tbl];
   const newItems = cartDelta(B.cart, B.sent);
   const ticket = pushKot({table: tbl, channel: 'Dine-In', items: newItems, note: B.note.trim()});
@@ -3336,14 +3293,18 @@ function saveKacchaBill(silent = false, noRender = false){
 
 function cancelKacchaOrder(tbl){
   if(!confirm(`Table ${tbl} ka Kaccha Bill cancel karein? Table free ho jayegi.`)) return;
-  delete D.kaccha[tbl];
-  save();
-  B = newB(tbl, 'Dine-In');
-  toast(`Table ${tbl} ka order cancel ho gaya`);
-  scrBill();
+  withManager(`Table ${tbl} ka running order cancel`, by => {
+    const k = D.kaccha[tbl];
+    if(k) audit('Running Table Cancel', `${tbl}: ${k.cart.map(i => i.name + '×' + i.qty).join(', ')}`, calc(k.cart, k.disc, gstRate()).total, tbl, by);
+    delete D.kaccha[tbl];
+    save();
+    B = newB(tbl, 'Dine-In');
+    toast(`Table ${tbl} ka order cancel ho gaya`);
+    scrBill();
+  });
 }
 
-function finalizePakkaBill(){
+function finalizePakkaBill(approvedDisc){
   const sub = getSubscriptionInfo();
   if(sub.isExpired){
     toast('License Expired! Kripya pehle 1-Month Activation Key enter karein.');
@@ -3363,7 +3324,7 @@ function finalizePakkaBill(){
   const hasPh = normPh(B.phone).length === 10 && !isAggregator(ch);
   const ptsUsed = hasPh ? Math.min(+B.redeem || 0, ptsBal(B.phone)) : 0;
   const loyaltyDisc = r2(ptsUsed * (+st.ptValue || 0));
-  const t = calc(B.cart, (+B.disc || 0) + loyaltyDisc, st.gst), used = {};
+  const t = calc(B.cart, (+B.disc || 0) + loyaltyDisc, gstRate()), used = {};
   B.cart.forEach(c => {
     const m = D.menu.find(x => x.id === c.mid);
     (m?.recipe || []).forEach(r => { used[r.sid] = (used[r.sid] || 0) + r.qty * c.qty; });
@@ -3373,6 +3334,11 @@ function finalizePakkaBill(){
     if(normPh(B.phone).length !== 10){ toast('Wallet se payment ke liye customer ka mobile number daalein'); return; }
     const wb = walletBal(B.phone);
     if(wb < t.total){ toast(`Wallet balance kam hai (${money(wb)}). Customers (R) mein top-up karein`); return; }
+  }
+  const discPct = t.sub ? (+B.disc || 0) / t.sub * 100 : 0;
+  if(!approvedDisc && (+B.disc || 0) > 0 && discPct > (+st.maxDiscPct || 0) && !isManager()){
+    withManager(`${money(B.disc)} discount (${Math.round(discPct)}%) dena`, by => finalizePakkaBill(by));
+    return;
   }
   const token = B.token || (st.tokenOn && ch === 'Takeaway' ? nextToken() : 0);
 
@@ -3389,18 +3355,21 @@ function finalizePakkaBill(){
     phone: B.phone.trim(),
     note: B.note.trim(),
     mode: B.mode,
-    gstRate: +D.settings.gst,
+    gstRate: gstRate(),
+    scheme: D.settings.gstScheme || 'regular',
     items: B.cart.map(c => ({...c})),
     ...t,
     ptsUsed,
     ptsEarned,
     loyaltyDisc: Math.min(loyaltyDisc, t.disc),
     token,
+    by: activeUser ? activeUser.name : '',
     used: Object.entries(used).map(([sid, qty]) => ({sid, qty}))
   };
 
   applyStock(bill.used, -1);
   D.bills.push(bill);
+  if(+B.disc > 0) audit('Discount', `Bill #${bill.no} · ${tbl} · ${Math.round(discPct)}%`, +B.disc, bill.id, typeof approvedDisc === 'string' ? approvedDisc : '');
   // Send only the items the kitchen has not seen yet (running tables already sent theirs)
   pushKot({no: bill.kot, table: token ? `Token ${token}` : tbl, channel: bill.channel, items: cartDelta(B.cart, B.sent), note: bill.note, token});
   
@@ -3436,17 +3405,153 @@ function applyStock(used, sign){
 
 const getBill = id => D.bills.find(b => b.id === id);
 
+/* ================= DIRECT PRINTING (thermal ESC/POS, no print dialog) ================= */
+// Desktop App only: receipts are built as ESC/POS bytes and sent to /api/print, which
+// writes them to the Windows printer as a RAW job. Browser mode keeps the print dialog.
+const directPrint = () => SRV.on && D.settings.printMode === 'direct';
+const printCols = () => (+D.settings.width === 58 ? 32 : 48);
+const asciiSafe = t => String(t ?? '').replace(/₹/g, 'Rs.').replace(/[×✕]/g, 'x').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7E\n]/g, '?');
+
+class EscPos {
+  constructor(){ this.b = [0x1b, 0x40]; this.cols = printCols(); }
+  raw(...a){ this.b.push(...a); return this; }
+  text(t){ for(const ch of asciiSafe(t)) this.b.push(ch.charCodeAt(0)); return this; }
+  line(t = ''){ return this.text(t).raw(0x0a); }
+  align(a){ return this.raw(0x1b, 0x61, a === 'center' ? 1 : a === 'right' ? 2 : 0); }
+  bold(on){ return this.raw(0x1b, 0x45, on ? 1 : 0); }
+  size(big){ return this.raw(0x1d, 0x21, big ? 0x11 : 0x00); }
+  center(t, big){ this.align('center'); if(big) this.size(true).bold(true); this.line(t); if(big) this.size(false).bold(false); return this.align('left'); }
+  hr(c = '-'){ return this.line(c.repeat(this.cols)); }
+  lr(l, r){ l = asciiSafe(l); r = asciiSafe(r); const w = this.cols - r.length - 1; return this.line((l.length > w ? l.slice(0, w) : l).padEnd(w) + ' ' + r); }
+  wrap(t, w){ const out = []; t = asciiSafe(t); while(t.length > w){ out.push(t.slice(0, w)); t = t.slice(w); } out.push(t); return out; }
+  items(list){
+    const wide = this.cols >= 42, qW = 4, rW = wide ? 8 : 0, aW = 9, nW = this.cols - qW - rW - aW;
+    this.bold(true).line('Item'.padEnd(nW) + 'Qty'.padStart(qW) + (wide ? 'Rate'.padStart(rW) : '') + 'Amt'.padStart(aW)).bold(false);
+    list.forEach(i => {
+      const parts = this.wrap(i.name, nW - 1);
+      this.line(parts[0].padEnd(nW) + String(i.qty).padStart(qW) + (wide ? String(i.price).padStart(rW) : '') + r2(i.price * i.qty).toFixed(2).padStart(aW));
+      parts.slice(1).forEach(p => this.line(' ' + p));
+    });
+    return this;
+  }
+  drawer(){ return this.raw(0x1b, 0x70, 0x00, 0x19, 0xfa); }
+  cut(){ return this.raw(0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x42, 0x00); }
+  bytes(){ return new Uint8Array(this.b); }
+}
+
+function escHead(e){
+  const st = D.settings;
+  e.center(st.name || 'Restaurant', true);
+  if(st.address) e.wrap(st.address, e.cols).forEach(l => e.center(l));
+  if(st.phone) e.center('Ph: ' + st.phone);
+  if(st.gstin && st.gstScheme !== 'none') e.center('GSTIN: ' + st.gstin);
+  if(st.fssai) e.center('FSSAI Lic. No: ' + st.fssai);
+  return e.hr();
+}
+
+function escBill(b){
+  const e = escHead(new EscPos()), g = b.gstRate;
+  e.bold(true).center(billTitle(b) + (b.cancelled ? ' (CANCELLED)' : '') + (b.channel && b.channel !== 'Dine-In' ? ' [' + b.channel.toUpperCase() + ']' : '')).bold(false);
+  if((b.prints || 0) > 1) e.bold(true).center('** DUPLICATE COPY **').bold(false);
+  if(b.scheme === 'composition') e.center('Composition taxable person, not eligible to collect tax on supplies');
+  if((b.scheme || 'regular') === 'regular' && g) e.center('SAC: 996331');
+  e.lr('Bill No: #' + b.no, dmy(b.date) + ' ' + b.time);
+  if(b.token) e.center('TOKEN #' + b.token, true);
+  if(b.table) e.line('Table/Ref: ' + b.table);
+  if(b.cust) e.line('Customer: ' + b.cust);
+  if(b.by) e.line('Cashier: ' + b.by);
+  e.hr().items(b.items).hr();
+  e.lr('Sub Total', b.sub.toFixed(2));
+  if(b.disc - (b.loyaltyDisc || 0) > 0) e.lr('Discount', '-' + (b.disc - (b.loyaltyDisc || 0)).toFixed(2));
+  if(b.loyaltyDisc) e.lr(`Loyalty (${b.ptsUsed} pts)`, '-' + b.loyaltyDisc.toFixed(2));
+  if(g){ e.lr(`CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`SGST @${g / 2}%`, (b.tax / 2).toFixed(2)); }
+  if(b.round) e.lr('Round Off', b.round.toFixed(2));
+  e.hr().size(true).bold(true).lr('TOTAL', 'Rs.' + b.total.toFixed(2)).size(false).bold(false);
+  e.line('Paid by: ' + b.mode);
+  if(b.ptsEarned || b.ptsUsed) e.line(`Points earned: ${b.ptsEarned}${b.ptsUsed ? ' | used: ' + b.ptsUsed : ''} | Balance: ${ptsBalAt(b)}`);
+  e.hr();
+  if(D.settings.upi && ['Cash', 'UPI', 'Credit'].includes(b.mode)) e.center('UPI: ' + D.settings.upi);
+  if(D.settings.review) e.center('Google par rating dein - shukriya!');
+  e.wrap(D.settings.footer || '', e.cols).forEach(l => e.center(l));
+  e.center('Powered by Aghanya Devanya Enterprises');
+  if(D.settings.drawerKick && b.mode === 'Cash' && (b.prints || 0) <= 1) e.drawer();
+  return e.cut().bytes();
+}
+
+function escKot(k, printerLabel){
+  const e = new EscPos();
+  e.center('*** KITCHEN ORDER (KOT) ***', false).hr();
+  e.size(true).bold(true).line(k.table || 'Counter').size(false).bold(false);
+  e.lr('KOT No: ' + k.kot, dmy(k.date || today()) + ' ' + (k.time || nowTime()));
+  if(k.token) e.center('TOKEN #' + k.token, true);
+  if(printerLabel) e.line('Section: ' + printerLabel);
+  e.hr().size(true);
+  k.items.forEach(i => e.line(`${i.qty} x ${i.name}`));
+  e.size(false).hr();
+  if(k.note) e.bold(true).line('Note: ' + k.note).bold(false).hr();
+  if(k.by) e.line('Order: ' + k.by);
+  return e.cut().bytes();
+}
+
+function escKaccha(k){
+  const t = calc(k.cart, k.disc, gstRate()), e = escHead(new EscPos());
+  e.bold(true).center('*** KACCHA BILL / ESTIMATE ***').bold(false).center('(Not a Tax Invoice)');
+  e.lr('Table: ' + k.table, dmy(today()) + ' ' + (k.updatedAt || nowTime()));
+  if(k.cust) e.line('Customer: ' + k.cust);
+  e.hr().items(k.cart).hr().lr('Sub Total', t.sub.toFixed(2));
+  if(t.disc) e.lr('Discount', '-' + t.disc.toFixed(2));
+  e.size(true).bold(true).lr('TOTAL', 'Rs.' + t.total.toFixed(2)).size(false).bold(false);
+  return e.cut().bytes();
+}
+
+async function sendToPrinter(printer, bytes){
+  if(!printer){ toast('Settings (G) → Printer Setup mein printer chunein'); return false; }
+  let bin = '';
+  bytes.forEach(x => bin += String.fromCharCode(x));
+  try{
+    const r = await srvFetch('/api/print', {method: 'POST', body: JSON.stringify({printer, data: btoa(bin)})});
+    if(r.ok) return true;
+    const j = await r.json().catch(() => ({}));
+    toast('Print nahi hua: ' + (j.error || r.status));
+  }catch(e){ toast('Print nahi hua: Main Counter se connection nahi'); }
+  return false;
+}
+
+// Split KOT items by kitchen section (category → printer); everything else goes to the main KOT printer
+function kotPrinterFor(item){
+  const m = D.menu.find(x => x.id === item.mid) || D.menu.find(x => x.name === item.name);
+  const map = D.settings.catPrinters || {};
+  return (m && map[m.cat]) || D.settings.kotPrinter || D.settings.billPrinter || '';
+}
+
+async function directKot(k){
+  const groups = {};
+  k.items.forEach(i => { const p = kotPrinterFor(i); (groups[p] = groups[p] || []).push(i); });
+  const names = Object.keys(groups);
+  for(const p of names) await sendToPrinter(p, escKot({...k, items: groups[p]}, names.length > 1 ? p : ''));
+}
+
+async function testPrint(which){
+  const p = which === 'kot' ? D.settings.kotPrinter : D.settings.billPrinter;
+  const e = new EscPos();
+  e.center('SETU TEST PRINT', true).hr().line('Printer: ' + p).line('Width: ' + e.cols + ' chars').line('1234567890'.repeat(5).slice(0, e.cols)).hr().center('Agar ye saaf dikh raha hai to setup sahi hai');
+  if(await sendToPrinter(p, e.cut().bytes())) toast('Test print bheja: ' + p);
+}
+
 /* ================= RECEIPTS & KACCHA BILL PRINTING ================= */
 function head(){
   const s = D.settings;
   return `<div class="c h">${esc(s.name)}</div><div class="c">${esc(s.address)}</div>
-    ${s.phone ? `<div class="c">Ph: ${esc(s.phone)}</div>` : ''}${s.gstin ? `<div class="c">GSTIN: ${esc(s.gstin)}</div>` : ''}`;
+    ${s.phone ? `<div class="c">Ph: ${esc(s.phone)}</div>` : ''}${s.gstin && s.gstScheme !== 'none' ? `<div class="c">GSTIN: ${esc(s.gstin)}</div>` : ''}
+    ${s.fssai ? `<div class="c">FSSAI Lic. No: ${esc(s.fssai)}</div>` : ''}`;
 }
 
 function billHTML(b){
   const g = b.gstRate;
   const channelBadge = b.channel && b.channel !== 'Dine-In' ? ` [${b.channel.toUpperCase()}]` : '';
-  return `<div class="rcpt${paper('bill')}">${head()}<hr><div class="c"><b>TAX INVOICE${b.cancelled?' (CANCELLED)':''}${channelBadge}</b></div>
+  return `<div class="rcpt${paper('bill')}">${head()}<hr><div class="c"><b>${billTitle(b)}${b.cancelled?' (CANCELLED)':''}${channelBadge}</b></div>${(b.prints || 0) > 1 ? '<div class="c"><b>** DUPLICATE COPY **</b></div>' : ''}
+  ${b.scheme === 'composition' ? '<div class="c" style="font-size:10px">Composition taxable person, not eligible to collect tax on supplies</div>' : ''}
+  ${(b.scheme || 'regular') === 'regular' && b.gstRate ? '<div class="c" style="font-size:10px">SAC: 996331 (Restaurant Service)</div>' : ''}
   <div>Bill No: <b>#${b.no}</b> &nbsp; ${dmy(b.date)} ${b.time}</div>
   ${b.token ? `<div class="c big">TOKEN #${b.token}</div>` : ''}
   ${b.table ? `<div>Table/Ref: <b>${esc(b.table)}</b></div>` : ''}${b.cust ? `<div>Customer: ${esc(b.cust)}</div>` : ''}<hr>
@@ -3475,7 +3580,7 @@ function billQR(b){
 }
 
 function kacchaHTML(k){
-  const t = calc(k.cart, k.disc, D.settings.gst);
+  const t = calc(k.cart, k.disc, gstRate());
   return `<div class="rcpt${paper('bill')}">
     ${head()}
     <hr>
@@ -3518,6 +3623,19 @@ function printDoc(parts){
 function printBill(id, what){
   const b = getBill(id);
   if(!b) return;
+  if(what !== 'kot'){
+    // Second and later customer copies are marked and logged (re-using old bills is a common fraud)
+    b.prints = (b.prints || 0) + 1;
+    if(b.prints > 1) audit('Duplicate Bill Print', `Bill #${b.no} · copy ${b.prints}`, b.total, b.id);
+    save();
+  }
+  if(directPrint()){
+    (async () => {
+      if(what !== 'kot') await sendToPrinter(D.settings.billPrinter, escBill(b));
+      if(what !== 'bill') await directKot({kot: b.kot, date: b.date, time: b.time, table: b.table, items: b.items, note: b.note, token: b.token, by: b.by});
+    })();
+    return;
+  }
   printDoc(what === 'both' ? [billHTML(b), kotHTML(b)] : what === 'kot' ? [kotHTML(b)] : [billHTML(b)]);
 }
 function printKacchaDoc(tbl){
@@ -3526,6 +3644,7 @@ function printKacchaDoc(tbl){
     toast('Pehle item add karein');
     return;
   }
+  if(directPrint()){ sendToPrinter(D.settings.billPrinter, escKaccha(k)); return; }
   printDoc([kacchaHTML(k)]);
 }
 function printKacchaKOT(tbl){
@@ -3535,6 +3654,7 @@ function printKacchaKOT(tbl){
     return;
   }
   const dummy = { kot: 'RUNNING', date: today(), time: nowTime(), table: k.table, items: k.cart, note: k.note };
+  if(directPrint()){ directKot(dummy); return; }
   printDoc([kotHTML(dummy)]);
 }
 function billText(b){
@@ -3617,11 +3737,15 @@ function cancelBill(id){
   const b = getBill(id);
   if(!b || b.cancelled) return;
   if(!confirm(`Bill #${b.no} (${money(b.total)}) cancel karein? Stock wapas jud jayega.`)) return;
-  b.cancelled = true;
-  applyStock(b.used, +1);
-  save();
-  toast('Bill cancel ho gaya');
-  scrBills();
+  withManager(`Bill #${b.no} cancel`, by => {
+    b.cancelled = true;
+    b.cancelledBy = by;
+    applyStock(b.used, +1);
+    audit('Bill Cancel', `Bill #${b.no} · ${b.table || ''} · ${b.items.map(i => i.name + '×' + i.qty).join(', ')}`, b.total, b.id, by);
+    save();
+    toast('Bill cancel ho gaya');
+    scrBills();
+  });
 }
 
 /* ================= PURCHASE / VOUCHERS ================= */
@@ -3653,10 +3777,13 @@ function txList(type){
 function delTx(id){
   const t = D.txns.find(x => x.id === id);
   if(!t || !confirm('Ye entry delete karein?')) return;
-  if(t.type === 'Purchase' && t.sid) applyStock([{sid: t.sid, qty: t.qty}], -1);
-  D.txns = D.txns.filter(x => x.id !== id);
-  save();
-  go(cur);
+  withManager(`${t.type} entry delete`, by => {
+    if(t.type === 'Purchase' && t.sid) applyStock([{sid: t.sid, qty: t.qty}], -1);
+    D.txns = D.txns.filter(x => x.id !== id);
+    audit('Voucher Delete', `${t.type}: ${t.head || ''} ${t.desc || ''} ${t.party ? '· ' + t.party : ''}`, t.amount, id, by);
+    save();
+    go(cur);
+  });
 }
 
 function scrPurchase(){
@@ -3878,6 +4005,8 @@ function saveCash(send){
   const c = ccGet();
   c.time = nowTime();
   D.cash[ccDate] = c;
+  const sm = summary(ccDate), diff = r2(countTotal(c) - ((+c.opening || 0) + sm.cashIn - sm.cashOut));
+  if(Math.abs(diff) >= 1) audit(diff < 0 ? 'Cash Short' : 'Cash Excess', `${dmy(ccDate)} galla count`, diff, ccDate);
   save();
   toast('Cash count save ho gaya');
   if(send){
@@ -3913,6 +4042,12 @@ function reportText(d){
       (s.supPayT ? `\n   Supplier ko Payment: ₹${r2(s.supPayT)}` : '');
   }
   t += `\n\n*Net Profit/Margin: ₹${r2(s.sales+s.recT-s.expT-s.purT)}*`;
+  const au = auditSummary(d);
+  if(au.rows.length || au.discN){
+    t += `\n\n*Audit Alerts (Chori Check)*` +
+      (au.discN ? `\n   Discount: ${au.discN} bills, ₹${r2(au.discAmt)}` : '') +
+      Object.entries(au.by).map(([k, v]) => `\n   ${k}: ${v.n}${v.amt ? ` (₹${r2(v.amt)})` : ''}`).join('');
+  }
   if(s.top.length) t += `\n\n*Top Dishes*\n` + s.top.slice(0,5).map(([n,q],i) => `${i+1}. ${n} × ${q}`).join('\n');
   if(low.length) t += `\n\n*Low Stock Alerts*\n` + low.map(x => `   ${x.name}: ${fq(x.qty)} ${x.unit} (min ${x.min})`).join('\n');
   return t;
@@ -4028,6 +4163,7 @@ function adjStock(id){
   const s = D.stock.find(x => x.id === id);
   const v = prompt(`${s.name} — physical count kitna hai? (${s.unit})\nAbhi system mein: ${fq(s.qty)}`, fq(s.qty));
   if(v === null || v === '' || isNaN(+v)) return;
+  if(+v !== +s.qty) audit('Stock Adjust', `${s.name}: ${fq(s.qty)} → ${fq(+v)} ${s.unit}`, r2((+v - s.qty) * (+s.rate || 0)), id);
   s.qty = +v;
   save();
   toast('Stock update ho gaya');
@@ -4039,7 +4175,7 @@ function scrMenu(){
   main.innerHTML = `
   <div class="title">
     <span>Menu Items (Dishes & Recipes)</span>
-    <span class="r">${D.menu.length} items · GST ${D.settings.gst}%</span>
+    <span class="r">${D.menu.length} items · GST ${gstRate()}%</span>
   </div>
   <div class="btns" style="margin:0 0 14px">
     <button class="btn ok" onclick="bulkMenu()">+ Menu Items Add Karein (Ek Saath)</button>
@@ -4174,6 +4310,8 @@ function saveMenu(id){
     qty: +r.querySelector('input').value
   })).filter(r => r.sid && r.qty > 0);
   const v = {name, cat: $('#m_cat').value.trim() || 'General', price, recipe};
+  const old = id && D.menu.find(x => x.id === id);
+  if(old && +old.price !== price) audit('Menu Rate Change', `${name}: ₹${old.price} → ₹${price}`, r2(price - old.price), id);
   if(id) Object.assign(D.menu.find(x => x.id === id), v);
   else D.menu.push({id: uid(), ...v});
   save();
@@ -4269,7 +4407,9 @@ function kotSet(id, status){
 function printKotTicket(id){
   const k = (D.kots || []).find(x => x.id === id);
   if(!k) return;
-  printDoc([kotHTML({kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note, token: k.token})]);
+  const doc = {kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note, token: k.token, by: k.by};
+  if(directPrint()){ directKot(doc); return; }
+  printDoc([kotHTML(doc)]);
 }
 
 /* ================= CUSTOMERS, LOYALTY & WHATSAPP OFFERS ================= */
@@ -4552,7 +4692,7 @@ function dlMenuPage(){
   if(!wa){ toast('Pehle Settings (G) mein Order WhatsApp number daalein'); return; }
   if(!D.menu.length){ toast('Pehle Menu Items (M) mein dishes add karein'); return; }
   const data = JSON.stringify({
-    name: st.name, address: st.address, phone: st.phone, wa, gst: +st.gst || 0,
+    name: st.name, address: st.address, phone: st.phone, wa, gst: gstRate(),
     menu: D.menu.map(m => ({n: m.name, c: m.cat || 'General', p: +m.price}))
   }).replace(/</g, '\\u003c');
   const html = ['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
@@ -4735,7 +4875,12 @@ function editStaff(id){
       <div><label>Kaam</label><input id="sf_role" list="roles" value="${esc(s.role)}"><datalist id="roles"><option>Chef</option><option>Helper</option><option>Waiter</option><option>Cashier</option><option>Cleaner</option><option>Delivery</option></datalist></div>
       <div><label>Mobile (WhatsApp)</label><input id="sf_phone" value="${esc(s.phone)}" inputmode="tel"></div>
       <div><label>Monthly Salary (₹)</label><input id="sf_sal" type="number" value="${s.salary}"></div>
+      <div><label>Software Access</label><select id="sf_access">
+        ${[['','Nahi (sirf salary)'],['captain','Captain (sirf order lena)'],['cashier','Cashier (billing)'],['manager','Manager (sab kuch + approval)']].map(([v,l]) => `<option value="${v}" ${(s.access||'')===v?'selected':''}>${l}</option>`).join('')}
+      </select></div>
+      <div><label>Login PIN (4-6 digit)</label><input id="sf_pin" type="password" inputmode="numeric" value="${esc(s.pin || '')}" autocomplete="new-password"></div>
     </div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">Har staff ka apna PIN hone se pata rehta hai kisne bill banaya, cancel kiya ya discount diya (Audit Log - V).</p>
     <div class="btns">
       <button class="btn ok" onclick="saveStaff('${id || ''}')">Save</button>
       ${id ? `<button class="btn bad" onclick="toggleStaffLeft('${id}')">${s.left ? 'Wapas Active Karein' : 'Kaam Chhod Diya'}</button>` : ''}
@@ -4755,7 +4900,14 @@ function toggleStaffLeft(id){
 function saveStaff(id){
   const name = $('#sf_name').value.trim();
   if(!name){ toast('Naam daalein'); return; }
-  const v = {name, role: $('#sf_role').value.trim(), phone: $('#sf_phone').value.trim(), salary: +$('#sf_sal').value || 0};
+  const pin = $('#sf_pin').value.trim(), access = $('#sf_access').value;
+  if(access && !/^\d{4,6}$/.test(pin)){ toast('Software access ke liye 4-6 digit ka PIN daalein'); return; }
+  if(pin && (pin === String(D.settings.adminPin) || pin === String(D.settings.cashierPin) || D.staff.some(x => x.id !== id && x.pin === pin))){
+    toast('Ye PIN pehle se kisi aur ka hai. Alag PIN rakhein'); return;
+  }
+  const v = {name, role: $('#sf_role').value.trim(), phone: $('#sf_phone').value.trim(), salary: +$('#sf_sal').value || 0, pin: access ? pin : '', access};
+  const prev = id && D.staff.find(x => x.id === id);
+  if(!prev || (prev.access || '') !== access) audit('Staff Access Change', `${name}: ${(prev && prev.access) || 'none'} → ${access || 'none'}`);
   if(id) Object.assign(D.staff.find(x => x.id === id), v);
   else D.staff.push({id: uid(), ...v});
   save();
@@ -4931,7 +5083,7 @@ function scrCaptain(){
         const k = D.kaccha[t], r = tableRsv(t);
         return `<button class="cap-tbl ${k ? 'occ' : ''}" onclick="capOpen(${JSON.stringify(t).replace(/"/g, '&quot;')})">
           <b>${esc(t)}</b>
-          <span>${k ? money(calc(k.cart, k.disc, D.settings.gst).total) + ' · ' + sum(k.cart, 'qty') + ' items' : r ? 'Reserved ' + esc(r.time) : 'Free'}</span>
+          <span>${k ? money(calc(k.cart, k.disc, gstRate()).total) + ' · ' + sum(k.cart, 'qty') + ' items' : r ? 'Reserved ' + esc(r.time) : 'Free'}</span>
         </button>`;
       }).join('')}
     </div>
@@ -4948,7 +5100,7 @@ function scrCaptain(){
   <div class="title">
     <button class="btn g sm" onclick="if(!cap.cart.length||confirm('Naye items abhi bheje nahi gaye. Wapas jaayein?')){cap.table='';cap.cart=[];scrCaptain()}">← Tables</button>
     <span>${esc(cap.table)}</span>
-    <span class="r">${k ? `Chal raha: <b>${money(calc(k.cart, k.disc, D.settings.gst).total)}</b>` : 'Naya order'}</span>
+    <span class="r">${k ? `Chal raha: <b>${money(calc(k.cart, k.disc, gstRate()).total)}</b>` : 'Naya order'}</span>
   </div>
   ${k ? `<div class="card" style="padding:10px 14px;font-size:13px"><b>Pehle bheja:</b> ${k.cart.map(i => esc(i.name) + ' × ' + i.qty).join(', ')}</div>` : ''}
   <input id="cap_q" placeholder="Dish search karein..." value="${esc(cap.q)}" oninput="cap.q=this.value;clearTimeout(scrCaptain.t);scrCaptain.t=setTimeout(()=>{scrCaptain();const i=$('#cap_q');i.focus();i.setSelectionRange(i.value.length,i.value.length);},250)">
@@ -5386,12 +5538,59 @@ function tallyExport(){
   toast(`${Object.keys(groups).length} Sales vouchers Tally XML mein export hue`);
 }
 
+/* ================= AUDIT LOG SCREEN ================= */
+let audFrom = today(), audTo = today(), audType = 'alerts';
+
+function scrAudit(){
+  const all = (D.audit || []).filter(a => a.date >= audFrom && a.date <= audTo);
+  const list = (audType === 'alerts' ? all.filter(a => AUDIT_ALERTS.includes(a.action) || a.action === 'Discount') : audType === 'all' ? all : all.filter(a => a.action === audType)).slice().reverse();
+  const types = [...new Set(all.map(a => a.action))].sort();
+  const count = act => all.filter(a => a.action === act).length;
+  main.innerHTML = `
+  <div class="title">
+    <span>Audit Log — Kisne Kya Kiya</span>
+    <span class="r">From <input type="date" value="${audFrom}" onchange="audFrom=this.value;scrAudit()"> To <input type="date" value="${audTo}" onchange="audTo=this.value;scrAudit()"></span>
+  </div>
+  <div class="kpi-grid">
+    ${[['Bill Cancel', 'red'], ['KOT ke baad item hataya', 'red'], ['Discount', 'amber'], ['Duplicate Bill Print', 'amber'], ['Cash Short', 'red'], ['Galat Manager PIN', 'red']].map(([a, c]) => `
+      <div class="kpi-card" style="cursor:pointer" onclick="audType='${a}';scrAudit()">
+        <div class="kpi-header"><span class="kpi-title">${a}</span><span class="kpi-badge ${c}">${count(a)}</span></div>
+        <div class="kpi-val ${count(a) ? 'red' : 'green'}">${count(a)}</div>
+        <div class="kpi-sub">${money(sum(all.filter(x => x.action === a), x => Math.abs(+x.amount || 0)))}</div>
+      </div>`).join('')}
+  </div>
+  <div class="cats" style="margin-bottom:12px">
+    <button class="cat ${audType === 'alerts' ? 'on' : ''}" onclick="audType='alerts';scrAudit()">Sirf Alerts</button>
+    <button class="cat ${audType === 'all' ? 'on' : ''}" onclick="audType='all';scrAudit()">Sab (${all.length})</button>
+    ${types.map(t => `<button class="cat ${audType === t ? 'on' : ''}" onclick="audType=${JSON.stringify(t).replace(/"/g, '&quot;')};scrAudit()">${esc(t)}</button>`).join('')}
+  </div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead><tr><th>Date</th><th>Time</th><th>Kisne</th><th>Kya</th><th>Details</th><th class="n">Amount</th><th>Approve kiya</th></tr></thead>
+      <tbody>
+        ${list.map(a => `
+          <tr>
+            <td>${dmy(a.date)}</td><td>${a.time}</td>
+            <td><b>${esc(a.user)}</b> <span class="muted">${esc(a.role)}</span></td>
+            <td class="${AUDIT_ALERTS.includes(a.action) ? 'red' : ''}">${esc(a.action)}</td>
+            <td>${esc(a.detail)}</td>
+            <td class="n">${a.amount ? money(a.amount) : ''}</td>
+            <td>${esc(a.approvedBy || '')}</td>
+          </tr>`).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:18px">Is date range mein kuch nahi</td></tr>'}
+      </tbody>
+    </table>
+  </div>
+  <div class="btns"><button class="btn g" onclick="downloadCSV([['Date','Time','User','Role','Action','Details','Amount','Approved By']].concat((D.audit||[]).filter(a=>a.date>=audFrom&&a.date<=audTo).map(a=>[a.date,a.time,a.user,a.role,a.action,a.detail,a.amount,a.approvedBy])),'audit-'+audFrom+'-'+audTo+'.csv')">Excel (CSV)</button></div>
+  <p class="muted">Cashier/Captain ke liye bill cancel, KOT ke baad item hatana, entry delete aur limit se zyada discount par Manager PIN lagta hai. Ye log koi delete nahi kar sakta (sirf Reset All Data se mitega).</p>`;
+}
+
 /* ================= SETTINGS & SECURITY ================= */
 function scrSettings(){
   const s = D.settings;
   const f = (k, l, t='text') => `<div><label>${l}</label><input id="st_${k}" type="${t}" value="${esc(s[k])}"></div>`;
   main.innerHTML = `
   <div class="title">Restaurant Settings, Online Aggregators & Backup</div>
+  <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Check ho raha hai...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Check ho raha hai...</p></div>
   
   <div class="card">
@@ -5402,6 +5601,12 @@ function scrSettings(){
       ${f('phone','Restaurant Phone')}
       ${f('gstin','GSTIN (Optional)')}
       ${f('gst','GST % (e.g. 5)','number')}
+      <div><label>GST Type</label><select id="st_gstScheme">
+        <option value="regular" ${(s.gstScheme||'regular')==='regular'?'selected':''}>Regular GST (Tax Invoice)</option>
+        <option value="composition" ${s.gstScheme==='composition'?'selected':''}>Composition (Bill of Supply, GST nahi lagega)</option>
+        <option value="none" ${s.gstScheme==='none'?'selected':''}>GST Registered Nahi (Simple Bill)</option>
+      </select></div>
+      ${f('fssai','FSSAI License / Registration No. (bill par zaroori)')}
       ${f('owner','Owner WhatsApp Number (for Daily Reports)','tel')}
       ${f('footer','Bill Footer Greeting')}
       ${['bill','kot'].map(k => `<div><label>${k==='bill'?'Customer Bill':'Kitchen KOT'} Paper Size</label><select id="st_${k}Paper"><option value="A6" ${(s[k+'Paper']||'A6')==='A6'?'selected':''}>A6 (105 × 148 mm)</option><option value="thermal" ${s[k+'Paper']==='thermal'?'selected':''}>Thermal Roll</option></select></div>`).join('')}
@@ -5463,6 +5668,7 @@ function scrSettings(){
       ${f('ptValue','1 Point = ₹','number')}
       ${f('minRedeem','Min points to redeem','number')}
       ${f('kotLate','Kitchen KOT late alert (minutes)','number')}
+      ${f('maxDiscPct','Cashier max discount % (zyada par Manager PIN)','number')}
       <div><label>Takeaway Token System</label><select id="st_tokenOn"><option value="1" ${s.tokenOn?'selected':''}>ON (har parcel bill par token no.)</option><option value="0" ${s.tokenOn?'':'selected'}>OFF</option></select></div>
     </div>
     <p class="muted" style="margin-bottom:0;font-size:12px">Google Review link: Google Maps par apna restaurant kholein → "Share" ya "Ask for reviews" → link copy karke yahan daalein.</p>
@@ -5520,12 +5726,13 @@ function scrSettings(){
     <div style="background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:16px;margin-bottom:14px">
       <label style="font-size:13px;font-weight:700;color:#0f172a;margin-bottom:6px">Activate New 1-Month License Key</label>
       <div style="display:flex;gap:10px">
-        <input id="st_activation_key" placeholder="AD-30D-XXXX-YYYY" class="key-input" style="font-size:15px;max-width:340px">
+        <input id="st_activation_key" placeholder="SETU-XXXXXXXX-... (poori key paste karein)" class="key-input" style="font-size:15px;max-width:340px">
         <button class="btn ok" style="font-weight:700;padding:10px 18px" onclick="activateSettingsKey()">Verify & Extend 30 Days</button>
       </div>
       <small class="muted" style="display:block;margin-top:6px;font-size:12px">
-        Aghanya Devanya Enterprises ko monthly payment karke prapt hui 30-dino ki activation key yahan enter karein.
+        Payment ke baad ye Install ID Aghanya Devanya Enterprises ko bhejein. Wo isi computer ki key bhejenge.
       </small>
+      ${installIdHTML()}
     </div>
 
     <div class="btns" style="margin-bottom:14px">
@@ -5566,6 +5773,54 @@ function scrSettings(){
     </div>
   </div>`;
   drawNetCard();
+  drawPrintCard();
+}
+
+async function drawPrintCard(){
+  const el = $('#print-card');
+  if(!el) return;
+  const st = D.settings, headT = '<h3 style="margin-top:0">Printer Setup (Bina Popup Seedha Print)</h3>';
+  if(!SRV.on){
+    el.innerHTML = headT + '<p class="muted" style="margin:0">Browser mode mein har print par Windows ka print box aayega. Bina popup print aur Kitchen ke alag printer ke liye Main Counter par <b>Setu Desktop App (EXE)</b> chalayein.</p>';
+    return;
+  }
+  let printers = [], def = '';
+  try{ const j = await (await srvFetch('/api/printers')).json(); printers = j.printers || []; def = j.default || ''; }catch(e){}
+  const opt = sel => '<option value="">— Chunein —</option>' + printers.map(p => `<option ${p === sel ? 'selected' : ''}>${esc(p)}</option>`).join('');
+  const cats = [...new Set(D.menu.map(m => m.cat))];
+  el.innerHTML = headT + `
+    <div class="grid">
+      <div><label>Print Tarika</label><select id="pr_mode">
+        <option value="dialog" ${st.printMode !== 'direct' ? 'selected' : ''}>Print Box ke saath (koi bhi printer)</option>
+        <option value="direct" ${st.printMode === 'direct' ? 'selected' : ''}>Seedha Print — Thermal Printer (bina popup)</option>
+      </select></div>
+      <div><label>Customer Bill Printer</label><select id="pr_bill">${opt(st.billPrinter || def)}</select></div>
+      <div><label>Kitchen KOT Printer (main)</label><select id="pr_kot">${opt(st.kotPrinter || st.billPrinter || def)}</select></div>
+      <div><label>KOT apne aap print</label><select id="pr_auto"><option value="1" ${st.autoKot ? 'selected' : ''}>Haan (order save hote hi)</option><option value="0" ${st.autoKot ? '' : 'selected'}>Nahi</option></select></div>
+      <div><label>Cash bill par galla (drawer) khole</label><select id="pr_drawer"><option value="1" ${st.drawerKick ? 'selected' : ''}>Haan</option><option value="0" ${st.drawerKick ? '' : 'selected'}>Nahi</option></select></div>
+    </div>
+    ${cats.length ? `<label style="margin-top:12px">Section-wise KOT (jaise Tandoor / Chinese / Bar ka alag printer) — khaali = main KOT printer</label>
+      <div class="grid">${cats.map((c, i) => `<div><label>${esc(c)}</label><select data-cat="${i}">${opt((st.catPrinters || {})[c] || '')}</select></div>`).join('')}</div>` : ''}
+    <div class="btns">
+      <button class="btn ok" onclick="savePrintSettings()">Printer Setting Save</button>
+      <button class="btn g" onclick="savePrintSettings(true);testPrint('bill')">Bill Printer Test</button>
+      <button class="btn g" onclick="savePrintSettings(true);testPrint('kot')">KOT Printer Test</button>
+    </div>
+    <p class="muted" style="font-size:12px;margin-bottom:0">"Seedha Print" sirf <b>thermal receipt printer (ESC/POS, 58/80 mm)</b> ke liye hai. Inkjet / laser printer par "Print Box ke saath" hi rakhein. Hindi naam thermal printer par "?" dikh sakte hain — menu mein English naam rakhein. Phone/Captain App se bheja KOT bhi isi PC ke printer se nikalta hai.</p>`;
+}
+
+function savePrintSettings(silent){
+  const st = D.settings;
+  st.printMode = $('#pr_mode').value;
+  st.billPrinter = $('#pr_bill').value;
+  st.kotPrinter = $('#pr_kot').value;
+  st.autoKot = $('#pr_auto').value === '1';
+  st.drawerKick = $('#pr_drawer').value === '1';
+  const cats = [...new Set(D.menu.map(m => m.cat))];
+  st.catPrinters = {};
+  document.querySelectorAll('#print-card [data-cat]').forEach(sel => { if(sel.value) st.catPrinters[cats[+sel.dataset.cat]] = sel.value; });
+  save();
+  if(!silent) toast('Printer setting save ho gayi');
 }
 
 async function drawNetCard(){
@@ -5592,13 +5847,13 @@ async function drawNetCard(){
     </div>` : '<p class="muted" style="margin:0">Is PC ka network address nahi mila. PC ko WiFi/LAN se jodein.</p>');
 }
 
-function activateSettingsKey(){
+async function activateSettingsKey(){
   const key = ($('#st_activation_key')?.value || '').trim().toUpperCase();
   if(!key){
     toast('Kripya Activation Key enter karein');
     return;
   }
-  const act = activateLicenseKey(key, 'Settings Key Activation');
+  const act = await activateLicenseKey(key, 'Settings Key Activation');
   if(!act.success){
     alert(act.message);
     return;
@@ -5608,10 +5863,10 @@ function activateSettingsKey(){
 }
 
 function saveSettings(){
-  ['name','address','phone','gstin','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi'].forEach(k => {
+  ['name','address','phone','gstin','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = $('#st_'+k).value.trim();
   });
-  ['ptsPer100','ptValue','minRedeem','kotLate'].forEach(k => {
+  ['ptsPer100','ptValue','minRedeem','kotLate','maxDiscPct'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = +$('#st_'+k).value || 0;
   });
   if($('#st_loyalty')) D.settings.loyalty = $('#st_loyalty').value === '1';
@@ -5630,6 +5885,7 @@ function saveSettings(){
     D.settings.tables = tblStr.split(',').map(s => s.trim()).filter(Boolean);
   }
 
+  audit('Settings Change', 'Settings save kiye');
   save();
   $('#hname').textContent = D.settings.name;
   updateSubscriptionUI();
@@ -5652,6 +5908,7 @@ function restore(f){
       if(!x.settings || !x.bills) throw 0;
       if(!confirm('Current data replace ho jayega. Restore karein?')) return;
       D = ensureGrowth(x);
+      audit('Backup Restore', f.name || 'backup file');
       SRV.forceNext = true;
       save();
       toast('Backup restore ho gaya');
@@ -5664,6 +5921,7 @@ function restore(f){
 function resetAll(){
   if(prompt('Saara data delete ho jayega. Confirm karne ke liye RESET likhein') !== 'RESET') return;
   D = ensureGrowth(seed());
+  audit('Reset All Data', 'Saara data mitaya gaya');
   SRV.forceNext = true;
   save();
   go('gateway');

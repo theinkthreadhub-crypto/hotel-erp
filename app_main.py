@@ -23,10 +23,12 @@ import secrets
 import threading
 import http.server
 import urllib.request
+import base64
 
 APP_PORT = 8000
 MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one database upload
 KEEP_BACKUPS = 60              # daily backup files kept
+print_lock = threading.Lock()  # one print job at a time keeps receipts from interleaving
 
 
 def get_base_dir():
@@ -63,6 +65,81 @@ def lan_ips():
     except Exception:
         pass
     return sorted(ip for ip in ips if not ip.startswith('127.'))
+
+
+# ---------------- Direct (silent) printing to Windows printers ----------------
+# Receipts arrive as ready ESC/POS bytes and go to the printer as a RAW job,
+# so no print dialog appears. Works with thermal printers that have a Windows driver.
+def _winspool():
+    import ctypes
+    from ctypes import wintypes
+    ws = ctypes.WinDLL('winspool.drv')
+    ws.EnumPrintersW.argtypes = [wintypes.DWORD, wintypes.LPWSTR, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD)]
+    ws.OpenPrinterW.argtypes = [wintypes.LPWSTR, ctypes.POINTER(wintypes.HANDLE), ctypes.c_void_p]
+    ws.StartDocPrinterW.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p]
+    ws.StartPagePrinter.argtypes = [wintypes.HANDLE]
+    ws.WritePrinter.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    ws.EndPagePrinter.argtypes = [wintypes.HANDLE]
+    ws.EndDocPrinter.argtypes = [wintypes.HANDLE]
+    ws.ClosePrinter.argtypes = [wintypes.HANDLE]
+    ws.GetDefaultPrinterW.argtypes = [wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    return ctypes, wintypes, ws
+
+
+def list_printers():
+    if os.name != 'nt':
+        return [], ''
+    ctypes, wintypes, ws = _winspool()
+
+    class PRINTER_INFO_4(ctypes.Structure):
+        _fields_ = [('pPrinterName', wintypes.LPWSTR), ('pServerName', wintypes.LPWSTR), ('Attributes', wintypes.DWORD)]
+
+    flags = 2 | 4   # PRINTER_ENUM_LOCAL | PRINTER_ENUM_CONNECTIONS
+    needed, count = wintypes.DWORD(), wintypes.DWORD()
+    ws.EnumPrintersW(flags, None, 4, None, 0, ctypes.byref(needed), ctypes.byref(count))
+    names = []
+    if needed.value:
+        buf = ctypes.create_string_buffer(needed.value)
+        if ws.EnumPrintersW(flags, None, 4, buf, needed, ctypes.byref(needed), ctypes.byref(count)):
+            arr = ctypes.cast(buf, ctypes.POINTER(PRINTER_INFO_4))
+            names = [arr[i].pPrinterName for i in range(count.value)]
+    size = wintypes.DWORD(0)
+    ws.GetDefaultPrinterW(None, ctypes.byref(size))
+    default = ''
+    if size.value:
+        dbuf = ctypes.create_unicode_buffer(size.value)
+        if ws.GetDefaultPrinterW(dbuf, ctypes.byref(size)):
+            default = dbuf.value
+    return names, default
+
+
+def print_raw(printer, data):
+    if os.name != 'nt':
+        raise OSError('Direct printing sirf Windows par')
+    ctypes, wintypes, ws = _winspool()
+
+    class DOC_INFO_1(ctypes.Structure):
+        _fields_ = [('pDocName', wintypes.LPWSTR), ('pOutputFile', wintypes.LPWSTR), ('pDatatype', wintypes.LPWSTR)]
+
+    h = wintypes.HANDLE()
+    if not ws.OpenPrinterW(printer, ctypes.byref(h), None):
+        raise OSError(f'Printer "{printer}" nahi mila')
+    try:
+        doc = DOC_INFO_1('Setu Receipt', None, 'RAW')
+        if not ws.StartDocPrinterW(h, 1, ctypes.byref(doc)):
+            raise OSError('Printer ne job nahi li')
+        try:
+            ws.StartPagePrinter(h)
+            buf = ctypes.create_string_buffer(data, len(data))
+            written = wintypes.DWORD(0)
+            ok = ws.WritePrinter(h, buf, len(data), ctypes.byref(written))
+            ws.EndPagePrinter(h)
+            if not ok or written.value != len(data):
+                raise OSError('Printer ko data nahi gaya')
+        finally:
+            ws.EndDocPrinter(h)
+    finally:
+        ws.ClosePrinter(h)
 
 
 class SetuStore:
@@ -148,9 +225,12 @@ class SetuStore:
         if not pin:
             return None
         if pin in (str(st.get('adminPin') or ''), str(auth.get('password') or '')):
-            return 'admin'
+            return 'admin', auth.get('ownerName') or 'Manager'
+        for s in d.get('staff') or []:
+            if not s.get('left') and s.get('access') and str(s.get('pin') or '') == pin:
+                return {'manager': 'admin'}.get(s['access'], s['access']), s.get('name') or 'Staff'
         if pin == str(st.get('cashierPin') or ''):
-            return 'cashier'
+            return 'cashier', 'Cashier'
         return None
 
 
@@ -218,6 +298,12 @@ def make_handler(base_dir, store, port):
             if path == '/api/db':
                 with store.lock:
                     return self.send_db()
+            if path == '/api/printers':
+                try:
+                    names, default = list_printers()
+                    return self.send_json(200, {'printers': names, 'default': default})
+                except Exception as e:
+                    return self.send_json(500, {'error': str(e)})
             return self.send_json(404, {'error': 'not found'})
 
         def do_POST(self):
@@ -227,12 +313,27 @@ def make_handler(base_dir, store, port):
                     pin = self.read_json().get('pin')
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
-                role = store.check_pin(pin)
-                if not role:
+                found = store.check_pin(pin)
+                if not found:
                     time.sleep(1)   # slow down PIN guessing
                     return self.send_json(403, {'error': 'wrong pin'})
+                role, name = found
                 token = store.add_token(role)
-                return self.send_json(200, {'token': token, 'role': role})
+                return self.send_json(200, {'token': token, 'role': role, 'name': name})
+            if path == '/api/print':
+                if not self.role():
+                    return self.send_json(401, {'error': 'pin required'})
+                try:
+                    body = self.read_json()
+                    data = base64.b64decode(body.get('data') or '')
+                    printer = str(body.get('printer') or '')
+                    if not printer or not data or len(data) > 2 * 1024 * 1024:
+                        return self.send_json(400, {'error': 'bad request'})
+                    with print_lock:
+                        print_raw(printer, data)
+                    return self.send_json(200, {'ok': True})
+                except Exception as e:
+                    return self.send_json(500, {'error': str(e)})
             if path == '/api/db':
                 role = self.role()
                 if not role:

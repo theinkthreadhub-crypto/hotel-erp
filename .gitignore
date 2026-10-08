@@ -10,3 +10,6 @@ __pycache__/
 # Generated activation keys (sold to clients - keep out of git)
 Activation_Keys/
 Activation-Keys-*.txt
+
+# License signing key: vendor only, NEVER commit
+*.pem

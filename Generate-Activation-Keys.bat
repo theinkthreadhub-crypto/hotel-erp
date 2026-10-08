@@ -1,37 +1,20 @@
 @echo off
-title Aghanya Devanya Enterprises - Key Generator Vault
+title Setu - License Key Generator (Aghanya Devanya Enterprises)
 color 0b
+cd /d "%~dp0"
 echo ===================================================================
-echo     AGHANYA DEVANYA ENTERPRISES - MULTI-TIER ACTIVATION SYSTEM
+echo     SETU LICENSE KEY GENERATOR - Aghanya Devanya Enterprises
 echo ===================================================================
 echo.
-echo Choose an option:
-echo   [1] Generate 1-Month Keys (30 Days)
-echo   [2] Generate 2-Months Keys (60 Days)
-echo   [3] Generate 3-Months Keys (Quarterly - 90 Days)
-echo   [4] Generate 6-Months Keys (Half-Yearly - 180 Days)
-echo   [5] Generate 1-Year Keys (Annual - 365 Days)
-echo   [6] Generate Individual Lifetime Keys
-echo   [7] View Universal Common Lifetime Key (for All Hotels)
-echo   [8] Open Activation_Keys Folder (Excel / CSV Spreadsheet)
-echo   [9] Sync Keys from Excel into ERP Software
+echo Client se uska Install ID lein (Setu ki Sign Up / License screen par likha hota hai).
+echo Plans: 1m 2m 3m 6m 1y life demo1h demo24h
 echo.
-set /p opt=Enter option (1-9, Default 1): 
-if "%opt%"=="" set opt=1
-
-if "%opt%"=="8" (
-    start "" "Activation_Keys"
-    start "" "Activation_Keys\Aghanya_Devanya_Activation_Keys.xlsx"
-    goto end
+if not exist "setu-license-private.pem" (
+  echo [ERROR] setu-license-private.pem is folder mein nahi hai.
+  echo Ye file sirf vendor ke paas rehti hai. Uske bina key nahi ban sakti.
+  goto end
 )
-
-if "%opt%"=="9" (
-    python sync_keys.py
-    goto end
-)
-
-python keygen.py %opt%
-
+python keygen.py
 :end
 echo.
 echo Press any key to exit...
