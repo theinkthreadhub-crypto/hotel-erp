@@ -1718,7 +1718,13 @@ function modal(title, html){
 }
 function closeModal(){ $('#modal').classList.remove('open'); }
 const isModal = () => $('#modal').classList.contains('open');
-$('#modal').addEventListener('mousedown', e => { if(e.target.id === 'modal') closeModal(); });
+// Unsaved bulk menu rows must not vanish on a stray click or Esc
+function tryCloseModal(){
+  const typed = [...document.querySelectorAll('#mbox .bulk-row .bk-name')].some(i => i.value.trim());
+  if(typed && !confirm('Likhe hue menu items save nahi hue hain. Band karein?')) return;
+  closeModal();
+}
+$('#modal').addEventListener('mousedown', e => { if(e.target.id === 'modal') tryCloseModal(); });
 
 function waOpen(num, text){
   let n = String(num || '').replace(/\D/g, '');
@@ -1902,7 +1908,7 @@ document.addEventListener('keydown', e => {
   const typing = ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName);
   if(e.key === 'Escape'){
     e.preventDefault();
-    if(isModal()) closeModal();
+    if(isModal()) tryCloseModal();
     else if(cur !== 'gateway') go('gateway');
     return;
   }
@@ -3631,7 +3637,8 @@ function scrMenu(){
     <span class="r">${D.menu.length} items · GST ${D.settings.gst}%</span>
   </div>
   <div class="btns" style="margin:0 0 14px">
-    <button class="btn ok" onclick="editMenu()">New Menu Item</button>
+    <button class="btn ok" onclick="bulkMenu()">+ Menu Items Add Karein (Ek Saath)</button>
+    <button class="btn g" onclick="editMenu()">Single Item + Recipe</button>
   </div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
@@ -3654,6 +3661,77 @@ function scrMenu(){
       </tbody>
     </table>
   </div>`;
+}
+
+/* Bulk entry: keep typing rows, save everything once at the end */
+function bulkRow(cat){
+  return `
+  <div class="grid bulk-row" style="grid-template-columns:1fr 150px 100px 34px;margin-bottom:6px">
+    <input class="bk-name" placeholder="Dish name (e.g. Tandoori Roti)">
+    <input class="bk-cat" list="mcats" placeholder="Category" value="${esc(cat || '')}">
+    <input class="bk-price" type="number" step="any" min="0" placeholder="₹ Price" onkeydown="if(event.key==='Enter'){event.preventDefault();bulkAddRow(this)}">
+    <button class="btn bad sm" tabindex="-1" onclick="this.parentNode.remove()">✕</button>
+  </div>`;
+}
+
+function bulkAddRow(fromPrice){
+  // Carry the category forward so a whole section can be typed quickly
+  const cat = fromPrice ? fromPrice.parentNode.querySelector('.bk-cat').value : '';
+  const rows = $('#bk_rows');
+  rows.insertAdjacentHTML('beforeend', bulkRow(cat));
+  rows.lastElementChild.querySelector('.bk-name').focus();
+  bulkCount();
+}
+
+function bulkCount(){
+  const n = [...document.querySelectorAll('.bulk-row .bk-name')].filter(i => i.value.trim()).length;
+  const e = $('#bk_count');
+  if(e) e.textContent = n;
+}
+
+function bulkMenu(){
+  modal('Menu Items Add Karein — Ek Saath', `
+    <p class="muted" style="margin:0 0 10px;font-size:12px">Naam, category, price likhte jaayein. Price ke baad <b>Enter</b> dabate hi nayi line aa jayegi (category wahi rahegi). Sab likhne ke baad ek baar <b>Save All</b> dabayein.</p>
+    <datalist id="mcats">${[...new Set(D.menu.map(x => x.cat))].map(c => `<option>${esc(c)}</option>`).join('')}</datalist>
+    <div id="bk_rows" oninput="bulkCount()">${bulkRow()}</div>
+    <button class="btn g sm" onclick="bulkAddRow()">+ Aur Line</button>
+    <div class="btns">
+      <button class="btn ok" onclick="saveBulkMenu()">Save All (<span id="bk_count">0</span> items)</button>
+      <button class="btn g" onclick="closeModal()">Cancel</button>
+    </div>`);
+  setTimeout(() => $('#bk_rows .bk-name')?.focus(), 40);
+}
+
+function saveBulkMenu(){
+  const rows = [...document.querySelectorAll('.bulk-row')].map(r => ({
+    el: r,
+    name: r.querySelector('.bk-name').value.trim(),
+    cat: r.querySelector('.bk-cat').value.trim() || 'General',
+    price: r.querySelector('.bk-price').value
+  })).filter(r => r.name);
+  if(!rows.length){ toast('Kam se kam ek dish ka naam likhein'); return; }
+
+  const noPrice = rows.find(r => r.price === '' || !(+r.price >= 0));
+  if(noPrice){
+    toast(`"${noPrice.name}" ka price daalein`);
+    noPrice.el.querySelector('.bk-price').focus();
+    return;
+  }
+
+  const existing = new Set(D.menu.map(m => m.name.toLowerCase()));
+  const seen = new Set(), dup = [];
+  rows.forEach(r => {
+    const k = r.name.toLowerCase();
+    if(existing.has(k) || seen.has(k)) dup.push(r.name);
+    seen.add(k);
+  });
+  if(dup.length && !confirm(`Ye dishes pehle se menu mein hain ya do baar likhi hain:\n• ${dup.join('\n• ')}\n\nPhir bhi save karein?`)) return;
+
+  rows.forEach(r => D.menu.push({id: uid(), name: r.name, cat: r.cat, price: +r.price, recipe: []}));
+  save();
+  closeModal();
+  scrMenu();
+  toast(`${rows.length} menu items save ho gaye`);
 }
 
 function ingRow(sid, qty){
