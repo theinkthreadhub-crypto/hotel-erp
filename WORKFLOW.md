@@ -191,10 +191,13 @@ flowchart TD
 - Aaj / Kal / 7 Din / Is Mahine → Summary, Item-wise, Category, Hourly, Payment Mode, Channel, **GST Summary**, Discounts, Cancelled, Kharcha, Top Customers.
 - Har report **Excel (CSV)** mein. CA ke liye **Tally XML Export** (Tally mein pehle ledgers banayein: Sales, CGST, SGST, Round Off, Cash, UPI, Card, Credit Sales, Customer Wallet, Zomato, Swiggy).
 
-### 5.2 Staff Salary (A)
-1. Salary Sheet → mahina chunein → Earned − Advance − Paid = **Payable**.
-2. **Pay** → Cash/UPI → Expense mein apne aap judta hai.
-3. **Slip** → staff ko WhatsApp par salary slip.
+### 5.2 Staff Salary (A) — mahine mein ek baar
+1. Staff add karte waqt hi **Monthly Salary** daalein (ek baar). Har mahine wahi chalti hai.
+2. Mahine ke end mein **Staff Salary (A)** → mahina chunein → har staff ke saamne **"Din Aaye"** likhein (half day = 0.5). Salary turant ban jaati hai.
+   - Roz haaziri lagayi ho to **"Roz ki Haaziri se Bharein"**; sab poore din aaye to **"Sabko Poore Din"**.
+3. **Sab Save Karein** → phir **"Save + Sabko Salary Pay"** (ek click mein sabki salary, Cash/UPI) ya har line par alag **Pay**.
+4. Banti Salary = Monthly Salary ÷ mahine ke din × Din Aaye − Advance. Payment Expense mein apne aap judta hai.
+5. **Slip** → staff ko WhatsApp par salary slip.
 
 ### 5.3 Multi-Outlet (O) — ek se zyada branch
 1. Har branch: **"Is Outlet ki Summary File Download"** → owner ko bhejein.

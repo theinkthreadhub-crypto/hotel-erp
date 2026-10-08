@@ -730,6 +730,7 @@ function ensureGrowth(s){
   if(!s.outlets || typeof s.outlets !== 'object') s.outlets = {};
   if(!Array.isArray(s.reservations)) s.reservations = [];
   if(!Array.isArray(s.audit)) s.audit = [];
+  if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
   if(!s.seq) s.seq = { bill: 0, kot: 0 };
   if(!s.seq.token) s.seq.token = 0;
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
@@ -2109,7 +2110,7 @@ const MENU = [
   ['T','Kitchen Display (KOT Screen)','kitchen','Growth Add-ons'],
   ['Q','QR Menu & Table Orders','qr','Growth Add-ons'],
   ['R','Customers, Loyalty & Offers','customers','Growth Add-ons'],
-  ['A','Staff Attendance & Salary','staff','Growth Add-ons'],
+  ['A','Staff Salary & Haaziri','staff','Growth Add-ons'],
   ['O','Multi-Outlet Owner Dashboard','outlets','Growth Add-ons'],
   ['N','Captain App (Mobile Orders)','captain','Operations'],
   ['H','Table Reservations','reservations','Operations'],
@@ -4751,92 +4752,179 @@ let stDate = today(), stMonth = today().slice(0, 7);
 const ATT_STATUS = {P: 'Present', H: 'Half Day', A: 'Absent'};
 const daysInMonth = m => new Date(+m.slice(0, 4), +m.slice(5, 7), 0).getDate();
 
+// Days worked in a month: the number typed in the salary sheet wins; otherwise daily attendance (P + H/2)
 function staffMonth(s, m){
   const days = Object.keys(D.att).filter(d => d.startsWith(m)).map(d => D.att[d][s.id]).filter(Boolean);
   const P = days.filter(x => x === 'P').length, H = days.filter(x => x === 'H').length, A = days.filter(x => x === 'A').length;
-  const earned = r2((+s.salary || 0) / daysInMonth(m) * (P + H / 2));
+  const manual = ((D.salaryDays || {})[m] || {})[s.id];
+  const worked = manual !== undefined && manual !== '' ? +manual : P + H / 2;
+  const earned = r2((+s.salary || 0) / daysInMonth(m) * worked);
   const tx = D.txns.filter(t => t.staffId === s.id);
   const adv = sum(tx.filter(t => t.head === 'Staff Advance' && t.date.startsWith(m)), 'amount');
   const paid = sum(tx.filter(t => t.head === 'Staff Salary / Wages' && t.salMonth === m), 'amount');
-  return {P, H, A, earned, adv, paid, payable: r2(Math.max(0, earned - adv - paid))};
+  return {P, H, A, worked, manual: manual !== undefined && manual !== '', earned, adv, paid, payable: r2(Math.max(0, earned - adv - paid))};
 }
 
-function scrStaff(){
-  const att = D.att[stDate] || {}, act = D.staff.filter(s => !s.left);
-  main.innerHTML = `
-  <div class="title"><span>Staff Attendance & Salary</span><span class="r">${act.length} active staff</span></div>
-  <div class="bill">
-    <div class="card att">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-        <h3 style="margin:0;flex:1">Haaziri (Attendance)</h3>
-        <input type="date" value="${stDate}" style="width:auto" onchange="stDate=this.value;scrStaff()">
-      </div>
-      <table>
-        <tbody>
-          ${act.map(s => `
-            <tr>
-              <td><b>${esc(s.name)}</b><br><small class="muted">${esc(s.role || '')}</small></td>
-              <td style="white-space:nowrap">${Object.keys(ATT_STATUS).map(k => `<button class="${k} ${att[s.id] === k ? 'on' : ''}" title="${ATT_STATUS[k]}" onclick="markAtt('${s.id}','${k}')">${k}</button>`).join(' ')}</td>
-              <td><button class="btn g sm" onclick="staffAdv('${s.id}')">Advance</button></td>
-            </tr>`).join('') || '<tr><td class="muted">Pehle staff add karein (right side)</td></tr>'}
-        </tbody>
-      </table>
-      ${act.length ? `<div class="btns"><button class="btn ok" onclick="markAllPresent()">Baaki Sab Present</button></div>` : ''}
-      <p class="muted" style="margin-bottom:0">P = Present · H = Half Day · A = Absent</p>
-    </div>
+let showDailyAtt = false;
 
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <h3 style="margin:0">Staff List</h3>
-        <button class="btn sm" onclick="editStaff()">+ Add Staff</button>
-      </div>
-      <table style="margin-top:8px">
-        <thead><tr><th>Naam</th><th>Kaam</th><th class="n">Salary / Month</th><th></th></tr></thead>
-        <tbody>
-          ${D.staff.map(s => `
-            <tr style="${s.left ? 'opacity:.5' : ''}">
-              <td>${esc(s.name)}${s.left ? ' (left)' : ''}</td>
-              <td>${esc(s.role || '')}</td>
-              <td class="n">${rs(s.salary)}</td>
-              <td><button class="btn g sm" onclick="editStaff('${s.id}')">Edit</button></td>
-            </tr>`).join('') || '<tr><td colspan="4" class="muted">Koi staff nahi</td></tr>'}
-        </tbody>
-      </table>
-    </div>
+function scrStaff(){
+  const att = D.att[stDate] || {}, act = D.staff.filter(s => !s.left), dim = daysInMonth(stMonth);
+  const rows = D.staff.filter(s => { const m = staffMonth(s, stMonth); return !s.left || m.worked || m.adv || m.paid; });
+  const tot = rows.reduce((t, s) => { const m = staffMonth(s, stMonth); t.earned += m.earned; t.adv += m.adv; t.paid += m.paid; t.pay += m.payable; return t; }, {earned: 0, adv: 0, paid: 0, pay: 0});
+  main.innerHTML = `
+  <div class="title">
+    <span>Staff Salary</span>
+    <span class="r">Month: <input type="month" value="${stMonth}" style="width:auto" onchange="stMonth=this.value;scrStaff()"> · ${dim} din ka mahina · ${act.length} active staff</span>
   </div>
 
   <div class="card" style="padding:0;overflow:auto">
-    <div style="padding:14px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)">
-      <b style="font-size:15px">Salary Sheet</b>
-      <span>Month: <input type="month" value="${stMonth}" style="width:auto" onchange="stMonth=this.value;scrStaff()"></span>
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <div><b style="font-size:15px">Salary Sheet — sabke "Din Aaye" ek saath bharein</b>
+        <div class="muted" style="font-size:12px">Har line mein kitne din kaam kiya likhein (half day = 0.5). Salary apne aap banegi. Phir "Sab Save Karein".</div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn g sm" onclick="fillDaysFromAtt()">Roz ki Haaziri se Bharein</button>
+        <button class="btn g sm" onclick="fillDaysFull()">Sabko Poore ${dim} Din</button>
+      </div>
     </div>
     <table>
-      <thead><tr><th>Naam</th><th class="n">Salary</th><th class="n">P</th><th class="n">H</th><th class="n">A</th><th class="n">Earned</th><th class="n">Advance</th><th class="n">Paid</th><th class="n">Payable</th><th></th></tr></thead>
+      <thead><tr><th>Naam</th><th class="n">Monthly Salary</th><th class="n" style="width:110px">Din Aaye</th><th class="n">Banti Salary</th><th class="n">Advance</th><th class="n">Diya</th><th class="n">Baaki (Payable)</th><th></th></tr></thead>
       <tbody>
-        ${D.staff.map(s => {
+        ${rows.map(s => {
           const m = staffMonth(s, stMonth);
-          if(s.left && !m.P && !m.H && !m.adv && !m.paid) return '';
           return `
-            <tr>
-              <td><b>${esc(s.name)}</b></td>
+            <tr data-staff="${s.id}">
+              <td><b>${esc(s.name)}</b>${s.left ? ' <span class="muted">(left)</span>' : ''}<br><small class="muted">${esc(s.role || '')}${!m.manual && (m.P || m.H || m.A) ? ` · Haaziri: P ${m.P} / H ${m.H} / A ${m.A}` : ''}</small></td>
               <td class="n">${rs(s.salary)}</td>
-              <td class="n green">${m.P}</td>
-              <td class="n">${m.H}</td>
-              <td class="n red">${m.A}</td>
-              <td class="n">${money(m.earned)}</td>
+              <td class="n"><input class="sd-days" type="number" min="0" max="${dim}" step="0.5" value="${m.manual || m.worked ? m.worked : ''}" placeholder="0" style="width:90px;text-align:right" oninput="salRowCalc(this)"></td>
+              <td class="n sd-earned">${money(m.earned)}</td>
               <td class="n">${m.adv ? money(m.adv) : ''}</td>
               <td class="n">${m.paid ? money(m.paid) : ''}</td>
-              <td class="n"><b>${money(m.payable)}</b></td>
+              <td class="n sd-pay"><b>${money(m.payable)}</b></td>
               <td style="white-space:nowrap">
                 ${m.payable > 0 ? `<button class="btn ok sm" onclick="paySalary('${s.id}')">Pay</button>` : ''}
+                <button class="btn g sm" onclick="staffAdv('${s.id}')">Advance</button>
                 ${s.phone ? `<button class="btn wa sm" onclick="waOpen(D.staff.find(x=>x.id==='${s.id}').phone,slipText('${s.id}'))">Slip</button>` : ''}
               </td>
             </tr>`;
-        }).join('') || '<tr><td colspan="10" class="muted" style="text-align:center;padding:18px">Koi staff nahi</td></tr>'}
+        }).join('') || '<tr><td colspan="8" class="muted" style="text-align:center;padding:18px">Pehle neeche "+ Add Staff" se staff jodein (monthly salary ke saath)</td></tr>'}
+      </tbody>
+      ${rows.length ? `<tfoot><tr><td colspan="3">Total</td><td class="n" id="sd-tot-earned">${money(tot.earned)}</td><td class="n">${money(tot.adv)}</td><td class="n">${money(tot.paid)}</td><td class="n" id="sd-tot-pay">${money(tot.pay)}</td><td></td></tr></tfoot>` : ''}
+    </table>
+    ${rows.length ? `<div class="btns" style="padding:0 16px 14px">
+      <button class="btn ok" onclick="saveSalaryDays()">Sab Save Karein</button>
+      <button class="btn" onclick="saveSalaryDays(true);payAllSalary()">Save + Sabko Salary Pay</button>
+    </div>` : ''}
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0">Staff List</h3>
+      <button class="btn sm" onclick="editStaff()">+ Add Staff</button>
+    </div>
+    <table style="margin-top:8px">
+      <thead><tr><th>Naam</th><th>Kaam</th><th class="n">Salary / Month</th><th>Login</th><th></th></tr></thead>
+      <tbody>
+        ${D.staff.map(s => `
+          <tr style="${s.left ? 'opacity:.5' : ''}">
+            <td>${esc(s.name)}${s.left ? ' (left)' : ''}</td>
+            <td>${esc(s.role || '')}</td>
+            <td class="n">${rs(s.salary)}</td>
+            <td>${s.access ? `<span class="tag">${esc(s.access)}</span>` : '<span class="muted">—</span>'}</td>
+            <td><button class="btn g sm" onclick="editStaff('${s.id}')">Edit</button></td>
+          </tr>`).join('') || '<tr><td colspan="5" class="muted">Koi staff nahi</td></tr>'}
       </tbody>
     </table>
   </div>
-  <p class="muted">Salary = (Monthly salary ÷ mahine ke din) × (Present + Half/2). Weekly off / paid leave ke din P mark karein. Advance aur salary payment apne aap Expense voucher mein jud jaate hain (Day Book aur Cash Counter mein dikhte hain).</p>`;
+
+  <div class="card att">
+    <div style="display:flex;align-items:center;gap:8px">
+      <h3 style="margin:0;flex:1">Roz ki Haaziri (optional)</h3>
+      <button class="btn g sm" onclick="showDailyAtt=!showDailyAtt;scrStaff()">${showDailyAtt ? 'Chhupayein' : 'Kholein'}</button>
+    </div>
+    ${showDailyAtt ? `
+      <div style="margin:10px 0"><input type="date" value="${stDate}" style="width:auto" onchange="stDate=this.value;scrStaff()"></div>
+      <table><tbody>
+        ${act.map(s => `
+          <tr>
+            <td><b>${esc(s.name)}</b><br><small class="muted">${esc(s.role || '')}</small></td>
+            <td style="white-space:nowrap">${Object.keys(ATT_STATUS).map(k => `<button class="${k} ${att[s.id] === k ? 'on' : ''}" title="${ATT_STATUS[k]}" onclick="markAtt('${s.id}','${k}')">${k}</button>`).join(' ')}</td>
+          </tr>`).join('') || '<tr><td class="muted">Koi staff nahi</td></tr>'}
+      </tbody></table>
+      ${act.length ? `<div class="btns"><button class="btn ok" onclick="markAllPresent()">Baaki Sab Present</button></div>` : ''}
+      <p class="muted" style="margin-bottom:0">P = Present · H = Half Day · A = Absent. Mahine ke end mein "Roz ki Haaziri se Bharein" dabane par ye din salary sheet mein aa jaate hain.</p>` :
+      '<p class="muted" style="margin:8px 0 0">Roz haaziri lagana zaroori nahi. Mahine ke end mein upar salary sheet mein seedhe din bhar dein.</p>'}
+  </div>
+  <p class="muted">Banti Salary = Monthly Salary ÷ ${dim} (mahine ke din) × Din Aaye. Weekly off / chhutti ke paid din bhi "Din Aaye" mein jodein. Advance aur salary payment apne aap Expense mein judte hain (Day Book aur Cash Counter mein dikhte hain).</p>`;
+}
+
+// Live recalculation while typing days in the salary sheet
+function salRowCalc(inp){
+  const tr = inp.closest('tr'), s = D.staff.find(x => x.id === tr.dataset.staff);
+  if(!s) return;
+  const m = staffMonth(s, stMonth), days = Math.max(0, +inp.value || 0);
+  const earned = r2((+s.salary || 0) / daysInMonth(stMonth) * days);
+  tr.querySelector('.sd-earned').textContent = money(earned);
+  tr.querySelector('.sd-pay').innerHTML = `<b>${money(Math.max(0, earned - m.adv - m.paid))}</b>`;
+  let te = 0, tp = 0;
+  document.querySelectorAll('tr[data-staff]').forEach(row => {
+    const st = D.staff.find(x => x.id === row.dataset.staff), mm = staffMonth(st, stMonth);
+    const e = r2((+st.salary || 0) / daysInMonth(stMonth) * Math.max(0, +row.querySelector('.sd-days').value || 0));
+    te += e;
+    tp += Math.max(0, e - mm.adv - mm.paid);
+  });
+  if($('#sd-tot-earned')) $('#sd-tot-earned').textContent = money(te);
+  if($('#sd-tot-pay')) $('#sd-tot-pay').textContent = money(tp);
+}
+
+function fillDaysFromAtt(){
+  document.querySelectorAll('tr[data-staff]').forEach(tr => {
+    const s = D.staff.find(x => x.id === tr.dataset.staff), att = Object.keys(D.att).filter(d => d.startsWith(stMonth)).map(d => D.att[d][s.id]);
+    const v = att.filter(x => x === 'P').length + att.filter(x => x === 'H').length / 2;
+    const inp = tr.querySelector('.sd-days');
+    inp.value = v || '';
+    salRowCalc(inp);
+  });
+  toast('Roz ki haaziri se din bhar diye — check karke "Sab Save Karein"');
+}
+
+function fillDaysFull(){
+  const dim = daysInMonth(stMonth);
+  document.querySelectorAll('tr[data-staff]').forEach(tr => {
+    const inp = tr.querySelector('.sd-days');
+    if(inp.value === '') inp.value = dim;
+    salRowCalc(inp);
+  });
+  toast(`Khaali lines mein ${dim} din bhar diye`);
+}
+
+function saveSalaryDays(silent){
+  const dim = daysInMonth(stMonth);
+  if(!D.salaryDays) D.salaryDays = {};
+  const mo = D.salaryDays[stMonth] = D.salaryDays[stMonth] || {};
+  let bad = '';
+  document.querySelectorAll('tr[data-staff]').forEach(tr => {
+    const v = tr.querySelector('.sd-days').value.trim(), id = tr.dataset.staff;
+    if(v === ''){ delete mo[id]; return; }
+    if(isNaN(+v) || +v < 0 || +v > dim){ bad = D.staff.find(x => x.id === id).name; return; }
+    mo[id] = +v;
+  });
+  if(bad){ toast(`${bad}: din 0 se ${dim} ke beech daalein`); return false; }
+  save();
+  if(!silent){ toast('Sabki salary ke din save ho gaye'); scrStaff(); }
+  return true;
+}
+
+function payAllSalary(){
+  const due = D.staff.map(s => ({s, m: staffMonth(s, stMonth)})).filter(x => x.m.payable > 0);
+  if(!due.length){ toast('Is mahine kisi ki salary baaki nahi'); scrStaff(); return; }
+  const total = sum(due, x => x.m.payable);
+  if(!confirm(`${stMonth} — ${due.length} staff ko kul ${money(total)} salary deni hai:\n\n` + due.map(x => `${x.s.name}: ${money(x.m.payable)}`).join('\n') + '\n\nSabko pay karein?')){ scrStaff(); return; }
+  const mode = confirm('Cash mein diya? (Cancel = UPI / Bank)') ? 'Cash' : 'UPI';
+  due.forEach(({s, m}) => D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: m.payable, mode, staffId: s.id, salMonth: stMonth}));
+  audit('Salary Paid', `${stMonth}: ${due.length} staff (${mode})`, total);
+  save();
+  toast(`${due.length} staff ko ${money(total)} salary pay ho gayi`);
+  scrStaff();
 }
 
 function markAtt(id, k){
@@ -4877,7 +4965,7 @@ function paySalary(id){
 
 function slipText(id){
   const s = D.staff.find(x => x.id === id), m = staffMonth(s, stMonth);
-  return `*${D.settings.name} — Salary Slip*\n${s.name}${s.role ? ' (' + s.role + ')' : ''}\nMonth: ${stMonth}\n\nMonthly Salary: ₹${s.salary}\nPresent: ${m.P} · Half: ${m.H} · Absent: ${m.A}\nEarned: ₹${m.earned}\nAdvance: −₹${m.adv}\nPaid: ₹${m.paid}\n*Baaki: ₹${m.payable}*`;
+  return `*${D.settings.name} — Salary Slip*\n${s.name}${s.role ? ' (' + s.role + ')' : ''}\nMonth: ${stMonth}\n\nMonthly Salary: ₹${s.salary}\nDin Aaye: ${m.worked} / ${daysInMonth(stMonth)}\nEarned: ₹${m.earned}\nAdvance: −₹${m.adv}\nPaid: ₹${m.paid}\n*Baaki: ₹${m.payable}*`;
 }
 
 function editStaff(id){
@@ -4887,7 +4975,7 @@ function editStaff(id){
       <div><label>Naam</label><input id="sf_name" value="${esc(s.name)}" autofocus></div>
       <div><label>Kaam</label><input id="sf_role" list="roles" value="${esc(s.role)}"><datalist id="roles"><option>Chef</option><option>Helper</option><option>Waiter</option><option>Cashier</option><option>Cleaner</option><option>Delivery</option></datalist></div>
       <div><label>Mobile (WhatsApp)</label><input id="sf_phone" value="${esc(s.phone)}" inputmode="tel"></div>
-      <div><label>Monthly Salary (₹)</label><input id="sf_sal" type="number" value="${s.salary}"></div>
+      <div><label>Monthly Salary (₹) *</label><input id="sf_sal" type="number" min="1" value="${s.salary}" placeholder="e.g. 12000"></div>
       <div><label>Software Access</label><select id="sf_access">
         ${[['','Nahi (sirf salary)'],['captain','Captain (sirf order lena)'],['cashier','Cashier (billing)'],['manager','Manager (sab kuch + approval)']].map(([v,l]) => `<option value="${v}" ${(s.access||'')===v?'selected':''}>${l}</option>`).join('')}
       </select></div>
@@ -4913,6 +5001,7 @@ function toggleStaffLeft(id){
 function saveStaff(id){
   const name = $('#sf_name').value.trim();
   if(!name){ toast('Naam daalein'); return; }
+  if(!(+$('#sf_sal').value > 0)){ toast('Monthly Salary daalein (har mahine isi se hisaab banega)'); $('#sf_sal').focus(); return; }
   const pin = $('#sf_pin').value.trim(), access = $('#sf_access').value;
   if(access && !/^\d{4,6}$/.test(pin)){ toast('Software access ke liye 4-6 digit ka PIN daalein'); return; }
   if(pin && (pin === String(D.settings.adminPin) || pin === String(D.settings.cashierPin) || D.staff.some(x => x.id !== id && x.pin === pin))){

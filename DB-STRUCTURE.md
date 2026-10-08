@@ -318,9 +318,11 @@ Sirf **pichhle 7 din** ke KOT rakhe jaate hain.
 | `pin` | string | Staff ka login PIN (4-6 digit). ⚠️ plain text |
 | `left` | boolean | Kaam chhod diya (record rehta hai) |
 
-`att{}`: key = date → `{ [staffId]: "P" | "H" | "A" }`
+`att{}`: key = date → `{ [staffId]: "P" | "H" | "A" }` (optional roz ki haaziri)
 
-**Salary formula:** `earned = salary ÷ mahine ke din × (P + H/2)`, aur `payable = earned − advance − paid`. Advance aur paid dono `txns` se aate hain.
+`salaryDays{}`: key = month `YYYY-MM` → `{ [staffId]: din }` — salary sheet mein bhare gaye "Din Aaye" (0.5 step). Ye ho to isi se salary banti hai, warna `att` se (P + H/2).
+
+**Salary formula:** `earned = salary ÷ mahine ke din × din aaye` (din aaye = `salaryDays` ya `P + H/2`), aur `payable = earned − advance − paid`. Advance aur paid dono `txns` se aate hain.
 
 ## 16. `outlets{}` — Multi-Outlet
 
