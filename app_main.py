@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Aghanya Devanya Restaurant & Hotel ERP POS - Standalone Desktop Launcher
+Setu - Restaurant & Hotel POS - Standalone Desktop Launcher
 Powered by Aghanya Devanya Enterprises
 """
 import os
@@ -67,7 +67,7 @@ def main():
 
     # Create native desktop window
     window = webview.create_window(
-        title='Aghanya Devanya Restaurant & Hotel ERP POS',
+        title='Setu - Restaurant & Hotel POS',
         url=url,
         width=1340,
         height=860,

@@ -1,7 +1,7 @@
 {
-  "name": "Aghanya Devanya Restaurant & Hotel ERP",
-  "short_name": "Aghanya ERP",
-  "description": "Complete Restaurant, Hotel Billing, Tables & Online Orders Management System - Powered by Aghanya Devanya Enterprises",
+  "name": "Setu — Restaurant & Hotel POS",
+  "short_name": "Setu",
+  "description": "Setu: Complete Restaurant, Hotel Billing, Tables & Online Orders Management System - Powered by Aghanya Devanya Enterprises",
   "start_url": "hotel_erp.html",
   "scope": "./",
   "display": "standalone",

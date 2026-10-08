@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Aghanya Devanya Restaurant & Hotel ERP POS - Smart Management System</title>
+<title>Setu</title>
 <meta name="theme-color" content="#0284c7">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -341,7 +341,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
   <div class="login-card" id="login-view-signup" style="display:none;max-width:480px">
     <img src="icon-192.png" alt="Aghanya Devanya Enterprises" style="width:68px;height:68px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.12);margin:0 auto 10px;display:block;border:1px solid #e2e8f0;background:#fff">
     <div style="font-size:11px;font-weight:800;color:#0284c7;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">First-Time Setup · Aghanya Devanya Enterprises</div>
-    <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">New Restaurant Sign Up</h2>
+    <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Setu — New Restaurant Sign Up</h2>
     <p class="subtitle" style="margin-bottom:16px;font-size:13px">Create your personal login ID & activate your 30-day license</p>
 
     <form onsubmit="handleSignUpSubmit(event)" style="text-align:left">
@@ -405,7 +405,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
   <div class="login-card" id="login-view-signin" style="max-width:440px">
     <img src="icon-192.png" alt="Aghanya Devanya Enterprises" style="width:68px;height:68px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.12);margin:0 auto 12px;display:block;border:1px solid #e2e8f0;background:#fff">
     <h2 id="login-hotel-name">Restaurant POS</h2>
-    <p class="subtitle" style="margin-bottom:12px">Aghanya Devanya ERP POS System</p>
+    <p class="subtitle" style="margin-bottom:12px">Setu — Restaurant & Hotel POS</p>
     
     <!-- License Status Banner -->
     <div id="login-sub-box" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
@@ -513,7 +513,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
     <img src="favicon.ico" alt="AD" style="width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);display:block;box-shadow:0 2px 8px rgba(0,0,0,0.25);background:#fff">
     <div style="display:flex;flex-direction:column;line-height:1.2">
       <b id="hname">Restaurant POS</b>
-      <span class="brand-sub">Aghanya Devanya ERP</span>
+      <span class="brand-sub">Setu POS</span>
     </div>
   </div>
   <span class="scr" id="scrname"><span class="dot"></span>Gateway</span>
@@ -560,7 +560,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
   <div style="display:flex;align-items:center;gap:6px">
     <span>Powered by <strong>Aghanya Devanya Enterprises</strong></span>
     <span class="footer-sep">|</span>
-    <span>Hotel & Restaurant Management ERP POS</span>
+    <span>Setu — Hotel & Restaurant Management POS</span>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <span id="footer-lic-text" style="color:#38bdf8;cursor:pointer" onclick="openSubscriptionModal()">Monthly License: Active</span>
@@ -1654,12 +1654,12 @@ function triggerPWAInstall(){
     deferredPrompt.prompt();
     deferredPrompt.userChoice.then(choice => {
       if(choice.outcome === 'accepted'){
-        toast('Aghanya Devanya ERP computer pe install ho gaya!');
+        toast('Setu computer pe install ho gaya!');
       }
       deferredPrompt = null;
     });
   } else {
-    modal('Install Aghanya Devanya Hotel ERP on PC', `
+    modal('Install Setu on PC', `
       <div style="padding:10px 0">
         <h4 style="margin:0 0 10px;color:var(--primary);font-size:16px">Windows PC Desktop Application (.EXE)</h4>
         <p style="font-size:13px;line-height:1.5;color:var(--text-muted)">
@@ -1975,7 +1975,7 @@ function scrGateway(){
     <div class="dash-welcome">
       <div>
         <h2>Namaste, ${esc(userName)}!</h2>
-        <p>Aapka Restaurant POS ready hai. Dine-In tables, Takeaway aur Zomato/Swiggy orders sabhi live hain.</p>
+        <p>Aapka Setu POS ready hai. Dine-In tables, Takeaway aur Zomato/Swiggy orders sabhi live hain.</p>
       </div>
       <div class="welcome-right">
         <button class="btn zomato" onclick="go('online')">Zomato Orders</button>

@@ -1,4 +1,4 @@
-# Aghanya Devanya Restaurant & Hotel ERP POS System
+# Setu — Restaurant & Hotel POS System
 **Official Vendor & Software Provider:** Aghanya Devanya Enterprises
 
 Hotel aur restaurant ke liye fully offline, standalone ERP POS software. Ye software kisi bhi Windows PC par direct `.exe` ya Chrome/Edge browser mein 100% offline chalta hai.
