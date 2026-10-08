@@ -1,19 +1,19 @@
 @echo off
-title Aghanya Devanya Hotel ERP - Windows Setup Installer
+title Setu POS - Windows Setup Installer
 color 0b
 
 echo ======================================================================
 echo       AGHANYA DEVANYA ENTERPRISES - HOTEL ERP SETUP INSTALLER
 echo ======================================================================
 echo.
-echo Installing Aghanya Devanya Restaurant and Hotel ERP POS to your PC...
+echo Installing Setu - Restaurant and Hotel POS to your PC...
 echo.
 
 set SCRIPT_DIR=%~dp0
 set INSTALL_DIR=%LOCALAPPDATA%\Programs\AghanyaDevanyaERP
-set SHORTCUT_NAME=Aghanya Devanya Hotel ERP
+set SHORTCUT_NAME=Setu POS
 set DESKTOP_DIR=%USERPROFILE%\Desktop
-set STARTMENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Aghanya Devanya ERP
+set STARTMENU_DIR=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Setu POS
 
 echo [1/4] Creating installation directory at:
 echo       "%INSTALL_DIR%"
@@ -39,7 +39,7 @@ echo sDeskLink = "%DESKTOP_DIR%\%SHORTCUT_NAME%.lnk" >> "%VBS_FILE%"
 echo Set oDeskLink = oWS.CreateShortcut(sDeskLink) >> "%VBS_FILE%"
 echo oDeskLink.TargetPath = "%INSTALL_DIR%\Aghanya-Devanya-Hotel-ERP.exe" >> "%VBS_FILE%"
 echo oDeskLink.WorkingDirectory = "%INSTALL_DIR%" >> "%VBS_FILE%"
-echo oDeskLink.Description = "Aghanya Devanya Restaurant and Hotel ERP POS System" >> "%VBS_FILE%"
+echo oDeskLink.Description = "Setu - Restaurant and Hotel POS (Aghanya Devanya Enterprises)" >> "%VBS_FILE%"
 if exist "%INSTALL_DIR%\favicon.ico" (
     echo oDeskLink.IconLocation = "%INSTALL_DIR%\favicon.ico,0" >> "%VBS_FILE%"
 )
@@ -50,7 +50,7 @@ echo sStartLink = "%STARTMENU_DIR%\%SHORTCUT_NAME%.lnk" >> "%VBS_FILE%"
 echo Set oStartLink = oWS.CreateShortcut(sStartLink) >> "%VBS_FILE%"
 echo oStartLink.TargetPath = "%INSTALL_DIR%\Aghanya-Devanya-Hotel-ERP.exe" >> "%VBS_FILE%"
 echo oStartLink.WorkingDirectory = "%INSTALL_DIR%" >> "%VBS_FILE%"
-echo oStartLink.Description = "Aghanya Devanya Restaurant and Hotel ERP POS System" >> "%VBS_FILE%"
+echo oStartLink.Description = "Setu - Restaurant and Hotel POS (Aghanya Devanya Enterprises)" >> "%VBS_FILE%"
 if exist "%INSTALL_DIR%\favicon.ico" (
     echo oStartLink.IconLocation = "%INSTALL_DIR%\favicon.ico,0" >> "%VBS_FILE%"
 )
@@ -62,10 +62,10 @@ del "%VBS_FILE%"
 echo [4/4] Installation Complete!
 echo.
 echo ======================================================================
-echo    SUCCESS: Aghanya Devanya Hotel ERP has been installed on your PC!
+echo    SUCCESS: Setu POS has been installed on your PC!
 echo.
 echo    - Desktop Shortcut created: "%SHORTCUT_NAME%"
-echo    - Start Menu entry created: Programs ^> Aghanya Devanya ERP
+echo    - Start Menu entry created: Programs ^> Setu POS
 echo    - Standalone Executable: "%INSTALL_DIR%\Aghanya-Devanya-Hotel-ERP.exe"
 echo ======================================================================
 echo.
