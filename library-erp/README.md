@@ -65,7 +65,8 @@ Command line se: `node keygen.js 3D1EA-73DCE 1m "Library ka naam"` (`1m`, `3m`, 
 2. Is folder mein `build.bat` double-click karein.
 3. `dist\LibraryERP.exe` aur `dist\LibraryKeygen.exe` ban jayenge.
 
-GitHub par `library-erp` folder mein push karte hi Actions bhi exe banata hai (artifact: *LibraryERP-windows*).
+GitHub par `liberp` branch mein push karte hi nayi exe ban jaati hai. Hamesha latest exe yahan milegi:
+https://github.com/theinkthreadhub-crypto/hotel-erp/releases/download/library-erp-latest/LibraryERP.exe
 
 - `config.json` mein `vendorName` aur `vendorPhone` bharkar build karein. Activation screen par "WhatsApp par bhejein" button aa jaayega.
 - `public_key.pem` badalne par purani saari keys band ho jaati hain. Ise tabhi badlein jab `private_key.pem` kho gayi ho.

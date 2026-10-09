@@ -5,6 +5,9 @@ on:
     paths: ['library-erp/**', '.github/workflows/library-erp-exe.yml']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -22,3 +25,14 @@ jobs:
         with:
           name: LibraryERP-windows
           path: library-erp/dist/*.exe
+      # Pakka link: releases/download/library-erp-latest/LibraryERP.exe (har push par nayi exe)
+      - name: Publish latest release
+        if: github.ref == 'refs/heads/liberp'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete library-erp-latest --yes --cleanup-tag || true
+          gh release create library-erp-latest dist/LibraryERP.exe \
+            --target "${{ github.sha }}" --title "Library ERP (latest)" \
+            --notes "Customer ke liye LibraryERP.exe. Commit ${{ github.sha }}. Activation key LibraryKeygen se banayein."
