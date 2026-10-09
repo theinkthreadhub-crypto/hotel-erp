@@ -6,6 +6,11 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 Poora ERP English mein hai.
 
+- **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
+- **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
+- **Expense Heads (H):** Rent, Electricity, WiFi, Salary jaise kharche ke naam. Naye banayein, order set karein, ek saath kai add karein. Entries wala head delete karte waqt entries doosre head mein shift ho jaati hain.
+- **Expense Entry (E):** Date, Head, Amount, Mode, Paid to, Note. Pichhle mahine ke kharche "Use" se dobara bhar sakte hain.
+- **Reports:** Income vs Expense (**V**) mahine-wise Profit/Loss ke saath, Expense Report (**X**) head-wise. Day Book mein fee, kharcha, Profit/Loss aur Cash in hand.
 - **Dashboard (Gateway):** Is mahine kitni fee aayi, kitni aani hai (expected), kitni baki hai (pending), aur kul outstanding. Saath mein fee collection ka 6 mahine ka chart, students ka fee status, payment mode, 7 din ki attendance, aur sabse zyada due wale students.
 
 - **Fee Master (F):** Fee ka naam, amount, validity (din) aur **Order No.** set karein. Order 1 sabse upar dikhta hai. `30` = mahine wali fee. `0` = ek baar wali fee (Admission, Security). "Ek saath kai fee" box mein har line par `Naam, Amount, Din, Order` likhkar sab ek baar mein bana sakte hain.

@@ -102,7 +102,7 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .meter i{display:block;height:100%;background:#2a78d6;border-radius:6px}
 .charts{display:grid;grid-template-columns:1.6fr 1fr;gap:12px}
 .chart h4{margin:0 0 2px}.chart .sub{font-size:12px;color:var(--muted);margin-bottom:6px}
-.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart svg{display:block;width:100%;height:auto;max-height:300px;overflow:visible}
 .chart svg text{font:11px "Segoe UI",Arial,sans-serif;fill:#6b6b6b}
 .chart svg text.v{fill:#1d1d1d;font-weight:600}
 .chart svg [data-tip]{cursor:pointer}.chart svg [data-tip]:hover{opacity:.82}
@@ -111,6 +111,16 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
 #tip{position:fixed;pointer-events:none;background:#1d1d1d;color:#fff;font-size:12px;padding:5px 9px;border-radius:4px;z-index:70;display:none;white-space:nowrap}
 @media (max-width:1100px){.dash{grid-template-columns:1fr}.charts{grid-template-columns:1fr}}
+/* gateway dropdown */
+.gwbox .gh{padding:7px 14px;cursor:pointer;display:flex;gap:8px;font-weight:600;border-top:1px solid #f0ebd5}
+.gwbox .gh:first-child{border-top:0}
+.gwbox .gh u{color:var(--bad);text-decoration:none;width:14px}
+.gwbox .gh span{margin-left:auto;color:var(--muted)}
+.gwbox .gh.open{background:#eef3fb}
+.gwbox .gh.on,.gwbox .gh:hover{background:var(--hi)}
+.gwbox .it.sub{padding:5px 14px 5px 36px;font-size:13.5px}
+#side .sg{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:8px 2px 3px}
+#top .lic.sess{background:#ffffff33;cursor:pointer}
 /* month chips */
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px}
 .mc{display:flex;align-items:flex-start;gap:6px;border:1px solid #cfc7a6;border-radius:4px;padding:6px 8px;background:#fff;cursor:pointer;font-size:13px;margin:0;color:var(--ink)}
@@ -167,7 +177,7 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 </style>
 </head>
 <body>
-<div id="top"><b id="libname">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic" id="lic"></span><span class="clock" id="clock"></span></div>
+<div id="top"><b id="libname">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess" onclick="D&&go('sessions')" title="Current session — click to change"></span><span class="lic" id="lic"></span><span class="clock" id="clock"></span></div>
 <div id="wrap"><div id="main"><p class="muted">Loading…</p></div><div id="side"></div></div>
 <div id="modal"><div id="mbox"></div></div>
 <div id="toast"></div>
@@ -201,7 +211,15 @@ function seed(){return {settings:{...DEF_SET,mail:{...DEF_SET.mail}},plans:[],st
 function migrate(s){
   s=s&&s.settings?s:seed();
   s.settings={...DEF_SET,...s.settings,mail:{...DEF_SET.mail,...(s.settings.mail||{})}};
-  ['plans','students','receipts'].forEach(k=>s[k]=s[k]||[]);s.att=s.att||{};s.seq=s.seq||{rcpt:0};
+  ['plans','students','receipts','expenses'].forEach(k=>s[k]=s[k]||[]);s.att=s.att||{};s.seq=s.seq||{rcpt:0};
+  if(!s.expHeads)s.expHeads=['Rent','Electricity','WiFi / Internet','Salary','Cleaning','Water','Stationery','Repair & Maintenance','Other']
+    .map((n,i)=>({id:uid(),name:n,order:i+1,note:''}));
+  if(!s.sessions||!s.sessions.length)s.sessions=[sessionFor(today())];
+  if(!s.sessions.some(x=>x.id===s.settings.curSession))s.settings.curSession=(s.sessions.find(x=>x.from<=today()&&x.to>=today())||s.sessions[s.sessions.length-1]).id;
+  // Purani entries ko date se session do
+  const sessOf=d=>(s.sessions.find(x=>x.from<=d&&x.to>=d)||{}).id||s.settings.curSession;
+  s.receipts.forEach(r=>{if(!r.sess)r.sess=sessOf(r.date);});
+  s.expenses.forEach(x=>{if(!x.sess)x.sess=sessOf(x.date);});
   // Purana data: period (from-to) se paid mahine banao
   s.receipts.forEach(r=>{if(!r.mlist)r.mlist=r.from&&r.to?monthsCovered(r.from,r.to):[];});
   s.students.forEach(st=>{
@@ -284,6 +302,16 @@ function mText(list){
   return g.map(([a,b])=>a===b?mName(a):`${mName(a)} – ${mName(b)}`).join(', ')+(L.length>1?` (${L.length} months)`:'');
 }
 
+/* ================= SESSIONS ================= */
+// Session = April se March (jaise 2026-27). Client khud naya bana sakta hai.
+function sessionFor(d){const y=+d.slice(0,4),st=+d.slice(5,7)>=4?y:y-1;
+  return {id:uid(),name:st+'-'+String(st+1).slice(2),from:st+'-04-01',to:(st+1)+'-03-31'};}
+const curSess=()=>D.sessions.find(x=>x.id===D.settings.curSession)||D.sessions[0];
+const sessById=id=>D.sessions.find(x=>x.id===id);
+const sessOfDate=d=>(D.sessions.find(x=>x.from<=d&&x.to>=d)||curSess()).id;
+const nextNo=(list,sess)=>1+Math.max(0,...list.filter(x=>x.sess===sess).map(x=>+x.no||0));
+function sessBar(){const e=$('#sess');if(!e)return;const c=curSess();e.textContent=c?'Session '+c.name:'';e.style.display=c?'':'none';}
+
 /* ================= STUDENT LOGIC ================= */
 const plan=id=>D.plans.find(p=>p.id===id);
 const stu=id=>D.students.find(s=>s.id===id);
@@ -329,24 +357,18 @@ function remindText(s){
 const waRemind=id=>{const s=stu(id);if(s)waOpen(s.mobile,remindText(s));};
 
 /* ================= NAVIGATION / KEYBOARD ================= */
-const MENU=[
-  ['S','New Admission','student','Masters'],
-  ['L','Student List','list'],
-  ['F','Fee Master','plans'],
-  ['C','Fee Collect (Receipt)','collect','Transactions'],
-  ['A','Attendance (In / Out)','att'],
-  ['D','Due List & Reminder','due','Reports'],
-  ['R','Receipt List / Reprint','receipts'],
-  ['B','Day Book (Collection)','daybook'],
-  ['M','Attendance Report (Month)','attrep'],
-  ['I','Bulk Import (Excel / CSV)','import','Utilities'],
-  ['G','Settings & Backup','settings'],
-  ['K','License / Activation','license'],
-  ['Q','Close ERP','quit'],
+// Gateway: 4 groups with dropdowns. Every item also has its own letter (works on Gateway and with Alt from anywhere).
+const GROUPS=[
+  ['M','Masters',[['S','New Admission','student'],['L','Student List','list'],['F','Fee Master','plans'],['H','Expense Heads','heads'],['N','Sessions','sessions']]],
+  ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att']]],
+  ['R','Reports',[['B','Day Book','daybook'],['P','Receipt List / Reprint','receipts'],['D','Due List & Reminder','due'],['V','Income vs Expense','pl'],['X','Expense Report','exprep'],['W','Attendance Report (Month)','attrep']]],
+  ['U','Utilities',[['I','Bulk Import (Excel / CSV)','import'],['G','Settings & Backup','settings'],['K','License / Activation','license'],['Q','Close ERP','quit']]],
 ];
+const MENU=GROUPS.flatMap(g=>g[2].map(x=>[x[0],x[1],x[2],g[1]]));
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
+  heads:scrHeads,expense:scrExpense,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
   daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
-let cur='home',gwSel=0,onSave=null,nav=null,keyH=null;
+let cur='home',gwSel=0,gwOpen=-1,onSave=null,nav=null,keyH=null;
 function go(s,arg){
   if(!D)return;
   cur=s;onSave=null;nav=null;keyH=null;closeModal();$('#tip').style.display='none';
@@ -355,8 +377,13 @@ function go(s,arg){
   main.scrollTop=0;SCREENS[s](arg);
 }
 function drawSide(){$('#side').innerHTML=`<button onclick="go('home')"><u>Esc</u>Gateway</button>`+
-  MENU.map(m=>`<button onclick="go('${m[2]}')"><u>Alt+${m[0]}</u>${m[1]}</button>`).join('')+
+  GROUPS.map(g=>`<div class="sg">${g[1]}</div>`+g[2].map(m=>`<button onclick="go('${m[2]}')"><u>Alt+${m[0]}</u>${m[1]}</button>`).join('')).join('')+
   `<div class="keys"><kbd>Enter</kbd> next field<br><kbd>Ctrl+S</kbd> Save / Accept<br><kbd>↑</kbd><kbd>↓</kbd> select in list<br><kbd>Esc</kbd> back</div>`;}
+function gwRows(){const R=[];GROUPS.forEach((g,gi)=>{R.push({g:gi});if(gi===gwOpen)g[2].forEach(it=>R.push({it}));});return R;}
+function gwHtml(){return gwRows().map((r,i)=>r.it?`<div class="it sub${i===gwSel?' on':''}" onclick="go('${r.it[2]}')"><u>${r.it[0]}</u>${r.it[1]}</div>`:
+  `<div class="gh${r.g===gwOpen?' open':''}${i===gwSel?' on':''}" onclick="gwToggle(${r.g})"><u>${GROUPS[r.g][0]}</u>${GROUPS[r.g][1]}<span>${r.g===gwOpen?'▾':'▸'}</span></div>`).join('');}
+function gwDraw(){const e=$('#gwmenu');if(e)e.innerHTML=gwHtml();}
+function gwToggle(gi){gwOpen=gwOpen===gi?-1:gi;gwSel=gwRows().findIndex(r=>r.g===gi)+(gwOpen===gi?1:0);gwDraw();}
 const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
 const focusEl=(sel)=>setTimeout(()=>{const e=typeof sel==='string'?$(sel):sel;if(e){e.focus();e.select&&e.select();}},30);
 function fields(form){return [...form.querySelectorAll('input,select,textarea')].filter(e=>!e.disabled&&!e.readOnly&&e.type!=='hidden'&&e.type!=='file'&&(e.type!=='checkbox'||e.closest('.mgrid,.xgrid'))&&e.offsetParent!==null);}
@@ -369,7 +396,7 @@ const selFirst=()=>{const r=main.querySelector('tr[data-id]');if(r)r.classList.a
 document.addEventListener('keydown',e=>{
   if(!D)return;
   const a=document.activeElement,tg=a&&a.tagName,typing=['INPUT','SELECT','TEXTAREA'].includes(tg);
-  if(e.key==='Escape'){e.preventDefault();if(isModal())closeModal();else if(cur!=='home')go('home');return;}
+  if(e.key==='Escape'){e.preventDefault();if(isModal())closeModal();else if(cur!=='home')go('home');else if(gwOpen>=0){const g=gwOpen;gwOpen=-1;gwSel=g;gwDraw();}return;}
   if(isModal()){
     if(!e.ctrlKey&&!e.altKey&&!(typing&&tg!=='SELECT')){const b=$(`#mbox [data-k="${e.key.toUpperCase()}"]`);if(b){e.preventDefault();b.click();}}
     return;
@@ -378,10 +405,13 @@ document.addEventListener('keydown',e=>{
   if(e.altKey&&!e.ctrlKey){const m=MENU.find(x=>x[0]===e.key.toUpperCase());if(m){e.preventDefault();go(m[2]);return;}}
   if(keyH&&keyH(e,typing))return;
   if(cur==='home'&&!typing&&!e.ctrlKey&&!e.altKey&&!e.metaKey){
-    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();gwSel=(gwSel+(e.key==='ArrowDown'?1:MENU.length-1))%MENU.length;
-      document.querySelectorAll('.gwbox .it').forEach((x,i)=>x.classList.toggle('on',i===gwSel));return;}
-    if(e.key==='Enter'){e.preventDefault();go(MENU[gwSel][2]);return;}
-    const m=MENU.find(x=>x[0]===e.key.toUpperCase());if(m){e.preventDefault();go(m[2]);return;}
+    const R=gwRows(),r=R[gwSel]||R[0];
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();gwSel=(gwSel+(e.key==='ArrowDown'?1:R.length-1))%R.length;gwDraw();return;}
+    if(e.key==='Enter'){e.preventDefault();if(r.it)go(r.it[2]);else gwToggle(r.g);return;}
+    if(e.key==='ArrowRight'&&r.g!==undefined&&gwOpen!==r.g){e.preventDefault();gwToggle(r.g);return;}
+    if(e.key==='ArrowLeft'&&gwOpen>=0){e.preventDefault();const g=gwOpen;gwOpen=-1;gwSel=g;gwDraw();return;}
+    const k=e.key.toUpperCase(),gi=GROUPS.findIndex(g=>g[0]===k);if(gi>=0){e.preventDefault();gwToggle(gi);return;}
+    const m=MENU.find(x=>x[0]===k);if(m){e.preventDefault();go(m[2]);return;}
   }
   if(nav&&tg!=='SELECT'&&tg!=='TEXTAREA'&&!(typing&&a.dataset.nav===undefined)){
     if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();navMove(e.key==='ArrowDown'?1:-1);return;}
@@ -443,25 +473,27 @@ function scrHome(){
   const gotCm=sum(paidCm,s=>monthRate(s)),pendCm=Math.max(0,expected-gotCm),unpaidCm=billable.length-paidCm.length;
   const outstanding=sum(act,dueAmt),pres=Object.keys(D.att[t]||{}).length,collected=sum(mr,'paid');
   const pct=expected?Math.min(100,Math.round(gotCm*100/expected)):0;
-  const months=mRange(mAdd(cm,-5),cm).map(m=>({label:MON[+m.slice(5)-1],value:sum(R.filter(r=>r.date.slice(0,7)===m),'paid'),hi:m===cm}));
+  const months=mRange(mAdd(cm,-5),cm).map(m=>({label:MON[+m.slice(5)-1],a:sum(R.filter(r=>r.date.slice(0,7)===m),'paid'),b:sum(D.expenses.filter(e=>e.date.slice(0,7)===m),'amount')}));
+  const expM=sum(D.expenses.filter(e=>e.date.slice(0,7)===cm),'amount'),pl=collected-expM,cs=curSess();
   const modes=MODES.map(m=>({label:m,value:sum(mr.filter(r=>r.mode===m),'paid')})).filter(x=>x.value);
   const days=[...Array(7)].map((_,i)=>addDays(t,i-6)).map(d=>({label:new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short'}),value:Object.keys(D.att[d]||{}).length,hi:d===t}));
-  let i=0;
-  const items=MENU.map(m=>(m[3]?`<div class="sec">${m[3]}</div>`:'')+`<div class="it${i===gwSel?' on':''}" onclick="go('${m[2]}')"><u>${m[0]}</u>${(i++,m[1])}</div>`).join('');
+
   const setup=[];
   if(D.settings.name==='My Library')setup.push(`Press <b>G</b> and enter the library name, address and contact.`);
   if(!periodic().length)setup.push(`Create a fee plan in <b>F</b> (Fee Master), e.g. Monthly / 30 days.`);
   if(!D.students.length)setup.push(`Add students with <b>S</b>, or import them in bulk from Excel with <b>I</b>.`);
   main.innerHTML=(setup.length?`<div class="hint">Getting started:<br>${setup.map((x,j)=>(j+1)+'. '+x).join('<br>')}
     ${!D.students.length?`<div style="margin-top:8px">New computer with an old backup (<b>library_backup_….json</b> from email)? <label class="btn sm" style="display:inline-block;margin:0;color:#fff">Restore from backup<input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label></div>`:''}</div>`:'')+
-  `<div class="dash"><div class="gwbox"><h3>Gateway of Library</h3>${items}<div style="height:8px"></div>
-    <p class="muted small" style="padding:0 14px">Press a letter or <kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd>. <kbd>Alt</kbd>+letter from any screen.</p></div>
+  `<div class="dash"><div class="gwbox"><h3>Gateway of Library</h3><div id="gwmenu">${gwHtml()}</div><div style="height:8px"></div>
+    <p class="muted small" style="padding:0 14px">Press <b>M</b> / <b>T</b> / <b>R</b> / <b>U</b> to open a menu, or <kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd>. Item letters (like <b>C</b>) open directly; <kbd>Alt</kbd>+letter works from any screen.</p></div>
   <div>
     <div class="kpis">
       <div class="kpi hero link" onclick="go('daybook')"><div class="l">Collected in ${MON[+cm.slice(5)-1]}</div><div class="v">${rs(collected)}</div><div class="s">Today ${rs(sum(tr,'paid'))} · ${tr.length} receipts</div></div>
       <div class="kpi"><div class="l">Expected this month</div><div class="v">${rs(expected)}</div><div class="s">${billable.length} active students</div></div>
       <div class="kpi link" onclick="go('due','due')"><div class="l">Pending this month</div><div class="v" style="color:${pendCm?'var(--bad)':'inherit'}">${rs(pendCm)}</div><div class="s">${unpaidCm} students yet to pay</div></div>
       <div class="kpi link" onclick="go('due','all')"><div class="l">Total outstanding</div><div class="v" style="color:${outstanding?'var(--bad)':'inherit'}">${rs(outstanding)}</div><div class="s">Arrears + balance · ${due.length} due</div></div>
+      <div class="kpi link" onclick="go('expense')"><div class="l">Expenses in ${MON[+cm.slice(5)-1]}</div><div class="v">${rs(expM)}</div><div class="s">${D.expenses.filter(e=>e.date===t).length} entries today</div></div>
+      <div class="kpi link" onclick="go('pl')"><div class="l">${pl>=0?'Profit':'Loss'} in ${MON[+cm.slice(5)-1]}</div><div class="v ${pl>=0?'green':'red'}">${rs(Math.abs(pl))} ${pl>=0?'▲':'▼'}</div><div class="s">${pl>=0?'Fee collected − expenses':'Expenses '+rs(-pl)+' more than fee'}</div></div>
       <div class="kpi link" onclick="go('att')"><div class="l">Present today</div><div class="v">${pres} <span class="muted" style="font-size:15px">/ ${act.length}</span></div><div class="s">${soon.length} fees expiring soon</div></div>
     </div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><h4 style="margin:0">${mName(cm)} fees received</h4>
@@ -469,7 +501,8 @@ function scrHome(){
       <div class="meter" data-tip="${pct}% of this month's fees received"><i style="width:${pct}%"></i></div>
       <div class="muted small">${paidCm.length} of ${billable.length} students have paid for ${mName(cm)}.</div></div>
     <div class="charts">
-      <div class="card chart"><h4>Fee collection</h4><div class="sub">Last 6 months · amount received</div>${colChart(months)}</div>
+      <div class="card chart"><h4>Fee vs expense</h4><div class="sub">Last 6 months · session ${esc(cs.name)}</div>${pairChart(months)}
+        <div class="legend"><span><i style="background:#2a78d6"></i>Fee collected</span><span><i style="background:#eb6834"></i>Expenses</span></div></div>
       <div class="card chart"><h4>Students by fee status</h4><div class="sub">${act.length} active students</div>
         ${statusBar([{l:'Paid',n:okN,c:'#0ca30c',icon:'✓'},{l:'Expiring soon',n:soon.length,c:'#fab219',icon:'!'},{l:'Due',n:due.length,c:'#d03b3b',icon:'✕'}])}
         <h4 style="margin-top:18px">Payment mode</h4><div class="sub">${MON[+cm.slice(5)-1]} collection</div>${barChart(modes)}</div>
@@ -660,7 +693,7 @@ let recMonth=null;
 function scrRecord(id){
   const s=stu(id);if(!s){go('list');return;}
   $('#scr').textContent='Student Record';recMonth=recMonth||curMonth();
-  const st=stStatus(s),R=D.receipts.filter(r=>r.sid===s.id).slice().sort((a,b)=>b.no-a.no),ok=R.filter(r=>!r.cancel);
+  const st=stStatus(s),R=D.receipts.filter(r=>r.sid===s.id).slice().reverse(),ok=R.filter(r=>!r.cancel);
   const paidBy={};ok.forEach(r=>(r.mlist||[]).forEach(m=>paidBy[m]=r));
   const P=new Set(s.paid||[]),cm=curMonth(),jm=(s.join||today()).slice(0,7);
   const months=mRange(jm<mAdd(cm,-23)?mAdd(cm,-23):jm,mAdd(cm,3));
@@ -789,7 +822,8 @@ async function saveReceipt(){
   if(!mlist.length&&!ex.length&&!oldBal&&!await ask('No month or fee is ticked. Create the receipt anyway?'))return;
   if(paid<=0&&!await ask('Received amount is ₹0. Create the receipt anyway?'))return focusEl('#c_paid');
   if(paid>total&&!await ask(`Received (${rs(paid)}) is more than the total (${rs(total)}). Continue?`))return focusEl('#c_paid');
-  const r={id:uid(),no:++D.seq.rcpt,date:val('c_date')||today(),time:nowTime(),sid:s.id,code:s.code,name:s.name,
+  const rdate=val('c_date')||today(),rsess=sessOfDate(rdate);
+  const r={id:uid(),sess:rsess,no:nextNo(D.receipts,rsess),date:rdate,time:nowTime(),sid:s.id,code:s.code,name:s.name,
     head:mlist.length?p.name:'',mlist,months:mlist.length,from:mlist.length?mlist[0]+'-01':'',to:mlist.length?mEnd(mlist[mlist.length-1]):'',fee,
     extras:ex.map(x=>({name:x.name,amt:+x.amount})),extra:ex.map(x=>x.name).join(', '),extraAmt,disc,oldBal,total,paid,bal:r2(total-paid),mode:val('c_mode'),note:val('c_note'),
     prevValid:s.validTill||'',prevBal:oldBal};
@@ -826,7 +860,7 @@ function rcptHtml(r){
   rExtras(r).forEach(x=>L.push([esc(x.name),x.amt]));if(r.oldBal)L.push(['Previous balance',r.oldBal]);if(r.disc)L.push(['Discount',-r.disc]);
   return `<div class="rcpt ${big?'big ':''}w${S.slip}">
     <div class="c h">${esc(S.name)}</div>${S.address?`<div class="c">${esc(S.address)}</div>`:''}${S.contact?`<div class="c">Mob: ${esc(S.contact)}</div>`:''}
-    <div class="c tt">FEE RECEIPT${r.cancel?' — CANCELLED':''}</div>
+    <div class="c tt">FEE RECEIPT${r.cancel?' — CANCELLED':''}</div>${sessById(r.sess)?`<div class="c" style="font-size:.85em">Session ${esc(sessById(r.sess).name)}</div>`:''}
     <table><tr><td>No: <b>${r.no}</b></td><td class="r">Date: ${dmy(r.date)}</td></tr>
     <tr><td colspan="2">Name: <b>${esc(r.name)}</b></td></tr>${s.father?`<tr><td colspan="2">Father: ${esc(s.father)}</td></tr>`:''}
     <tr><td>ID: ${esc(r.code)}</td><td class="r">Seat: ${esc(s.seat||'—')}</td></tr>
@@ -973,7 +1007,7 @@ function scrReceipts(){
 }
 async function cancelReceipt(id){
   const r=D.receipts.find(x=>x.id===id),s=stu(r.sid);
-  if(D.receipts.some(x=>x.sid===r.sid&&!x.cancel&&x.no>r.no)){toast("Cancel this student's later receipt first",'bad');return;}
+  if(D.receipts.some((x,i)=>x.sid===r.sid&&!x.cancel&&i>D.receipts.indexOf(r))){toast("Cancel this student's later receipt first",'bad');return;}
   if(!await ask(`Cancel receipt #${r.no} (${esc(r.name)}, ${rs(r.paid)})?`))return;
   r.cancel=true;
   if(s){const keep=new Set();D.receipts.filter(x=>x.sid===s.id&&!x.cancel).forEach(x=>(x.mlist||[]).forEach(m=>keep.add(m)));
@@ -985,26 +1019,34 @@ async function cancelReceipt(id){
 let dbFrom=null,dbTo=null;
 function scrDaybook(){
   dbFrom=dbFrom||today();dbTo=dbTo||today();
-  main.innerHTML=title('Day Book — Collection',`<input type="date" id="b_from" value="${dbFrom}"> to <input type="date" id="b_to" value="${dbTo}">
+  main.innerHTML=title('Day Book',`${rangePicker('b_q')}<input type="date" id="b_from" value="${dbFrom}"> to <input type="date" id="b_to" value="${dbTo}">
     <button class="btn sm g" onclick="printReport($('#b_out').innerHTML)">Print</button><button class="btn sm wa" onclick="waOpen(D.settings.owner,dayText())">WhatsApp Owner</button>`)+`<div id="b_out"></div>`;
-  ['b_from','b_to'].forEach(i=>$('#'+i).onchange=()=>{dbFrom=val('b_from');dbTo=val('b_to');drawDaybook();});drawDaybook();
+  const re=()=>{dbFrom=val('b_from');dbTo=val('b_to');drawDaybook();};
+  ['b_from','b_to'].forEach(i=>$('#'+i).onchange=re);bindRange('b_q','b_from','b_to',re);drawDaybook();
 }
-function dayData(){const L=D.receipts.filter(r=>!r.cancel&&r.date>=dbFrom&&r.date<=dbTo);
-  return {L,modes:MODES.map(m=>[m,sum(L.filter(r=>r.mode===m),'paid')]).filter(x=>x[1]),adm:D.students.filter(s=>(s.created||s.join)>=dbFrom&&(s.created||s.join)<=dbTo).length,
-    cx:D.receipts.filter(r=>r.cancel&&r.date>=dbFrom&&r.date<=dbTo).length};}
+function dayData(){const L=D.receipts.filter(r=>!r.cancel&&r.date>=dbFrom&&r.date<=dbTo),E=D.expenses.filter(e=>e.date>=dbFrom&&e.date<=dbTo);
+  return {L,E,modes:MODES.map(m=>[m,sum(L.filter(r=>r.mode===m),'paid')]).filter(x=>x[1]),adm:D.students.filter(s=>(s.created||s.join)>=dbFrom&&(s.created||s.join)<=dbTo).length,
+    cx:D.receipts.filter(r=>r.cancel&&r.date>=dbFrom&&r.date<=dbTo).length,
+    cashIn:sum(L.filter(r=>r.mode==='Cash'),'paid'),cashOut:sum(E.filter(e=>e.mode==='Cash'),'amount')};}
 function drawDaybook(){
-  const {L,modes,adm,cx}=dayData();
-  $('#b_out').innerHTML=`<div class="card"><p style="margin:0 0 8px"><b>${dmy(dbFrom)}${dbTo!==dbFrom?' to '+dmy(dbTo):''}</b></p><div class="grid">
-    <div><label>Total collection</label><b style="font-size:22px;color:var(--bar)">${rs(sum(L,'paid'))}</b></div>
-    ${modes.map(([m,a])=>`<div><label>${m}</label><b style="font-size:18px">${rs(a)}</b></div>`).join('')}
-    <div><label>Receipts</label><b style="font-size:18px">${L.length}</b>${cx?` <span class="muted small">(${cx} cancelled)</span>`:''}</div>
-    <div><label>New admissions</label><b style="font-size:18px">${adm}</b></div></div></div>
-  <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>Name</th><th>Detail</th><th>Mode</th><th class="n">Amount</th></tr></thead><tbody>
+  const {L,E,modes,adm,cx,cashIn,cashOut}=dayData(),fee=sum(L,'paid'),exp=sum(E,'amount'),cash=cashIn-cashOut;
+  $('#b_out').innerHTML=`<div class="card"><p style="margin:0 0 8px"><b>${dmy(dbFrom)}${dbTo!==dbFrom?' to '+dmy(dbTo):''}</b></p><div class="kpis" style="margin:0">
+    <div class="kpi"><div class="l">Fee collected</div><div class="v" style="color:var(--bar)">${rs(fee)}</div><div class="s">${modes.map(([m,a])=>m+' '+rs(a)).join(' · ')||'—'}</div></div>
+    <div class="kpi"><div class="l">Expenses</div><div class="v">${rs(exp)}</div><div class="s">${E.length} entries</div></div>
+    <div class="kpi"><div class="l">${fee-exp>=0?'Profit':'Loss'}</div><div class="v ${fee-exp>=0?'green':'red'}">${rs(Math.abs(fee-exp))} ${fee-exp>=0?'▲':'▼'}</div><div class="s">Fee − expenses</div></div>
+    <div class="kpi"><div class="l">Cash in hand</div><div class="v ${cash<0?'red':''}">${cash<0?'−':''}${rs(Math.abs(cash))}</div><div class="s">Cash fee ${rs(cashIn)} − cash expense ${rs(cashOut)}</div></div>
+    <div class="kpi"><div class="l">Receipts / admissions</div><div class="v">${L.length} / ${adm}</div><div class="s">${cx?cx+' receipts cancelled':'&nbsp;'}</div></div></div>
+    ${cash<0?`<p class="red small" style="margin:8px 0 0">More cash was spent than collected — ${rs(-cash)} came from UPI / bank / pocket.</p>`:''}</div>
+  <div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Fee received</h4><table><thead><tr><th>No</th><th>Date</th><th>Name</th><th>Detail</th><th>Mode</th><th class="n">Amount</th></tr></thead><tbody>
   ${L.map(r=>`<tr><td>${r.no}</td><td>${dmy(r.date)} ${esc(r.time||'')}</td><td>${esc(r.name)} (${esc(r.code)})</td><td class="small">${[r.months?r.head+' — '+mText(r.mlist):'',r.extra].filter(Boolean).map(esc).join(', ')}</td><td>${esc(r.mode)}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No collection.</td></tr>'}
-  </tbody><tfoot><tr><td colspan="5">Total</td><td class="n">${rs(sum(L,'paid'))}</td></tr></tfoot></table></div>`;
+  </tbody><tfoot><tr><td colspan="5">Total fee</td><td class="n">${rs(fee)}</td></tr></tfoot></table></div>
+  <div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Expenses paid</h4><table><thead><tr><th>No</th><th>Date</th><th>Head</th><th>Paid to</th><th>Mode</th><th class="n">Amount</th></tr></thead><tbody>
+  ${E.map(e=>`<tr><td>${e.no}</td><td>${dmy(e.date)}</td><td>${esc(e.head)}</td><td>${esc(e.paidTo||'')}</td><td>${esc(e.mode)}</td><td class="n">${rs(e.amount)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No expenses.</td></tr>'}
+  </tbody><tfoot><tr><td colspan="5">Total expenses</td><td class="n">${rs(exp)}</td></tr></tfoot></table></div>`;
 }
-function dayText(){const {L,modes,adm}=dayData(),S=D.settings,act=active();
-  return [`*${S.name}*`,`Report: ${dmy(dbFrom)}${dbTo!==dbFrom?' - '+dmy(dbTo):''}`,'',`*Collection: ${rs(sum(L,'paid'))}*`,...modes.map(([m,a])=>`${m}: ${rs(a)}`),`Receipts: ${L.length}`,`New admissions: ${adm}`,'',
+function dayText(){const {L,E,modes,adm,cashIn,cashOut}=dayData(),S=D.settings,act=active(),fee=sum(L,'paid'),exp=sum(E,'amount');
+  return [`*${S.name}*`,`Report: ${dmy(dbFrom)}${dbTo!==dbFrom?' - '+dmy(dbTo):''}`,'',`*Fee collected: ${rs(fee)}*`,...modes.map(([m,a])=>`${m}: ${rs(a)}`),`*Expenses: ${rs(exp)}*`,
+    `*${fee-exp>=0?'Profit':'Loss'}: ${rs(Math.abs(fee-exp))}*`,`Cash in hand: ${cashIn-cashOut<0?'-':''}${rs(Math.abs(cashIn-cashOut))}`,`Receipts: ${L.length}`,`New admissions: ${adm}`,'',
     `Active students: ${act.length}`,`Present today: ${Object.keys(D.att[today()]||{}).length}`,`Fee due: ${act.filter(s=>stStatus(s).k==='due').length}`,`Balance pending: ${rs(sum(act,'bal'))}`].join('\n');}
 
 /* ================= BULK IMPORT ================= */
@@ -1157,12 +1199,225 @@ async function impRun(){
     if(x.paid>0){
       if(!s.paid.length)s.paid=[x.join.slice(0,7)];
       const ml=s.paid.slice();
-      D.receipts.push({id:uid(),no:++D.seq.rcpt,date:x.join,time:'',sid:s.id,code:s.code,name:s.name,head:p.name,mlist:ml,months:ml.length,from:ml[0]+'-01',to:mEnd(ml[ml.length-1]),fee:x.paid,extra:'',extraAmt:0,disc:0,
+      D.receipts.push({id:uid(),sess:sessOfDate(x.join),no:nextNo(D.receipts,sessOfDate(x.join)),date:x.join,time:'',sid:s.id,code:s.code,name:s.name,head:p.name,mlist:ml,months:ml.length,from:ml[0]+'-01',to:mEnd(ml[ml.length-1]),fee:x.paid,extra:'',extraAmt:0,disc:0,
         oldBal:0,total:x.paid+x.bal,paid:x.paid,bal:x.bal,mode:'Cash',note:'Import (opening)',prevValid:'',prevBal:0});
       rc++;}
     syncValid(s);
     D.students.push(s);});
   save();toast(`${good.length} students imported${rc?`, ${rc} receipts`:''}`,'ok');impRows=[];go('list');
+}
+
+/* ================= SESSION MASTER ================= */
+let sessEdit=null;
+function sessStats(x){const R=D.receipts.filter(r=>!r.cancel&&r.sess===x.id),E=D.expenses.filter(e=>e.sess===x.id);
+  return {rc:R.length,fee:sum(R,'paid'),exp:sum(E,'amount'),adm:D.students.filter(st=>st.join>=x.from&&st.join<=x.to).length,ec:E.length};}
+function plTag(v){return v>=0?`<b class="green">Profit ${rs(v)} ▲</b>`:`<b class="red">Loss ${rs(-v)} ▼</b>`;}
+function scrSessions(){
+  const e=sessEdit?sessById(sessEdit):null,c=curSess();
+  const last=D.sessions.slice().sort((a,b)=>a.from.localeCompare(b.from)).pop();
+  const nx=e||{name:'',from:addDays(last.to,1),to:''};
+  if(!e){const y=+nx.from.slice(0,4);nx.name=y+'-'+String(y+1).slice(2);nx.to=addDays(nx.from,-1).replace(/^\d{4}/,String(y+1));}
+  main.innerHTML=title('Sessions',`Current session: <b>${esc(c.name)}</b>`)+
+  `<div class="hint">A session is one year of the library (e.g. <b>2026-27</b>: 01-04-2026 to 31-03-2027). Every receipt and expense is saved in the <b>current session</b>, and receipt numbers start from 1 in each new session.
+   To start a new year, create the new session and click <b>Set as current</b>. Old sessions stay safe — you can view them any time in Reports.</div>
+  <div class="card form" style="max-width:720px"><h4>${e?'Edit session':'New session'}</h4><div class="grid">
+    <div><label>Session name <i>*</i></label><input id="se_name" value="${esc(nx.name)}" placeholder="2027-28"></div>
+    <div><label>From <i>*</i></label><input id="se_from" type="date" value="${nx.from}"></div>
+    <div><label>To <i>*</i></label><input id="se_to" type="date" value="${nx.to}"></div>
+  </div><div class="btns"><button class="btn" onclick="saveSession()">Save (Ctrl+S)</button>${e?`<button class="btn g" onclick="sessEdit=null;scrSessions()">Cancel</button>`:''}</div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>Session</th><th>From</th><th>To</th><th class="n">Receipts</th><th class="n">Fee collected</th><th class="n">Expenses</th><th>Profit / Loss</th><th class="n">Admissions</th><th></th></tr></thead><tbody>
+  ${D.sessions.slice().sort((a,b)=>b.from.localeCompare(a.from)).map(x=>{const st=sessStats(x),isC=x.id===c.id;
+    return `<tr data-id="${x.id}"${isC?' style="font-weight:600"':''}><td>${esc(x.name)} ${isC?'<span class="tag ok">Current</span>':''}</td><td>${dmy(x.from)}</td><td>${dmy(x.to)}</td>
+    <td class="n">${st.rc}</td><td class="n">${rs(st.fee)}</td><td class="n">${rs(st.exp)}</td><td>${plTag(st.fee-st.exp)}</td><td class="n">${st.adm}</td>
+    <td class="n" style="white-space:nowrap">${isC?'':`<button class="btn sm ok" onclick="setSession('${x.id}')">Set as current</button> `}<button class="btn sm g" onclick="sessEdit='${x.id}';scrSessions()">Edit</button> <button class="btn sm g" onclick="go('pl','${x.id}')">Report</button>${st.rc||st.ec||isC?'':` <button class="btn sm bad" onclick="delSession('${x.id}')">Delete</button>`}</td></tr>`;}).join('')}
+  </tbody></table></div>`;
+  onSave=saveSession;focusEl('#se_name');nav={Enter:id=>setSession(id),F2:id=>{sessEdit=id;scrSessions();}};selFirst();
+}
+async function saveSession(){
+  const name=val('se_name'),from=val('se_from'),to=val('se_to');
+  if(!name||!from||!to){toast('Enter session name, from and to dates','bad');return;}
+  if(to<from){toast('"To" date must be after "From" date','bad');return;}
+  if(D.sessions.some(x=>x.id!==sessEdit&&x.name.toLowerCase()===name.toLowerCase())){toast('A session with this name already exists','bad');return;}
+  const ov=D.sessions.find(x=>x.id!==sessEdit&&from<=x.to&&to>=x.from);
+  if(ov&&!await ask(`These dates overlap with session <b>${esc(ov.name)}</b> (${dmy(ov.from)} – ${dmy(ov.to)}). Save anyway?`))return;
+  if(sessEdit)Object.assign(sessById(sessEdit),{name,from,to});
+  else{const n={id:uid(),name,from,to};D.sessions.push(n);
+    save();sessEdit=null;sessBar();
+    if(await ask(`Session <b>${esc(name)}</b> created. Make it the current session now?`,'Yes, set current','Not now'))return setSession(n.id);
+    scrSessions();return;}
+  save();sessEdit=null;sessBar();toast('Session saved','ok');scrSessions();
+}
+async function setSession(id){
+  const x=sessById(id);if(!x||id===D.settings.curSession)return;
+  if(!await ask(`Make <b>${esc(x.name)}</b> the current session?<br>New receipts and expenses will be saved in ${esc(x.name)}.`))return;
+  D.settings.curSession=id;save();sessBar();toast(`Current session: ${x.name}`,'ok');scrSessions();
+}
+async function delSession(id){const x=sessById(id);if(!await ask(`Delete session <b>${esc(x.name)}</b>?`))return;D.sessions=D.sessions.filter(y=>y.id!==id);save();scrSessions();}
+
+/* ================= EXPENSE HEADS ================= */
+let headEdit=null;
+const ehead=id=>D.expHeads.find(h=>h.id===id);
+const headsSorted=()=>D.expHeads.slice().sort(byOrder);
+function scrHeads(){
+  const h=headEdit?ehead(headEdit):null,cnt=id=>D.expenses.filter(e=>e.headId===id).length;
+  main.innerHTML=title('Expense Heads',`<button class="btn sm bad" onclick="delUnusedHeads()">Delete heads with no entries</button>`)+
+  `<div class="hint">Expense heads are the types of spending, like <b>Rent, Electricity, WiFi, Salary</b>. Add as many as you need. Order 1 shows at the top.</div>
+  <div class="two"><div class="card form"><h4>${h?'Edit head':'New head'}</h4><div class="grid">
+    <div class="w2"><label>Head name <i>*</i></label><input id="h_name" value="${esc(h?h.name:'')}" placeholder="Electricity"></div>
+    <div><label>Order No.</label><input id="h_ord" type="number" min="1" value="${h?(h.order||''):Math.max(0,...D.expHeads.map(x=>+x.order||0))+1}"></div>
+    <div class="w2"><label>Note (optional)</label><input id="h_note" value="${esc(h?h.note||'':'')}"></div>
+  </div><div class="btns"><button class="btn" onclick="saveHead()">Save (Ctrl+S)</button>${h?`<button class="btn g" onclick="headEdit=null;scrHeads()">Cancel</button>`:''}</div></div>
+  <div class="card"><h4>Add many heads at once</h4><label>One per line: <b>Name, Order</b></label>
+    <textarea id="h_bulk" rows="5" style="font:12px Consolas,monospace" placeholder="Generator Diesel, 10&#10;Newspaper, 11"></textarea>
+    <div class="btns"><button class="btn g" onclick="bulkHeads()">Add all</button></div></div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th style="width:80px">Order</th><th>Head</th><th class="n">Entries</th><th class="n">This session</th><th></th></tr></thead><tbody>
+  ${headsSorted().map(x=>`<tr data-id="${x.id}"><td><input type="number" min="1" value="${x.order||''}" style="width:64px;padding:3px 6px" onchange="ehead('${x.id}').order=parseInt(this.value,10)||'';save();scrHeads()"></td>
+    <td><b>${esc(x.name)}</b>${x.note?`<br><span class="muted small">${esc(x.note)}</span>`:''}</td><td class="n">${cnt(x.id)}</td>
+    <td class="n">${rs(sum(D.expenses.filter(e=>e.headId===x.id&&e.sess===D.settings.curSession),'amount'))}</td>
+    <td class="n"><button class="btn sm g" onclick="headEdit='${x.id}';scrHeads()">Edit</button> <button class="btn sm bad" onclick="delHead('${x.id}')">Delete</button></td></tr>`).join('')||'<tr><td colspan="5" class="muted">No heads yet.</td></tr>'}
+  </tbody></table></div>`;
+  onSave=saveHead;focusEl('#h_name');nav={Enter:id=>{headEdit=id;scrHeads();},F2:id=>{headEdit=id;scrHeads();}};selFirst();
+}
+function saveHead(){
+  const name=val('h_name'),order=parseInt(val('h_ord'),10)||'',note=val('h_note');
+  if(!name){toast('Enter the head name','bad');return focusEl('#h_name');}
+  if(D.expHeads.some(x=>x.id!==headEdit&&x.name.toLowerCase()===name.toLowerCase())){toast('This head already exists','bad');return;}
+  if(headEdit){Object.assign(ehead(headEdit),{name,order,note});D.expenses.filter(e=>e.headId===headEdit).forEach(e=>e.head=name);}
+  else D.expHeads.push({id:uid(),name,order,note});
+  headEdit=null;save();toast('Head saved','ok');scrHeads();
+}
+async function bulkHeads(){
+  const add=[],bad=[];let ord=Math.max(0,...D.expHeads.map(x=>+x.order||0));
+  $('#h_bulk').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean).forEach((l,i)=>{const [n,o]=l.split(/\t|,/).map(x=>x.trim());
+    if(!n||D.expHeads.concat(add).some(x=>x.name.toLowerCase()===n.toLowerCase())){bad.push(i+1);return;}
+    add.push({id:uid(),name:n,order:parseInt(o,10)||++ord,note:''});});
+  if(!add.length){toast('No new head found'+(bad.length?` (skipped lines: ${bad.join(', ')})`:''),'bad');return;}
+  if(!await ask(`Add ${add.length} heads?${bad.length?`<br><span class="red">Line ${bad.join(', ')} will be skipped (empty or already exists).</span>`:''}`))return;
+  D.expHeads.push(...add);save();toast(`${add.length} heads added`,'ok');scrHeads();
+}
+async function delHead(id){
+  const h=ehead(id),used=D.expenses.filter(e=>e.headId===id);
+  if(used.length){
+    const others=headsSorted().filter(x=>x.id!==id);
+    if(!others.length){toast('Create another head first, to move these entries to','bad');return;}
+    modal(`Delete head — ${h.name}`,`<p style="font-size:15px"><b>${used.length}</b> expense entries use this head. Move them to:</p>
+      <select id="mh_to">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select>
+      <div class="btns"><button class="btn bad" id="mh_go">Move & delete</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+    $('#mh_go').onclick=()=>{const to=ehead(val('mh_to'));used.forEach(e=>{e.headId=to.id;e.head=to.name;});
+      D.expHeads=D.expHeads.filter(x=>x.id!==id);save();closeModal();toast(`${used.length} entries moved to ${to.name}. Head deleted.`,'ok');scrHeads();};
+    return;
+  }
+  if(!await ask(`Delete the head <b>${esc(h.name)}</b>?`))return;
+  D.expHeads=D.expHeads.filter(x=>x.id!==id);save();scrHeads();
+}
+async function delUnusedHeads(){
+  const L=D.expHeads.filter(h=>!D.expenses.some(e=>e.headId===h.id));
+  if(!L.length){toast('Every head has entries — nothing to delete');return;}
+  if(!await ask(`Delete these ${L.length} heads with no entries?<br><span class="small">${L.map(h=>esc(h.name)).join(', ')}</span>`))return;
+  const ids=new Set(L.map(h=>h.id));D.expHeads=D.expHeads.filter(h=>!ids.has(h.id));save();toast(`${L.length} heads deleted`,'ok');scrHeads();
+}
+
+/* ================= EXPENSE ENTRY ================= */
+let expEdit=null;
+function scrExpense(){
+  const x=expEdit?D.expenses.find(e=>e.id===expEdit):null,t=today(),cm=curMonth(),pm=mAdd(cm,-1);
+  const M=D.expenses.filter(e=>e.date.slice(0,7)===cm).slice().reverse(),P=D.expenses.filter(e=>e.date.slice(0,7)===pm);
+  const feeM=sum(D.receipts.filter(r=>!r.cancel&&r.date.slice(0,7)===cm),'paid'),expM=sum(M,'amount');
+  main.innerHTML=title('Expense Entry',`Session <b>${esc(curSess().name)}</b>`)+
+  `<div class="two"><div class="card form"><h4>${x?`Edit expense #${x.no}`:'New expense'}</h4><div class="grid">
+    <div><label>Date</label><input id="x_date" type="date" value="${x?x.date:t}"></div>
+    <div class="w2"><label>Head <i>*</i> <a href="#" onclick="go('heads');return false" style="font-size:11px">(manage heads)</a></label><select id="x_head">${headsSorted().map(h=>`<option value="${h.id}"${x&&x.headId===h.id?' selected':''}>${esc(h.name)}</option>`).join('')}</select></div>
+    <div><label>Amount (₹) <i>*</i></label><input id="x_amt" type="number" min="0" value="${x?x.amount:''}"></div>
+    <div><label>Mode</label><select id="x_mode">${MODES.map(m=>`<option${x&&x.mode===m?' selected':''}>${m}</option>`).join('')}</select></div>
+    <div><label>Paid to</label><input id="x_to" value="${esc(x?x.paidTo||'':'')}" placeholder="e.g. Electricity board"></div>
+    <div class="w2"><label>Note</label><input id="x_note" value="${esc(x?x.note||'':'')}" placeholder="Bill no / remark"></div>
+  </div><div class="btns"><button class="btn ok" onclick="saveExpense()">Save (Ctrl+S)</button>${x?`<button class="btn g" onclick="expEdit=null;scrExpense()">Cancel</button>`:''}<button class="btn g" onclick="go('exprep')">Expense Report (X)</button></div></div>
+  <div><div class="card"><h4>${mName(cm)}</h4><div class="tot">
+    <div><span>Fee collected</span><b>${rs(feeM)}</b></div><div><span>Expenses</span><b>${rs(expM)}</b></div>
+    <div class="big"><span>${feeM-expM>=0?'Profit':'Loss'}</span><span class="${feeM-expM>=0?'green':'red'}">${rs(Math.abs(feeM-expM))}</span></div></div></div>
+  ${P.length?`<div class="card"><h4>Last month's expenses — add again</h4><table><tbody>${P.map(e=>`<tr><td>${esc(e.head)}<br><span class="muted small">${dmy(e.date)}${e.paidTo?' · '+esc(e.paidTo):''}</span></td><td class="n">${rs(e.amount)}</td>
+    <td class="n"><button class="btn sm g" onclick="expCopy('${e.id}')">Use</button></td></tr>`).join('')}</tbody></table></div>`:''}</div></div>
+  <div class="card" style="padding:0"><h4 style="padding:10px 12px 0">${mName(cm)} expenses</h4><table><thead><tr><th>No</th><th>Date</th><th>Head</th><th>Paid to</th><th>Mode</th><th>Note</th><th class="n">Amount</th><th></th></tr></thead><tbody>
+  ${M.map(e=>`<tr data-id="${e.id}"><td>${e.no}</td><td>${dmy(e.date)}</td><td><b>${esc(e.head)}</b></td><td>${esc(e.paidTo||'')}</td><td>${esc(e.mode)}</td><td class="small">${esc(e.note||'')}</td><td class="n">${rs(e.amount)}</td>
+    <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="expEdit='${e.id}';scrExpense()">Edit</button> <button class="btn sm bad" onclick="delExpense('${e.id}')">Delete</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">No expenses this month.</td></tr>'}
+  </tbody>${M.length?`<tfoot><tr><td colspan="6">Total</td><td class="n">${rs(expM)}</td><td></td></tr></tfoot>`:''}</table></div>`;
+  onSave=saveExpense;focusEl(x?'#x_amt':'#x_head');nav={F2:id=>{expEdit=id;scrExpense();}};
+}
+function expCopy(id){const e=D.expenses.find(x=>x.id===id);$('#x_head').value=e.headId;$('#x_amt').value=e.amount;$('#x_mode').value=e.mode;$('#x_to').value=e.paidTo||'';$('#x_note').value='';focusEl('#x_amt');}
+function saveExpense(){
+  const h=ehead(val('x_head')),amount=num('x_amt'),date=val('x_date')||today();
+  if(!h){toast('Create an expense head first (Masters → Expense Heads)','bad');return;}
+  if(amount<=0){toast('Enter the amount','bad');return focusEl('#x_amt');}
+  const v={date,headId:h.id,head:h.name,amount,mode:val('x_mode'),paidTo:val('x_to'),note:val('x_note')};
+  if(expEdit){const e=D.expenses.find(x=>x.id===expEdit);const ns=sessOfDate(date);if(ns!==e.sess){e.sess=ns;e.no=nextNo(D.expenses,ns);}Object.assign(e,v);}
+  else{const ss=sessOfDate(date);D.expenses.push({id:uid(),sess:ss,no:nextNo(D.expenses,ss),time:nowTime(),...v});}
+  expEdit=null;save();
+  const m=date.slice(0,7),f=sum(D.receipts.filter(r=>!r.cancel&&r.date.slice(0,7)===m),'paid'),x=sum(D.expenses.filter(e=>e.date.slice(0,7)===m),'amount');
+  toast(x>f?`Saved. ${mName(m)} expenses are ${rs(x-f)} more than fees collected.`:'Expense saved',x>f?'bad':'ok');
+  scrExpense();
+}
+async function delExpense(id){const e=D.expenses.find(x=>x.id===id);if(!await ask(`Delete expense #${e.no} — ${esc(e.head)} ${rs(e.amount)}?`))return;
+  D.expenses=D.expenses.filter(x=>x.id!==id);save();toast('Expense deleted');scrExpense();}
+
+/* ================= EXPENSE REPORT ================= */
+let xFrom=null,xTo=null,xHead='';
+function rangeOpts(){const c=curSess();return [['m','This month',curMonth()+'-01',today()],['pm','Last month',mAdd(curMonth(),-1)+'-01',mEnd(mAdd(curMonth(),-1))],
+  ...D.sessions.slice().sort((a,b)=>b.from.localeCompare(a.from)).map(x=>['s'+x.id,'Session '+x.name+(x.id===c.id?' (current)':''),x.from,x.to])];}
+function rangePicker(id,onPick){return `<select id="${id}" style="width:auto"><option value="">Quick range…</option>${rangeOpts().map(o=>`<option value="${o[0]}">${esc(o[1])}</option>`).join('')}</select>`;}
+function bindRange(id,f,t,cb){$('#'+id).onchange=()=>{const o=rangeOpts().find(x=>x[0]===$('#'+id).value);if(!o)return;$('#'+f).value=o[2];$('#'+t).value=o[3];cb();};}
+function scrExpRep(){
+  const c=curSess();xFrom=xFrom||c.from;xTo=xTo||today();
+  main.innerHTML=title('Expense Report',`${rangePicker('xr_q')}<input type="date" id="xr_from" value="${xFrom}"> to <input type="date" id="xr_to" value="${xTo}">
+    <select id="xr_head" style="width:auto"><option value="">All heads</option>${headsSorted().map(h=>`<option value="${h.id}"${h.id===xHead?' selected':''}>${esc(h.name)}</option>`).join('')}</select>
+    <button class="btn sm g" onclick="expRepCsv()">CSV</button><button class="btn sm g" onclick="printReport($('#xr_out').innerHTML)">Print</button>`)+`<div id="xr_out"></div>`;
+  const draw=()=>{xFrom=val('xr_from');xTo=val('xr_to');xHead=val('xr_head');
+    const L=expRows(),by=headsSorted().map(h=>({label:h.name,value:sum(L.filter(e=>e.headId===h.id),'amount')})).filter(x=>x.value).sort((a,b)=>b.value-a.value);
+    $('#xr_out').innerHTML=`<div class="two"><div class="card"><p style="margin:0 0 6px"><b>${dmy(xFrom)} to ${dmy(xTo)}</b></p><div class="kpi" style="border:0;padding:0"><div class="l">Total expenses</div><div class="v">${rs(sum(L,'amount'))}</div><div class="s">${L.length} entries</div></div></div>
+      <div class="card chart"><h4>By head</h4>${barChart(by.map(b=>({label:b.label.length>12?b.label.slice(0,11)+'…':b.label,value:b.value})),{color:'#eb6834'})}</div></div>
+      <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>Head</th><th>Paid to</th><th>Mode</th><th>Note</th><th class="n">Amount</th></tr></thead><tbody>
+      ${L.map(e=>`<tr><td>${e.no}</td><td>${dmy(e.date)}</td><td>${esc(e.head)}</td><td>${esc(e.paidTo||'')}</td><td>${esc(e.mode)}</td><td class="small">${esc(e.note||'')}</td><td class="n">${rs(e.amount)}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">No expenses in this range.</td></tr>'}
+      </tbody><tfoot><tr><td colspan="6">Total</td><td class="n">${rs(sum(L,'amount'))}</td></tr></tfoot></table></div>`;};
+  ['xr_from','xr_to','xr_head'].forEach(i=>$('#'+i).onchange=draw);bindRange('xr_q','xr_from','xr_to',draw);draw();
+}
+const expRows=()=>D.expenses.filter(e=>e.date>=xFrom&&e.date<=xTo&&(!xHead||e.headId===xHead)).slice().sort((a,b)=>a.date.localeCompare(b.date));
+function expRepCsv(){dl(`expenses_${xFrom}_${xTo}.csv`,toCsv([['No','Date','Head','Paid to','Mode','Note','Amount']].concat(expRows().map(e=>[e.no,dmy(e.date),e.head,e.paidTo,e.mode,e.note,e.amount]))),'text/csv');}
+
+/* ================= INCOME VS EXPENSE ================= */
+let plSess=null;
+function scrPL(sid){
+  if(sid)plSess=sid;const x=sessById(plSess)||curSess();plSess=x.id;
+  const end=x.to<today()?x.to:today(),months=x.from<=end?mRange(x.from.slice(0,7),end.slice(0,7)):[];
+  const R=D.receipts.filter(r=>!r.cancel&&r.date>=x.from&&r.date<=x.to),E=D.expenses.filter(e=>e.date>=x.from&&e.date<=x.to);
+  const rows=months.map(m=>({m,fee:sum(R.filter(r=>r.date.slice(0,7)===m),'paid'),exp:sum(E.filter(e=>e.date.slice(0,7)===m),'amount')}));
+  const tf=sum(rows,'fee'),te=sum(rows,'exp');
+  main.innerHTML=title('Income vs Expense',`Session <select id="pl_s" style="width:auto">${D.sessions.slice().sort((a,b)=>b.from.localeCompare(a.from)).map(s=>`<option value="${s.id}"${s.id===x.id?' selected':''}>${esc(s.name)}${s.id===D.settings.curSession?' (current)':''}</option>`).join('')}</select>
+    <button class="btn sm g" onclick="plCsv()">CSV</button><button class="btn sm g" onclick="printReport($('#pl_out').innerHTML)">Print</button>`)+
+  `<div id="pl_out"><div class="kpis">
+    <div class="kpi"><div class="l">Fee collected · ${esc(x.name)}</div><div class="v">${rs(tf)}</div></div>
+    <div class="kpi"><div class="l">Expenses · ${esc(x.name)}</div><div class="v">${rs(te)}</div></div>
+    <div class="kpi"><div class="l">${tf-te>=0?'Profit':'Loss'} · ${esc(x.name)}</div><div class="v ${tf-te>=0?'green':'red'}">${rs(Math.abs(tf-te))} ${tf-te>=0?'▲':'▼'}</div></div></div>
+  <div class="card chart"><h4>Fee vs expense by month</h4><div class="sub">${dmy(x.from)} to ${dmy(x.to)}</div>${pairChart(rows.map(r=>({label:MON[+r.m.slice(5)-1],a:r.fee,b:r.exp})))}
+    <div class="legend"><span><i style="background:#2a78d6"></i>Fee collected</span><span><i style="background:#eb6834"></i>Expenses</span></div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>Month</th><th class="n">Fee collected</th><th class="n">Expenses</th><th>Profit / Loss</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td>${mName(r.m)}</td><td class="n">${rs(r.fee)}</td><td class="n">${rs(r.exp)}</td><td>${plTag(r.fee-r.exp)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">This session has not started yet.</td></tr>'}
+  </tbody><tfoot><tr><td>Total</td><td class="n">${rs(tf)}</td><td class="n">${rs(te)}</td><td>${plTag(tf-te)}</td></tr></tfoot></table></div></div>`;
+  $('#pl_s').onchange=()=>scrPL($('#pl_s').value);
+}
+function plCsv(){const x=sessById(plSess);const end=x.to<today()?x.to:today();
+  const L=[['Month','Fee collected','Expenses','Profit / Loss']];mRange(x.from.slice(0,7),end.slice(0,7)).forEach(m=>{const f=sum(D.receipts.filter(r=>!r.cancel&&r.date.slice(0,7)===m),'paid'),e=sum(D.expenses.filter(y=>y.date.slice(0,7)===m),'amount');L.push([mName(m),f,e,f-e]);});
+  dl(`income_vs_expense_${x.name}.csv`,toCsv(L),'text/csv');}
+// Two series side by side (fee blue, expense orange)
+function pairChart(data,{h=210}={}){
+  if(!data.length)return '<p class="muted small">No data yet.</p>';
+  const W=560,pl=48,pr=8,pt=12,pb=24,iw=W-pl-pr,ih=h-pt-pb,max=niceMax(Math.max(1,...data.flatMap(d=>[d.a,d.b])));
+  const band=iw/data.length,bw=Math.min(18,band*.32);let g='';
+  for(let i=0;i<=4;i++){const y=pt+ih-ih*i/4;g+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="#ebe6d2"/><text x="${pl-6}" y="${y+4}" text-anchor="end">${compact(max*i/4)}</text>`;}
+  const bar=(x,v,c,tip)=>{const bh=ih*v/max,y=pt+ih-bh,r=Math.min(4,bh);return bh>0?`<path d="M${x},${pt+ih}V${y+r}Q${x},${y} ${x+r},${y}H${x+bw-r}Q${x+bw},${y} ${x+bw},${y+r}V${pt+ih}Z" fill="${c}" data-tip="${esc(tip)}"/>`:'';};
+  data.forEach((d,i)=>{const cx=pl+band*i+band/2;
+    g+=`<rect x="${pl+band*i}" y="${pt}" width="${band}" height="${ih}" fill="transparent" data-tip="${esc(d.label)} — Fee ${rs(d.a)} · Expense ${rs(d.b)} · ${d.a-d.b>=0?'Profit':'Loss'} ${rs(Math.abs(d.a-d.b))}"/>`;
+    g+=bar(cx-bw-1,d.a,'#2a78d6',`${d.label} fee: ${rs(d.a)}`)+bar(cx+1,d.b,'#eb6834',`${d.label} expense: ${rs(d.b)}`);
+    g+=`<text x="${cx}" y="${h-6}" text-anchor="middle">${esc(d.label)}</text>`;});
+  return `<svg viewBox="0 0 ${W} ${h}" role="img">${g}</svg>`;
 }
 
 /* ================= SETTINGS & BACKUP ================= */
@@ -1284,7 +1539,7 @@ async function boot(){
   if(!LIC.ok)return showActivate();
   let data=null;try{data=await api('data');}catch(e){toast(e.message,'bad');return;}
   D=migrate(data);if(!data)save();
-  drawSide();licBar();
+  drawSide();licBar();sessBar();
   if(!LIC.lifetime&&LIC.daysLeft<=7)toast(`License expires in ${LIC.daysLeft} days — please renew (K)`,'bad');
   go('home');duePopup();
 }
