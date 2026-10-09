@@ -123,7 +123,8 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .gwbox .gh.on,.gwbox .gh:hover{background:var(--hi)}
 .gwbox .it.sub{padding:5px 14px 5px 36px;font-size:13.5px}
 #side .sg{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin:8px 2px 3px}
-#top .lic.sess{background:#ffffff33;cursor:pointer}
+#top .lic.sess{background:#ffffff33;padding:1px 4px 1px 8px}
+#top .lic.sess select{width:auto;padding:1px 4px;font-size:12px;border:0;border-radius:3px;margin-left:4px;background:#fff;color:var(--ink)}
 /* month chips */
 .mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px}
 .mc{display:flex;align-items:flex-start;gap:6px;border:1px solid #cfc7a6;border-radius:4px;padding:6px 8px;background:#fff;cursor:pointer;font-size:13px;margin:0;color:var(--ink)}
@@ -180,7 +181,7 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 </style>
 </head>
 <body>
-<div id="top"><b id="libname" onclick="D&&go('home')" title="Go to Dashboard" style="cursor:pointer">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess" onclick="D&&go('sessions')" title="Current session — click to change"></span><span class="lic" id="lic"></span><span class="lic cd" id="cd"></span><span class="clock" id="clock"></span></div>
+<div id="top"><b id="libname" onclick="D&&go('home')" title="Go to Dashboard" style="cursor:pointer">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess"></span><span class="lic" id="lic"></span><span class="lic cd" id="cd"></span><span class="clock" id="clock"></span></div>
 <div id="wrap"><div id="main"><p class="muted">Loading…</p></div><div id="side"></div></div>
 <div id="modal"><div id="mbox"></div></div>
 <div id="toast"></div>
@@ -313,7 +314,16 @@ const curSess=()=>D.sessions.find(x=>x.id===D.settings.curSession)||D.sessions[0
 const sessById=id=>D.sessions.find(x=>x.id===id);
 const sessOfDate=d=>(D.sessions.find(x=>x.from<=d&&x.to>=d)||curSess()).id;
 const nextNo=(list,sess)=>1+Math.max(0,...list.filter(x=>x.sess===sess).map(x=>+x.no||0));
-function sessBar(){const e=$('#sess');if(!e)return;const c=curSess();e.textContent=c?'Session '+c.name:'';e.style.display=c?'':'none';}
+// Session ke mahine (Apr..Mar) aur us session ka "aaj ka mahina"
+const sessMonths=(x=curSess())=>[x.from.slice(0,7),x.to.slice(0,7)];
+function sessRefMonth(x=curSess()){const [a,b]=sessMonths(x),c=curMonth();return c<a?a:c>b?b:c;}
+const sessSorted=()=>D.sessions.slice().sort((a,b)=>b.from.localeCompare(a.from));
+function sessBar(){const e=$('#sess');if(!e)return;const c=curSess();
+  e.innerHTML=`Session <select id="sesssel" title="Switch session — the whole ERP shows this session">${sessSorted().map(x=>`<option value="${x.id}"${x.id===c.id?' selected':''}>${esc(x.name)}</option>`).join('')}</select>`;
+  $('#sesssel').onchange=ev=>switchSession(ev.target.value);}
+function resetRanges(){rFrom=rTo=dbFrom=dbTo=xFrom=xTo=null;plSess=null;}
+function switchSession(id){const x=sessById(id);if(!x)return;D.settings.curSession=id;save();resetRanges();sessBar();
+  toast(`Session ${x.name}`,'ok');go(cur,cur==='collect'?colSid:curArg);}
 
 /* ================= STUDENT LOGIC ================= */
 const plan=id=>D.plans.find(p=>p.id===id);
@@ -331,10 +341,14 @@ function monthRate(s,pid){
   return +p.days>31?Math.round(amt*30/p.days):amt;
 }
 function syncValid(s){const p=(s.paid||[]).slice().sort();s.paid=p;s.validTill=p.length?mEnd(p[p.length-1]):'';}
-function unpaidMonths(s){
-  const P=new Set(s.paid||[]);
-  return mRange((s.join||today()).slice(0,7),curMonth()).filter(m=>!P.has(m));
+// Due mahine: sirf chune hue session ke (join se pehle ke nahi, aaj ke baad ke nahi)
+function unpaidMonths(s,x=curSess()){
+  const P=new Set(s.paid||[]),[a,b]=sessMonths(x),jm=(s.join||today()).slice(0,7),st=a>jm?a:jm,en=b<curMonth()?b:curMonth();
+  return st>en?[]:mRange(st,en).filter(m=>!P.has(m));
 }
+// Doosre sessions ki due: [{x, u, amt}]
+function otherDues(s){return s.status==='left'?[]:sessSorted().filter(x=>x.id!==D.settings.curSession).map(x=>{const u=unpaidMonths(s,x);return {x,u,amt:u.length*monthRate(s)};}).filter(d=>d.u.length);}
+function otherDueHtml(s){const L=otherDues(s);return L.length?`<div class="hint" style="background:#fff4e5;border-color:#f3c98b">Other session dues: ${L.map(d=>`<b>${esc(d.x.name)}</b> — ${esc(mText(d.u))} (${rs(d.amt)}) <button class="btn sm" onclick="switchSession('${d.x.id}');go('collect','${s.id}')">Switch to ${esc(d.x.name)} &amp; collect</button>`).join(' &nbsp; ')}</div>`:'';}
 function stStatus(s){
   if(s.status==='left')return {k:'left',t:'Left'};
   const u=unpaidMonths(s);
@@ -371,10 +385,10 @@ const MENU=GROUPS.flatMap(g=>g[2].map(x=>[x[0],x[1],x[2],g[1]]));
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
   heads:scrHeads,expense:scrExpense,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
   daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
-let cur='home',gwSel=0,gwOpen=-1,onSave=null,nav=null,keyH=null;
+let curArg=null,cur='home',gwSel=0,gwOpen=-1,onSave=null,nav=null,keyH=null;
 function go(s,arg){
   if(!D)return;
-  cur=s;onSave=null;nav=null;keyH=null;closeModal();$('#tip').style.display='none';
+  cur=s;curArg=arg;onSave=null;nav=null;keyH=null;closeModal();$('#tip').style.display='none';
   const m=MENU.find(x=>x[2]===s);
   $('#scr').textContent=m?m[1]:'Gateway of Library';$('#libname').textContent=D.settings.name;
   main.scrollTop=0;SCREENS[s](arg);
@@ -468,16 +482,17 @@ document.addEventListener('mousemove',e=>{const t=e.target.closest&&e.target.clo
   tip.style.left=Math.min(innerWidth-tip.offsetWidth-8,e.clientX+12)+'px';tip.style.top=(e.clientY-34)+'px';});
 
 function scrHome(){
-  const t=today(),cm=curMonth(),act=active(),st=act.map(s=>[s,stStatus(s)]);
+  const t=today(),cm=sessRefMonth(),cs0=D.settings.curSession,act=active(),st=act.map(s=>[s,stStatus(s)]);
   const due=st.filter(x=>x[1].k==='due'),soon=st.filter(x=>x[1].k==='soon'),okN=st.filter(x=>x[1].k==='ok').length;
-  const R=D.receipts.filter(r=>!r.cancel),tr=R.filter(r=>r.date===t),mr=R.filter(r=>r.date.slice(0,7)===cm);
+  const R=D.receipts.filter(r=>!r.cancel&&r.sess===cs0),tr=D.receipts.filter(r=>!r.cancel&&r.date===t),mr=R.filter(r=>r.date.slice(0,7)===cm);
   const billable=act.filter(s=>(s.join||t).slice(0,7)<=cm);
   const expected=sum(billable,s=>monthRate(s)),paidCm=billable.filter(s=>(s.paid||[]).includes(cm));
   const gotCm=sum(paidCm,s=>monthRate(s)),pendCm=Math.max(0,expected-gotCm),unpaidCm=billable.length-paidCm.length;
-  const outstanding=sum(act,dueAmt),pres=Object.keys(D.att[t]||{}).length,collected=sum(mr,'paid');
+  const outstanding=sum(act,dueAmt),otherDue=sum(act,s=>sum(otherDues(s),'amt')),pres=Object.keys(D.att[t]||{}).length,collected=sum(mr,'paid');
   const pct=expected?Math.min(100,Math.round(gotCm*100/expected)):0;
-  const months=mRange(mAdd(cm,-5),cm).map(m=>({label:MON[+m.slice(5)-1],a:sum(R.filter(r=>r.date.slice(0,7)===m),'paid'),b:sum(D.expenses.filter(e=>e.date.slice(0,7)===m),'amount')}));
-  const expM=sum(D.expenses.filter(e=>e.date.slice(0,7)===cm),'amount'),pl=collected-expM,cs=curSess();
+  const sa=sessMonths()[0],m0=mAdd(cm,-5)<sa?sa:mAdd(cm,-5),SE=D.expenses.filter(e=>e.sess===cs0);
+  const months=mRange(m0,cm).map(m=>({label:MON[+m.slice(5)-1],a:sum(R.filter(r=>r.date.slice(0,7)===m),'paid'),b:sum(SE.filter(e=>e.date.slice(0,7)===m),'amount')}));
+  const expM=sum(SE.filter(e=>e.date.slice(0,7)===cm),'amount'),pl=collected-expM,cs=curSess();
   const modes=MODES.map(m=>({label:m,value:sum(mr.filter(r=>r.mode===m),'paid')})).filter(x=>x.value);
   const days=[...Array(7)].map((_,i)=>addDays(t,i-6)).map(d=>({label:new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short'}),value:Object.keys(D.att[d]||{}).length,hi:d===t}));
 
@@ -494,8 +509,8 @@ function scrHome(){
       <div class="kpi hero link" onclick="go('daybook')"><div class="l">Collected in ${MON[+cm.slice(5)-1]}</div><div class="v">${rs(collected)}</div><div class="s">Today ${rs(sum(tr,'paid'))} · ${tr.length} receipts</div></div>
       <div class="kpi"><div class="l">Expected this month</div><div class="v">${rs(expected)}</div><div class="s">${billable.length} active students</div></div>
       <div class="kpi link" onclick="go('due','due')"><div class="l">Pending this month</div><div class="v" style="color:${pendCm?'var(--bad)':'inherit'}">${rs(pendCm)}</div><div class="s">${unpaidCm} students yet to pay</div></div>
-      <div class="kpi link" onclick="go('due','all')"><div class="l">Total outstanding</div><div class="v" style="color:${outstanding?'var(--bad)':'inherit'}">${rs(outstanding)}</div><div class="s">Arrears + balance · ${due.length} due</div></div>
-      <div class="kpi link" onclick="go('expense')"><div class="l">Expenses in ${MON[+cm.slice(5)-1]}</div><div class="v">${rs(expM)}</div><div class="s">${D.expenses.filter(e=>e.date===t).length} entries today</div></div>
+      <div class="kpi link" onclick="go('due','all')"><div class="l">Total outstanding</div><div class="v" style="color:${outstanding?'var(--bad)':'inherit'}">${rs(outstanding)}</div><div class="s">Arrears + balance · ${due.length} due${otherDue?` · other sessions ${rs(otherDue)}`:''}</div></div>
+      <div class="kpi link" onclick="go('expense')"><div class="l">Expenses in ${MON[+cm.slice(5)-1]}</div><div class="v">${rs(expM)}</div><div class="s">${SE.filter(e=>e.date.slice(0,7)===cm).length} entries</div></div>
       <div class="kpi link" onclick="go('pl')"><div class="l">${pl>=0?'Profit':'Loss'} in ${MON[+cm.slice(5)-1]}</div><div class="v ${pl>=0?'green':'red'}">${rs(Math.abs(pl))} ${pl>=0?'▲':'▼'}</div><div class="s">${pl>=0?'Fee collected − expenses':'Expenses '+rs(-pl)+' more than fee'}</div></div>
       <div class="kpi link" onclick="go('att')"><div class="l">Present today</div><div class="v">${pres} <span class="muted" style="font-size:15px">/ ${act.length}</span></div><div class="s">${soon.length} fees expiring soon</div></div>
     </div>
@@ -702,7 +717,7 @@ function scrRecord(id){
   const months=mRange(jm<mAdd(cm,-23)?mAdd(cm,-23):jm,mAdd(cm,3));
   const fee=sum(ok,'fee'),ext=sum(ok,'extraAmt'),disc=sum(ok,'disc'),paid=sum(ok,'paid');
   main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button>`)+
-  (st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due:</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Balance ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
+  otherDueHtml(s)+(st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due (${esc(curSess().name)}):</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Balance ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
     <button class="btn sm wa" style="margin-left:8px" onclick="waRemind('${s.id}')">Send WhatsApp reminder</button></div>`:'')+
   `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
     <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
@@ -761,17 +776,16 @@ function drawCollect(){
   const s=stu(colSid);if(!s)return;
   const per=periodic(),one=oneTime(),hist=D.receipts.filter(r=>r.sid===s.id).slice(-6).reverse();
   const first=!D.receipts.some(r=>r.sid===s.id&&!r.cancel);
-  const P=new Set(s.paid||[]),cm=curMonth(),due=unpaidMonths(s);
+  const P=new Set(s.paid||[]),cs=curSess(),[sa,sb]=sessMonths(cs),cm=sessRefMonth(cs),due=unpaidMonths(s);
   const paidBy={};D.receipts.filter(r=>r.sid===s.id&&!r.cancel).forEach(r=>(r.mlist||[]).forEach(m=>paidBy[m]=r.no));
-  const last=(s.paid||[]).slice(-1)[0]||cm;
-  const jm=(s.join||today()).slice(0,7);let start=[mAdd(cm,-5),due[0]||cm].sort()[0];if(start<jm)start=jm;
-  const months=mRange(start,mAdd(last>cm?last:cm,12));
-  const pre=due.length?due:[months.find(m=>!P.has(m)&&m>=cm)];
-  $('#colbody').innerHTML=`<div class="two"><div class="card form"><h4>Receipt — ${esc(s.name)}</h4><div class="grid">
+  const jm=(s.join||today()).slice(0,7),start=sa>jm?sa:jm;
+  const months=start>sb?[]:mRange(start,sb);
+  const pre=due.length?due:[months.find(m=>!P.has(m)&&m>=cm)].filter(Boolean);
+  $('#colbody').innerHTML=otherDueHtml(s)+`<div class="two"><div class="card form"><h4>Receipt — ${esc(s.name)} <span class="tag ok" style="vertical-align:middle">Session ${esc(cs.name)}</span></h4><div class="grid">
     <div><label>Receipt date</label><input id="c_date" type="date" value="${today()}"></div>
     <div class="w2"><label>Fee head</label><select id="c_plan">${per.map(p=>`<option value="${p.id}"${p.id===s.planId?' selected':''}>${esc(p.name)} — ${rs(monthRate(s,p.id))}/month</option>`).join('')}</select></div>
   </div>
-  <label style="margin-top:10px">Which months? — tick them (<kbd>Space</kbd> tick, <kbd>←</kbd><kbd>→</kbd> next month)</label>
+  <label style="margin-top:10px">Which months of session ${esc(cs.name)}? — tick them (<kbd>Space</kbd> tick, <kbd>←</kbd><kbd>→</kbd> next month)</label>
   <div class="mgrid">${months.map(m=>P.has(m)?`<label class="mc paid"><input type="checkbox" checked disabled><span>${mName(m)}<small>✓ Paid${paidBy[m]?' #'+paidBy[m]:''}</small></span></label>`:
     `<label class="mc${m<=cm?' due':''}${pre.includes(m)?' on':''}"><input type="checkbox" data-m="${m}"${pre.includes(m)?' checked':''}><span>${mName(m)}<small>${m<=cm?'Due':'Advance'}</small></span></label>`).join('')}</div>
   ${one.length?`<label style="margin-top:10px">One-time fees</label><div class="xgrid">${one.map((p,i)=>`<label class="mc${first&&!P.size&&!i?' on':''}"><input type="checkbox" data-x="${p.id}"${first&&!P.size&&!i?' checked':''}><span>${esc(p.name)}<small>${rs(p.amount)}</small></span></label>`).join('')}</div>`:''}
@@ -825,7 +839,7 @@ async function saveReceipt(){
   if(!mlist.length&&!ex.length&&!oldBal&&!await ask('No month or fee is ticked. Create the receipt anyway?'))return;
   if(paid<=0&&!await ask('Received amount is ₹0. Create the receipt anyway?'))return focusEl('#c_paid');
   if(paid>total&&!await ask(`Received (${rs(paid)}) is more than the total (${rs(total)}). Continue?`))return focusEl('#c_paid');
-  const rdate=val('c_date')||today(),rsess=sessOfDate(rdate);
+  const rdate=val('c_date')||today(),rsess=D.settings.curSession;
   const r={id:uid(),sess:rsess,no:nextNo(D.receipts,rsess),date:rdate,time:nowTime(),sid:s.id,code:s.code,name:s.name,
     head:mlist.length?p.name:'',mlist,months:mlist.length,from:mlist.length?mlist[0]+'-01':'',to:mlist.length?mEnd(mlist[mlist.length-1]):'',fee,
     extras:ex.map(x=>({name:x.name,amt:+x.amount})),extra:ex.map(x=>x.name).join(', '),extraAmt,disc,oldBal,total,paid,bal:r2(total-paid),mode:val('c_mode'),note:val('c_note'),
@@ -992,12 +1006,12 @@ function dueCsv(){dl(`due_${today()}.csv`,toCsv([['ID','Name','Mobile','Seat','V
 /* ================= RECEIPTS ================= */
 let rFrom=null,rTo=null;
 function scrReceipts(){
-  rFrom=rFrom||today().slice(0,8)+'01';rTo=rTo||today();
-  main.innerHTML=title('Receipt List',`<input type="date" id="r_from" value="${rFrom}"> to <input type="date" id="r_to" value="${rTo}">`)+
+  const cs=curSess();rFrom=rFrom||cs.from;rTo=rTo||today();
+  main.innerHTML=title('Receipt List',`Session <b>${esc(cs.name)}</b> ${rangePicker('r_qr')}<input type="date" id="r_from" value="${rFrom}"> to <input type="date" id="r_to" value="${rTo}">`)+
   `<div class="card"><input id="r_q" data-nav placeholder="Search: name / ID / receipt no"><div class="muted small" style="margin-top:6px"><kbd>Enter</kbd> Print · <kbd>F9</kbd> WhatsApp · Only a student's latest receipt can be cancelled</div></div>
   <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>ID</th><th>Name</th><th>Fee / Months</th><th class="n">Total</th><th class="n">Received</th><th class="n">Balance</th><th>Mode</th><th></th></tr></thead><tbody id="r_tb"></tbody></table></div>`;
   const draw=()=>{rFrom=val('r_from');rTo=val('r_to');const q=val('r_q').toLowerCase();
-    const L=D.receipts.filter(r=>r.date>=rFrom&&r.date<=rTo&&(!q||r.name.toLowerCase().includes(q)||String(r.code)===q||String(r.no)===q)).slice().reverse();
+    const L=D.receipts.filter(r=>r.sess===D.settings.curSession&&r.date>=rFrom&&r.date<=rTo&&(!q||r.name.toLowerCase().includes(q)||String(r.code)===q||String(r.no)===q)).slice().reverse();
     const ok=L.filter(r=>!r.cancel);
     $('#r_tb').innerHTML=L.map(r=>`<tr data-id="${r.id}" class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)}</td><td>${esc(r.code)}</td><td><b>${esc(r.name)}</b></td>
       <td class="small">${r.months?esc(r.head)+'<br>'+esc(mText(r.mlist)):''}${r.extra?'<br>'+esc(r.extra):''}</td><td class="n">${rs(r.total)}</td><td class="n"><b>${rs(r.paid)}</b></td><td class="n">${r.bal?rs(r.bal):''}</td><td>${esc(r.mode)}</td>
@@ -1005,7 +1019,7 @@ function scrReceipts(){
       '<tr><td colspan="10" class="muted">No receipts in this date range.</td></tr>';
     if(L.length)$('#r_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="6"><b>${ok.length} receipts</b>${L.length>ok.length?` (${L.length-ok.length} cancelled)`:''}</td><td class="n"><b>${rs(sum(ok,'paid'))}</b></td><td colspan="3"></td></tr>`);
     selFirst();};
-  ['r_from','r_to'].forEach(i=>$('#'+i).onchange=draw);$('#r_q').oninput=draw;draw();
+  ['r_from','r_to'].forEach(i=>$('#'+i).onchange=draw);bindRange('r_qr','r_from','r_to',draw);$('#r_q').oninput=draw;draw();
   nav={Enter:printReceipt,F9:waReceipt};focusEl('#r_q');
 }
 async function cancelReceipt(id){
@@ -1323,9 +1337,9 @@ async function delUnusedHeads(){
 /* ================= EXPENSE ENTRY ================= */
 let expEdit=null;
 function scrExpense(){
-  const x=expEdit?D.expenses.find(e=>e.id===expEdit):null,t=today(),cm=curMonth(),pm=mAdd(cm,-1);
-  const M=D.expenses.filter(e=>e.date.slice(0,7)===cm).slice().reverse(),P=D.expenses.filter(e=>e.date.slice(0,7)===pm);
-  const feeM=sum(D.receipts.filter(r=>!r.cancel&&r.date.slice(0,7)===cm),'paid'),expM=sum(M,'amount');
+  const x=expEdit?D.expenses.find(e=>e.id===expEdit):null,t=today(),cm=sessRefMonth(),pm=mAdd(curMonth(),-1),cs=D.settings.curSession;
+  const M=D.expenses.filter(e=>e.sess===cs&&e.date.slice(0,7)===cm).slice().reverse(),P=D.expenses.filter(e=>e.date.slice(0,7)===pm);
+  const feeM=sum(D.receipts.filter(r=>!r.cancel&&r.sess===cs&&r.date.slice(0,7)===cm),'paid'),expM=sum(M,'amount');
   main.innerHTML=title('Expense Entry',`Session <b>${esc(curSess().name)}</b>`)+
   `<div class="two"><div class="card form"><h4>${x?`Edit expense #${x.no}`:'New expense'}</h4><div class="grid">
     <div><label>Date</label><input id="x_date" type="date" value="${x?x.date:t}"></div>
@@ -1352,8 +1366,8 @@ function saveExpense(){
   if(!h){toast('Create an expense head first (Masters → Expense Heads)','bad');return;}
   if(amount<=0){toast('Enter the amount','bad');return focusEl('#x_amt');}
   const v={date,headId:h.id,head:h.name,amount,mode:val('x_mode'),paidTo:val('x_to'),note:val('x_note')};
-  if(expEdit){const e=D.expenses.find(x=>x.id===expEdit);const ns=sessOfDate(date);if(ns!==e.sess){e.sess=ns;e.no=nextNo(D.expenses,ns);}Object.assign(e,v);}
-  else{const ss=sessOfDate(date);D.expenses.push({id:uid(),sess:ss,no:nextNo(D.expenses,ss),time:nowTime(),...v});}
+  if(expEdit)Object.assign(D.expenses.find(x=>x.id===expEdit),v);
+  else{const ss=D.settings.curSession;D.expenses.push({id:uid(),sess:ss,no:nextNo(D.expenses,ss),time:nowTime(),...v});}
   expEdit=null;save();
   const m=date.slice(0,7),f=sum(D.receipts.filter(r=>!r.cancel&&r.date.slice(0,7)===m),'paid'),x=sum(D.expenses.filter(e=>e.date.slice(0,7)===m),'amount');
   toast(x>f?`Saved. ${mName(m)} expenses are ${rs(x-f)} more than fees collected.`:'Expense saved',x>f?'bad':'ok');
@@ -1369,8 +1383,8 @@ function rangeOpts(){const c=curSess();return [['m','This month',curMonth()+'-01
 function rangePicker(id,onPick){return `<select id="${id}" style="width:auto"><option value="">Quick range…</option>${rangeOpts().map(o=>`<option value="${o[0]}">${esc(o[1])}</option>`).join('')}</select>`;}
 function bindRange(id,f,t,cb){$('#'+id).onchange=()=>{const o=rangeOpts().find(x=>x[0]===$('#'+id).value);if(!o)return;$('#'+f).value=o[2];$('#'+t).value=o[3];cb();};}
 function scrExpRep(){
-  const c=curSess();xFrom=xFrom||c.from;xTo=xTo||today();
-  main.innerHTML=title('Expense Report',`${rangePicker('xr_q')}<input type="date" id="xr_from" value="${xFrom}"> to <input type="date" id="xr_to" value="${xTo}">
+  const c=curSess();xFrom=xFrom||c.from;xTo=xTo||(today()<c.to?today():c.to);
+  main.innerHTML=title('Expense Report',`Session <b>${esc(c.name)}</b> ${rangePicker('xr_q')}<input type="date" id="xr_from" value="${xFrom}"> to <input type="date" id="xr_to" value="${xTo}">
     <select id="xr_head" style="width:auto"><option value="">All heads</option>${headsSorted().map(h=>`<option value="${h.id}"${h.id===xHead?' selected':''}>${esc(h.name)}</option>`).join('')}</select>
     <button class="btn sm g" onclick="expRepCsv()">CSV</button><button class="btn sm g" onclick="printReport($('#xr_out').innerHTML)">Print</button>`)+`<div id="xr_out"></div>`;
   const draw=()=>{xFrom=val('xr_from');xTo=val('xr_to');xHead=val('xr_head');
@@ -1382,7 +1396,7 @@ function scrExpRep(){
       </tbody><tfoot><tr><td colspan="6">Total</td><td class="n">${rs(sum(L,'amount'))}</td></tr></tfoot></table></div>`;};
   ['xr_from','xr_to','xr_head'].forEach(i=>$('#'+i).onchange=draw);bindRange('xr_q','xr_from','xr_to',draw);draw();
 }
-const expRows=()=>D.expenses.filter(e=>e.date>=xFrom&&e.date<=xTo&&(!xHead||e.headId===xHead)).slice().sort((a,b)=>a.date.localeCompare(b.date));
+const expRows=()=>D.expenses.filter(e=>e.sess===D.settings.curSession&&e.date>=xFrom&&e.date<=xTo&&(!xHead||e.headId===xHead)).slice().sort((a,b)=>a.date.localeCompare(b.date));
 function expRepCsv(){dl(`expenses_${xFrom}_${xTo}.csv`,toCsv([['No','Date','Head','Paid to','Mode','Note','Amount']].concat(expRows().map(e=>[e.no,dmy(e.date),e.head,e.paidTo,e.mode,e.note,e.amount]))),'text/csv');}
 
 /* ================= INCOME VS EXPENSE ================= */
@@ -1390,8 +1404,10 @@ let plSess=null;
 function scrPL(sid){
   if(sid)plSess=sid;const x=sessById(plSess)||curSess();plSess=x.id;
   const end=x.to<today()?x.to:today(),months=x.from<=end?mRange(x.from.slice(0,7),end.slice(0,7)):[];
-  const R=D.receipts.filter(r=>!r.cancel&&r.date>=x.from&&r.date<=x.to),E=D.expenses.filter(e=>e.date>=x.from&&e.date<=x.to);
+  const R=D.receipts.filter(r=>!r.cancel&&r.sess===x.id),E=D.expenses.filter(e=>e.sess===x.id);
   const rows=months.map(m=>({m,fee:sum(R.filter(r=>r.date.slice(0,7)===m),'paid'),exp:sum(E.filter(e=>e.date.slice(0,7)===m),'amount')}));
+  const late={m:'late',fee:sum(R.filter(r=>r.date>x.to||r.date<x.from),'paid'),exp:sum(E.filter(e=>e.date>x.to||e.date<x.from),'amount')};
+  if(late.fee||late.exp)rows.push(late);
   const tf=sum(rows,'fee'),te=sum(rows,'exp');
   main.innerHTML=title('Income vs Expense',`Session <select id="pl_s" style="width:auto">${D.sessions.slice().sort((a,b)=>b.from.localeCompare(a.from)).map(s=>`<option value="${s.id}"${s.id===x.id?' selected':''}>${esc(s.name)}${s.id===D.settings.curSession?' (current)':''}</option>`).join('')}</select>
     <button class="btn sm g" onclick="plCsv()">CSV</button><button class="btn sm g" onclick="printReport($('#pl_out').innerHTML)">Print</button>`)+
@@ -1399,15 +1415,15 @@ function scrPL(sid){
     <div class="kpi"><div class="l">Fee collected · ${esc(x.name)}</div><div class="v">${rs(tf)}</div></div>
     <div class="kpi"><div class="l">Expenses · ${esc(x.name)}</div><div class="v">${rs(te)}</div></div>
     <div class="kpi"><div class="l">${tf-te>=0?'Profit':'Loss'} · ${esc(x.name)}</div><div class="v ${tf-te>=0?'green':'red'}">${rs(Math.abs(tf-te))} ${tf-te>=0?'▲':'▼'}</div></div></div>
-  <div class="card chart"><h4>Fee vs expense by month</h4><div class="sub">${dmy(x.from)} to ${dmy(x.to)}</div>${pairChart(rows.map(r=>({label:MON[+r.m.slice(5)-1],a:r.fee,b:r.exp})))}
+  <div class="card chart"><h4>Fee vs expense by month</h4><div class="sub">${dmy(x.from)} to ${dmy(x.to)}</div>${pairChart(rows.filter(r=>r.m!=='late').map(r=>({label:MON[+r.m.slice(5)-1],a:r.fee,b:r.exp})))}
     <div class="legend"><span><i style="background:#2a78d6"></i>Fee collected</span><span><i style="background:#eb6834"></i>Expenses</span></div></div>
   <div class="card" style="padding:0"><table><thead><tr><th>Month</th><th class="n">Fee collected</th><th class="n">Expenses</th><th>Profit / Loss</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td>${mName(r.m)}</td><td class="n">${rs(r.fee)}</td><td class="n">${rs(r.exp)}</td><td>${plTag(r.fee-r.exp)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">This session has not started yet.</td></tr>'}
+  ${rows.map(r=>`<tr><td>${r.m==='late'?'Outside session dates (e.g. old dues collected later)':mName(r.m)}</td><td class="n">${rs(r.fee)}</td><td class="n">${rs(r.exp)}</td><td>${plTag(r.fee-r.exp)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">This session has not started yet.</td></tr>'}
   </tbody><tfoot><tr><td>Total</td><td class="n">${rs(tf)}</td><td class="n">${rs(te)}</td><td>${plTag(tf-te)}</td></tr></tfoot></table></div></div>`;
   $('#pl_s').onchange=()=>scrPL($('#pl_s').value);
 }
 function plCsv(){const x=sessById(plSess);const end=x.to<today()?x.to:today();
-  const L=[['Month','Fee collected','Expenses','Profit / Loss']];mRange(x.from.slice(0,7),end.slice(0,7)).forEach(m=>{const f=sum(D.receipts.filter(r=>!r.cancel&&r.date.slice(0,7)===m),'paid'),e=sum(D.expenses.filter(y=>y.date.slice(0,7)===m),'amount');L.push([mName(m),f,e,f-e]);});
+  const L=[['Month','Fee collected','Expenses','Profit / Loss']];mRange(x.from.slice(0,7),end.slice(0,7)).forEach(m=>{const f=sum(D.receipts.filter(r=>!r.cancel&&r.sess===x.id&&r.date.slice(0,7)===m),'paid'),e=sum(D.expenses.filter(y=>y.sess===x.id&&y.date.slice(0,7)===m),'amount');L.push([mName(m),f,e,f-e]);});
   dl(`income_vs_expense_${x.name}.csv`,toCsv(L),'text/csv');}
 // Two series side by side (fee blue, expense orange)
 function pairChart(data,{h=210}={}){

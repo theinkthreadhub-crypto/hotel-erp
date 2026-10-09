@@ -8,6 +8,7 @@ Poora ERP English mein hai.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
+- **Session-wise kaam:** upar patti ke **Session dropdown** se session badlein. Dashboard, Fee Collect, Due List, Receipt List aur Reports sab usi session ke dikhte hain. Fee Collect mein sirf us session ke mahine (Apr–Mar) aate hain, isliye ek receipt ek hi session ki hoti hai. Pichhle session ki due fee lene ke liye dropdown se wo session chunein, ya Student Record / Fee Collect mein **"Switch to … & collect"** dabayein.
 - **Expense Heads (H):** Rent, Electricity, WiFi, Salary jaise kharche ke naam. Naye banayein, order set karein, ek saath kai add karein. Entries wala head delete karte waqt entries doosre head mein shift ho jaati hain.
 - **Expense Entry (E):** Date, Head, Amount, Mode, Paid to, Note. Pichhle mahine ke kharche "Use" se dobara bhar sakte hain.
 - **Reports:** Income vs Expense (**V**) mahine-wise Profit/Loss ke saath, Expense Report (**X**) head-wise. Day Book mein fee, kharcha, Profit/Loss aur Cash in hand.
