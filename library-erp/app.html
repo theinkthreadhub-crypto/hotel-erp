@@ -333,7 +333,8 @@ function scrHome(){
   if(D.settings.name==='My Library')setup.push(`<b>G</b> dabaakar library ka naam, address aur contact daalein.`);
   if(!periodic().length)setup.push(`<b>F</b> (Fee Master) mein fee plan banayein, jaise Monthly / 30 din.`);
   if(!D.students.length)setup.push(`<b>S</b> se student jodein, ya <b>I</b> se Excel/CSV se bulk mein daalein.`);
-  main.innerHTML=(setup.length?`<div class="hint">Shuru karne ke liye:<br>${setup.map((x,j)=>(j+1)+'. '+x).join('<br>')}</div>`:'')+
+  main.innerHTML=(setup.length?`<div class="hint">Shuru karne ke liye:<br>${setup.map((x,j)=>(j+1)+'. '+x).join('<br>')}
+    ${!D.students.length?`<div style="margin-top:8px">Naya computer hai aur purana backup hai (email wali <b>library_backup_….json</b>)? <label class="btn sm" style="display:inline-block;margin:0;color:#fff">Backup se data wapas laayein<input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label></div>`:''}</div>`:'')+
   `<div class="gw"><div class="gwbox"><h3>Gateway of Library</h3>${items}<div style="height:8px"></div></div>
   <div class="gwbox stats"><h3>${dmy(t)}</h3>
     <div class="stat link" onclick="go('list')"><span>Active students</span><b>${act.length}</b></div>

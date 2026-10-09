@@ -78,3 +78,10 @@ GitHub par `library-erp` folder mein push karte hi Actions bhi exe banata hai (a
 4. **Abhi backup email karein** dabakar test karein.
 
 ERP chalu rehne par din mein ek baar backup apne aap jaata hai.
+
+## Backup se data wapas laana (naya computer / format)
+
+1. Email se `library_backup_YYYY-MM-DD.json` file download karein (sabse nayi date wali).
+2. Naye computer par `LibraryERP.exe` chalayein aur activation key daalein. Naye computer ke liye nayi key lagegi.
+3. Gateway par **Backup se data wapas laayein** dabayein, ya **G → Restore backup**. Phir JSON file chunein aur `Y` dabayein.
+4. Students, fee, receipts, attendance aur settings sab wapas aa jaate hain. Email backup settings bhi wapas aa jaati hain, isliye roz ka backup phir se chalu ho jaata hai.
