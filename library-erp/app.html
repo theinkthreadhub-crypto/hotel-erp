@@ -1,0 +1,962 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Library ERP</title>
+<style>
+:root{
+  --bar:#2b4c7e; --bar2:#1f3a63; --bg:#fffdf0; --panel:#fff; --line:#d9d2b0; --ink:#1d1d1d; --muted:#6b6b6b;
+  --hi:#fff3b0; --ok:#1e7d32; --bad:#c62828; --warn:#ef6c00; --side:#e9eef6;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font:14px/1.4 "Segoe UI",Tahoma,Arial,sans-serif;color:var(--ink);background:var(--bg);display:flex;flex-direction:column}
+button{font:inherit;cursor:pointer}
+input,select,textarea{font:inherit;padding:6px 8px;border:1px solid #bdb59a;border-radius:3px;background:#fff;width:100%}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid #f5c400;background:var(--hi)}
+input[readonly]{background:#f6f3e4}
+#top{background:var(--bar);color:#fff;display:flex;align-items:center;gap:14px;padding:6px 14px}
+#top b{font-size:17px;letter-spacing:.3px}
+#top .scr{background:var(--bar2);padding:2px 10px;border-radius:3px;font-size:13px}
+#top .lic{font-size:12px;padding:2px 8px;border-radius:3px;background:#ffffff22}
+#top .lic.low{background:var(--bad)}#top .lic:empty{display:none}
+#top .clock{margin-left:auto;font-size:13px;opacity:.9}
+#wrap{flex:1;display:flex;min-height:0}
+#main{flex:1;overflow:auto;padding:14px}
+#side{width:190px;background:var(--side);border-left:1px solid var(--line);overflow:auto;padding:6px}
+#side button{display:flex;width:100%;text-align:left;background:#fff;border:1px solid #bccbe0;margin:0 0 4px;padding:6px 8px;border-radius:3px;font-size:13px}
+#side button:hover{background:var(--hi)}
+#side button u{font-weight:700;color:var(--bar);text-decoration:none;width:42px;flex:none}
+#side .keys{font-size:11px;color:var(--muted);padding:6px 4px;border-top:1px solid #bccbe0;margin-top:6px}
+.title{background:var(--bar);color:#fff;padding:6px 12px;font-weight:600;display:flex;align-items:center;gap:10px;margin:-14px -14px 14px;flex-wrap:wrap}
+.title .r{margin-left:auto;font-weight:400;font-size:13px;display:flex;gap:6px;align-items:center}
+.title input,.title select{width:auto;padding:2px 6px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:12px;margin-bottom:12px}
+.card h4{margin:0 0 8px;color:var(--bar)}
+.grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.grid .w2{grid-column:span 2}
+.two{display:grid;grid-template-columns:1.25fr 1fr;gap:12px;align-items:start}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1}.row>.fix{flex:none;width:auto}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:2px}
+label i{color:var(--bad);font-style:normal}
+table{width:100%;border-collapse:collapse;background:#fff}
+th,td{padding:6px 8px;border-bottom:1px solid #eee8cf;text-align:left;vertical-align:middle}
+th{background:#f3eed3;font-weight:600;font-size:13px;position:sticky;top:0;z-index:1}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+tr:hover td{background:#fffbe0}
+tr.sel td{background:var(--hi)!important;box-shadow:inset 0 1px 0 #e0c200,inset 0 -1px 0 #e0c200}
+tr.cx td{color:#999;text-decoration:line-through}
+tfoot td{font-weight:700;background:#f8f4de}
+.btn{background:var(--bar);color:#fff;border:0;padding:8px 14px;border-radius:3px}
+.btn:hover{background:var(--bar2)}
+.btn.g{background:#fff;color:var(--bar);border:1px solid var(--bar)}
+.btn.ok{background:var(--ok)}.btn.bad{background:var(--bad)}.btn.wa{background:#1fa855}
+.btn.sm{padding:3px 8px;font-size:12px}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.muted{color:var(--muted)}.red{color:var(--bad);font-weight:600}.green{color:var(--ok);font-weight:600}
+.small{font-size:12px}
+.tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;font-weight:600;white-space:nowrap}
+.tag.ok{background:#e3f4e5;color:var(--ok)}.tag.due{background:#fde2e2;color:var(--bad)}.tag.soon{background:#ffe9cc;color:#b45309}.tag.left{background:#eee;color:#666}
+.hint{background:#eef3fb;border:1px solid #c9d6ea;border-radius:4px;padding:8px 12px;font-size:13px;margin-bottom:12px}
+.hint b{color:var(--bar)}
+kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:3px;padding:0 4px;font:11px Consolas,monospace}
+/* gateway */
+.gw{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;align-items:flex-start;padding-top:10px}
+.gwbox{width:340px;background:#fff;border:1px solid var(--line);box-shadow:0 2px 8px #0001}
+.gwbox h3{margin:0;background:var(--bar);color:#fff;text-align:center;padding:8px;font-size:15px}
+.gwbox .sec{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:8px 18px 2px}
+.gwbox .it{padding:5px 18px;cursor:pointer;display:flex;gap:6px}
+.gwbox .it u{color:var(--bad);font-weight:700;text-decoration:none}
+.gwbox .it.on,.gwbox .it:hover{background:var(--hi)}
+.stats{width:310px}
+.stat{display:flex;justify-content:space-between;padding:7px 12px;border-bottom:1px dashed #e6dfbf}
+.stat b{font-variant-numeric:tabular-nums}
+.stat.link{cursor:pointer}.stat.link:hover{background:var(--hi)}
+/* student picker */
+.pick{position:relative}
+#sugg{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #bdb59a;z-index:5;max-height:300px;overflow:auto;box-shadow:0 6px 18px #0002}
+#sugg div{padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1ecd6}
+#sugg div.on,#sugg div:hover{background:var(--hi)}
+.info td{border:0;padding:3px 6px}.info td:first-child{color:var(--muted);width:40%}
+.tot div{display:flex;justify-content:space-between;padding:3px 0}
+.tot .big{font-size:22px;font-weight:700;color:var(--bar);border-top:2px solid var(--bar);margin-top:4px;padding-top:6px}
+.scan{font-size:20px;padding:10px 12px}
+.agrid td,.agrid th{padding:3px 2px;text-align:center;font-size:11px;border:1px solid #eee8cf}
+.agrid td.nm,.agrid th.nm{text-align:left;white-space:nowrap;padding:3px 6px}
+.agrid .p{color:var(--ok);font-weight:700}
+.err td{background:#fff0f0}
+/* modal */
+#modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
+#modal.open{display:flex}
+#mbox{background:#fff;border-radius:4px;width:min(560px,100%);max-height:90vh;overflow:auto;box-shadow:0 10px 40px #0004}
+#mbox h3{margin:0;background:var(--bar);color:#fff;padding:9px 14px;font-size:15px}
+#mbox .in{padding:14px}
+#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:10px 20px;border-radius:4px;display:none;z-index:60;font-size:15px}
+#toast.bad{background:var(--bad)}#toast.ok{background:var(--ok)}
+/* activation */
+.act{max-width:560px;margin:40px auto}
+.mcode{font:700 30px Consolas,monospace;letter-spacing:3px;text-align:center;background:#f3eed3;border:2px dashed var(--bar);padding:12px;border-radius:6px;user-select:all}
+#print{display:none}
+@media (max-width:900px){.two{grid-template-columns:1fr}#side{display:none}}
+/* ===== receipt slip ===== */
+.rcpt{font:12px/1.35 "Courier New",monospace;color:#000;padding:2mm 0}
+.rcpt.w58{width:48mm;font-size:11px}.rcpt.w80{width:72mm}
+.rcpt .c{text-align:center}.rcpt .r{text-align:right}
+.rcpt td.r{white-space:nowrap}
+.rcpt .h{font-size:16px;font-weight:700}
+.rcpt .tt{font-weight:700;border-top:1px dashed #000;border-bottom:1px dashed #000;margin:4px 0;padding:2px 0;letter-spacing:1px}
+.rcpt table{background:none;width:100%}
+.rcpt td,.rcpt th{padding:1px 0;border:0;font-size:inherit;background:none!important;vertical-align:top}
+.rcpt th{border-bottom:1px dashed #000!important;text-align:left}
+.rcpt tfoot td{font-weight:400}
+.rcpt tfoot tr:first-child td{border-top:1px dashed #000}
+.rcpt .bg td{font-size:1.25em;font-weight:700}
+.rcpt .vt{margin:4px 0;border:1px solid #000;padding:2px}
+.rcpt .ft{margin-top:4px;font-size:.9em}
+.rcpt.big{font:13px/1.5 Arial,sans-serif;border:1.5px solid #000;padding:5mm}
+.rcpt.wA6{width:93mm}.rcpt.wA5{width:128mm;font-size:14px}.rcpt.wA4{width:180mm;font-size:15px}
+.rcpt.big .h{font-size:1.8em}
+.rcpt.big .tt{border-top-style:solid;border-bottom-style:solid;font-size:1.1em}
+.rcpt.big td,.rcpt.big th{padding:3px 4px}
+.rcpt.big .it td,.rcpt.big .it th{border:1px solid #000!important}
+.rcpt .sign{display:flex;justify-content:space-between;margin-top:12mm;font-size:.9em}
+.rcpt .sign span{border-top:1px solid #000;padding-top:2px;min-width:30%;text-align:center}
+.rep{font:12px Arial,sans-serif;color:#000}
+.rep table td,.rep table th{border:1px solid #999;padding:3px 5px}
+@media print{
+  body{display:block;background:#fff}
+  #top,#wrap,#modal,#toast{display:none!important}
+  #print{display:block}
+}
+</style>
+</head>
+<body>
+<div id="top"><b id="libname">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic" id="lic"></span><span class="clock" id="clock"></span></div>
+<div id="wrap"><div id="main"><p class="muted">Loading…</p></div><div id="side"></div></div>
+<div id="modal"><div id="mbox"></div></div>
+<div id="toast"></div>
+<div id="print"></div>
+<script>
+/* ================= HELPERS ================= */
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const today=()=>ymd(new Date());
+const nowTime=()=>{const d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes());};
+const dmy=d=>d?d.split('-').reverse().join('-'):'';
+const addDays=(s,n)=>{const d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return ymd(d);};
+const diff=(a,b)=>Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/864e5);
+const r2=n=>Math.round((+n||0)*100)/100;
+const rs=n=>'₹'+r2(n).toLocaleString('en-IN');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const sum=(a,f)=>a.reduce((s,x)=>s+(+(typeof f==='function'?f(x):x[f])||0),0);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const $=s=>document.querySelector(s);
+const val=id=>{const e=document.getElementById(id);return e?e.value.trim():'';};
+const num=id=>+val(id)||0;
+const normPh=p=>{p=String(p||'').replace(/\D/g,'');return p.length>10?p.slice(-10):p;};
+const MODES=['Cash','UPI','Card','Bank'];
+const main=$('#main');
+
+const DEF_SET={name:'My Library',address:'',contact:'',footer:'Fee non-refundable. Thank you!',slip:'80',autoPrint:true,autoWa:false,
+  waMode:'web',owner:'',shifts:'Morning,Evening,Full Day',expDays:3,
+  mail:{user:'',pass:'',to:'',auto:true,host:'smtp.gmail.com',port:465}};
+function seed(){return {settings:{...DEF_SET,mail:{...DEF_SET.mail}},plans:[],students:[],receipts:[],att:{},seq:{rcpt:0}};}
+function migrate(s){
+  s=s&&s.settings?s:seed();
+  s.settings={...DEF_SET,...s.settings,mail:{...DEF_SET.mail,...(s.settings.mail||{})}};
+  ['plans','students','receipts'].forEach(k=>s[k]=s[k]||[]);s.att=s.att||{};s.seq=s.seq||{rcpt:0};
+  return s;
+}
+
+let D=null,LIC=null,INFO={};
+async function api(p,body){
+  const r=await fetch('/api/'+p,body===undefined?{cache:'no-store'}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;
+}
+let saving=Promise.resolve();
+function save(){
+  const snap=JSON.stringify(D);
+  saving=saving.then(()=>fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:snap}))
+    .then(r=>{if(!r.ok)return r.json().then(j=>{throw new Error(j.error);});})
+    .catch(e=>toast('Data save nahi hua: '+e.message,'bad'));
+  return saving;
+}
+
+function toast(t,cls){const e=$('#toast');e.textContent=t;e.className=cls||'';e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',cls==='bad'?4000:2200);}
+let askRes=null,lastFocus=null;
+function modal(title,html){if(!isModal())lastFocus=document.activeElement;$('#mbox').innerHTML=`<h3>${esc(title)}</h3><div class="in">${html}</div>`;$('#modal').classList.add('open');
+  setTimeout(()=>{const f=$('#mbox [autofocus]')||$('#mbox input,#mbox select,#mbox button');f&&f.focus();},30);}
+function closeModal(){if(!isModal())return;$('#modal').classList.remove('open');
+  setTimeout(()=>{if(isModal())return;const f=lastFocus&&document.contains(lastFocus)&&lastFocus!==document.body?lastFocus:main.querySelector('input,select,textarea');f&&f.focus();},10);if(askRes){const r=askRes;askRes=null;r(false);}}
+const isModal=()=>$('#modal').classList.contains('open');
+function ask(msg,yes='Yes',no='No'){return new Promise(res=>{
+  modal('Confirm',`<p style="font-size:15px">${msg}</p><div class="btns"><button class="btn" data-k="Y" autofocus id="ay">${yes} (Y)</button><button class="btn g" data-k="N" id="an">${no} (N)</button></div>`);
+  askRes=res;$('#ay').onclick=()=>{askRes=null;closeModal();res(true);};$('#an').onclick=()=>closeModal();});}
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+const csvCell=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+const toCsv=rows=>'﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
+
+function waOpen(num,text){
+  let n=String(num||'').replace(/\D/g,'');
+  if(n.length===10)n='91'+n;
+  if(!n){toast('Mobile number nahi hai','bad');return;}
+  const t=encodeURIComponent(text);
+  if(D.settings.waMode==='app')location.href=`whatsapp://send?phone=${n}&text=${t}`;
+  else window.open(`https://wa.me/${n}?text=${t}`,'_blank');
+}
+function words(n){
+  n=Math.round(+n||0);if(!n)return 'Zero';
+  const a=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const b=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const two=x=>x<20?a[x]:b[Math.floor(x/10)]+(x%10?' '+a[x%10]:'');
+  const three=x=>(x>=100?a[Math.floor(x/100)]+' Hundred'+(x%100?' ':''):'')+(x%100?two(x%100):'');
+  const o=[],cr=Math.floor(n/1e7),l=Math.floor(n%1e7/1e5),th=Math.floor(n%1e5/1e3),h=n%1e3;
+  if(cr)o.push(three(cr)+' Crore');if(l)o.push(two(l)+' Lakh');if(th)o.push(two(th)+' Thousand');if(h)o.push(three(h));
+  return o.join(' ');
+}
+
+/* ================= STUDENT LOGIC ================= */
+const plan=id=>D.plans.find(p=>p.id===id);
+const stu=id=>D.students.find(s=>s.id===id);
+const periodic=()=>D.plans.filter(p=>+p.days>0);
+const oneTime=()=>D.plans.filter(p=>!(+p.days>0));
+const active=()=>D.students.filter(s=>s.status!=='left');
+function nextCode(){return String(Math.max(1000,...D.students.map(s=>parseInt(s.code,10)||0))+1);}
+function stStatus(s){
+  if(s.status==='left')return {k:'left',t:'Left'};
+  const t=today(),vt=s.validTill;
+  if(!vt||vt<t){const od=vt?diff(vt,t):Math.max(1,diff(s.join||t,t)+1);return {k:'due',t:vt?`Due ${od} din`:'Fee nahi di',od};}
+  const left=diff(t,vt);
+  if(left<=(+D.settings.expDays||0))return {k:'soon',t:left?left+' din baki':'Aaj last din',left};
+  return {k:'ok',t:'Paid',left};
+}
+const tag=s=>{const st=stStatus(s);return `<span class="tag ${st.k}">${esc(st.t)}</span>`+(s.bal>0?` <span class="tag due">Baki ${rs(s.bal)}</span>`:'');};
+function dueAmt(s){
+  const st=stStatus(s),p=plan(s.planId);let a=+s.bal||0;
+  if(st.k==='due'&&p&&+p.days>0)a+=Math.ceil(st.od/p.days)*(+s.fee||0);
+  return a;
+}
+function findStudents(q,all){
+  q=String(q||'').trim().toLowerCase();const list=all?D.students:active();
+  if(!q)return list;
+  const qd=q.replace(/\D/g,'');
+  return list.filter(s=>String(s.code).toLowerCase()===q||s.name.toLowerCase().includes(q)||(s.father||'').toLowerCase().includes(q)||
+    (qd.length>=4&&String(s.mobile).includes(qd))||String(s.seat||'').toLowerCase()===q);
+}
+function remindText(s){
+  const S=D.settings,st=stStatus(s),amt=dueAmt(s);
+  return `Namaste ${s.name},\n${st.k==='soon'?`Aapki library fee ${dmy(s.validTill)} ko khatam ho rahi hai.`:s.validTill?`Aapki library fee ${dmy(s.validTill)} ko khatam ho chuki hai.`:'Aapki library fee abhi jama nahi hui hai.'}`+
+    `${s.seat?`\nSeat: ${s.seat}`:''}${amt?`\nDue amount: ${rs(amt)}`:''}\nKripya samay par fee jama karein.\n\n- ${S.name}${S.contact?'\n'+S.contact:''}`;
+}
+const waRemind=id=>{const s=stu(id);if(s)waOpen(s.mobile,remindText(s));};
+
+/* ================= NAVIGATION / KEYBOARD ================= */
+const MENU=[
+  ['S','New Admission','student','Masters'],
+  ['L','Student List','list'],
+  ['F','Fee Master','plans'],
+  ['C','Fee Collect (Receipt)','collect','Transactions'],
+  ['A','Attendance (In / Out)','att'],
+  ['D','Due List & Reminder','due','Reports'],
+  ['R','Receipt List / Reprint','receipts'],
+  ['B','Day Book (Collection)','daybook'],
+  ['M','Attendance Report (Month)','attrep'],
+  ['I','Bulk Import (Excel / CSV)','import','Utilities'],
+  ['G','Settings & Backup','settings'],
+  ['K','License / Activation','license'],
+];
+const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
+  daybook:scrDaybook,attrep:scrAttRep,import:scrImport,settings:scrSettings,license:scrLicense};
+let cur='home',gwSel=0,onSave=null,nav=null,keyH=null;
+function go(s,arg){
+  if(!D)return;
+  cur=s;onSave=null;nav=null;keyH=null;closeModal();
+  const m=MENU.find(x=>x[2]===s);
+  $('#scr').textContent=m?m[1]:'Gateway of Library';$('#libname').textContent=D.settings.name;
+  main.scrollTop=0;SCREENS[s](arg);
+}
+function drawSide(){$('#side').innerHTML=`<button onclick="go('home')"><u>Esc</u>Gateway</button>`+
+  MENU.map(m=>`<button onclick="go('${m[2]}')"><u>Alt+${m[0]}</u>${m[1]}</button>`).join('')+
+  `<div class="keys"><kbd>Enter</kbd> agla field<br><kbd>Ctrl+S</kbd> Save / Accept<br><kbd>↑</kbd><kbd>↓</kbd> list mein chunein<br><kbd>Esc</kbd> wapas</div>`;}
+const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
+const focusEl=(sel)=>setTimeout(()=>{const e=typeof sel==='string'?$(sel):sel;if(e){e.focus();e.select&&e.select();}},30);
+function fields(form){return [...form.querySelectorAll('input,select,textarea')].filter(e=>!e.disabled&&!e.readOnly&&e.type!=='hidden'&&e.type!=='file'&&e.type!=='checkbox'&&e.offsetParent!==null);}
+function navMove(d){const rows=[...main.querySelectorAll('tr[data-id]')];if(!rows.length)return;
+  let i=rows.findIndex(r=>r.classList.contains('sel'));i=Math.max(0,Math.min(rows.length-1,(i<0?-1:i)+d));
+  rows.forEach(r=>r.classList.remove('sel'));rows[i].classList.add('sel');rows[i].scrollIntoView({block:'nearest'});}
+const navId=()=>{const r=main.querySelector('tr.sel[data-id]')||main.querySelector('tr[data-id]');return r&&r.dataset.id;};
+const selFirst=()=>{const r=main.querySelector('tr[data-id]');if(r)r.classList.add('sel');};
+
+document.addEventListener('keydown',e=>{
+  if(!D)return;
+  const a=document.activeElement,tg=a&&a.tagName,typing=['INPUT','SELECT','TEXTAREA'].includes(tg);
+  if(e.key==='Escape'){e.preventDefault();if(isModal())closeModal();else if(cur!=='home')go('home');return;}
+  if(isModal()){
+    if(!e.ctrlKey&&!e.altKey&&!(typing&&tg!=='SELECT')){const b=$(`#mbox [data-k="${e.key.toUpperCase()}"]`);if(b){e.preventDefault();b.click();}}
+    return;
+  }
+  if(e.ctrlKey&&(e.key==='s'||e.key==='S'||e.key==='Enter')){e.preventDefault();if(onSave)onSave();return;}
+  if(e.altKey&&!e.ctrlKey){const m=MENU.find(x=>x[0]===e.key.toUpperCase());if(m){e.preventDefault();go(m[2]);return;}}
+  if(keyH&&keyH(e,typing))return;
+  if(cur==='home'&&!typing&&!e.ctrlKey&&!e.altKey&&!e.metaKey){
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();gwSel=(gwSel+(e.key==='ArrowDown'?1:MENU.length-1))%MENU.length;
+      document.querySelectorAll('.gwbox .it').forEach((x,i)=>x.classList.toggle('on',i===gwSel));return;}
+    if(e.key==='Enter'){e.preventDefault();go(MENU[gwSel][2]);return;}
+    const m=MENU.find(x=>x[0]===e.key.toUpperCase());if(m){e.preventDefault();go(m[2]);return;}
+  }
+  if(nav&&tg!=='SELECT'&&tg!=='TEXTAREA'&&!(typing&&a.dataset.nav===undefined)){
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();navMove(e.key==='ArrowDown'?1:-1);return;}
+    const id=navId();
+    if(e.key==='Enter'&&id&&nav.Enter){e.preventDefault();nav.Enter(id);return;}
+    if(id&&nav[e.key]&&e.key!=='Enter'&&(e.key.startsWith('F')||!typing)){e.preventDefault();nav[e.key](id);return;}
+  }
+  if(e.key==='Enter'&&typing&&tg!=='TEXTAREA'&&a.type!=='button'){
+    const form=a.closest('.form');if(!form)return;
+    e.preventDefault();const f=fields(form),i=f.indexOf(a);
+    if(i>=0&&i<f.length-1){f[i+1].focus();f[i+1].select&&f[i+1].select();}else if(onSave)onSave();
+  }
+});
+setInterval(()=>{const d=new Date();$('#clock').textContent=d.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'})+'  '+d.toLocaleTimeString('en-IN');},1000);
+
+/* ================= GATEWAY ================= */
+function scrHome(){
+  const t=today(),act=active(),st=act.map(stStatus);
+  const due=st.filter(x=>x.k==='due').length,soon=st.filter(x=>x.k==='soon').length;
+  const tr=D.receipts.filter(r=>!r.cancel&&r.date===t);
+  const mo=t.slice(0,7),mr=D.receipts.filter(r=>!r.cancel&&r.date.slice(0,7)===mo);
+  const pres=Object.keys(D.att[t]||{}).length,baki=sum(act,'bal');
+  let i=0;
+  const items=MENU.map(m=>(m[3]?`<div class="sec">${m[3]}</div>`:'')+`<div class="it${i===gwSel?' on':''}" onclick="go('${m[2]}')"><u>${m[0]}</u>${(i++,m[1])}</div>`).join('');
+  const setup=[];
+  if(D.settings.name==='My Library')setup.push(`<b>G</b> dabaakar library ka naam, address aur contact daalein.`);
+  if(!periodic().length)setup.push(`<b>F</b> (Fee Master) mein fee plan banayein, jaise Monthly / 30 din.`);
+  if(!D.students.length)setup.push(`<b>S</b> se student jodein, ya <b>I</b> se Excel/CSV se bulk mein daalein.`);
+  main.innerHTML=(setup.length?`<div class="hint">Shuru karne ke liye:<br>${setup.map((x,j)=>(j+1)+'. '+x).join('<br>')}</div>`:'')+
+  `<div class="gw"><div class="gwbox"><h3>Gateway of Library</h3>${items}<div style="height:8px"></div></div>
+  <div class="gwbox stats"><h3>${dmy(t)}</h3>
+    <div class="stat link" onclick="go('list')"><span>Active students</span><b>${act.length}</b></div>
+    <div class="stat link" onclick="go('att')"><span>Aaj present</span><b>${pres}</b></div>
+    <div class="stat link" onclick="go('daybook')"><span>Aaj collection (${tr.length})</span><b>${rs(sum(tr,'paid'))}</b></div>
+    <div class="stat"><span>Is mahine collection</span><b>${rs(sum(mr,'paid'))}</b></div>
+    <div class="stat link" onclick="go('due','due')"><span>Fee due</span><b class="${due?'red':''}">${due}</b></div>
+    <div class="stat link" onclick="go('due','soon')"><span>${D.settings.expDays} din mein khatam</span><b style="color:var(--warn)">${soon}</b></div>
+    <div class="stat link" onclick="go('due','bal')"><span>Baki (balance)</span><b class="${baki?'red':''}">${rs(baki)}</b></div>
+    <div class="stat"><span>Total seats bhare</span><b>${new Set(act.filter(s=>s.seat).map(s=>s.seat+'|'+(s.shift||''))).size}</b></div>
+  </div></div>
+  <p class="muted small" style="text-align:center">Letter dabayein (jaise <kbd>C</kbd>) ya <kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd>. Kisi bhi screen se <kbd>Alt</kbd>+letter.</p>`;
+}
+
+/* ================= FEE MASTER ================= */
+let planEdit=null;
+function scrPlans(){
+  const p=planEdit?plan(planEdit):null;
+  const cnt=id=>D.students.filter(s=>s.planId===id&&s.status!=='left').length;
+  main.innerHTML=title('Fee Master')+
+  `<div class="hint">Har fee ka naam, amount aur validity (din) daalein. <b>30</b> = 1 mahina, <b>90</b> = 3 mahine. <b>0</b> = ek baar wali fee (Admission, Security, Locker).</div>
+  <div class="card form"><h4>${p?'Fee Edit':'Nayi Fee'}</h4><div class="grid">
+    <div class="w2"><label>Fee ka naam <i>*</i></label><input id="p_name" value="${esc(p?p.name:'')}" placeholder="Monthly Full Day"></div>
+    <div><label>Amount (₹) <i>*</i></label><input id="p_amt" type="number" min="0" value="${p?p.amount:''}"></div>
+    <div><label>Validity (din)</label><input id="p_days" type="number" min="0" value="${p?p.days:30}"></div>
+    <div class="w2"><label>Note (optional)</label><input id="p_note" value="${esc(p?p.note||'':'')}" placeholder="Shift / timing / AC"></div>
+  </div><div class="btns"><button class="btn" onclick="savePlan()">Save (Ctrl+S)</button>${p?`<button class="btn g" onclick="planEdit=null;scrPlans()">Cancel</button>`:''}</div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>Fee</th><th class="n">Amount</th><th class="n">Validity</th><th>Type</th><th class="n">Students</th><th></th></tr></thead><tbody>
+  ${D.plans.map(x=>`<tr data-id="${x.id}"><td><b>${esc(x.name)}</b>${x.note?`<br><span class="muted small">${esc(x.note)}</span>`:''}</td><td class="n">${rs(x.amount)}</td>
+    <td class="n">${+x.days>0?x.days+' din':'—'}</td><td>${+x.days>0?'Periodic':'Ek baar'}</td><td class="n">${cnt(x.id)}</td>
+    <td class="n"><button class="btn sm g" onclick="planEdit='${x.id}';scrPlans()">Edit</button> <button class="btn sm bad" onclick="delPlan('${x.id}')">Delete</button></td></tr>`).join('')||
+    '<tr><td colspan="6" class="muted">Abhi koi fee nahi. Upar se banayein.</td></tr>'}
+  </tbody></table></div>`;
+  onSave=savePlan;focusEl('#p_name');
+  nav={Enter:id=>{planEdit=id;scrPlans();},F2:id=>{planEdit=id;scrPlans();}};selFirst();
+}
+async function savePlan(){
+  const name=val('p_name'),amount=num('p_amt'),days=Math.max(0,parseInt(val('p_days'),10)||0),note=val('p_note');
+  if(!name){toast('Fee ka naam daalein','bad');return focusEl('#p_name');}
+  if(D.plans.some(x=>x.name.toLowerCase()===name.toLowerCase()&&x.id!==planEdit)){toast('Is naam ki fee pehle se hai','bad');return;}
+  if(planEdit){
+    const p=plan(planEdit),old=+p.amount;Object.assign(p,{name,amount,days,note});
+    const same=D.students.filter(s=>s.planId===p.id&&s.status!=='left'&&+s.fee===old);
+    if(old!==amount&&same.length&&await ask(`${same.length} student ki fee ${rs(old)} hai. Sabki fee ${rs(amount)} kar dein?`))same.forEach(s=>s.fee=amount);
+  }else D.plans.push({id:uid(),name,amount,days,note});
+  planEdit=null;save();toast('Fee save ho gayi','ok');scrPlans();
+}
+async function delPlan(id){
+  if(D.students.some(s=>s.planId===id)){toast('Is fee par students hain — pehle unka plan badlein','bad');return;}
+  if(!await ask('Ye fee delete karein?'))return;
+  D.plans=D.plans.filter(p=>p.id!==id);save();scrPlans();
+}
+
+/* ================= STUDENT ADD / EDIT ================= */
+function scrStudent(id){
+  const s=id?stu(id):null,per=periodic();
+  if(!per.length){main.innerHTML=title('New Admission')+`<div class="hint">Pehle <b>Fee Master</b> mein kam se kam ek fee plan banayein (jaise Monthly, 30 din).</div><button class="btn" onclick="go('plans')">Fee Master kholein (F)</button>`;return;}
+  const v=s||{code:nextCode(),name:'',father:'',mobile:'',address:'',seat:'',shift:'',planId:per[0].id,fee:per[0].amount,join:today(),validTill:'',status:'active',note:''};
+  $('#scr').textContent=s?'Student Edit':'New Admission';
+  const shifts=String(D.settings.shifts||'').split(',').map(x=>x.trim()).filter(Boolean);
+  main.innerHTML=title(s?`Student Edit — ${esc(s.name)}`:'New Admission',s?`<button class="btn sm g" onclick="go('collect','${s.id}')">Fee lo</button>`:'')+
+  `<div class="two"><div class="card form"><div class="grid">
+    <div><label>Student ID <i>*</i></label><input id="s_code" value="${esc(v.code)}"></div>
+    <div class="w2"><label>Student ka naam <i>*</i></label><input id="s_name" value="${esc(v.name)}"></div>
+    <div><label>Father ka naam</label><input id="s_father" value="${esc(v.father)}"></div>
+    <div><label>Mobile (WhatsApp) <i>*</i></label><input id="s_mobile" inputmode="numeric" maxlength="13" value="${esc(v.mobile)}"></div>
+    <div class="w2"><label>Address</label><input id="s_address" value="${esc(v.address)}"></div>
+    <div><label>Seat No.</label><input id="s_seat" value="${esc(v.seat)}"></div>
+    <div><label>Shift / Timing</label><input id="s_shift" list="shiftlist" value="${esc(v.shift)}"><datalist id="shiftlist">${shifts.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
+    <div><label>Fee Plan <i>*</i></label><select id="s_plan">${per.map(p=>`<option value="${p.id}"${p.id===v.planId?' selected':''}>${esc(p.name)} — ${rs(p.amount)}/${p.days}d</option>`).join('')}</select></div>
+    <div><label>Fee Amount (₹)</label><input id="s_fee" type="number" min="0" value="${v.fee}"></div>
+    <div><label>Admission / Join date</label><input id="s_join" type="date" value="${v.join}"></div>
+    <div><label>Fee paid till <span class="muted">(purane student ke liye)</span></label><input id="s_valid" type="date" value="${v.validTill||''}"${s&&D.receipts.some(r=>r.sid===s.id&&!r.cancel)?' readonly title="Receipt se update hota hai"':''}></div>
+    ${s?`<div><label>Status</label><select id="s_status"><option value="active">Active</option><option value="left"${v.status==='left'?' selected':''}>Left (chhod diya)</option></select></div>`:''}
+    <div class="w2"><label>Note</label><input id="s_note" value="${esc(v.note||'')}"></div>
+  </div><div class="btns"><button class="btn" onclick="saveStudent()">Save (Ctrl+S)</button><button class="btn g" onclick="go('home')">Cancel (Esc)</button></div></div>
+  <div class="card" id="feeprev"></div></div>`;
+  const prev=()=>{const p=plan($('#s_plan').value),fee=num('s_fee'),join=val('s_join')||today(),vt=val('s_valid');
+    const from=vt?addDays(vt,1):join;
+    $('#feeprev').innerHTML=`<h4>Fee ki jaankari</h4><table class="info">
+      <tr><td>Plan</td><td><b>${esc(p.name)}</b></td></tr><tr><td>Fee</td><td><b style="font-size:18px">${rs(fee)}</b> / ${p.days} din</td></tr>
+      <tr><td>Agli fee period</td><td>${dmy(from)} se ${dmy(addDays(from,p.days-1))}</td></tr>
+      <tr><td>Status</td><td>${vt&&vt>=today()?`<span class="tag ok">Paid till ${dmy(vt)}</span>`:`<span class="tag due">Fee baki</span>`}</td></tr>
+      ${oneTime().length?`<tr><td>Ek baar wali fee</td><td>${oneTime().map(o=>esc(o.name)+' '+rs(o.amount)).join('<br>')}</td></tr>`:''}
+      ${s&&s.bal?`<tr><td>Purana baki</td><td class="red">${rs(s.bal)}</td></tr>`:''}</table>
+      ${s?`<p class="muted small">Pichhli receipts: ${D.receipts.filter(r=>r.sid===s.id&&!r.cancel).length}</p>`:'<p class="muted small">Save ke baad fee turant le sakte hain.</p>'}`;};
+  $('#s_plan').onchange=()=>{$('#s_fee').value=plan($('#s_plan').value).amount;prev();};
+  ['s_fee','s_join','s_valid'].forEach(i=>$('#'+i).addEventListener('input',prev));
+  prev();onSave=()=>saveStudent(id);focusEl('#s_name');
+}
+async function saveStudent(id){
+  const s=id?stu(id):null;
+  const v={code:val('s_code'),name:val('s_name'),father:val('s_father'),mobile:normPh(val('s_mobile')),address:val('s_address'),seat:val('s_seat'),
+    shift:val('s_shift'),planId:val('s_plan'),fee:num('s_fee'),join:val('s_join')||today(),note:val('s_note')};
+  const vt=val('s_valid');
+  if(!v.code){toast('Student ID daalein','bad');return focusEl('#s_code');}
+  if(!v.name){toast('Student ka naam daalein','bad');return focusEl('#s_name');}
+  if(v.mobile.length!==10){toast('Mobile 10 digit ka hona chahiye','bad');return focusEl('#s_mobile');}
+  if(D.students.some(x=>x.code===v.code&&x!==s)){toast('Ye Student ID pehle se hai','bad');return focusEl('#s_code');}
+  if(v.seat){const c=D.students.find(x=>x!==s&&x.status!=='left'&&x.seat.toLowerCase()===v.seat.toLowerCase()&&(x.shift||'')===(v.shift||''));
+    if(c&&!await ask(`Seat ${esc(v.seat)} (${esc(v.shift||'—')}) par pehle se <b>${esc(c.name)}</b> hai. Phir bhi save karein?`))return focusEl('#s_seat');}
+  if(s){
+    Object.assign(s,v);if(!$('#s_valid').readOnly)s.validTill=vt;if($('#s_status'))s.status=$('#s_status').value;
+    save();toast('Student update ho gaya','ok');go('list');return;
+  }
+  const n={id:uid(),...v,validTill:vt,bal:0,status:'active',created:today()};
+  D.students.push(n);save();
+  if(await ask(`<b>${esc(n.name)}</b> (ID ${esc(n.code)}) save ho gaya.<br>Fee ${rs(n.fee)}. Abhi fee lena hai?`,'Haan, fee lo','Baad mein'))go('collect',n.id);
+  else scrStudent();
+}
+
+/* ================= STUDENT LIST ================= */
+let listFlt='active';
+function scrList(){
+  main.innerHTML=title('Student List',`<button class="btn sm g" onclick="exportStudents()">CSV / Excel Export</button><button class="btn sm g" onclick="go('student')">+ New (S)</button>`)+
+  `<div class="card"><div class="row"><input id="q" data-nav placeholder="Search: naam / mobile / ID / seat"><select id="flt" class="fix" style="width:170px">
+    ${[['active','Active'],['due','Fee due'],['soon','Jaldi khatam'],['bal','Balance baki'],['left','Left'],['all','Sab']].map(([k,t])=>`<option value="${k}"${k===listFlt?' selected':''}>${t}</option>`).join('')}</select></div>
+    <div class="muted small" style="margin-top:6px"><kbd>↑</kbd><kbd>↓</kbd> chunein · <kbd>Enter</kbd> Fee lo · <kbd>F2</kbd> Edit · <kbd>F9</kbd> WhatsApp reminder</div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Naam</th><th>Mobile</th><th>Seat / Shift</th><th>Plan</th><th class="n">Fee</th><th>Valid till</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+  const draw=()=>{listFlt=$('#flt').value;
+    let L=findStudents(val('q'),true).filter(s=>{const k=stStatus(s).k;
+      return listFlt==='all'||(listFlt==='left'?k==='left':k!=='left'&&(listFlt==='active'||(listFlt==='bal'?s.bal>0:k===listFlt)));});
+    L=L.slice().sort((a,b)=>(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
+    $('#tb').innerHTML=L.map(s=>`<tr data-id="${s.id}"><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b>${s.father?`<br><span class="muted small">S/o ${esc(s.father)}</span>`:''}</td>
+      <td>${esc(s.mobile)}</td><td>${esc(s.seat||'—')}${s.shift?`<br><span class="muted small">${esc(s.shift)}</span>`:''}</td><td>${esc((plan(s.planId)||{}).name||'')}</td>
+      <td class="n">${rs(s.fee)}</td><td>${dmy(s.validTill)||'—'}</td><td>${tag(s)}</td>
+      <td class="n" style="white-space:nowrap"><button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button> <button class="btn sm g" onclick="go('student','${s.id}')">Edit</button> <button class="btn sm wa" onclick="waRemind('${s.id}')">WA</button> <button class="btn sm bad" onclick="delStudent('${s.id}')">✕</button></td></tr>`).join('')||
+      '<tr><td colspan="9" class="muted">Koi student nahi mila.</td></tr>';
+    selFirst();};
+  $('#q').oninput=draw;$('#flt').onchange=draw;draw();
+  nav={Enter:id=>go('collect',id),F2:id=>go('student',id),F9:waRemind};focusEl('#q');
+}
+async function delStudent(id){
+  const s=stu(id);
+  if(D.receipts.some(r=>r.sid===id)){
+    if(await ask(`${esc(s.name)} ki receipts hain, delete nahi hoga. "Left" mark kar dein?`)){s.status='left';save();scrList();}return;}
+  if(!await ask(`<b>${esc(s.name)}</b> ko delete karein?`))return;
+  D.students=D.students.filter(x=>x.id!==id);save();scrList();
+}
+function exportStudents(){
+  const rows=[['ID','Name','Father','Mobile','Address','Seat','Shift','Plan','Fee','Join','Paid Till','Balance','Status']]
+    .concat(D.students.map(s=>[s.code,s.name,s.father,s.mobile,s.address,s.seat,s.shift,(plan(s.planId)||{}).name,s.fee,s.join,s.validTill,s.bal||0,s.status]));
+  dl(`students_${today()}.csv`,toCsv(rows),'text/csv');
+}
+
+/* ================= FEE COLLECT ================= */
+let colSid=null;
+function scrCollect(sid){
+  colSid=sid||null;
+  main.innerHTML=title('Fee Collect — Receipt')+
+  `<div class="card pick"><label>Student chunein (naam / ID / mobile / seat) — <kbd>↓</kbd> <kbd>Enter</kbd></label><input id="sq" autocomplete="off" placeholder="Type karein…"><div id="sugg" hidden></div></div><div id="colbody"></div>`;
+  const sq=$('#sq'),sg=$('#sugg');let si=0,res=[];
+  const draw=()=>{res=findStudents(sq.value).slice(0,12);si=0;
+    sg.hidden=!sq.value.trim();sg.innerHTML=res.map((s,i)=>`<div class="${i?'':'on'}" data-i="${i}">${esc(s.code)} — <b>${esc(s.name)}</b> <span class="muted">${esc(s.mobile)} · Seat ${esc(s.seat||'—')}</span> ${tag(s)}</div>`).join('')||'<div class="muted">Koi nahi mila</div>';
+    sg.querySelectorAll('[data-i]').forEach(d=>d.onmousedown=ev=>{ev.preventDefault();pick(res[+d.dataset.i].id);});};
+  const pick=id=>{sg.hidden=true;sq.value='';colSid=id;drawCollect();};
+  sq.oninput=draw;sq.onblur=()=>setTimeout(()=>sg.hidden=true,150);
+  keyH=(e)=>{
+    if(document.activeElement!==sq||sg.hidden)return false;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();si=Math.max(0,Math.min(res.length-1,si+(e.key==='ArrowDown'?1:-1)));
+      sg.querySelectorAll('[data-i]').forEach((d,i)=>d.classList.toggle('on',i===si));return true;}
+    if(e.key==='Enter'){e.preventDefault();if(res[si])pick(res[si].id);return true;}
+    return false;
+  };
+  if(colSid)drawCollect();else focusEl(sq);
+}
+function drawCollect(){
+  const s=stu(colSid);if(!s)return;
+  const per=periodic(),one=oneTime(),hist=D.receipts.filter(r=>r.sid===s.id).slice(-6).reverse();
+  const from=s.validTill?addDays(s.validTill,1):(s.join||today());
+  const first=!D.receipts.some(r=>r.sid===s.id&&!r.cancel);
+  $('#colbody').innerHTML=`<div class="two"><div class="card form"><h4>Receipt — ${esc(s.name)}</h4><div class="grid">
+    <div><label>Receipt date</label><input id="c_date" type="date" value="${today()}"></div>
+    <div class="w2"><label>Fee head</label><select id="c_plan">${per.map(p=>`<option value="${p.id}"${p.id===s.planId?' selected':''}>${esc(p.name)} (${p.days} din)</option>`).join('')}</select></div>
+    <div><label>Kitne mahine / period</label><input id="c_months" type="number" min="0" value="1"></div>
+    <div><label>Period from</label><input id="c_from" type="date" value="${from}"></div>
+    <div><label>Period to</label><input id="c_to" type="date"></div>
+    <div><label>Fee amount (₹)</label><input id="c_fee" type="number" min="0"></div>
+    <div><label>Ek baar wali fee</label><select id="c_extra"><option value="">— Nahi —</option>${one.map(p=>`<option value="${p.id}">${esc(p.name)} — ${rs(p.amount)}</option>`).join('')}</select></div>
+    <div><label>Uska amount (₹)</label><input id="c_extraamt" type="number" min="0" value="0"></div>
+    <div><label>Discount (₹)</label><input id="c_disc" type="number" min="0" value="0"></div>
+    <div><label>Received (₹) <i>*</i></label><input id="c_paid" type="number" min="0"></div>
+    <div><label>Mode</label><select id="c_mode">${MODES.map(m=>`<option>${m}</option>`).join('')}</select></div>
+    <div class="w2"><label>Note</label><input id="c_note" placeholder="UPI ref / remark"></div>
+  </div>
+  <div class="tot" style="margin-top:12px" id="c_tot"></div>
+  <div class="btns"><button class="btn ok" onclick="saveReceipt()">Save Receipt (Ctrl+S)</button><button class="btn g" onclick="scrCollect()">Dusra student</button></div></div>
+  <div><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
+    <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
+    <tr><td>Mobile</td><td>${esc(s.mobile)}</td></tr><tr><td>Seat / Shift</td><td>${esc(s.seat||'—')} ${s.shift?'/ '+esc(s.shift):''}</td></tr>
+    <tr><td>Plan / Fee</td><td>${esc((plan(s.planId)||{}).name||'')} — <b>${rs(s.fee)}</b></td></tr>
+    <tr><td>Join date</td><td>${dmy(s.join)}</td></tr><tr><td>Paid till</td><td><b>${dmy(s.validTill)||'—'}</b></td></tr>
+    <tr><td>Purana baki</td><td class="${s.bal>0?'red':''}">${rs(s.bal||0)}</td></tr></table>
+    <div class="btns"><button class="btn sm g" onclick="go('student','${s.id}')">Edit</button><button class="btn sm wa" onclick="waRemind('${s.id}')">Reminder</button></div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>Period</th><th class="n">Paid</th></tr></thead><tbody>
+    ${hist.map(r=>`<tr class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)}</td><td class="small">${r.from?dmy(r.from)+' – '+dmy(r.to):esc(r.extra||'—')}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Pehli receipt</td></tr>'}
+  </tbody></table></div></div></div>`;
+  let paidTouched=false;
+  const feeOf=pid=>pid===s.planId?+s.fee:+(plan(pid)||{}).amount||0;
+  const tot=()=>{const fee=num('c_fee'),ex=num('c_extraamt'),dc=num('c_disc'),ob=+s.bal||0,t=Math.max(0,fee+ex+ob-dc);
+    if(!paidTouched)$('#c_paid').value=t;const paid=num('c_paid');
+    $('#c_tot').innerHTML=`<div><span>Fee</span><b>${rs(fee)}</b></div>${ex?`<div><span>Ek baar wali fee</span><b>${rs(ex)}</b></div>`:''}${ob?`<div><span>Purana baki</span><b>${rs(ob)}</b></div>`:''}
+      ${dc?`<div><span>Discount</span><b>− ${rs(dc)}</b></div>`:''}<div class="big"><span>Total</span><span>${rs(t)}</span></div>
+      <div><span>Received</span><b class="green">${rs(paid)}</b></div><div><span>Balance (baki)</span><b class="${t-paid>0?'red':''}">${rs(t-paid)}</b></div>`;};
+  const period=()=>{const p=plan(val('c_plan')),m=Math.max(0,parseInt(val('c_months'),10)||0),f=val('c_from');
+    $('#c_to').value=m&&f&&p?addDays(f,p.days*m-1):'';$('#c_fee').value=feeOf(p&&p.id)*m;tot();};
+  $('#c_plan').onchange=period;$('#c_months').oninput=period;$('#c_from').oninput=period;
+  $('#c_extra').onchange=()=>{$('#c_extraamt').value=(plan(val('c_extra'))||{}).amount||0;tot();};
+  ['c_fee','c_extraamt','c_disc'].forEach(i=>$('#'+i).addEventListener('input',tot));
+  $('#c_paid').addEventListener('input',()=>{paidTouched=true;tot();});
+  if(first&&!s.validTill&&one.length){$('#c_extra').value=one[0].id;$('#c_extraamt').value=one[0].amount;}
+  period();onSave=saveReceipt;focusEl('#c_months');
+}
+async function saveReceipt(){
+  const s=stu(colSid);if(!s)return;
+  const p=plan(val('c_plan')),months=Math.max(0,parseInt(val('c_months'),10)||0),ex=plan(val('c_extra'));
+  const from=months?val('c_from'):'',to=months?val('c_to'):'';
+  if(months&&!p){toast('Fee Master mein periodic fee banayein','bad');return;}
+  if(months&&(!from||!to||to<from)){toast('Period ki date sahi karein','bad');return focusEl('#c_from');}
+  const fee=num('c_fee'),extraAmt=ex?num('c_extraamt'):0,disc=num('c_disc'),oldBal=+s.bal||0,total=Math.max(0,fee+extraAmt+oldBal-disc),paid=num('c_paid');
+  if(paid<=0&&!await ask('Received ₹0 hai. Phir bhi receipt banayein?'))return focusEl('#c_paid');
+  if(paid>total&&!await ask(`Received (${rs(paid)}) total (${rs(total)}) se zyada hai. Aage badhein?`))return focusEl('#c_paid');
+  const r={id:uid(),no:++D.seq.rcpt,date:val('c_date')||today(),time:nowTime(),sid:s.id,code:s.code,name:s.name,
+    head:months?p.name:'',months,from,to,fee,extra:ex?ex.name:'',extraAmt,disc,oldBal,total,paid,bal:r2(total-paid),mode:val('c_mode'),note:val('c_note'),
+    prevValid:s.validTill||'',prevBal:oldBal};
+  D.receipts.push(r);s.bal=r.bal;if(to&&to>(s.validTill||''))s.validTill=to;
+  save();toast(`Receipt #${r.no} save ho gayi`,'ok');
+  if(D.settings.autoPrint)printReceipt(r.id);
+  if(D.settings.autoWa)waReceipt(r.id);
+  scrCollect();afterReceipt(r);
+}
+function afterReceipt(r){
+  modal(`Receipt #${r.no} — ${r.name}`,`<p style="font-size:16px">Received <b>${rs(r.paid)}</b> (${esc(r.mode)})${r.to?` · Valid till <b>${dmy(r.to)}</b>`:''}${r.bal?` · <span class="red">Baki ${rs(r.bal)}</span>`:''}</p>
+    <div class="btns"><button class="btn" data-k="P" onclick="printReceipt('${r.id}')">Print (P)</button><button class="btn wa" data-k="W" onclick="waReceipt('${r.id}')">WhatsApp (W)</button>
+    <button class="btn g" data-k="N" autofocus onclick="scrCollect()">Agla student (N)</button><button class="btn g" data-k="H" onclick="go('home')">Gateway (H)</button></div>`);
+}
+function rcptText(r){
+  const S=D.settings,s=stu(r.sid)||{},L=[`*${S.name}*`,`Fee Receipt No: ${r.no}${r.cancel?' (CANCELLED)':''}`,`Date: ${dmy(r.date)}`,'',`Name: ${r.name} (ID ${r.code})`];
+  if(s.seat)L.push(`Seat: ${s.seat}${s.shift?' | '+s.shift:''}`);
+  if(r.months)L.push(`${r.head}: ${rs(r.fee)}`,`Period: ${dmy(r.from)} to ${dmy(r.to)}`);else if(r.fee)L.push(`Fee: ${rs(r.fee)}`);
+  if(r.extraAmt)L.push(`${r.extra}: ${rs(r.extraAmt)}`);if(r.oldBal)L.push(`Purana baki: ${rs(r.oldBal)}`);if(r.disc)L.push(`Discount: -${rs(r.disc)}`);
+  L.push('',`*Received: ${rs(r.paid)}* (${r.mode})`);if(r.bal)L.push(`Balance: ${rs(r.bal)}`);if(r.to)L.push(`*Valid till: ${dmy(r.to)}*`);
+  L.push('',S.footer);if(S.contact)L.push(`Contact: ${S.contact}`);
+  return L.filter(x=>x!==undefined).join('\n');
+}
+const waReceipt=id=>{const r=D.receipts.find(x=>x.id===id);const s=stu(r.sid);waOpen(s&&s.mobile,rcptText(r));};
+
+/* ================= PRINT ================= */
+const PAGE={'58':'margin:0','80':'margin:0',A6:'size:A6;margin:5mm',A5:'size:A5;margin:8mm',A4:'size:A4;margin:12mm'};
+function printHtml(html,page){$('#print').innerHTML=`<style>@page{${page}}</style>`+html;setTimeout(()=>window.print(),50);}
+function rcptHtml(r){
+  const S=D.settings,s=stu(r.sid)||{},big=!['58','80'].includes(S.slip);
+  const L=[];
+  if(r.months||r.fee)L.push([esc(r.head||'Fee')+(r.months>1?` × ${r.months}`:'')+(r.from?`<br><small>${dmy(r.from)} to ${dmy(r.to)}</small>`:''),r.fee]);
+  if(r.extraAmt)L.push([esc(r.extra),r.extraAmt]);if(r.oldBal)L.push(['Purana baki',r.oldBal]);if(r.disc)L.push(['Discount',-r.disc]);
+  return `<div class="rcpt ${big?'big ':''}w${S.slip}">
+    <div class="c h">${esc(S.name)}</div>${S.address?`<div class="c">${esc(S.address)}</div>`:''}${S.contact?`<div class="c">Mob: ${esc(S.contact)}</div>`:''}
+    <div class="c tt">FEE RECEIPT${r.cancel?' — CANCELLED':''}</div>
+    <table><tr><td>No: <b>${r.no}</b></td><td class="r">Date: ${dmy(r.date)}</td></tr>
+    <tr><td colspan="2">Name: <b>${esc(r.name)}</b></td></tr>${s.father?`<tr><td colspan="2">Father: ${esc(s.father)}</td></tr>`:''}
+    <tr><td>ID: ${esc(r.code)}</td><td class="r">Seat: ${esc(s.seat||'—')}</td></tr>
+    ${s.mobile||s.shift?`<tr><td>${s.mobile?'Mob: '+esc(s.mobile):''}</td><td class="r">${esc(s.shift||'')}</td></tr>`:''}</table>
+    <table class="it"><thead><tr><th>Particulars</th><th class="r">Amount</th></tr></thead><tbody>${L.map(([a,b])=>`<tr><td>${a}</td><td class="r">${rs(b)}</td></tr>`).join('')}</tbody>
+    <tfoot><tr class="bg"><td>Total</td><td class="r">${rs(r.total)}</td></tr><tr><td>Received (${esc(r.mode)})</td><td class="r"><b>${rs(r.paid)}</b></td></tr>
+    ${r.bal?`<tr><td>Balance</td><td class="r">${rs(r.bal)}</td></tr>`:''}</tfoot></table>
+    <div style="margin-top:3px">Rupees ${words(r.paid)} only</div>
+    ${r.to?`<div class="c vt">Valid till: <b>${dmy(r.to)}</b></div>`:''}${r.note?`<div>Note: ${esc(r.note)}</div>`:''}
+    ${big?`<div class="sign"><span>Student</span><span>For ${esc(S.name)}</span></div>`:''}
+    <div class="c ft">${esc(S.footer)}</div></div>`;
+}
+const printReceipt=id=>printHtml(rcptHtml(D.receipts.find(x=>x.id===id)),PAGE[D.settings.slip]||'margin:0');
+function printReport(html){printHtml(`<div class="rep"><h2 style="margin:0">${esc(D.settings.name)}</h2>${html}</div>`,'size:A4;margin:10mm');}
+
+/* ================= ATTENDANCE ================= */
+let attDate=null;
+function scrAtt(){
+  attDate=attDate||today();
+  main.innerHTML=title('Attendance',`Date <input type="date" id="a_date" value="${attDate}"><button class="btn sm g" onclick="go('attrep')">Month Report (M)</button>`)+
+  `<div class="card"><label>Student ID / Seat / Mobile likh kar <kbd>Enter</kbd> — pehli baar IN, doosri baar OUT</label>
+    <input id="a_scan" class="scan" autocomplete="off" placeholder="Jaise 1001"><div id="a_msg" style="margin-top:8px;font-size:16px;min-height:22px"></div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Naam</th><th>Seat / Shift</th><th>IN</th><th>OUT</th><th>Status</th><th></th></tr></thead><tbody id="a_tb"></tbody></table></div>`;
+  $('#a_date').onchange=()=>{attDate=$('#a_date').value||today();drawAtt();};
+  $('#a_scan').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();attScan($('#a_scan').value);$('#a_scan').value='';}};
+  drawAtt();focusEl('#a_scan');
+}
+function drawAtt(){
+  const day=D.att[attDate]||{},L=active().slice().sort((a,b)=>(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
+  const P=L.filter(s=>day[s.id]).length;
+  $('#a_tb').innerHTML=L.map(s=>{const a=day[s.id];return `<tr><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b> ${stStatus(s).k==='due'?'<span class="tag due">Fee due</span>':''}</td>
+    <td>${esc(s.seat||'—')} ${s.shift?'<span class="muted small">'+esc(s.shift)+'</span>':''}</td><td>${a?esc(a.in||'✓'):''}</td><td>${a?esc(a.out||''):''}</td>
+    <td>${a?'<span class="tag ok">Present</span>':'<span class="tag left">Absent</span>'}</td>
+    <td class="n"><button class="btn sm ${a?'g':'ok'}" onclick="attToggle('${s.id}')">${a?'Absent karein':'Present'}</button></td></tr>`;}).join('')||'<tr><td colspan="7" class="muted">Koi active student nahi.</td></tr>';
+  $('#a_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="7" class="muted">Present: <b class="green">${P}</b> · Absent: <b class="red">${L.length-P}</b> · Total: ${L.length}</td></tr>`);
+}
+function attScan(q){
+  q=String(q||'').trim();if(!q)return;
+  const ql=q.toLowerCase(),qd=normPh(q),A=active();
+  let m=A.filter(s=>String(s.code).toLowerCase()===ql);
+  if(!m.length&&qd.length===10)m=A.filter(s=>s.mobile===qd);
+  if(!m.length)m=A.filter(s=>String(s.seat||'').toLowerCase()===ql);
+  const msg=$('#a_msg');
+  if(!m.length){msg.innerHTML=`<span class="red">"${esc(q)}" — koi active student nahi mila</span>`;return;}
+  if(m.length>1){msg.innerHTML=`Seat ${esc(q)} par ${m.length} student hain: `+m.map(s=>`<button class="btn sm" onclick="attMark('${s.id}')">${esc(s.code)} ${esc(s.name)}</button>`).join(' ');return;}
+  attMark(m[0].id);
+}
+function attMark(id){
+  const s=stu(id),day=D.att[attDate]=D.att[attDate]||{},t=nowTime(),msg=$('#a_msg');let txt;
+  if(!day[id]){day[id]={in:t,out:''};txt=`<span class="green">IN ${t}</span>`;}
+  else if(!day[id].out){day[id].out=t;txt=`<span style="color:var(--bar);font-weight:600">OUT ${t}</span>`;}
+  else{txt=`<span class="muted">Pehle hi IN ${day[id].in} / OUT ${day[id].out}</span>`;}
+  const st=stStatus(s);
+  msg.innerHTML=`<b>${esc(s.code)} — ${esc(s.name)}</b> ${txt}${st.k==='due'?` <span class="tag due">Fee due! ${dueAmt(s)?rs(dueAmt(s)):''}</span>`:st.k==='soon'?` <span class="tag soon">${esc(st.t)}</span>`:''}`;
+  save();drawAtt();focusEl('#a_scan');
+}
+function attToggle(id){
+  const day=D.att[attDate]=D.att[attDate]||{};
+  if(day[id])delete day[id];else day[id]={in:attDate===today()?nowTime():'',out:''};
+  save();drawAtt();
+}
+let repMonth=null;
+function scrAttRep(){
+  repMonth=repMonth||today().slice(0,7);
+  main.innerHTML=title('Attendance Report',`Month <input type="month" id="m_mon" value="${repMonth}"><button class="btn sm g" onclick="attRepCsv()">CSV</button><button class="btn sm g" onclick="printReport($('#m_out').innerHTML)">Print</button>`)+
+  `<div class="card" style="padding:0;overflow:auto" id="m_out"></div>`;
+  $('#m_mon').onchange=()=>{repMonth=$('#m_mon').value||today().slice(0,7);drawAttRep();};drawAttRep();
+}
+function attRepData(){
+  const [y,m]=repMonth.split('-').map(Number),n=new Date(y,m,0).getDate(),t=today();
+  const days=[...Array(n)].map((_,i)=>repMonth+'-'+pad(i+1));
+  const L=D.students.filter(s=>s.status!=='left'||days.some(d=>(D.att[d]||{})[s.id])).sort((a,b)=>(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
+  return {days,rows:L.map(s=>{const marks=days.map(d=>!!(D.att[d]||{})[s.id]);
+    const work=days.filter(d=>d<=t&&d>=(s.join||'')).length,p=marks.filter(Boolean).length;
+    return {s,marks,p,a:Math.max(0,work-p),pct:work?Math.round(p*100/work):0};})};
+}
+function drawAttRep(){
+  const {days,rows}=attRepData();
+  $('#m_out').innerHTML=`<p style="padding:8px 10px;margin:0"><b>Attendance — ${repMonth}</b></p><table class="agrid"><thead><tr><th class="nm">ID</th><th class="nm">Naam</th>${days.map(d=>`<th>${+d.slice(8)}</th>`).join('')}<th>P</th><th>A</th><th>%</th></tr></thead><tbody>
+  ${rows.map(r=>`<tr><td class="nm">${esc(r.s.code)}</td><td class="nm">${esc(r.s.name)}</td>${r.marks.map(x=>x?'<td class="p">P</td>':'<td></td>').join('')}<td><b>${r.p}</b></td><td>${r.a}</td><td>${r.pct}%</td></tr>`).join('')||
+  `<tr><td colspan="${days.length+5}" class="muted">Koi data nahi</td></tr>`}</tbody></table>`;
+}
+function attRepCsv(){const {days,rows}=attRepData();
+  dl(`attendance_${repMonth}.csv`,toCsv([['ID','Name','Seat',...days.map(d=>+d.slice(8)),'Present','Absent','%']].concat(rows.map(r=>[r.s.code,r.s.name,r.s.seat,...r.marks.map(x=>x?'P':''),r.p,r.a,r.pct]))),'text/csv');}
+
+/* ================= DUE LIST ================= */
+let dueFlt='due',remIdx=0;
+function scrDue(f){
+  if(f)dueFlt=f;remIdx=0;
+  main.innerHTML=title('Due List & Reminder',`<select id="d_flt">${[['due','Fee due (khatam)'],['soon',`${D.settings.expDays} din mein khatam`],['bal','Balance baki'],['all','Sab pending']].map(([k,t])=>`<option value="${k}"${k===dueFlt?' selected':''}>${t}</option>`).join('')}</select>
+    <button class="btn sm wa" onclick="remindNext()">Agla reminder bhejein</button><button class="btn sm g" onclick="dueCsv()">CSV</button>`)+
+  `<div class="hint">WhatsApp ek-ek karke khulta hai. <b>Agla reminder bhejein</b> dabate jaayein, ya row par <kbd>F9</kbd>. <kbd>Enter</kbd> = Fee lo.</div>
+  <div class="card" style="padding:0"><table><thead><tr><th>#</th><th>ID</th><th>Naam</th><th>Mobile</th><th>Seat</th><th>Valid till</th><th>Status</th><th class="n">Due (approx)</th><th></th></tr></thead><tbody id="d_tb"></tbody></table></div>`;
+  $('#d_flt').onchange=()=>{dueFlt=$('#d_flt').value;remIdx=0;drawDue();};drawDue();
+  nav={Enter:id=>go('collect',id),F9:waRemind};
+}
+function dueRows(){return active().filter(s=>{const k=stStatus(s).k;return dueFlt==='all'?(k!=='ok'||s.bal>0):dueFlt==='bal'?s.bal>0:k===dueFlt;})
+  .sort((a,b)=>(a.validTill||'').localeCompare(b.validTill||''));}
+function drawDue(){
+  const L=dueRows();
+  $('#d_tb').innerHTML=L.map((s,i)=>`<tr data-id="${s.id}"><td>${i+1}</td><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b></td><td>${esc(s.mobile)}</td><td>${esc(s.seat||'—')}</td>
+    <td>${dmy(s.validTill)||'—'}</td><td>${tag(s)}</td><td class="n"><b>${rs(dueAmt(s))}</b></td>
+    <td class="n" style="white-space:nowrap"><button class="btn sm wa" onclick="waRemind('${s.id}')">WA</button> <button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button></td></tr>`).join('')||
+    '<tr><td colspan="9" class="muted">Koi pending nahi 👍</td></tr>';
+  if(L.length)$('#d_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="7"><b>Total ${L.length} student</b></td><td class="n"><b>${rs(sum(L,dueAmt))}</b></td><td></td></tr>`);
+  selFirst();
+}
+function remindNext(){const L=dueRows();if(!L.length)return toast('Koi pending nahi');if(remIdx>=L.length){remIdx=0;toast('Sabko bhej diya — dobara shuru');return;}
+  const s=L[remIdx++];navMove(0);const rows=[...main.querySelectorAll('tr[data-id]')];rows.forEach(r=>r.classList.toggle('sel',r.dataset.id===s.id));
+  toast(`${remIdx}/${L.length}: ${s.name}`);waRemind(s.id);}
+function dueCsv(){dl(`due_${today()}.csv`,toCsv([['ID','Name','Mobile','Seat','Valid Till','Status','Due']].concat(dueRows().map(s=>[s.code,s.name,s.mobile,s.seat,s.validTill,stStatus(s).t,dueAmt(s)]))),'text/csv');}
+
+/* ================= RECEIPTS ================= */
+let rFrom=null,rTo=null;
+function scrReceipts(){
+  rFrom=rFrom||today().slice(0,8)+'01';rTo=rTo||today();
+  main.innerHTML=title('Receipt List',`<input type="date" id="r_from" value="${rFrom}"> se <input type="date" id="r_to" value="${rTo}">`)+
+  `<div class="card"><input id="r_q" data-nav placeholder="Search: naam / ID / receipt no"><div class="muted small" style="margin-top:6px"><kbd>Enter</kbd> Print · <kbd>F9</kbd> WhatsApp · Cancel sirf student ki aakhri receipt ka hota hai</div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>ID</th><th>Naam</th><th>Fee / Period</th><th class="n">Total</th><th class="n">Received</th><th class="n">Baki</th><th>Mode</th><th></th></tr></thead><tbody id="r_tb"></tbody></table></div>`;
+  const draw=()=>{rFrom=val('r_from');rTo=val('r_to');const q=val('r_q').toLowerCase();
+    const L=D.receipts.filter(r=>r.date>=rFrom&&r.date<=rTo&&(!q||r.name.toLowerCase().includes(q)||String(r.code)===q||String(r.no)===q)).slice().reverse();
+    const ok=L.filter(r=>!r.cancel);
+    $('#r_tb').innerHTML=L.map(r=>`<tr data-id="${r.id}" class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)}</td><td>${esc(r.code)}</td><td><b>${esc(r.name)}</b></td>
+      <td class="small">${r.months?esc(r.head)+'<br>'+dmy(r.from)+' – '+dmy(r.to):''}${r.extra?'<br>'+esc(r.extra):''}</td><td class="n">${rs(r.total)}</td><td class="n"><b>${rs(r.paid)}</b></td><td class="n">${r.bal?rs(r.bal):''}</td><td>${esc(r.mode)}</td>
+      <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button>${r.cancel?'':` <button class="btn sm bad" onclick="cancelReceipt('${r.id}')">Cancel</button>`}</td></tr>`).join('')||
+      '<tr><td colspan="10" class="muted">Is date mein koi receipt nahi.</td></tr>';
+    if(L.length)$('#r_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="6"><b>${ok.length} receipt</b>${L.length>ok.length?` (${L.length-ok.length} cancel)`:''}</td><td class="n"><b>${rs(sum(ok,'paid'))}</b></td><td colspan="3"></td></tr>`);
+    selFirst();};
+  ['r_from','r_to'].forEach(i=>$('#'+i).onchange=draw);$('#r_q').oninput=draw;draw();
+  nav={Enter:printReceipt,F9:waReceipt};focusEl('#r_q');
+}
+async function cancelReceipt(id){
+  const r=D.receipts.find(x=>x.id===id),s=stu(r.sid);
+  if(D.receipts.some(x=>x.sid===r.sid&&!x.cancel&&x.no>r.no)){toast('Pehle is student ki baad wali receipt cancel karein','bad');return;}
+  if(!await ask(`Receipt #${r.no} (${esc(r.name)}, ${rs(r.paid)}) cancel karein?`))return;
+  r.cancel=true;if(s){s.validTill=r.prevValid;s.bal=r.prevBal;}
+  save();toast('Receipt cancel ho gayi');scrReceipts();
+}
+
+/* ================= DAY BOOK ================= */
+let dbFrom=null,dbTo=null;
+function scrDaybook(){
+  dbFrom=dbFrom||today();dbTo=dbTo||today();
+  main.innerHTML=title('Day Book — Collection',`<input type="date" id="b_from" value="${dbFrom}"> se <input type="date" id="b_to" value="${dbTo}">
+    <button class="btn sm g" onclick="printReport($('#b_out').innerHTML)">Print</button><button class="btn sm wa" onclick="waOpen(D.settings.owner,dayText())">WhatsApp Owner</button>`)+`<div id="b_out"></div>`;
+  ['b_from','b_to'].forEach(i=>$('#'+i).onchange=()=>{dbFrom=val('b_from');dbTo=val('b_to');drawDaybook();});drawDaybook();
+}
+function dayData(){const L=D.receipts.filter(r=>!r.cancel&&r.date>=dbFrom&&r.date<=dbTo);
+  return {L,modes:MODES.map(m=>[m,sum(L.filter(r=>r.mode===m),'paid')]).filter(x=>x[1]),adm:D.students.filter(s=>(s.created||s.join)>=dbFrom&&(s.created||s.join)<=dbTo).length,
+    cx:D.receipts.filter(r=>r.cancel&&r.date>=dbFrom&&r.date<=dbTo).length};}
+function drawDaybook(){
+  const {L,modes,adm,cx}=dayData();
+  $('#b_out').innerHTML=`<div class="card"><p style="margin:0 0 8px"><b>${dmy(dbFrom)}${dbTo!==dbFrom?' se '+dmy(dbTo):''}</b></p><div class="grid">
+    <div><label>Total collection</label><b style="font-size:22px;color:var(--bar)">${rs(sum(L,'paid'))}</b></div>
+    ${modes.map(([m,a])=>`<div><label>${m}</label><b style="font-size:18px">${rs(a)}</b></div>`).join('')}
+    <div><label>Receipts</label><b style="font-size:18px">${L.length}</b>${cx?` <span class="muted small">(${cx} cancel)</span>`:''}</div>
+    <div><label>Naye admission</label><b style="font-size:18px">${adm}</b></div></div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>Naam</th><th>Detail</th><th>Mode</th><th class="n">Amount</th></tr></thead><tbody>
+  ${L.map(r=>`<tr><td>${r.no}</td><td>${dmy(r.date)} ${esc(r.time||'')}</td><td>${esc(r.name)} (${esc(r.code)})</td><td class="small">${[r.months?r.head+' '+dmy(r.from)+'–'+dmy(r.to):'',r.extra].filter(Boolean).map(esc).join(', ')}</td><td>${esc(r.mode)}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Koi collection nahi.</td></tr>'}
+  </tbody><tfoot><tr><td colspan="5">Total</td><td class="n">${rs(sum(L,'paid'))}</td></tr></tfoot></table></div>`;
+}
+function dayText(){const {L,modes,adm}=dayData(),S=D.settings,act=active();
+  return [`*${S.name}*`,`Report: ${dmy(dbFrom)}${dbTo!==dbFrom?' - '+dmy(dbTo):''}`,'',`*Collection: ${rs(sum(L,'paid'))}*`,...modes.map(([m,a])=>`${m}: ${rs(a)}`),`Receipts: ${L.length}`,`Naye admission: ${adm}`,'',
+    `Active students: ${act.length}`,`Aaj present: ${Object.keys(D.att[today()]||{}).length}`,`Fee due: ${act.filter(s=>stStatus(s).k==='due').length}`,`Baki balance: ${rs(sum(act,'bal'))}`].join('\n');}
+
+/* ================= BULK IMPORT ================= */
+const ICOLS={code:['id','studentid','roll','rollno','code','srno'],name:['name','studentname','naam','student'],father:['father','fathername','fathersname','pita','fname'],
+  mobile:['mobile','phone','contact','mob','mobileno','whatsapp','phoneno'],address:['address','pata','addr'],seat:['seat','seatno'],shift:['shift','timing','time','batch'],
+  plan:['plan','feeplan','feehead','feetype'],fee:['fee','fees','amount','monthlyfee','feeamount'],join:['join','joindate','admissiondate','doj','date','joining'],
+  paidtill:['paidtill','validtill','feetill','expiry','expirydate','till'],paid:['paid','paidamount','received','jama'],bal:['balance','baki','due','pending']};
+let impRows=[];
+function scrImport(){
+  main.innerHTML=title('Bulk Import — Excel / CSV',`<button class="btn sm g" onclick="impTemplate()">Template download</button>`)+
+  `<div class="hint">Excel mein columns rakhein: <b>Name, Father, Mobile, Address, Seat, Shift, Plan, Fee, Join Date, Paid Till, Paid, Balance</b> (sirf Name zaroori).<br>
+   Excel se rows copy karke neeche <b>paste</b> karein, ya CSV file chunein. Date: DD-MM-YYYY. Plan ka naam Fee Master se match na ho to naya plan (30 din) ban jayega.</div>
+  <div class="card"><div class="row"><input type="file" id="i_file" accept=".csv,.txt" class="fix"><span class="muted small">ya paste karein:</span></div>
+   <textarea id="i_txt" rows="7" style="margin-top:8px;font:12px Consolas,monospace" placeholder="Name&#9;Mobile&#9;Fee&#10;Rahul Kumar&#9;9876543210&#9;600"></textarea>
+   <div class="btns"><button class="btn" onclick="impPreview()">Preview</button><button class="btn ok" id="i_go" onclick="impRun()" disabled>Import karein (Ctrl+S)</button></div></div><div id="i_out"></div>`;
+  $('#i_file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$('#i_txt').value=rd.result;impPreview();};rd.readAsText(f);};
+  impRows=[];onSave=impRun;focusEl('#i_txt');
+}
+function impTemplate(){dl('students_template.csv',toCsv([['Name','Father','Mobile','Address','Seat','Shift','Plan','Fee','Join Date','Paid Till','Paid','Balance']]),'text/csv');}
+function parseCsv(t){
+  t=t.replace(/^﻿/,'');const first=t.split(/\r?\n/)[0]||'',sep=first.includes('\t')?'\t':(first.split(';').length>first.split(',').length?';':',');
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++;}else q=false;}else f+=c;}
+    else if(c==='"'&&f==='')q=true;else if(c===sep){row.push(f);f='';}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(f);f='';if(row.some(x=>x.trim()))rows.push(row);row=[];}
+    else f+=c;}
+  row.push(f);if(row.some(x=>x.trim()))rows.push(row);return rows;
+}
+function parseDate(v){
+  v=String(v||'').trim();if(!v)return '';
+  if(/^\d{5}$/.test(v)){const d=new Date(Date.UTC(1899,11,30)+(+v)*864e5);return d.toISOString().slice(0,10);}
+  let m=v.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);if(m)return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+  m=v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);if(m){let y=+m[3];if(y<100)y+=2000;return `${y}-${pad(m[2])}-${pad(m[1])}`;}
+  return null;
+}
+function impPreview(){
+  const rows=parseCsv($('#i_txt').value);if(!rows.length){toast('Kuch paste karein','bad');return;}
+  const norm=h=>String(h).toLowerCase().replace(/[^a-z]/g,'');
+  const hdr=rows[0].map(norm),map={};
+  Object.entries(ICOLS).forEach(([k,al])=>{const i=hdr.findIndex(h=>al.includes(h));if(i>=0)map[k]=i;});
+  if(map.name===undefined){toast('Pehli line mein heading chahiye — kam se kam "Name"','bad');return;}
+  const codes=new Set(D.students.map(s=>s.code));let next=+nextCode();
+  impRows=rows.slice(1).map((r,ix)=>{
+    const g=k=>map[k]===undefined?'':String(r[map[k]]??'').trim(),x={line:ix+2,err:[],warn:[]};
+    x.name=g('name');x.father=g('father');x.mobile=normPh(g('mobile'));x.address=g('address');x.seat=g('seat');x.shift=g('shift');x.planName=g('plan');
+    x.fee=g('fee')===''?null:+g('fee').replace(/[^\d.]/g,'');x.paid=+g('paid').replace(/[^\d.]/g,'')||0;x.bal=+g('bal').replace(/[^\d.]/g,'')||0;
+    x.join=parseDate(g('join'));x.paidtill=parseDate(g('paidtill'));x.code=g('code');
+    if(!x.name)x.err.push('Naam khaali');
+    if(x.join===null){x.err.push('Join date galat');}else if(!x.join)x.join=today();
+    if(x.paidtill===null)x.err.push('Paid till date galat');
+    if(x.mobile&&x.mobile.length!==10)x.warn.push('Mobile 10 digit nahi');if(!x.mobile)x.warn.push('Mobile nahi');
+    if(x.code&&codes.has(x.code))x.err.push('ID '+x.code+' pehle se hai');
+    if(!x.code){while(codes.has(String(next)))next++;x.code=String(next++);}codes.add(x.code);
+    const p=x.planName?D.plans.find(p=>p.name.toLowerCase()===x.planName.toLowerCase()&&+p.days>0):periodic()[0];
+    if(!p&&!x.planName&&!periodic().length&&x.fee===null)x.err.push('Fee ya Plan dein');
+    x.plan=p||null;if(x.fee===null)x.fee=p?+p.amount:0;
+    if(!p)x.warn.push(`Naya plan banega: ${x.planName||'Monthly'}`);
+    return x;});
+  const ok=impRows.filter(x=>!x.err.length).length;
+  $('#i_out').innerHTML=`<div class="card"><b>${impRows.length}</b> rows · <span class="green">${ok} theek</span> · <span class="red">${impRows.length-ok} galat (skip honge)</span></div>
+  <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Line</th><th>ID</th><th>Naam</th><th>Mobile</th><th>Seat</th><th>Plan</th><th class="n">Fee</th><th>Join</th><th>Paid till</th><th class="n">Paid</th><th class="n">Baki</th><th>Issue</th></tr></thead><tbody>
+  ${impRows.map(x=>`<tr class="${x.err.length?'err':''}"><td>${x.line}</td><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc(x.mobile)}</td><td>${esc(x.seat)}</td><td>${esc(x.plan?x.plan.name:x.planName||'Monthly')}</td>
+    <td class="n">${rs(x.fee)}</td><td>${dmy(x.join||'')}</td><td>${dmy(x.paidtill||'')}</td><td class="n">${x.paid?rs(x.paid):''}</td><td class="n">${x.bal?rs(x.bal):''}</td>
+    <td class="small">${x.err.map(e=>`<span class="red">${esc(e)}</span>`).concat(x.warn.map(esc)).join('<br>')}</td></tr>`).join('')}</tbody></table></div>`;
+  $('#i_go').disabled=!ok;
+}
+async function impRun(){
+  const good=impRows.filter(x=>!x.err.length);if(!good.length){toast('Pehle Preview karein','bad');return;}
+  if(!await ask(`${good.length} student import karein?`))return;
+  let rc=0;
+  good.forEach(x=>{
+    let p=x.plan;
+    if(!p){const nm=x.planName||'Monthly';p=D.plans.find(q=>q.name.toLowerCase()===nm.toLowerCase());
+      if(!p){p={id:uid(),name:nm,amount:x.fee,days:30,note:'Import se'};D.plans.push(p);}}
+    const s={id:uid(),code:x.code,name:x.name,father:x.father,mobile:x.mobile,address:x.address,seat:x.seat,shift:x.shift,planId:p.id,fee:x.fee,
+      join:x.join,validTill:x.paidtill||'',bal:x.bal,status:'active',note:'',created:today()};
+    if(x.paid>0){
+      const from=x.join,to=x.paidtill||addDays(from,+p.days-1);
+      D.receipts.push({id:uid(),no:++D.seq.rcpt,date:x.join,time:'',sid:s.id,code:s.code,name:s.name,head:p.name,months:1,from,to,fee:x.paid,extra:'',extraAmt:0,disc:0,
+        oldBal:0,total:x.paid+x.bal,paid:x.paid,bal:x.bal,mode:'Cash',note:'Import (opening)',prevValid:'',prevBal:0});
+      s.validTill=to;rc++;}
+    D.students.push(s);});
+  save();toast(`${good.length} student import ho gaye${rc?`, ${rc} receipt`:''}`,'ok');impRows=[];go('list');
+}
+
+/* ================= SETTINGS & BACKUP ================= */
+async function scrSettings(){
+  const S=D.settings,M=S.mail;
+  main.innerHTML=title('Settings & Backup')+
+  `<div class="form"><div class="card"><h4>Library ki jaankari (slip par chhapti hai)</h4><div class="grid">
+    <div class="w2"><label>Library ka naam <i>*</i></label><input id="g_name" value="${esc(S.name)}"></div>
+    <div><label>Contact number</label><input id="g_contact" value="${esc(S.contact)}"></div>
+    <div><label>Owner WhatsApp (report ke liye)</label><input id="g_owner" value="${esc(S.owner)}"></div>
+    <div class="w2"><label>Address</label><input id="g_address" value="${esc(S.address)}"></div>
+    <div class="w2"><label>Slip ke neeche likha (footer)</label><input id="g_footer" value="${esc(S.footer)}"></div>
+    <div class="w2"><label>Shifts (comma se alag)</label><input id="g_shifts" value="${esc(S.shifts)}"></div>
+    <div><label>Kitne din pehle "jaldi khatam" dikhaye</label><input id="g_exp" type="number" min="0" value="${S.expDays}"></div>
+  </div></div>
+  <div class="card"><h4>Receipt slip</h4><div class="grid">
+    <div><label>Slip size</label><select id="g_slip">${[['58','58 mm thermal'],['80','80 mm thermal'],['A6','A6 (105×148 mm)'],['A5','A5 (half A4)'],['A4','A4']].map(([k,t])=>`<option value="${k}"${S.slip===k?' selected':''}>${t}</option>`).join('')}</select></div>
+    <div><label>Save ke baad print</label><select id="g_ap"><option value="1">Haan</option><option value="0"${S.autoPrint?'':' selected'}>Nahi</option></select></div>
+    <div><label>Save ke baad WhatsApp</label><select id="g_aw"><option value="0">Nahi</option><option value="1"${S.autoWa?' selected':''}>Haan</option></select></div>
+    <div><label>WhatsApp kholein</label><select id="g_wam"><option value="web">WhatsApp Web (browser)</option><option value="app"${S.waMode==='app'?' selected':''}>WhatsApp Desktop App</option></select></div>
+  </div><div class="btns"><button class="btn g" onclick="saveSettings(true).then(testPrint,()=>{})">Test print</button></div></div>
+  <div class="card"><h4>Email backup (Gmail)</h4>
+    <div class="hint">Gmail mein <b>2-Step Verification</b> on karein → <b>myaccount.google.com/apppasswords</b> se 16 akshar ka <b>App Password</b> banayein. Normal Gmail password yahan kaam nahi karega.</div>
+    <div class="grid">
+    <div><label>Gmail id (bhejne wala)</label><input id="g_mu" value="${esc(M.user)}" placeholder="library@gmail.com"></div>
+    <div><label>App Password</label><input id="g_mp" type="password" value="${esc(M.pass)}" autocomplete="new-password"></div>
+    <div class="w2"><label>Backup kis email par aaye (comma se kai)</label><input id="g_mt" value="${esc(M.to)}"></div>
+    <div><label>Roz apne aap bhejein</label><select id="g_ma"><option value="1">Haan (din mein 1 baar)</option><option value="0"${M.auto?'':' selected'}>Nahi</option></select></div>
+  </div><div class="btns"><button class="btn" onclick="sendEmailBackup()">Abhi backup email karein</button></div><p class="small" id="g_mailst"></p></div>
+  <div class="btns" style="margin-bottom:14px"><button class="btn ok" onclick="saveSettings().catch(()=>{})">Save Settings (Ctrl+S)</button></div></div>
+  <div class="card"><h4>Data backup / restore</h4>
+    <div class="btns"><a class="btn g" href="/api/export" download style="text-decoration:none">Backup download (.json)</a><button class="btn g" onclick="exportStudents()">Students CSV / Excel</button>
+    <label class="btn g" style="margin:0;color:var(--bar);font-size:14px">Restore backup<input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label></div>
+    <p class="small muted" id="g_info"></p></div>`;
+  onSave=()=>saveSettings().catch(()=>{});focusEl('#g_name');
+  try{INFO=await api('info');}catch(e){}
+  if($('#g_info'))$('#g_info').innerHTML=`Data folder: <b>${esc(INFO.dataDir||'')}</b><br>Roz ka local backup: <b>${esc(INFO.backupDir||'')}</b> (60 din tak)`;
+  showMailStatus();
+}
+function showMailStatus(){const e=$('#g_mailst');if(!e)return;
+  e.innerHTML=(INFO.lastEmail?`Aakhri email backup: <b class="green">${new Date(INFO.lastEmail).toLocaleString('en-IN')}</b>`:'Abhi tak koi email backup nahi gaya.')+
+    (INFO.lastEmailError?`<br><span class="red">Pichhli galti: ${esc(INFO.lastEmailError)}</span>`:'');}
+function saveSettings(quiet){
+  const S=D.settings,name=val('g_name');
+  if(!name){toast('Library ka naam daalein','bad');focusEl('#g_name');return Promise.reject();}
+  Object.assign(S,{name,contact:val('g_contact'),owner:normPh(val('g_owner')),address:val('g_address'),footer:val('g_footer'),shifts:val('g_shifts'),
+    expDays:Math.max(0,parseInt(val('g_exp'),10)||0),slip:val('g_slip'),autoPrint:val('g_ap')==='1',autoWa:val('g_aw')==='1',waMode:val('g_wam')});
+  S.mail={...S.mail,user:val('g_mu'),pass:$('#g_mp').value.replace(/\s+/g,''),to:val('g_mt'),auto:val('g_ma')==='1'};
+  $('#libname').textContent=S.name;if(!quiet)toast('Settings save ho gayi','ok');
+  return save();
+}
+async function sendEmailBackup(){
+  await saveSettings(true);const e=$('#g_mailst');e.innerHTML='Bhej rahe hain…';
+  try{INFO={...INFO,...await api('email-backup',{})};toast('Backup email ho gaya','ok');}
+  catch(err){INFO.lastEmailError=err.message;toast('Email nahi gaya: '+err.message,'bad');}
+  showMailStatus();
+}
+function testPrint(){printHtml(rcptHtml({no:0,date:today(),time:nowTime(),sid:'',code:'1001',name:'Test Student',head:'Monthly Fee',months:1,from:today(),to:addDays(today(),29),
+  fee:500,extra:'',extraAmt:0,disc:0,oldBal:0,total:500,paid:500,bal:0,mode:'Cash',note:''}),PAGE[D.settings.slip]);}
+function restore(f){
+  if(!f)return;const rd=new FileReader();
+  rd.onload=async()=>{let d;try{d=JSON.parse(rd.result);}catch(e){toast('File galat hai','bad');return;}
+    if(!d||!d.settings||!Array.isArray(d.students)){toast('Ye Library ERP ka backup nahi hai','bad');return;}
+    if(!await ask(`Backup mein ${d.students.length} student, ${(d.receipts||[]).length} receipt hain. Abhi ka data hata kar ye daalein?`))return;
+    D=migrate(d);await save();toast('Restore ho gaya','ok');go('home');};
+  rd.readAsText(f);
+}
+
+/* ================= LICENSE ================= */
+function licBar(){const e=$('#lic');if(!LIC||!LIC.ok){e.textContent='';return;}
+  e.textContent=`License: ${LIC.daysLeft} din (${dmy(LIC.expiry)})`;e.className='lic'+(LIC.daysLeft<=7?' low':'');}
+function scrLicense(){
+  main.innerHTML=title('License / Activation')+`<div class="card" style="max-width:620px"><table class="info">
+    <tr><td>Machine code</td><td><b style="font:700 18px Consolas,monospace">${esc(LIC.machine)}</b></td></tr>
+    <tr><td>Valid till</td><td><b>${dmy(LIC.expiry)}</b></td></tr><tr><td>Din bache</td><td><b class="${LIC.daysLeft<=7?'red':'green'}">${LIC.daysLeft}</b></td></tr>
+    ${LIC.name?`<tr><td>Licensed to</td><td>${esc(LIC.name)}</td></tr>`:''}</table>
+    <div class="form" style="margin-top:12px"><label>Renew karne ke liye nayi activation key</label><textarea id="k_key" rows="3" style="font:12px Consolas,monospace"></textarea>
+    <div class="btns"><button class="btn" onclick="doActivate(val('k_key'))">Activate (Ctrl+S)</button>${LIC.vendorPhone?`<button class="btn wa" onclick="askKey()">Key ke liye WhatsApp</button>`:''}</div></div></div>`;
+  onSave=()=>doActivate(val('k_key'));focusEl('#k_key');
+}
+function askKey(){waOpen(LIC.vendorPhone,`Library ERP activation key chahiye.\nMachine code: ${LIC.machine}${D&&D.settings?'\nLibrary: '+D.settings.name:''}`);}
+async function doActivate(key){
+  if(!key){toast('Key paste karein','bad');return;}
+  try{LIC=await api('activate',{key});toast(`Activate ho gaya — ${LIC.daysLeft} din`,'ok');await boot();}
+  catch(e){toast(e.message,'bad');}
+}
+function showActivate(){
+  D=null;$('#side').innerHTML='';$('#scr').textContent='Activation';$('#lic').textContent='';
+  const why={new:'Software activate nahi hai.',invalid:'Activation key is computer ke liye valid nahi hai.',expired:`License ${dmy(LIC.expiry)} ko khatam ho gaya.`,
+    clock:'Computer ki date/time peeche ki gayi hai. Sahi date set karke dobara kholein.'}[LIC.reason]||'';
+  main.innerHTML=`<div class="act card"><h2 style="margin-top:0;color:var(--bar)">Library ERP — Activation</h2>
+    <p class="${LIC.reason==='new'?'':'red'}">${why}</p>
+    <p>Apna <b>Machine code</b> vendor ko bhejein. Wo aapko kuch din ki <b>Activation Key</b> dega.</p>
+    <div class="mcode">${esc(LIC.machine)}</div>
+    ${LIC.vendor||LIC.vendorPhone?`<p class="muted">Contact: <b>${esc(LIC.vendor)}</b> ${esc(LIC.vendorPhone)}</p>`:''}
+    <div class="btns"><button class="btn g" onclick="navigator.clipboard.writeText('${LIC.machine}').then(()=>toast('Copy ho gaya'))">Code copy</button>
+      ${LIC.vendorPhone?`<button class="btn wa" onclick="waOpen(LIC.vendorPhone,'Library ERP activation key chahiye.\\nMachine code: ${LIC.machine}')">WhatsApp par bhejein</button>`:''}</div>
+    <label style="margin-top:16px">Activation key yahan paste karein</label><textarea id="k_key" rows="4" style="font:12px Consolas,monospace" autofocus></textarea>
+    <div class="btns"><button class="btn ok" id="k_go">Activate (Ctrl+Enter)</button>${LIC.reason==='new'?'':'<a class="btn g" href="/api/export" download style="text-decoration:none">Apna data download</a>'}</div></div>`;
+  const go_=()=>doActivate(val('k_key'));$('#k_go').onclick=go_;
+  $('#k_key').onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||!e.shiftKey)){e.preventDefault();go_();}};
+  focusEl('#k_key');
+}
+
+/* ================= BOOT ================= */
+async function boot(){
+  try{LIC=await api('license');}
+  catch(e){main.innerHTML=`<div class="act card"><h3>Server se connect nahi hua</h3><p>Library ERP ko <b>LibraryERP.exe</b> se kholein. Kaali window (server) band na karein.</p></div>`;return;}
+  if(!LIC.ok)return showActivate();
+  let data=null;try{data=await api('data');}catch(e){toast(e.message,'bad');return;}
+  D=migrate(data);if(!data)save();
+  drawSide();licBar();
+  if(LIC.daysLeft<=7)toast(`License ${LIC.daysLeft} din mein khatam hoga — renew karein (K)`,'bad');
+  go('home');
+}
+setInterval(async()=>{if(!D)return;try{LIC=await api('license');if(!LIC.ok)showActivate();else licBar();}catch(e){}},30*60e3);
+window.addEventListener('beforeunload',()=>{if(D)navigator.sendBeacon('/api/data',new Blob([JSON.stringify(D)],{type:'application/json'}));});
+boot();
+</script>
+</body>
+</html>

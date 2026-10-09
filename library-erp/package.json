@@ -1,0 +1,19 @@
+{
+  "name": "library-erp",
+  "version": "1.0.0",
+  "description": "Library ERP — offline, keyboard se chalne wala, activation key ke saath",
+  "main": "server.js",
+  "bin": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "keys": "node keygen.js init",
+    "build": "pkg . -t node22-win-x64 -o dist/LibraryERP.exe && pkg keygen.js -t node22-win-x64 -o dist/LibraryKeygen.exe"
+  },
+  "pkg": {
+    "assets": ["app.html", "public_key.pem", "config.json"]
+  },
+  "devDependencies": {
+    "@yao-pkg/pkg": "6.23.0"
+  }
+}
