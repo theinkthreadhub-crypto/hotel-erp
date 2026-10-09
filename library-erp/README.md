@@ -19,6 +19,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
   - Har din ka local backup `LibraryData\backups` folder mein banta hai (60 din tak).
   - Gmail par roz apne aap backup email jaata hai, JSON aur students CSV ke saath.
   - Backup download aur restore bhi kar sakte hain.
+- **ERP band karein (Q):** server band karta hai.
 - **Activation key (K):** Software sirf usi computer par, utne hi din chalta hai jitne din ki key hai.
 
 ## Keyboard
@@ -36,7 +37,9 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 ## Customer ke computer par
 
 1. `LibraryERP.exe` ko kisi folder mein rakhein, jaise `D:\LibraryERP`, aur double-click karein.
-2. Ek kaali window (server) khulegi aur ERP apni window mein khulega. Kaali window band na karein, minimize kar dein.
+2. ERP apni window mein khulega. Server peeche chupchaap chalta hai, koi kaali window nahi dikhti.
+   ERP band karna ho to Gateway par **Q** dabayein. ERP window galti se band ho jaye to `LibraryERP.exe` dobara chalayein.
+   Koi galti ho to message box aata hai, aur poori jaankari `LibraryERP-log.txt` mein milti hai.
 3. Pehli baar screen par **Machine code** dikhega. Ise vendor ko bhejein.
 4. Vendor ki di hui **Activation key** paste karein, phir `Enter` dabayein.
 5. **G** dabakar library ka naam, contact aur slip size set karein. **F** mein fee daalein.

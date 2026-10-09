@@ -12,11 +12,10 @@ const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 
 const log = m => { try { fs.appendFileSync(path.join(BASE, 'LibraryERP-log.txt'), new Date().toLocaleString('en-IN') + '  ' + m + '\r\n'); } catch (x) {} };
 // Koi bhi galti ho to window turant band na ho — message dikhe aur log mein likha jaye
-process.on('uncaughtException', e => {
-  log('ERROR ' + (e.stack || e));
-  console.log('\nERROR: ' + (e.message || e) + '\n\nIs window ki photo vendor ko bhejein. Band karne ke liye Enter dabayein.');
-  process.stdin.resume(); process.stdin.once('data', () => process.exit(1));
-});
+// Windows exe bina kaali window ke chalti hai (GUI). Tab console ka sab kuch log file mein jata hai.
+const GUI = !!process.pkg && process.platform === 'win32' && !process.env.LIBERP_CONSOLE;
+if (GUI) console.log = console.error = (...a) => log(a.join(' '));
+process.on('uncaughtException', e => { log('ERROR ' + (e.stack || e)); pause('ERROR: ' + (e.message || e)); });
 const DATA_DIR = path.join(BASE, 'LibraryData');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const DATA = path.join(DATA_DIR, 'library.json');
@@ -159,6 +158,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(fs.readFileSync(APP));
     }
     if (url === '/api/ping') return send(res, 200, { app: 'library-erp' });
+    if (url === '/api/quit' && req.method === 'POST') { log('ERP band kiya gaya'); send(res, 200, { ok: true }); return setTimeout(() => process.exit(0), 300); }
     if (url === '/api/license') return send(res, 200, licenseStatus());
     if (url === '/api/activate' && req.method === 'POST') return send(res, 200, activate((await body(req)).key));
     // Expire hone par bhi apna data nikal sakein
@@ -187,13 +187,19 @@ function openApp() {
   const cands = P.flatMap(p => [path.join(p, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), path.join(p, 'Google', 'Chrome', 'Application', 'chrome.exe')]);
   const br = cands.find(f => fs.existsSync(f));
   log('Window: ' + (br || 'default browser'));
-  if (br) execFile(br, ['--app=' + url, '--start-maximized'], e => { if (e) { log('Browser error: ' + e.message); exec(`start "" "${url}"`); } });
-  else exec(`start "" "${url}"`);
+  if (br) execFile(br, ['--app=' + url, '--start-maximized'], e => { if (e) { log('Browser error: ' + e.message); exec(`start "" "${url}"`, { windowsHide: true }); } });
+  else exec(`start "" "${url}"`, { windowsHide: true });
 }
 
 function pause(msg) {
-  console.log('\n' + msg + '\n\nIs window ki photo vendor ko bhejein. Band karne ke liye Enter dabayein.');
   log(msg);
+  if (GUI) {
+    const t = (msg + '\n\nIs message ki photo vendor ko bhejein. (LibraryERP-log.txt)').replace(/'/g, "''");
+    exec(`powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('${t.replace(/"/g, '')}', 'Library ERP')"`,
+      { windowsHide: true }, () => process.exit(1));
+    return;
+  }
+  console.log('\n' + msg + '\n\nIs window ki photo vendor ko bhejein. Band karne ke liye Enter dabayein.');
   process.stdin.resume(); process.stdin.once('data', () => process.exit(1));
 }
 

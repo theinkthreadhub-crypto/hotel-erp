@@ -266,9 +266,10 @@ const MENU=[
   ['I','Bulk Import (Excel / CSV)','import','Utilities'],
   ['G','Settings & Backup','settings'],
   ['K','License / Activation','license'],
+  ['Q','ERP band karein','quit'],
 ];
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
-  daybook:scrDaybook,attrep:scrAttRep,import:scrImport,settings:scrSettings,license:scrLicense};
+  daybook:scrDaybook,attrep:scrAttRep,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
 let cur='home',gwSel=0,onSave=null,nav=null,keyH=null;
 function go(s,arg){
   if(!D)return;
@@ -906,6 +907,16 @@ function restore(f){
     if(!await ask(`Backup mein ${d.students.length} student, ${(d.receipts||[]).length} receipt hain. Abhi ka data hata kar ye daalein?`))return;
     D=migrate(d);await save();toast('Restore ho gaya','ok');go('home');};
   rd.readAsText(f);
+}
+
+/* ================= QUIT ================= */
+async function scrQuit(){
+  scrHome();$('#scr').textContent='Gateway of Library';cur='home';
+  if(!await ask('ERP band karein? Saara data save hai. Dobara kholne ke liye LibraryERP.exe chalayein.','Haan, band karo','Nahi'))return;
+  await saving;try{await api('quit',{});}catch(e){}
+  D=null;$('#side').innerHTML='';$('#lic').textContent='';$('#scr').textContent='Band';
+  main.innerHTML=`<div class="act card"><h3>ERP band ho gaya</h3><p>Ab ye window band kar dein. Dobara kholne ke liye <b>LibraryERP.exe</b> chalayein.</p></div>`;
+  setTimeout(()=>window.close(),800);
 }
 
 /* ================= LICENSE ================= */

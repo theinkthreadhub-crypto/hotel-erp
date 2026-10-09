@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node server.js",
     "keys": "node keygen.js init",
-    "build": "pkg . -t node22-win-x64 --no-bytecode --public --public-packages \"*\" -o dist/LibraryERP.exe && pkg keygen.js -t node22-win-x64 --no-bytecode --public --public-packages \"*\" -o dist/LibraryKeygen.exe"
+    "build": "pkg . -t node22-win-x64 --no-bytecode --public --public-packages \"*\" -o dist/LibraryERP.exe && node patch-gui.js dist/LibraryERP.exe && pkg keygen.js -t node22-win-x64 --no-bytecode --public --public-packages \"*\" -o dist/LibraryKeygen.exe"
   },
   "pkg": {
     "assets": ["app.html", "public_key.pem", "config.json"]
