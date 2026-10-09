@@ -418,32 +418,37 @@ class CloudSync:
         threading.Thread(target=self._loop, daemon=True).start()
 
     def configured(self):
-        return bool(self.cfg.get('url') and self.cfg.get('key') and self.cfg.get('enabled', True))
+        return bool(self.cfg.get('url') and self.cfg.get('hotel') and self.cfg.get('key') and self.cfg.get('enabled', True))
 
     def public(self):
         # The sync key never leaves this PC
-        return {'configured': self.configured(), 'url': self.cfg.get('url', ''),
+        return {'configured': self.configured(), 'url': self.cfg.get('url', ''), 'hotel': self.cfg.get('hotel', ''),
                 'enabled': self.cfg.get('enabled', True), 'hasKey': bool(self.cfg.get('key')), **self.status}
 
-    def set_config(self, url, key, enabled=True):
+    def set_config(self, url, hotel, key, enabled=True):
         url = (url or '').strip().rstrip('/')
+        hotel = ''.join(c for c in (hotel or '').upper() if c.isalnum())
         if url.endswith('/hotel_erp.html'):
             url = url[:-len('/hotel_erp.html')]
         key = (key or '').strip() or self.cfg.get('key', '')
         if enabled:
             if not (url.startswith('https://') or url.startswith(('http://127.0.0.1:', 'http://localhost:'))):
                 raise ValueError('Cloud URL https:// se shuru hona chahiye')
+            if not hotel:
+                raise ValueError('Hotel Code daalein')
             if not key:
                 raise ValueError('Cloud Sync Key daalein')
             try:
-                code, _ = self._request('GET', '/api/version', url=url, key=key)
+                code, _ = self._request('GET', '/api/version', url=url, key=key, hotel=hotel)
             except Exception as e:
                 raise ValueError('Cloud se connection nahi hua: ' + str(e))
             if code == 401:
                 raise ValueError('Cloud Sync Key galat hai')
+            if code == 404:
+                raise ValueError('Ye Hotel Code cloud par nahi mila')
             if code != 200:
                 raise ValueError(f'Cloud se sahi jawab nahi mila (HTTP {code})')
-        if url != self.cfg.get('url'):
+        if url != self.cfg.get('url') or hotel != self.cfg.get('hotel'):
             # A different cloud starts from scratch: nothing is "already synced" there
             self.state = {}
             try:
@@ -451,17 +456,18 @@ class CloudSync:
             except OSError:
                 pass
             _write_json(self.state_path, self.state)
-        self.cfg = {'url': url, 'key': key, 'enabled': bool(enabled)}
+        self.cfg = {'url': url, 'hotel': hotel, 'key': key, 'enabled': bool(enabled)}
         _write_json(self.cfg_path, self.cfg)
         self.status = {'ok': None, 'at': 0, 'error': '', 'cloudVersion': self.state.get('cv', -1)}
         self.wake.set()
 
-    def _request(self, method, path, body=None, url=None, key=None):
+    def _request(self, method, path, body=None, url=None, key=None, hotel=None):
         req = urllib.request.Request(
             (url or self.cfg['url']) + path,
             data=body.encode('utf-8') if body is not None else None,
             method=method,
-            headers={'X-Setu-Sync': key or self.cfg['key'], 'Content-Type': 'application/json',
+            headers={'X-Setu-Sync': key or self.cfg['key'], 'X-Setu-Hotel': hotel or self.cfg['hotel'],
+                     'Content-Type': 'application/json',
                      'User-Agent': 'Setu-Main-Counter/1.0'})
         try:
             with urllib.request.urlopen(req, timeout=60) as r:
@@ -522,6 +528,8 @@ class CloudSync:
             code, text = self._request('POST', '/api/db', body)
             if code == 409:
                 raise CloudBusy()
+            if code == 402:
+                raise OSError('Setu Cloud subscription khatam — online renew karein (billing yahan chalti rahegi)')
             if code != 200:
                 raise OSError(f'Cloud save nahi hua (HTTP {code})')
             cv = json.loads(text)['version']
@@ -638,7 +646,7 @@ def make_handler(base_dir, store, port, cloud=None):
                     return self.send_json(403, {'error': 'main counter only'})
                 try:
                     body = self.read_json()
-                    cloud.set_config(body.get('url'), body.get('key'), bool(body.get('enabled', True)))
+                    cloud.set_config(body.get('url'), body.get('hotel'), body.get('key'), bool(body.get('enabled', True)))
                 except ValueError as e:
                     return self.send_json(400, {'error': str(e)})
                 except Exception:

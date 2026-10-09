@@ -22,7 +22,7 @@ internet dependency at runtime. All data lives on the customer's PC.
 | `hotel_erp.html` | The entire app: CSS, HTML shell and all JavaScript (~5.7k lines). Almost all work happens here. |
 | `app_main.py` | Main-counter launcher + LAN server on fixed port 8000 (`0.0.0.0`). Keeps the shared database in `setu-db.json` with daily `Backups/`, serves phones/tablets, opens the pywebview window. `--server` = no window. Data dir: `%LOCALAPPDATA%\AghanyaDevanyaERP\Data`. |
 | `Aghanya-Devanya-Hotel-ERP.spec`, `Build-New-EXE.bat` | PyInstaller build. The `.bat` passes its own flags and does not use the `.spec`. Keep both in sync if you add bundled files. |
-| `cloud/` | **Setu Cloud**: Cloudflare Worker + Durable Object (SQLite) with the same `/api/*` contract as `app_main.py`. One deploy per hotel. `npm run deploy` copies an allow-list of app files into `cloud/public` (never `*.py` / `*.pem`). Secret: `SETU_SYNC_KEY`. See `cloud/README-HINDI.md`. |
+| `cloud/` | **Setu Cloud SaaS**: one Cloudflare Worker for all hotels. `SetuHotel` Durable Object (SQLite) per hotel, keyed by Hotel Code (`X-Setu-Hotel`), `SetuRegistry` for the hotel list. Same `/api/*` as `app_main.py` plus `/api/signup`, `/api/billing/*` (Razorpay Subscriptions), `/api/razorpay/webhook`, `/api/synckey`, `/api/admin/*` (vendor, `static/admin.html`). Paid cycles issue signed SETU keys (same format as `keygen.py`) into `subscription.cloudKeys`; clients auto-activate them (`applyCloudKeys`). Expired/suspended = HTTP 402 on writes. See `cloud/README-HINDI.md`. |
 | `manifest.json`, `sw.js` | PWA install + offline cache. |
 | `keygen.py`, `Generate-Activation-Keys.bat` | Vendor-only license key signer (ECDSA P-256). Needs `setu-license-private.pem`, which is **never** in git (`*.pem` ignored). `python keygen.py <INSTALL-ID> <plan>`. |
 | `favicon.ico`, `icon-*.png`, `logo.png` | Branding assets. |
@@ -98,11 +98,11 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Wallet:** balance = top-up receipts (`txn.phone`) − bills with `mode: 'Wallet'` (`walletBal()`).
 - **Tokens:** `nextToken()` restarts daily (`seq.tokenDate`); only Takeaway bills / parcel QR orders get one when `settings.tokenOn`.
 - **Captain app:** `captainSend()` merges the waiter's items into the table's kaccha bill via `kacchaToB()` + `saveKacchaBill(true, true)`.
-- **Setu Cloud:** `CloudSync` in `app_main.py` keeps the PC as master and syncs `setu-db.json` with the Worker every few seconds
-  (`setu-cloud.json` config, `setu-cloud-base.json` = last common copy). It uses a Python port of `merge3` with the cloud as "mine",
-  so bills printed at the counter keep their numbers. **If you change `merge3` / `mergeNode` in the HTML, change the Python port too.**
-  On the cloud (`SRV.cloud`) logins are PIN-only, weak PINs (1234/1111...) are refused, 5 wrong PINs lock an IP for 15 min,
-  and direct printing is off. Settings → Setu Cloud Sync card sets URL + key (`/api/cloud`, main counter only).
+- **Setu Cloud:** `CloudSync` in `app_main.py` keeps the counter PC as master and syncs `setu-db.json` with the hotel on the Worker
+  (`setu-cloud.json` = URL + Hotel Code + sync key, `setu-cloud-base.json` = last common copy). It uses a Python port of `merge3`
+  with the cloud as "mine", so bills printed at the counter keep their numbers. **If you change `merge3` / `mergeNode` in the HTML,
+  change the Python port too.** On the cloud (`SRV.cloud` / `SRV.saas`) login = Hotel Code + PIN, weak PINs are refused, 5 wrong PINs
+  lock an IP for 15 min, and direct printing is off. Never trust the client for billing: the Worker decides `blocked`.
 - **Multi-outlet:** no shared cloud across outlets yet. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
 - **License:** keys are `SETU-...` strings = 13-byte payload (kind, days/minutes, install-ID hash, serial,
   issue day) + 64-byte ECDSA signature, base32. `getActivationKeyInfo()` verifies with WebCrypto against

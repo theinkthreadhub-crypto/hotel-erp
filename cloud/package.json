@@ -6,7 +6,8 @@
     "assets": "node scripts/copy-assets.mjs",
     "dev": "node scripts/copy-assets.mjs && wrangler dev",
     "deploy": "node scripts/copy-assets.mjs && wrangler deploy",
-    "set-key": "wrangler secret put SETU_SYNC_KEY",
+    "license-key": "node scripts/put-license-key.mjs",
+    "secret": "wrangler secret put",
     "new-key": "node -e \"console.log(require('crypto').randomBytes(24).toString('hex'))\""
   },
   "devDependencies": {

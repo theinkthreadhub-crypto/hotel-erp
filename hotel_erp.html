@@ -543,6 +543,8 @@ body.kitchen-mode .kcard ul{font-size:19px}
       <div style="font-size:12px;font-weight:700;color:#0284c7;margin-top:4px">Official Offline Licensing Support</div>
     </div>
 
+    <div id="lock-pay"></div>
+
     <!-- Activation Form -->
     <form onsubmit="handleLockScreenActivation(event)" style="text-align:left">
       <div class="login-field" style="margin-bottom:12px">
@@ -890,14 +892,16 @@ function save(){
 // When Setu is served by app_main.py the database lives in one file on the main PC.
 // Every device keeps a copy in D, pushes its edits with the version it started from,
 // and on a version clash merges (base, mine, theirs) record by record.
-const SRV = { on: false, local: true, cloud: false, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
+const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
 const TOKEN_KEY = 'setu_device_token';
+const HOTEL_KEY = 'setu_hotel_code';
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
 const lsSet = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
 
 function srvFetch(path, opts = {}){
   const headers = {'Content-Type': 'application/json', ...(opts.headers || {})};
   if(SRV.token) headers['X-Setu-Token'] = SRV.token;
+  if(SRV.hotel) headers['X-Setu-Hotel'] = SRV.hotel;
   return fetch(path, {...opts, headers, cache: 'no-store'});
 }
 
@@ -909,6 +913,7 @@ async function srvDetect(){
     const j = await r.json();
     SRV.local = !!j.local;
     SRV.cloud = !!j.cloud;
+    SRV.saas = !!j.saas;
     return j.setu === true;
   }catch(e){ return false; }
 }
@@ -983,10 +988,12 @@ function srvStatus(ok){
   const e = $('#srv-status');
   if(!e) return;
   e.style.display = 'inline';
-  e.textContent = SRV.cloud
+  e.textContent = SRV.blocked
+    ? 'Subscription khatam — cloud par save band hai. Settings (G) mein Renew karein.'
+    : SRV.cloud
     ? (ok ? 'Setu Cloud · Connected' : 'Internet nahi — data save nahi ho raha, page band na karein')
     : (ok ? (SRV.local ? 'Main Counter · LAN Server ON' : 'Connected to Main Counter') : 'Main Counter se connection toota — data save nahi ho raha');
-  e.style.color = ok ? '#34d399' : '#ef4444';
+  e.style.color = ok && !SRV.blocked ? '#34d399' : '#ef4444';
 }
 
 async function srvLoad(text){
@@ -998,12 +1005,14 @@ async function srvLoad(text){
 
 // Returns true when D holds the server copy and the app can start
 async function srvInitData(){
+  if(SRV.saas && !SRV.hotel){ showConnectScreen(); return false; }
   let r;
   try{ r = await srvFetch('/api/db'); }catch(e){ srvStatus(false); return false; }
   if(r.status === 401){ showConnectScreen(); return false; }
+  if(r.status === 404){ showConnectScreen('Ye Hotel Code nahi mila. Sahi code daalein.'); return false; }
   const j = await srvLoad(await r.text());
   if(j.version === 0 || !j.data){
-    if(!SRV.local){
+    if(!SRV.local && !SRV.signup){
       showConnectScreen(SRV.cloud
         ? 'Cloud par abhi data nahi aaya. Main Counter PC par Settings (G) → Setu Cloud Sync chalu karein.'
         : 'Main Counter PC par Setu abhi setup nahi hua hai. Pehle wahan Sign Up karein.');
@@ -1035,6 +1044,8 @@ async function srvPush(){
         SRV.base = JSON.parse(snapshot);
         SRV.forceNext = false;
         if(SRV.edits === edits) SRV.dirty = false;
+        SRV.blocked = false;
+        SRV.signup = false;
         srvStatus(true);
         continue;
       }
@@ -1043,9 +1054,18 @@ async function srvPush(){
         const j = await srvLoad(await r.text());   // SRV.base becomes a separate copy of theirs
         D = ensureGrowth(merge3(prevBase, D, j.data));
         srvRefreshScreen();
+        setTimeout(applyCloudKeys, 0);
         continue;
       }
       if(r.status === 401){ showConnectScreen(); return; }
+      if(r.status === 402){
+        // Cloud subscription over: keep the edits on this device and retry slowly
+        SRV.blocked = true;
+        srvStatus(false);
+        checkExpiryLock();
+        setTimeout(srvPush, 60000);
+        return;
+      }
       if(r.status === 403){
         // Restore / reset is allowed only from the main counter PC or a Manager device
         SRV.forceNext = false;
@@ -1071,12 +1091,14 @@ async function srvPoll(){
     const r = await srvFetch('/api/version');
     if(r.status === 401){ showConnectScreen(); return; }
     const j = await r.json();
+    SRV.blocked = !!j.blocked;
     srvStatus(true);
     if(j.version === SRV.version || SRV.busy || SRV.dirty) return;
     const r2 = await srvFetch('/api/db');
     const fresh = await srvLoad(await r2.text());
     D = ensureGrowth(fresh.data);
     srvRefreshScreen();
+    applyCloudKeys();
   }catch(e){ srvStatus(false); }
 }
 
@@ -1094,60 +1116,264 @@ window.addEventListener('beforeunload', e => {
   if(SRV.on && SRV.dirty){ e.preventDefault(); e.returnValue = ''; }
 });
 
-// Phones / tablets on the restaurant WiFi connect once with the Manager or Cashier PIN
-function showConnectScreen(msg){
+function srvStartPolling(){
+  if(!SRV.pollTimer) SRV.pollTimer = setInterval(srvPoll, 2500);
+}
+
+// Setu Cloud puts a signed license key into the data for every paid cycle (and the vendor's
+// manual renewals). Any device that can verify keys activates the new ones; the rest just sync.
+async function applyCloudKeys(){
+  if(applyCloudKeys.busy || !(window.crypto && crypto.subtle) || !D.subscription) return;
+  const fresh = (D.subscription.cloudKeys || []).filter(k => !(D.subscription.usedKeys || []).includes(licClean(k).slice(0, 4 + 124)));
+  if(!fresh.length) return;
+  applyCloudKeys.busy = true;
+  try{
+    for(const k of fresh){
+      const act = await activateLicenseKey(k, 'Setu Cloud Online Renewal');
+      if(act.success) toast('License renew ho gaya: ' + act.plan);
+    }
+  }finally{ applyCloudKeys.busy = false; }
+  checkExpiryLock();
+}
+
+// Phones / tablets connect once with a PIN: on the restaurant WiFi (main counter PC), or over
+// the internet to Setu Cloud, where a Hotel Code picks the hotel and new hotels can sign up.
+function showConnectScreen(msg, view){
   $('#login-screen').style.display = 'none';
   let el = $('#connect-screen');
   if(!el){
     el = document.createElement('div');
     el.id = 'connect-screen';
-    el.style.cssText = 'position:fixed;inset:0;background:radial-gradient(circle at 50% 10%,#1e293b 0%,#0f172a 100%);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px';
+    el.style.cssText = 'position:fixed;inset:0;background:radial-gradient(circle at 50% 10%,#1e293b 0%,#0f172a 100%);display:flex;align-items:center;justify-content:center;z-index:99999;padding:20px;overflow:auto';
     document.body.appendChild(el);
   }
-  el.innerHTML = `
-    <div class="login-card">
-      <img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px;margin:0 auto 10px;display:block;border:1px solid #e2e8f0;background:#fff">
-      <h2>Setu — Device Connect</h2>
-      <p class="subtitle">${SRV.cloud ? 'Ye phone/tablet internet se Setu Cloud se judega' : 'Ye phone/tablet Main Counter PC se judega (restaurant WiFi)'}</p>
-      ${msg ? `<div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px">${esc(msg)}</div>` : ''}
-      <form id="connect-form" style="text-align:left">
-        <div class="login-field">
-          <label>Manager ya Cashier PIN</label>
-          <input id="connect_pin" type="password" inputmode="numeric" required placeholder="PIN" autocomplete="off">
-        </div>
-        <div id="connect_err" style="color:var(--bad);font-size:12px;font-weight:600;margin-bottom:10px;display:none"></div>
-        <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">Connect</button>
+  const note = msg ? `<div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px">${esc(msg)}</div>` : '';
+  const head = (title, sub) => `<img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px;margin:0 auto 10px;display:block;border:1px solid #e2e8f0;background:#fff">
+      <h2>${title}</h2><p class="subtitle">${sub}</p>${note}`;
+  const foot = '<div style="margin-top:14px;font-size:11px;color:#64748b">Powered by <strong>Aghanya Devanya Enterprises</strong></div>';
+  const errBox = '<div id="connect_err" style="color:var(--bad);font-size:12px;font-weight:600;margin-bottom:10px;display:none"></div>';
+  const fail = t => { const e = $('#connect_err'); e.textContent = t; e.style.display = 'block'; };
+
+  if(SRV.saas && view === 'signup'){
+    el.innerHTML = `<div class="login-card" style="max-width:440px">
+      ${head('Setu Cloud — Naya Hotel', 'Free trial ke saath shuru karein. Card ki zaroorat nahi.')}
+      <form id="signup-form" style="text-align:left">
+        <div class="login-field"><label>Hotel / Restaurant ka naam *</label><input id="su_hotel" required maxlength="80"></div>
+        <div class="login-field"><label>Owner ka naam *</label><input id="su_owner" required maxlength="60"></div>
+        <div class="login-field"><label>Mobile (10 digit) *</label><input id="su_phone" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div>
+        <div class="login-field"><label>Email</label><input id="su_email" type="email" maxlength="100"></div>
+        <div class="login-field"><label>Password / Manager PIN (kam se kam 6) *</label><input id="su_pass" type="password" required minlength="6" autocomplete="new-password"></div>
+        <div class="login-field"><label>Password dobara *</label><input id="su_pass2" type="password" required minlength="6" autocomplete="new-password"></div>
+        ${errBox}
+        <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">Free Trial Shuru Karein</button>
       </form>
-      <div style="margin-top:14px;font-size:11px;color:#64748b">Powered by <strong>Aghanya Devanya Enterprises</strong></div>
+      <p style="font-size:12px;margin:12px 0 0">Pehle se account hai? <a href="#" id="to-login">Login karein</a></p>
+      ${foot}</div>`;
+    el.style.display = 'flex';
+    $('#to-login').onclick = ev => { ev.preventDefault(); showConnectScreen(); };
+    $('#signup-form').onsubmit = async ev => {
+      ev.preventDefault();
+      const v = id => $('#' + id).value.trim();
+      if(v('su_pass') !== v('su_pass2')) return fail('Dono password match nahi ho rahe');
+      const btn = ev.submitter;
+      if(btn) btn.disabled = true;
+      try{
+        const fresh = ensureGrowth(seed());
+        const r = await fetch('/api/signup', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
+          hotelName: v('su_hotel'), ownerName: v('su_owner'), phone: v('su_phone'), email: v('su_email'), password: v('su_pass'), installId: fresh.settings.installId})});
+        const j = await r.json().catch(() => ({}));
+        if(!r.ok){ fail(j.error || 'Sign Up nahi hua'); return; }
+        D = fresh;
+        D.auth = {isRegistered: true, userId: v('su_phone'), password: v('su_pass'), ownerName: v('su_owner'), phone: v('su_phone'), registeredAt: Date.now()};
+        Object.assign(D.settings, {name: v('su_hotel'), owner: v('su_phone'), phone: v('su_phone'), adminPin: v('su_pass')});
+        Object.assign(SRV, {hotel: j.code, token: j.token, version: 0, base: null, signup: true});
+        lsSet(HOTEL_KEY, j.code);
+        lsSet(TOKEN_KEY, j.token);
+        activeUser = {name: v('su_owner'), role: 'admin', access: 'manager', time: Date.now()};
+        lsSet(AUTH_KEY, JSON.stringify(activeUser));
+        const act = await activateLicenseKey(j.trialKey, 'Setu Cloud Free Trial');   // also saves = first upload
+        if(!act.success) save();
+        el.style.display = 'none';
+        audit('Sign Up', `Setu Cloud · ${j.code}`);
+        startUI();
+        srvStartPolling();
+        modal('Swagat hai! Hotel ban gaya', `
+          <p>Aapka <b>Hotel Code</b> (har phone par login ke liye):</p>
+          <div style="font:800 28px 'JetBrains Mono',monospace;letter-spacing:2px;margin:6px 0 14px">${esc(j.code)}</div>
+          <p><b>${j.trialDays} din free trial</b> chalu hai. Uske baad Settings (G) → Setu Cloud se online pay karein.</p>
+          <p style="margin-top:12px"><b>Counter PC Sync Key</b> (sirf Setu Desktop App ke liye — sambhaal kar rakhein, dobara nahi dikhegi):</p>
+          <code style="display:block;word-break:break-all;background:#f1f5f9;padding:8px;border-radius:6px">${esc(j.syncKey)}</code>
+          <p class="muted" style="margin-top:12px">Staff ke liye Settings (G) mein Cashier / staff PIN bana dein. Cloud par 1234 / 1111 jaise PIN nahi chalte.</p>
+          <div class="btns"><button class="btn ok" onclick="closeModal()">Shuru Karein</button></div>`);
+      }catch(e){ fail('Internet / Cloud se connection nahi hua'); }
+      finally{ if(btn) btn.disabled = false; }
+    };
+    setTimeout(() => $('#su_hotel')?.focus(), 50);
+    return;
+  }
+
+  el.innerHTML = `<div class="login-card">
+      ${head(SRV.saas ? 'Setu Cloud — Login' : 'Setu — Device Connect', SRV.cloud ? 'Ye phone/tablet internet se Setu Cloud se judega' : 'Ye phone/tablet Main Counter PC se judega (restaurant WiFi)')}
+      <form id="connect-form" style="text-align:left">
+        ${SRV.saas ? `<div class="login-field"><label>Hotel Code</label><input id="connect_hotel" required placeholder="jaise SHARM482" value="${esc(SRV.hotel || lsGet(HOTEL_KEY) || '')}" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"></div>` : ''}
+        <div class="login-field">
+          <label>${SRV.saas ? 'Password / PIN (Manager, Cashier ya Staff)' : 'Manager ya Cashier PIN'}</label>
+          <input id="connect_pin" type="password" required placeholder="PIN" autocomplete="off">
+        </div>
+        ${errBox}
+        <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">${SRV.saas ? 'Login' : 'Connect'}</button>
+      </form>
+      ${SRV.saas ? '<p style="font-size:12px;margin:12px 0 0">Naya hotel? <a href="#" id="to-signup"><b>Free Sign Up karein</b></a></p>' : ''}
+      ${foot}
     </div>`;
   el.style.display = 'flex';
+  if(SRV.saas) $('#to-signup').onclick = ev => { ev.preventDefault(); showConnectScreen('', 'signup'); };
   $('#connect-form').onsubmit = async ev => {
     ev.preventDefault();
-    const err = $('#connect_err');
     try{
-      const r = await fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin: $('#connect_pin').value.trim()})});
+      if(SRV.saas) SRV.hotel = $('#connect_hotel').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const headers = {'Content-Type': 'application/json'};
+      if(SRV.hotel) headers['X-Setu-Hotel'] = SRV.hotel;
+      const r = await fetch('/api/login', {method: 'POST', headers, body: JSON.stringify({pin: $('#connect_pin').value.trim()})});
       if(!r.ok){
         const j = await r.json().catch(() => ({}));
-        err.textContent = r.status === 429 ? 'Bahut baar galat PIN — 15 minute baad try karein'
-          : j.error === 'weak pin' ? 'Ye PIN bahut aasaan hai (1234 / 1111). Main Counter par Manager/Cashier PIN badlein, phir Cloud se judein.'
-          : r.status === 403 ? 'Galat PIN' : (SRV.cloud ? 'Cloud se connection nahi hua' : 'Main Counter se connection nahi hua');
-        err.style.display = 'block';
-        return;
+        return fail(r.status === 429 ? 'Bahut baar galat PIN — 15 minute baad try karein'
+          : r.status === 404 ? 'Ye Hotel Code nahi mila'
+          : j.error === 'weak pin' ? 'Ye PIN bahut aasaan hai (1234 / 1111). Manager se apna PIN badalwayein, phir login karein.'
+          : r.status === 403 ? 'Galat PIN' : (SRV.cloud ? 'Cloud se connection nahi hua' : 'Main Counter se connection nahi hua'));
       }
       const j = await r.json();
       SRV.token = j.token;
       lsSet(TOKEN_KEY, j.token);
+      if(SRV.saas) lsSet(HOTEL_KEY, SRV.hotel);
       activeUser = {name: j.name || (j.role === 'admin' ? 'Manager' : 'Staff'), role: j.role === 'admin' ? 'admin' : 'cashier', access: j.role === 'admin' ? 'manager' : j.role, time: Date.now()};
       lsSet(AUTH_KEY, JSON.stringify(activeUser));
       el.style.display = 'none';
       if(await srvInitData()){
-        audit('Login', `${activeUser.name} (${activeUser.access}) · phone/tablet`);
+        audit('Login', `${activeUser.name} (${activeUser.access}) · ${SRV.cloud ? 'cloud' : 'phone/tablet'}`);
         save();
         startUI();
+        srvStartPolling();
+        applyCloudKeys();
       }
-    }catch(e){ err.textContent = SRV.cloud ? 'Internet / Cloud se connection nahi hua' : 'Main Counter se connection nahi hua'; err.style.display = 'block'; }
+    }catch(e){ fail(SRV.cloud ? 'Internet / Cloud se connection nahi hua' : 'Main Counter se connection nahi hua'); }
   };
-  setTimeout(() => $('#connect_pin')?.focus(), 50);
+  setTimeout(() => (SRV.saas && !$('#connect_hotel').value ? $('#connect_hotel') : $('#connect_pin'))?.focus(), 50);
+}
+
+/* ================= SETU CLOUD SUBSCRIPTION (Razorpay auto-pay) ================= */
+// The checkout script is the only extra download, and only when the owner presses Pay.
+function loadRazorpay(){
+  if(window.Razorpay) return Promise.resolve();
+  return new Promise((ok, bad) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    sc.onload = ok;
+    sc.onerror = () => bad(new Error('Payment page load nahi hua, internet check karein'));
+    document.head.appendChild(sc);
+  });
+}
+
+async function cloudBilling(){
+  const r = await srvFetch('/api/billing');
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+async function payPlan(planId){
+  if(!activeUser || activeUser.access !== 'manager') return alert('Payment sirf Manager / Owner login se ho sakta hai.');
+  try{
+    const r = await srvFetch('/api/billing/subscribe', {method: 'POST', body: JSON.stringify({plan: planId})});
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) return alert(j.error || 'Payment shuru nahi hua');
+    await loadRazorpay();
+    new Razorpay({
+      key: j.keyId,
+      subscription_id: j.subscriptionId,
+      name: 'Setu POS',
+      description: 'Setu Cloud Subscription (Auto-renew)',
+      prefill: {name: D.auth?.ownerName || '', contact: D.auth?.phone || ''},
+      notes: {hotel: SRV.hotel},
+      theme: {color: '#0ea5e9'},
+      handler: async resp => {
+        try{
+          const v = await srvFetch('/api/billing/verify', {method: 'POST', body: JSON.stringify({
+            paymentId: resp.razorpay_payment_id, subscriptionId: resp.razorpay_subscription_id, signature: resp.razorpay_signature})});
+          if(!v.ok) throw new Error();
+          toast('Payment safal! License renew ho raha hai...');
+        }catch(e){ alert('Payment mil gaya, par confirm hone mein thoda samay lag sakta hai. 2 minute baad page refresh karein.'); }
+        SRV.version = -1;   // pull the new license key right away
+        await srvPoll();
+        drawCloudCard();
+      }
+    }).open();
+  }catch(e){ alert(e.message || 'Payment shuru nahi hua'); }
+}
+
+async function cancelAutoPay(){
+  if(!confirm('Auto-renew band karein? Abhi tak ka paid samay chalta rahega.')) return;
+  const r = await srvFetch('/api/billing/cancel', {method: 'POST', body: '{}'});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) alert(j.error || 'Band nahi hua'); else toast('Auto-renew band ho gaya');
+  drawCloudCard();
+}
+
+async function newSyncKey(){
+  if(!confirm('Naya Counter PC Sync Key banayein? Purani key wale counter PC ka sync ruk jayega, wahan nayi key daalni hogi.')) return;
+  const r = await srvFetch('/api/synckey', {method: 'POST', body: '{}'});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) return alert(j.error || 'Nahi bana');
+  audit('Cloud Sync Key Changed', j.hotel);
+  save();
+  modal('Counter PC Sync Key', `<p>Counter PC par Settings (G) → Setu Cloud Sync mein ye daalein:</p>
+    <p>Cloud URL: <code>${esc(location.origin)}</code><br>Hotel Code: <b>${esc(j.hotel)}</b></p>
+    <code style="display:block;word-break:break-all;background:#f1f5f9;padding:8px;border-radius:6px">${esc(j.syncKey)}</code>
+    <p class="muted">Ye key dobara nahi dikhegi.</p><div class="btns"><button class="btn ok" onclick="closeModal()">Theek hai</button></div>`);
+}
+
+const planButtons = b => b.plans.map(p => `<button class="btn ok" onclick="payPlan('${esc(p.id)}')">${esc(p.label)} — ₹${(+p.price).toLocaleString('en-IN')} (${p.days} din, auto-renew)</button>`).join('');
+
+async function drawSaasCard(el, headT){
+  let b;
+  try{ b = await cloudBilling(); }catch(e){ el.innerHTML = headT + '<p class="muted" style="margin:0">Subscription ki jaankari nahi mili. Internet check karein.</p>'; return; }
+  const link = location.origin + '/hotel_erp.html';
+  const left = b.lifetime ? 'Lifetime' : new Date(b.paidUntil).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'});
+  const st = b.blocked ? `<b style="color:#dc2626">${b.blocked === 'suspended' ? 'Account suspended — vendor se baat karein' : 'Khatam — cloud par save band hai'}</b>`
+    : b.status === 'trial' ? `<b style="color:#0284c7">Free Trial — ${esc(left)} tak</b>` : `<b style="color:#16a34a">Active — ${esc(left)} tak</b>`;
+  const mgr = activeUser && activeUser.access === 'manager';
+  el.innerHTML = headT + `
+    <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+      <div class="qrbox">${qrSvg(link)}<small>Staff phone se scan karein</small></div>
+      <div style="font-size:13px;line-height:1.8;flex:1;min-width:240px">
+        Hotel Code: <b style="font:800 18px 'JetBrains Mono',monospace;letter-spacing:1px">${esc(b.code)}</b><br>
+        Link: <code>${esc(link)}</code><br>
+        Subscription: ${st}${b.autoPay ? ` · Auto-pay: <b>${esc(b.autoPay)}</b>` : ''}<br>
+        <span class="muted">Staff login: Hotel Code + apna PIN. 1234 / 1111 jaise PIN cloud par nahi chalte.</span>
+      </div>
+    </div>
+    ${mgr ? `<div class="btns" style="margin-top:10px">${b.keyId ? planButtons(b) : '<span class="muted">Online payment abhi chalu nahi hai — vendor se UPI / cash par renew karwayein.</span>'}
+      ${['active', 'authenticated'].includes(b.autoPay) ? '<button class="btn g" onclick="cancelAutoPay()">Auto-renew band karein</button>' : ''}
+      <button class="btn g" onclick="newSyncKey()">Counter PC Sync Key</button></div>` : '<p class="muted">Payment / Sync Key ke liye Manager login karein.</p>'}
+    ${b.payments.length ? `<table style="margin-top:10px"><thead><tr><th>Date</th><th>Plan</th><th>Din</th><th>Amount</th></tr></thead><tbody>
+      ${b.payments.map(p => `<tr><td>${new Date(p.at).toLocaleDateString('en-IN')}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? '₹' + (p.amount / 100).toLocaleString('en-IN') : '-'}</td></tr>`).join('')}
+    </tbody></table>` : ''}`;
+}
+
+// Lock screen on Setu Cloud: renew online instead of asking the vendor for a key
+async function drawLockPay(){
+  const el = $('#lock-pay');
+  if(!el) return;
+  if(!SRV.saas){ el.innerHTML = ''; return; }
+  el.innerHTML = '<p class="muted">Online renew ki jaankari aa rahi hai...</p>';
+  try{
+    const b = await cloudBilling();
+    el.innerHTML = `<div style="background:#f0f9ff;border:1.5px solid #7dd3fc;border-radius:10px;padding:12px 14px;margin-bottom:16px;text-align:left">
+      <div style="font-weight:800;margin-bottom:6px">Online Renew karein (Hotel ${esc(b.code)})</div>
+      ${activeUser && activeUser.access === 'manager'
+        ? (b.keyId ? `<div class="btns" style="margin:0">${planButtons(b)}</div>` : '<span class="muted">Online payment abhi chalu nahi — vendor ko UPI / cash dein, wo yahin se renew kar denge.</span>')
+        : '<span class="muted">Renew ke liye Manager / Owner login karein.</span>'}
+      <div class="muted" style="font-size:11px;margin-top:6px">Payment ke kuch second baad software apne aap khul jayega.</div></div>`;
+  }catch(e){ el.innerHTML = ''; }
 }
 
 save();
@@ -1540,6 +1766,14 @@ function logout(){
   if(!confirm('Logout karna chahte hain?')) return;
   audit('Logout', activeUser ? activeUser.name : '');
   save();
+  if(SRV.cloud){
+    // A cloud device signs out completely; the next person logs in with their own PIN
+    SRV.token = '';
+    lsSet(TOKEN_KEY, '');
+    localStorage.removeItem(AUTH_KEY);
+    setTimeout(() => location.reload(), SRV.dirty ? 1500 : 0);
+    return;
+  }
   activeUser = null;
   localStorage.removeItem(AUTH_KEY);
   sessionStorage.removeItem(AUTH_KEY);
@@ -1712,6 +1946,7 @@ function checkExpiryLock(){
   
   if(s.isExpired){
     fillInstallIds();
+    drawLockPay();
     const why = $('#lock-reason');
     if(why){
       why.style.display = s.clockTampered ? 'block' : 'none';
@@ -6014,6 +6249,7 @@ async function drawCloudCard(){
   if(!el) return;
   const headT = '<h3 style="margin-top:0">Setu Cloud Sync (Internet se Access)</h3>';
   const pinNote = '<span class="muted">Cloud par 1234 / 1111 jaise aasaan PIN se login nahi hota. Manager aur Cashier PIN pehle badlein.</span>';
+  if(SRV.saas) return drawSaasCard(el, headT);
   if(SRV.cloud){
     const u = location.origin + '/hotel_erp.html';
     el.innerHTML = headT + `
@@ -6037,10 +6273,12 @@ async function drawCloudCard(){
     : c.ok === false ? `<b style="color:#dc2626">Sync nahi ho raha: ${esc(c.error || '')}</b>`
     : '<b style="color:#d97706">Connect ho raha hai...</b>';
   const link = c.url ? c.url + '/hotel_erp.html' : '';
+  const hotelLine = c.hotel ? `Hotel Code: <b>${esc(c.hotel)}</b><br>` : '';
   el.innerHTML = headT + `
     <p style="margin:0 0 10px">Status: ${stat}</p>
     <div class="grid">
-      <div><label>Cloud URL (vendor dega)</label><input id="cl_url" placeholder="https://setu-cloud.xxxx.workers.dev" value="${esc(c.url || '')}"></div>
+      <div><label>Cloud URL</label><input id="cl_url" placeholder="https://setu-cloud.xxxx.workers.dev" value="${esc(c.url || '')}"></div>
+      <div><label>Hotel Code</label><input id="cl_hotel" placeholder="jaise SHARM482" value="${esc(c.hotel || '')}" style="text-transform:uppercase"></div>
       <div><label>Cloud Sync Key ${c.hasKey ? '(save hai — badalna ho to hi likhein)' : ''}</label><input id="cl_key" type="password" autocomplete="off" placeholder="${c.hasKey ? '••••••••' : 'Sync Key'}"></div>
     </div>
     <div class="btns">
@@ -6051,13 +6289,13 @@ async function drawCloudCard(){
     ${c.configured && link ? `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:8px">
       <div class="qrbox">${qrSvg(link)}<small>Owner / staff phone se scan karein</small></div>
       <div style="font-size:13px;line-height:1.7">Kahin se bhi kholein (4G / ghar ka WiFi):<br><code style="font-size:13px;font-weight:700">${esc(link)}</code><br>
-        Login apne Manager / Cashier / Staff PIN se.<br>${pinNote}<br>
+        ${hotelLine}Login: Hotel Code + apna Manager / Cashier / Staff PIN.<br>${pinNote}<br>
         <span class="muted">Ye PC aur internet chalu rehne chahiye. Internet jaane par bhi billing yahan chalti rahegi, net aate hi sync ho jayega.</span></div>
     </div>` : ''}`;
 }
 
 async function saveCloud(enabled){
-  const body = {enabled, url: ($('#cl_url')?.value || '').trim(), key: ($('#cl_key')?.value || '').trim()};
+  const body = {enabled, url: ($('#cl_url')?.value || '').trim(), hotel: ($('#cl_hotel')?.value || '').trim().toUpperCase(), key: ($('#cl_key')?.value || '').trim()};
   if(!enabled && !confirm('Cloud Sync band karein? Phone se internet wala access ruk jayega. (Data is PC par safe rahega)')) return;
   toast(enabled ? 'Cloud se connect ho raha hai...' : 'Band ho raha hai...');
   try{
@@ -6165,8 +6403,10 @@ function startUI(){
   if(await srvDetect()){
     SRV.on = true;
     SRV.token = lsGet(TOKEN_KEY) || '';
+    if(SRV.saas) SRV.hotel = lsGet(HOTEL_KEY) || '';
     if(!(await srvInitData())) return;   // connect screen is showing
-    setInterval(srvPoll, 2500);
+    srvStartPolling();
+    applyCloudKeys();
   }
   startUI();
 })();

@@ -1,30 +1,40 @@
-# Setu Cloud - Cloudflare Worker config (one deploy = one hotel)
+# Setu Cloud SaaS - Cloudflare Worker config (one deploy serves every hotel)
 # Powered by Aghanya Devanya Enterprises
 name = "setu-cloud"
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
 
 # Custom domain (optional). Works only when the domain's DNS is on Cloudflare.
-# Until then use the free *.workers.dev address that "npm run deploy" prints.
-# routes = [ { pattern = "hotel.example.in", custom_domain = true } ]
+# routes = [ { pattern = "app.example.in", custom_domain = true } ]
 
-# App files (hotel_erp.html, icons, sw.js). "npm run assets" copies them from the repo root.
+# App files + vendor admin page. "npm run assets" copies an allow-list into ./public.
 [assets]
 directory = "./public"
 binding = "ASSETS"
 run_worker_first = ["/api/*", "/"]
 
 [vars]
-HOTEL_ID = "main"
+TRIAL_DAYS = "14"
+# Razorpay plan ids come from Razorpay Dashboard -> Subscriptions -> Plans.
+# price is in rupees (for display), days = license days added per paid cycle.
+PLANS = '{"monthly":{"label":"Monthly","price":999,"days":30,"razorpay":"plan_PASTE_MONTHLY_ID"},"yearly":{"label":"Yearly","price":9999,"days":365,"razorpay":"plan_PASTE_YEARLY_ID"}}'
 
-# The hotel database: one Durable Object with built-in SQLite (free plan supports this)
+# Secrets (npm run setup-secrets): LICENSE_PRIVATE_KEY, ADMIN_KEY,
+# RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET
+
+# Every hotel = one Durable Object with its own SQLite database
 [[durable_objects.bindings]]
 name = "HOTEL"
 class_name = "SetuHotel"
 
+# Hotel list for sign-up and the vendor admin page
+[[durable_objects.bindings]]
+name = "REGISTRY"
+class_name = "SetuRegistry"
+
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["SetuHotel"]
+new_sqlite_classes = ["SetuHotel", "SetuRegistry"]
 
 [observability]
 enabled = true

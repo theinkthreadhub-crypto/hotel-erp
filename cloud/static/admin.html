@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Setu Vendor Admin</title>
+<style>
+  :root{ --bg:#f1f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --pri:#0ea5e9; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; }
+  @media (prefers-color-scheme: dark){ :root{ --bg:#0b1220; --card:#111a2e; --ink:#e2e8f0; --muted:#94a3b8; --line:#1e293b; } }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif }
+  header{ padding:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--line); background:var(--card) }
+  h1{ font-size:18px; margin:0 auto 0 0 }
+  main{ padding:16px; max-width:1200px; margin:0 auto }
+  input, button, select{ font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink) }
+  button{ cursor:pointer; background:var(--pri); color:#fff; border:0; font-weight:600 }
+  button.g{ background:transparent; color:var(--ink); border:1px solid var(--line) }
+  button.bad{ background:var(--bad) }
+  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:14px }
+  .stat{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px }
+  .stat b{ display:block; font-size:22px }
+  .wrap{ overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px }
+  table{ width:100%; border-collapse:collapse; min-width:820px }
+  th, td{ text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:middle }
+  th{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em }
+  .pill{ padding:2px 8px; border-radius:99px; font-size:12px; font-weight:700 }
+  .p-active{ background:#dcfce7; color:#166534 } .p-trial{ background:#e0f2fe; color:#075985 }
+  .p-expired{ background:#fee2e2; color:#991b1b } .p-suspended{ background:#f1f5f9; color:#334155 }
+  .muted{ color:var(--muted) } .act{ display:flex; gap:6px; flex-wrap:wrap }
+  .act button{ padding:5px 9px; font-size:12px }
+  #login{ max-width:380px; margin:60px auto; background:var(--card); padding:22px; border-radius:12px; border:1px solid var(--line) }
+  #login input{ width:100%; margin:10px 0 }
+  #err{ color:var(--bad); font-weight:600 }
+</style>
+</head>
+<body>
+<div id="login">
+  <h1>Setu Vendor Admin</h1>
+  <p class="muted">Aghanya Devanya Enterprises — sirf vendor ke liye</p>
+  <form id="lf"><input id="key" type="password" placeholder="Admin Key" autocomplete="off" required><button style="width:100%">Kholein</button></form>
+  <p id="err"></p>
+</div>
+<div id="app" hidden>
+  <header>
+    <h1>Setu Hotels</h1>
+    <input id="q" placeholder="Search naam / code / mobile">
+    <button class="g" onclick="load()">Refresh</button>
+    <button class="g" onclick="sessionStorage.removeItem('setu_admin');location.reload()">Logout</button>
+  </header>
+  <main>
+    <div class="stats" id="stats"></div>
+    <div class="wrap"><table><thead><tr><th>Hotel</th><th>Code</th><th>Owner / Mobile</th><th>Status</th><th>Paid Till</th><th>Joined</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
+  </main>
+</div>
+<script>
+let KEY = '', HOTELS = [];
+try{ KEY = sessionStorage.getItem('setu_admin') || ''; }catch(e){}
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const d = ms => ms ? new Date(ms).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '-';
+const state = h => h.status === 'suspended' ? 'suspended' : (h.paid_until < Date.now() ? 'expired' : h.status);
+
+async function api(path, body){
+  const r = await fetch(path, {method: body ? 'POST' : 'GET', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+  if(r.status === 401) throw new Error('Admin Key galat hai');
+  const j = await r.json();
+  if(!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+async function load(){
+  HOTELS = (await api('/api/admin/hotels', {})).hotels;
+  draw();
+}
+
+function draw(){
+  const q = document.getElementById('q').value.trim().toLowerCase();
+  const list = HOTELS.filter(h => !q || [h.name, h.code, h.phone, h.owner].join(' ').toLowerCase().includes(q));
+  const c = s => HOTELS.filter(h => state(h) === s).length;
+  document.getElementById('stats').innerHTML = [['Total', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')]]
+    .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('');
+  document.getElementById('rows').innerHTML = list.map(h => `<tr>
+    <td><b>${esc(h.name)}</b><div class="muted">${esc(h.email || '')}</div></td>
+    <td><code>${esc(h.code)}</code></td>
+    <td>${esc(h.owner)}<div class="muted">${esc(h.phone)}</div></td>
+    <td><span class="pill p-${state(h)}">${state(h)}</span><div class="muted">${esc(h.plan || '')}</div></td>
+    <td>${d(h.paid_until)}</td>
+    <td>${d(h.created)}</td>
+    <td class="act">
+      <button onclick="extend('${esc(h.code)}', 30)">+30 din</button>
+      <button class="g" onclick="extend('${esc(h.code)}')">+ Din...</button>
+      ${h.status === 'suspended' ? `<button class="g" onclick="setStatus('${esc(h.code)}','active')">Chalu</button>` : `<button class="bad" onclick="setStatus('${esc(h.code)}','suspended')">Suspend</button>`}
+    </td></tr>`).join('') || '<tr><td colspan="7" class="muted">Koi hotel nahi</td></tr>';
+}
+
+async function extend(code, days){
+  days = days || +prompt('Kitne din jodne hain? (cash / UPI payment ke baad)', '30');
+  if(!days || days < 1) return;
+  if(!confirm(`${code} ko ${days} din dene hain? Hotel ke data mein nayi license key chali jayegi.`)) return;
+  try{ await api('/api/admin/hotel', {code, days}); await load(); }catch(e){ alert(e.message); }
+}
+
+async function setStatus(code, status){
+  if(!confirm(status === 'suspended' ? `${code} ko suspend karein? Wahan cloud par save band ho jayega.` : `${code} ko phir chalu karein?`)) return;
+  try{ await api('/api/admin/hotel', {code, status}); await load(); }catch(e){ alert(e.message); }
+}
+
+async function openPanel(){
+  try{
+    await load();
+    try{ sessionStorage.setItem('setu_admin', KEY); }catch(e){}
+    document.getElementById('login').hidden = true;
+    document.getElementById('app').hidden = false;
+  }catch(e){ document.getElementById('err').textContent = e.message; }
+}
+
+document.getElementById('lf').onsubmit = e => { e.preventDefault(); KEY = document.getElementById('key').value.trim(); openPanel(); };
+document.getElementById('q').oninput = draw;
+if(KEY) openPanel();
+</script>
+</body>
+</html>
