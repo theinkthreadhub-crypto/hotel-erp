@@ -2,3 +2,4 @@ node_modules/
 dist/
 LibraryData/
 private_key.pem
+LibraryERP-log.txt

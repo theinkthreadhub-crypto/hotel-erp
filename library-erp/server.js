@@ -6,12 +6,14 @@ const tls = require('tls');
 const { execFile, exec } = require('child_process');
 const lic = require('./license');
 
-const PORT = +process.env.LIBERP_PORT || 5055;
+let PORT = +process.env.LIBERP_PORT || 5055;
+const FIRST_PORT = PORT;
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
 
+const log = m => { try { fs.appendFileSync(path.join(BASE, 'LibraryERP-log.txt'), new Date().toLocaleString('en-IN') + '  ' + m + '\r\n'); } catch (x) {} };
 // Koi bhi galti ho to window turant band na ho — message dikhe aur log mein likha jaye
 process.on('uncaughtException', e => {
-  try { fs.appendFileSync(path.join(BASE, 'LibraryERP-error.log'), new Date().toISOString() + ' ' + (e.stack || e) + '\n'); } catch (x) {}
+  log('ERROR ' + (e.stack || e));
   console.log('\nERROR: ' + (e.message || e) + '\n\nIs window ki photo vendor ko bhejein. Band karne ke liye Enter dabayein.');
   process.stdin.resume(); process.stdin.once('data', () => process.exit(1));
 });
@@ -184,24 +186,43 @@ function openApp() {
   const P = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
   const cands = P.flatMap(p => [path.join(p, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), path.join(p, 'Google', 'Chrome', 'Application', 'chrome.exe')]);
   const br = cands.find(f => fs.existsSync(f));
-  if (br) execFile(br, ['--app=' + url, '--start-maximized'], () => {});
+  log('Window: ' + (br || 'default browser'));
+  if (br) execFile(br, ['--app=' + url, '--start-maximized'], e => { if (e) { log('Browser error: ' + e.message); exec(`start "" "${url}"`); } });
   else exec(`start "" "${url}"`);
 }
 
+function pause(msg) {
+  console.log('\n' + msg + '\n\nIs window ki photo vendor ko bhejein. Band karne ke liye Enter dabayein.');
+  log(msg);
+  process.stdin.resume(); process.stdin.once('data', () => process.exit(1));
+}
+
 server.on('error', e => {
-  if (e.code !== 'EADDRINUSE') { console.error(e); return; }
-  // Pehle se chal raha hai — sirf window khol do
-  http.get(`http://127.0.0.1:${PORT}/api/ping`, r => { openApp(); setTimeout(() => process.exit(0), 1500); })
-    .on('error', () => { console.log('Port ' + PORT + ' busy hai. LIBERP_PORT set karke chalayein.'); });
+  if (e.code !== 'EADDRINUSE' && e.code !== 'EACCES') return pause('Server start nahi hua: ' + e.message);
+  // Port par pehle se Library ERP chal raha hai to sirf window kholo, warna agla port try karo
+  http.get(`http://127.0.0.1:${PORT}/api/ping`, { timeout: 2000 }, r => {
+    let b = ''; r.on('data', c => b += c);
+    r.on('end', () => {
+      if (b.includes('library-erp')) { log('Pehle se chal raha hai, port ' + PORT); openApp(); setTimeout(() => process.exit(0), 1500); }
+      else nextPort();
+    });
+  }).on('error', nextPort).on('timeout', function () { this.destroy(); });
 });
-server.listen(PORT, '127.0.0.1', () => {
+function nextPort() {
+  if (PORT >= FIRST_PORT + 20) return pause('Koi khali port nahi mila (' + FIRST_PORT + '-' + PORT + ').');
+  PORT++; server.listen(PORT, '127.0.0.1');
+}
+server.on('listening', () => {
+  log('Start: port ' + PORT + ', machine ' + MACHINE);
   console.log('==============================================');
   console.log('  Library ERP chal raha hai: http://127.0.0.1:' + PORT);
   console.log('  Machine code: ' + MACHINE);
   console.log('  Data: ' + DATA_DIR);
   console.log('  Ye window band na karein — minimize kar dein.');
+  console.log('  ERP window na khule to browser mein upar wala link kholein.');
   console.log('==============================================');
   if (!process.env.LIBERP_NO_OPEN) openApp();
   setTimeout(autoEmail, 20000);
   setInterval(autoEmail, 15 * 60e3);
 });
+server.listen(PORT, '127.0.0.1');
