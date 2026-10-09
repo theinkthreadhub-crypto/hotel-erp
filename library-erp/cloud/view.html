@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#2b4c7e">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon-192.png"><link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Setu Library">
+<title>Setu Library — Online View</title>
+<style>
+:root{--b:#2b4c7e;--bg:#f4f6fa;--card:#fff;--t:#1d2433;--m:#6b7385;--ok:#1e8e3e;--bad:#c62828;--warn:#e08a00;--line:#e4e8f0}
+*{box-sizing:border-box}html,body{margin:0}body{font:15px/1.4 "Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--t);-webkit-tap-highlight-color:transparent}
+header{background:var(--b);color:#fff;padding:12px 16px calc(12px);padding-top:max(12px,env(safe-area-inset-top));position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px}
+header .n{flex:1;min-width:0}header b{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}header small{opacity:.85;font-size:12px}
+header button{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:13px}
+main{padding:14px 14px 40px;max-width:720px;margin:0 auto}
+.card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(20,30,60,.08)}
+h3{margin:0 0 10px;font-size:14px;color:var(--m);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.k{background:var(--card);border-radius:12px;padding:12px;box-shadow:0 1px 3px rgba(20,30,60,.08)}
+.k span{display:block;color:var(--m);font-size:12px}.k b{font-size:21px;display:block;margin-top:2px}.k small{color:var(--m);font-size:12px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.row{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}
+.row .l{min-width:0}.row .l b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .l small{color:var(--m);font-size:12px}.row .r{text-align:right;white-space:nowrap}
+.bar{height:10px;background:#e8ecf3;border-radius:6px;overflow:hidden;margin:8px 0 4px}.bar i{display:block;height:100%;background:var(--ok)}
+.tabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:10px}.tabs button{flex:1;border:0;background:#e6ebf4;color:var(--b);padding:9px 8px;border-radius:8px;font-size:13px;font-weight:600;white-space:nowrap}
+.tabs button.on{background:var(--b);color:#fff}
+.empty{color:var(--m);text-align:center;padding:16px 0}
+.note{background:#fff4e0;border:1px solid #f3cf8b;color:#7a4b00;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px}
+.err{background:#fde8e8;border-color:#f3b3b3;color:#8e1c1c}
+.login{max-width:380px;margin:8vh auto 0;padding:0 16px}.login .card{padding:20px}
+.login img{display:block;width:64px;height:64px;border-radius:14px;margin:0 auto 10px}
+.login h2{text-align:center;margin:0 0 4px;font-size:20px}.login p{text-align:center;color:var(--m);margin:0 0 16px;font-size:13px}
+label{display:block;font-size:13px;color:var(--m);margin:10px 0 4px}
+input{width:100%;padding:12px;border:1px solid #cdd4e1;border-radius:9px;font-size:16px;background:#fff;color:var(--t)}
+input:focus{outline:2px solid var(--b);border-color:transparent}
+.btn{display:block;width:100%;background:var(--b);color:#fff;border:0;border-radius:9px;padding:13px;font-size:16px;font-weight:600;margin-top:16px}
+.chk{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:13px;color:var(--m)}.chk input{width:auto}
+.wa{display:inline-block;background:#25d366;color:#fff;text-decoration:none;border-radius:6px;padding:3px 8px;font-size:12px;margin-top:3px}
+.foot{text-align:center;color:var(--m);font-size:12px;margin-top:18px}
+.install{display:none;background:#e3f4e5;border:1px solid #a8d8b0;color:#185c26;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;align-items:center;gap:10px}
+.install button{margin-left:auto;background:var(--ok);color:#fff;border:0;border-radius:7px;padding:7px 12px;font-weight:600}
+svg text{font-size:10px;fill:var(--m)}
+@media (prefers-color-scheme:dark){:root{--bg:#11151d;--card:#1b212c;--t:#e7ebf3;--m:#99a2b5;--line:#2a3140}.tabs button{background:#232b39;color:#c9d6f0}input{background:#141922;border-color:#333c4d}.bar{background:#2a3140}.note{background:#3a2e14;border-color:#6b5320;color:#f2d79c}.err{background:#3d1d1d;border-color:#6e2e2e;color:#f3b3b3}.install{background:#183222;border-color:#2c5c3a;color:#a8e0b5}}
+</style></head><body>
+<div id="app"></div>
+<script>
+const $=s=>document.querySelector(s),app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rs=n=>'₹'+Math.round(+n||0).toLocaleString('en-IN');
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const dmy=d=>d?d.slice(8,10)+'-'+d.slice(5,7)+'-'+d.slice(0,4):'';
+const istToday=()=>new Date(Date.now()+5.5*3600e3).toISOString().slice(0,10);
+const ago=t=>{if(!t)return 'never';const m=(Date.now()-new Date(t))/60e3;return m<1?'just now':m<60?Math.round(m)+' min ago':m<48*60?Math.round(m/60)+' h ago':Math.round(m/1440)+' days ago';};
+const store={get(k){try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
+let R=null,tab='rc',busy=false,deferred=null;
+
+function login(msg){
+  const s=store.get('setu_login')||{};
+  app.innerHTML=`<div class="login"><div class="card"><img src="/icon-192.png" alt=""><h2>Setu Library</h2><p>See your library's fee, expenses and attendance from anywhere</p>
+  ${msg?`<div class="note err">${esc(msg)}</div>`:''}
+  <form id="f"><label>Library ID</label><input id="lid" placeholder="SETU-0001" autocapitalize="characters" autocomplete="username" value="${esc(s.libId||'')}" required>
+  <label>PIN</label><input id="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="4–6 digit PIN" autocomplete="current-password" required>
+  <label class="chk"><input id="rem" type="checkbox" checked> Keep me signed in on this phone</label>
+  <button class="btn" id="go">Open</button></form>
+  <p style="margin-top:14px">Library ID and PIN are in the ERP: <b>G → Cloud backup</b></p></div>
+  <div class="foot">Setu Pro · 6393995127</div></div>`;
+  $('#f').onsubmit=e=>{e.preventDefault();const libId=$('#lid').value.trim().toUpperCase(),pin=$('#pin').value.trim();load({libId,pin},$('#rem').checked);};
+  if(!s.libId)$('#lid').focus();else $('#pin').focus();
+}
+async function load(cred,remember){
+  if(busy)return;busy=true;const b=$('#go')||$('#rf');if(b)b.textContent='Loading…';
+  try{
+    const r=await fetch('/api/view',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cred)});
+    const j=await r.json().catch(()=>({error:'Server did not reply'}));
+    if(!r.ok)throw Object.assign(new Error(j.error||'Error '+r.status),{auth:/PIN|not found|Library ID/i.test(j.error||'')});
+    R=j;store.set('setu_last',j);
+    if(remember!==false)store.set('setu_login',cred);else store.set('setu_login',{libId:cred.libId});
+    sessionStorage.setItem('setu_cred',JSON.stringify(cred));
+    show();
+  }catch(e){
+    busy=false;
+    if(e.auth){store.set('setu_login',{libId:cred.libId});return login(e.message);}
+    const last=store.get('setu_last');
+    if(last&&last.libId===cred.libId){R=last;show('No internet — showing the last saved data.');}else login(e.message==='Failed to fetch'?'No internet connection':e.message);
+  }
+  busy=false;
+}
+const cred=()=>{try{return JSON.parse(sessionStorage.getItem('setu_cred'))||store.get('setu_login');}catch(e){return store.get('setu_login');}};
+function logout(){const l=store.get('setu_login');store.set('setu_login',{libId:l&&l.libId||''});store.del('setu_last');sessionStorage.removeItem('setu_cred');R=null;login();}
+
+function weekChart(W){
+  const w=320,h=120,max=Math.max(1,...W.map(x=>Math.max(x.fee,x.exp))),bw=(w-20)/W.length;
+  return `<svg viewBox="0 0 ${w} ${h+18}" width="100%" role="img" aria-label="Last 7 days">${W.map((x,i)=>{const X=10+i*bw,fh=x.fee/max*h,eh=x.exp/max*h,d=new Date(x.d+'T00:00:00');
+    return `<rect x="${X+bw*.14}" y="${h-fh}" width="${bw*.34}" height="${fh}" rx="2" fill="#1e8e3e"><title>${dmy(x.d)} fee ${rs(x.fee)}</title></rect>
+    <rect x="${X+bw*.52}" y="${h-eh}" width="${bw*.34}" height="${eh}" rx="2" fill="#e08a00"><title>${dmy(x.d)} expense ${rs(x.exp)}</title></rect>
+    <text x="${X+bw/2}" y="${h+13}" text-anchor="middle">${d.toLocaleDateString('en-IN',{weekday:'short'})}</text>`;}).join('')}</svg>
+    <div style="font-size:12px;color:var(--m)"><span style="color:#1e8e3e">■</span> Fee &nbsp; <span style="color:#e08a00">■</span> Expense</div>`;
+}
+function list(){
+  const v=R.view,T=v.today;
+  if(tab==='rc')return T.receipts.length?T.receipts.map(r=>`<div class="row"><div class="l"><b>${esc(r.name)}</b><small>#${r.no} · ID ${esc(r.code)} · ${esc(r.time)} · ${esc(r.mode)}${r.months?' · '+r.months+' month'+(r.months>1?'s':''):''}${r.extra?' · '+esc(r.extra):''}</small></div><div class="r"><b class="ok">${rs(r.paid)}</b></div></div>`).join(''):'<div class="empty">No fee received today</div>';
+  if(tab==='ex')return T.expenses.length?T.expenses.map(e=>`<div class="row"><div class="l"><b>${esc(e.head)}</b><small>${esc(e.time)} · ${esc(e.mode)}${e.to?' · '+esc(e.to):''}</small></div><div class="r"><b class="warn">${rs(e.amount)}</b></div></div>`).join(''):'<div class="empty">No expense today</div>';
+  if(tab==='at')return v.att.list.length?v.att.list.map(a=>`<div class="row"><div class="l"><b>${esc(a.name)}</b><small>ID ${esc(a.code)}${a.seat?' · Seat '+esc(a.seat):''}</small></div><div class="r"><small>In</small> <b>${esc(a.in||'—')}</b><br><small>Out</small> ${a.out?`<b>${esc(a.out)}</b>`:'<b class="ok">inside</b>'}</div></div>`).join(''):'<div class="empty">No attendance today</div>';
+  return v.dues.list.length?v.dues.list.map(d=>{const m=String(d.mobile||'').replace(/\D/g,'').slice(-10);
+    return `<div class="row"><div class="l"><b>${esc(d.name)}</b><small>ID ${esc(d.code)}${d.seat?' · Seat '+esc(d.seat):''}${d.months?' · '+d.months+' month'+(d.months>1?'s':'')+' from '+MON[+d.from.slice(5)-1]:''}</small>
+    ${m.length===10?`<br><a class="wa" target="_blank" href="https://wa.me/91${m}?text=${encodeURIComponent('Dear '+d.name+', your library fee of '+rs(d.amt)+' is due. Please pay at the earliest. — '+(R.name||''))}">WhatsApp</a>`:''}</div><div class="r"><b class="bad">${rs(d.amt)}</b></div></div>`;}).join('')+(v.dues.count>v.dues.list.length?`<div class="empty">+ ${v.dues.count-v.dues.list.length} more in the ERP</div>`:''):'<div class="empty">No dues 🎉</div>';
+}
+function show(warn){
+  if(!R.view){app.innerHTML=`<header><div class="n"><b>${esc(R.name||R.libId)}</b><small>${esc(R.libId)}</small></div><button onclick="logout()">Sign out</button></header><main>
+    <div class="note">No summary yet. Update the library computer to <b>Library ERP v1.8.0</b> or newer and keep it connected to the internet. (Now: ${esc(R.version||'?')}, last backup ${ago(R.lastSync)})</div><div class="foot">Setu Pro · 6393995127</div></main>`;return;}
+  const v=R.view,T=v.today,M=v.month,pl=T.fee-T.exp,mpl=M.fee-M.exp,pct=M.expected?Math.min(100,Math.round(M.got*100/M.expected)):0,old=v.day!==istToday();
+  app.innerHTML=`<header><div class="n"><b>${esc(v.name||R.name)}</b><small>${esc(R.libId)} · Updated ${ago(v.at)}</small></div><button id="rf" onclick="refresh()">↻ Refresh</button></header><main>
+  <div class="install" id="inst">Install this as an app on your phone <button onclick="install()">Install</button></div>
+  ${warn?`<div class="note">${esc(warn)}</div>`:''}
+  ${old?`<div class="note">The library computer has not sent data today. Showing <b>${dmy(v.day)}</b>. Open the ERP with internet to update.</div>`:''}
+  <div class="kpis">
+    <div class="k"><span>Fee today</span><b class="ok">${rs(T.fee)}</b><small>${T.receipts.length} receipt${T.receipts.length===1?'':'s'}${T.modes.length?' · '+T.modes.map(m=>m[0]+' '+rs(m[1])).join(', '):''}</small></div>
+    <div class="k"><span>Expense today</span><b class="warn">${rs(T.exp)}</b><small>${T.expenses.length} entr${T.expenses.length===1?'y':'ies'}</small></div>
+    <div class="k"><span>Today ${pl>=0?'profit':'loss'}</span><b class="${pl>=0?'ok':'bad'}">${rs(Math.abs(pl))}</b><small>Fee − expense</small></div>
+    <div class="k"><span>Present today</span><b>${v.att.present}<small> / ${v.students}</small></b><small>${v.att.inside} inside now${T.admissions?' · '+T.admissions+' new admission'+(T.admissions>1?'s':''):''}</small></div>
+  </div>
+  <div class="card"><h3>${MON[+M.m.slice(5)-1]} ${M.m.slice(0,4)}</h3>
+    <div class="row"><div class="l">Fee collected</div><div class="r"><b class="ok">${rs(M.fee)}</b></div></div>
+    <div class="row"><div class="l">Expenses</div><div class="r"><b class="warn">${rs(M.exp)}</b></div></div>
+    <div class="row"><div class="l">${mpl>=0?'Profit':'Loss'}</div><div class="r"><b class="${mpl>=0?'ok':'bad'}">${rs(Math.abs(mpl))}</b></div></div>
+    <div class="bar"><i style="width:${pct}%"></i></div><small style="color:var(--m)">This month's fee: ${rs(M.got)} of ${rs(M.expected)} received (${pct}%) · <span class="bad">${rs(M.pending)} pending</span></small></div>
+  <div class="card"><h3>Last 7 days</h3>${weekChart(v.week)}</div>
+  <div class="card"><h3>Total dues${v.session?' · Session '+esc(v.session):''}</h3><div class="row"><div class="l">${v.dues.count} student${v.dues.count===1?'':'s'}</div><div class="r"><b class="bad">${rs(v.dues.total)}</b></div></div></div>
+  <div class="tabs">${[['rc','Fee'],['ex','Expense'],['at','Attendance'],['du','Dues']].map(([k,t])=>`<button class="${tab===k?'on':''}" onclick="tab='${k}';show()">${t}</button>`).join('')}</div>
+  <div class="card" id="list">${list()}</div>
+  <div class="foot">Data of ${dmy(v.day)} · Library computer sends updates every 5 minutes<br>Setu Pro · 6393995127 · <a href="#" onclick="logout();return false">Sign out</a></div></main>`;
+  if(deferred)$('#inst').style.display='flex';
+}
+function refresh(){const c=cred();c&&c.pin?load(c,!!(store.get('setu_login')||{}).pin):login();}
+async function install(){if(!deferred)return;deferred.prompt();await deferred.userChoice;deferred=null;const i=$('#inst');if(i)i.style.display='none';}
+addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferred=e;const i=$('#inst');if(i)i.style.display='flex';});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&R&&Date.now()-(refresh.t||0)>60e3){refresh.t=Date.now();refresh();}});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+const c=cred();if(c&&c.pin){const last=store.get('setu_last');if(last&&last.libId===c.libId){R=last;show();}refresh.t=Date.now();load(c,!!(store.get('setu_login')||{}).pin);}else login();
+</script></body></html>

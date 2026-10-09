@@ -63,6 +63,14 @@ Cloudflare ki screen thodi alag dikh sakti hai, par button ke naam yahi rehte ha
 
 ---
 
+## Online View (owner ka phone app)
+
+Worker ka address + `/view`, jaise `https://setu-erp.setupro.workers.dev/view`. Library ka owner Library ID + PIN se login karke aaj ki fee, kharcha, attendance aur dues dekhta hai, aur **Install** dabakar app bana leta hai. Iske liye alag kuch setup nahi karna.
+
+Worker code badalna ho to `view.html` badlein, phir `node cloud/embed.js` chalayein, phir naya `worker.js` Cloudflare par paste karein.
+
+---
+
 ## Admin page par kya milega
 
 | Column | Matlab |

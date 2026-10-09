@@ -1495,7 +1495,8 @@ async function cloudStatus(){try{CLOUD=await api('cloud');}catch(e){return;}cons
   e.innerHTML=`${CLOUD.libId?`Library ID: <b style="font-size:15px">${esc(CLOUD.libId)}</b> · `:''}${CLOUD.lastOk?`Last cloud backup: <b class="green">${new Date(CLOUD.lastOk).toLocaleString('en-IN')}</b>`:'Not backed up to the cloud yet.'}
     · PIN: ${CLOUD.pinSet?'<b class="green">set ✓</b>':'<b class="red">not set — set a PIN below</b>'}
     ${CLOUD.error?`<br><span class="red">Last error${CLOUD.errorAt?' ('+new Date(CLOUD.errorAt).toLocaleString('en-IN')+')':''}: ${esc(CLOUD.error)}</span>`:''}
-    <br><span class="muted">The ERP backs up to the Setu Pro cloud automatically whenever the internet is on. Note the Library ID and PIN — you need both to get your data back on a new computer.</span>`;}
+    <br><span class="muted">The ERP backs up to the Setu Pro cloud automatically whenever the internet is on. Note the Library ID and PIN — you need both to get your data back on a new computer.</span>
+    ${CLOUD.libId?`<div style="margin-top:8px;padding:8px 10px;background:#eef4ff;border-radius:4px">📱 <b>Online View (owner's phone):</b> open <b>${esc(CLOUD.url)}/view</b> and sign in with Library ID <b>${esc(CLOUD.libId)}</b> + PIN. See today's fee, expenses, attendance and dues from anywhere. Tap <b>Install</b> (or browser menu → <i>Add to Home screen</i>) to use it as an app.</div>`:''}`;}
 async function cloudSyncNow(){await saveSettings(true);toast('Syncing…');try{await api('cloud-sync',{});toast('Backed up to the cloud','ok');}catch(e){toast(e.message,'bad');}cloudStatus();}
 async function cloudPin(){const pin=$('#g_pin').value.trim();if(!/^\d{4,6}$/.test(pin)){toast('PIN must be 4 to 6 digits','bad');return;}
   await saveSettings(true);try{await api('cloud-pin',{pin});$('#g_pin').value='';toast('PIN set — remember it','ok');}catch(e){toast(e.message,'bad');}cloudStatus();}

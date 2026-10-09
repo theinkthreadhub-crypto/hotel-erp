@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.7.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.8.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -115,6 +115,17 @@ Cloudflare par lagane ke steps: [cloud/SETUP.md](cloud/SETUP.md). Server ka code
 Cloud ka address `config.json` ke `cloudUrl` mein daalkar Setup banayein. Har library ka ERP internet milte hi apne aap backup bhejta hai (10 minute mein ek baar, sirf jab data badla ho).
 Library ko **G → Cloud backup** mein Library ID dikhta hai, aur wahi ek **PIN** set karti hai. Naye computer par **Restore from cloud** mein Library ID + PIN daalte hi data wapas aa jata hai.
 Admin page: `https://<aapka-worker>.workers.dev/admin`
+
+## Online View — owner ka phone app
+
+Library ka owner kahin se bhi aaj ka hisaab dekh sakta hai: aaj ki fee (Cash/UPI), kharcha, profit, kaun aaya (In/Out time), kaun andar hai, due list (WhatsApp button ke saath), is mahine ka hisaab aur 7 din ka chart.
+
+1. Phone mein Chrome se `https://<cloud-address>/view` kholein. Pura address ERP mein **G → Cloud backup** mein likha hai.
+2. **Library ID** (jaise SETU-0007) aur **PIN** daalein.
+3. **Install** dabayein (ya Chrome menu ⋮ → *Add to Home screen*). Phone par **Setu Library** app ban jaata hai.
+
+Data library ke computer se aata hai: ERP khula ho aur internet ho to har 5 minute mein update hota hai. Phone par sirf hisaab dikhta hai, kuch badal nahi sakte.
+APK chahiye to `pwabuilder.com` par `/view` wala address daalkar Android package bana sakte hain.
 
 ## Google Drive mein backup (bina email)
 

@@ -8,6 +8,7 @@ const zlib = require('zlib');
 const nodeCrypto = require('crypto');
 const { execFile, exec } = require('child_process');
 const lic = require('./license');
+const { summary } = require('./summary');
 
 let PORT = +process.env.LIBERP_PORT || 5055;
 const FIRST_PORT = PORT;
@@ -230,7 +231,7 @@ async function cloudSync(force) {
   const raw = fs.readFileSync(DATA), hash = nodeCrypto.createHash('sha1').update(raw).digest('hex');
   if (!force) {
     if (c.hash === hash && c.day === lic.today()) return;            // kuch naya nahi
-    if (c.lastTry && Date.now() - c.lastTry < 10 * 60e3) return;      // 10 minute mein ek baar
+    if (c.lastTry && Date.now() - c.lastTry < 5 * 60e3) return;       // 5 minute mein ek baar
   }
   c.lastTry = Date.now();
   const D = JSON.parse(raw.toString('utf8')), S = D.settings || {}, key = readJson(LICENSE, {}).key;
@@ -240,6 +241,7 @@ async function cloudSync(force) {
     const st = D.students || [];
     const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: lic.today(),
       stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
+      view: (() => { try { return summary(D); } catch (e) { log('summary: ' + e.message); return null; } })(),
       data: zlib.gzipSync(raw).toString('base64') });
     Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet });
   } catch (e) { c.error = cloudErr(e); c.errorAt = new Date().toISOString(); }
