@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.5.1** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.5.2** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.

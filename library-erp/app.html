@@ -1478,7 +1478,7 @@ async function scrSettings(){
 }
 function showMailStatus(){const e=$('#g_mailst');if(!e)return;
   e.innerHTML=(INFO.lastEmail?`Last email backup: <b class="green">${new Date(INFO.lastEmail).toLocaleString('en-IN')}</b>`:'No email backup sent yet.')+
-    (INFO.lastEmailError?`<br><span class="red">Pichhli galti: ${esc(INFO.lastEmailError)}</span>`:'');}
+    (INFO.lastEmailError?`<br><span class="red">Last error${INFO.lastErrorAt?' ('+new Date(INFO.lastErrorAt).toLocaleString('en-IN')+')':''}: ${esc(INFO.lastEmailError)}</span>`:'');}
 function saveSettings(quiet){
   const S=D.settings,name=val('g_name');
   if(!name){toast('Enter the library name','bad');focusEl('#g_name');return Promise.reject();}

@@ -3,6 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const net = require('net');
 const { execFile, exec } = require('child_process');
 const lic = require('./license');
 
@@ -71,18 +72,19 @@ function saveData(obj) {
 function smtpReader(sock) {
   let buf = '', pend = null, err = null;
   const check = () => { if (pend && /(^|\n)\d{3} [^\n]*\n$/.test(buf)) { const r = buf, p = pend; buf = ''; pend = null; p.res(r); } };
-  sock.on('data', d => { buf += d; check(); });
+  sock.on('data', d => { buf += d.toString('utf8'); check(); });
   sock.on('error', e => { err = e; if (pend) { pend.rej(e); pend = null; } });
   sock.on('close', () => { if (pend) { pend.rej(new Error('SMTP connection closed')); pend = null; } });
   return () => new Promise((res, rej) => { if (err) return rej(err); pend = { res, rej }; check(); });
 }
 const b64 = s => Buffer.from(s).toString('base64');
 const wrap = s => s.replace(/.{1,76}/g, '$&\r\n');
+// Port 465 = seedha TLS; port 587 = STARTTLS (jab network 465 block kare)
 async function sendMail({ host, port, user, pass, to, subject, text, files }) {
-  const sock = tls.connect({ host, port, servername: host });
-  sock.setEncoding('utf8');
-  sock.setTimeout(45000, () => sock.destroy(new Error('SMTP timeout')));
-  const next = smtpReader(sock);
+  let sock = port === 587 ? net.connect({ host, port }) : tls.connect({ host, port, servername: host });
+  const arm = s => s.setTimeout(30000, () => s.destroy(Object.assign(new Error('SMTP timeout'), { code: 'ETIMEDOUT' })));
+  arm(sock);
+  let next = smtpReader(sock);
   const step = async (line, ok) => {
     if (line != null) sock.write(line + '\r\n');
     const r = await next(), last = r.trim().split(/\r?\n/).pop(), code = parseInt(last, 10);
@@ -98,6 +100,15 @@ async function sendMail({ host, port, user, pass, to, subject, text, files }) {
   try {
     await step(null, [220]);
     await step('EHLO library-erp', [250]);
+    if (port === 587) {
+      await step('STARTTLS', [220]);
+      sock.removeAllListeners('data'); sock.removeAllListeners('close'); sock.removeAllListeners('error');
+      sock = tls.connect({ socket: sock, servername: host });
+      await new Promise((res, rej) => { sock.once('secureConnect', res); sock.once('error', rej); });
+      arm(sock); next = smtpReader(sock);
+      sock.write('EHLO library-erp\r\n');
+      const r = await next(); if (!/^250/m.test(r.trim().split(/\r?\n/).pop())) throw new Error('Email server: ' + r.trim());
+    }
     await step('AUTH LOGIN', [334]);
     await step(b64(user), [334]);
     await step(b64(pass), [235]);
@@ -121,7 +132,7 @@ async function emailBackup() {
   const s = D.settings || {}, m = s.mail || {};
   if (!m.user || !m.pass || !m.to) throw new Error('Fill in Gmail ID, App Password and To email in Settings');
   const d = lic.today(), name = s.name || 'Library';
-  await sendMail({
+  const opts = {
     host: m.host || 'smtp.gmail.com', port: +m.port || 465, user: m.user.trim(), pass: String(m.pass).replace(/\s+/g, ''), to: m.to,
     subject: `${name} — ERP Backup ${d}`,
     text: `${name}\nERP backup: ${d}\n\nStudents: ${(D.students || []).length}\nReceipts: ${(D.receipts || []).length}\n\nRestore: Library ERP → G (Settings) → Restore Backup → choose library_backup_${d}.json`,
@@ -129,8 +140,28 @@ async function emailBackup() {
       { name: `library_backup_${d}.json`, type: 'application/json', data: JSON.stringify(D) },
       { name: `students_${d}.csv`, type: 'text/csv', data: studentsCsv(D) },
     ],
-  });
-  const meta = readJson(META, {}); meta.lastEmail = new Date().toISOString(); meta.lastEmailError = ''; writeJson(META, meta);
+  };
+  try {
+    try { await sendMail(opts); }
+    catch (e) { // 465 band ho to 587 try karo
+      if (opts.port === 465 && /ECONNREFUSED|ETIMEDOUT|ECONNRESET|EHOSTUNREACH|ENETUNREACH/.test(e.code || e.message)) await sendMail({ ...opts, port: 587 });
+      else throw e;
+    }
+  } catch (e) {
+    const err = new Error(mailError(e));
+    const mm = readJson(META, {}); mm.lastEmailError = err.message; mm.lastErrorAt = new Date().toISOString(); writeJson(META, mm);
+    throw err;
+  }
+  const meta = readJson(META, {}); meta.lastEmail = new Date().toISOString(); meta.lastEmailError = ''; meta.lastErrorAt = ''; writeJson(META, meta);
+}
+// Saaf English message (ENOTFOUND jaisi technical galti ki jagah)
+function mailError(e) {
+  const c = String(e.code || '') + ' ' + String(e.message || '');
+  if (/ENOTFOUND|EAI_AGAIN/.test(c)) return 'No internet — this computer could not reach smtp.gmail.com. Connect to the internet (or check Wi-Fi / data) and click "Email backup now" again.';
+  if (/ECONNREFUSED|ETIMEDOUT|ECONNRESET|EHOSTUNREACH|ENETUNREACH|SMTP timeout/.test(c)) return 'Could not connect to Gmail. The internet is slow, or a firewall / antivirus is blocking email. Try again, or allow LibraryERP in the antivirus.';
+  if (/ 535|534|5\.7\.8|Username and Password not accepted|BadCredentials/i.test(c)) return 'Gmail rejected the login. Check the Gmail ID and use the 16-letter App Password (not your normal Gmail password).';
+  if (/ 550|553|5\.1\./.test(c)) return 'Gmail did not accept the "Send backup to" email address. Check it.';
+  return e.message;
 }
 async function autoEmail() {
   const D = readJson(DATA, null), meta = readJson(META, {});
