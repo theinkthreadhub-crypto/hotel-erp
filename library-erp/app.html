@@ -395,7 +395,7 @@ function go(s,arg){
 }
 function drawSide(){$('#side').innerHTML=`<button onclick="go('home')"><u>Esc</u>Gateway</button>`+
   GROUPS.map(g=>`<div class="sg">${g[1]}</div>`+g[2].map(m=>`<button onclick="go('${m[2]}')"><u>Alt+${m[0]}</u>${m[1]}</button>`).join('')).join('')+
-  `<div class="keys"><kbd>Enter</kbd> next field<br><kbd>Ctrl+S</kbd> Save / Accept<br><kbd>↑</kbd><kbd>↓</kbd> select in list<br><kbd>Esc</kbd> back</div>`;}
+  `<div class="keys"><b>Library ERP v${esc(LIC&&LIC.version||'')}</b><br><kbd>Enter</kbd> next field<br><kbd>Ctrl+S</kbd> Save / Accept<br><kbd>↑</kbd><kbd>↓</kbd> select in list<br><kbd>Esc</kbd> back</div>`;}
 function gwRows(){const R=[];GROUPS.forEach((g,gi)=>{R.push({g:gi});if(gi===gwOpen)g[2].forEach(it=>R.push({it}));});return R;}
 function gwHtml(){return gwRows().map((r,i)=>r.it?`<div class="it sub${i===gwSel?' on':''}" onclick="go('${r.it[2]}')"><u>${r.it[0]}</u>${r.it[1]}</div>`:
   `<div class="gh${r.g===gwOpen?' open':''}${i===gwSel?' on':''}" onclick="gwToggle(${r.g})"><u>${GROUPS[r.g][0]}</u>${GROUPS[r.g][1]}<span>${r.g===gwOpen?'▾':'▸'}</span></div>`).join('');}
@@ -1538,6 +1538,7 @@ function licTick(){
 setInterval(licTick,1000);
 function scrLicense(){
   main.innerHTML=title('License / Activation')+`<div class="card" style="max-width:620px"><table class="info">
+    <tr><td>ERP version</td><td><b>v${esc(LIC.version||'')}</b></td></tr>
     <tr><td>Machine code</td><td><b style="font:700 18px Consolas,monospace">${esc(LIC.machine)}</b></td></tr>
     ${LIC.lifetime?`<tr><td>Validity</td><td><b class="green">Lifetime</b></td></tr>`:`<tr><td>Valid till</td><td><b>${licEnd()}</b></td></tr><tr><td>Plan</td><td>${esc(LIC.label||'')}</td></tr><tr><td>Days left</td><td><b class="${LIC.daysLeft<=7?'red':'green'}">${LIC.daysLeft}</b></td></tr>`}
     ${LIC.name?`<tr><td>Licensed to</td><td>${esc(LIC.name)}</td></tr>`:''}</table>
@@ -1555,7 +1556,7 @@ function showActivate(){
   D=null;$('#side').innerHTML='';$('#scr').textContent='Activation';$('#lic').textContent='';
   const why={new:'This software is not activated.',invalid:'The activation key is not valid for this computer.',expired:`The license expired on ${LIC.expiryMs?fmtDT(LIC.expiryMs):''}.`,
     clock:'The computer date/time has been set back. Set the correct date and open again.'}[LIC.reason]||'';
-  main.innerHTML=`<div class="act card"><h2 style="margin-top:0;color:var(--bar)">Library ERP — Activation</h2>
+  main.innerHTML=`<div class="act card"><h2 style="margin-top:0;color:var(--bar)">Library ERP — Activation <span class="muted" style="font-size:13px">v${esc(LIC.version||'')}</span></h2>
     <p class="${LIC.reason==='new'?'':'red'}">${why}</p>
     <p>Send your <b>Machine code</b> to the vendor. They will give you an <b>Activation Key</b>.</p>
     <div class="mcode">${esc(LIC.machine)}</div>

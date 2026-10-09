@@ -22,6 +22,7 @@ const DATA = path.join(DATA_DIR, 'library.json');
 const LICENSE = path.join(DATA_DIR, 'license.json');
 const META = path.join(DATA_DIR, 'meta.json');
 const PUBLIC_KEY = fs.readFileSync(path.join(__dirname, 'public_key.pem'), 'utf8');
+const VERSION = require('./package.json').version;
 const CONFIG = JSON.parse(fs.readFileSync(path.join(__dirname, 'config.json'), 'utf8'));
 const APP = path.join(__dirname, 'app.html');
 const MACHINE = lic.machineId();
@@ -34,7 +35,7 @@ function writeJson(f, obj) { const t = f + '.tmp'; fs.writeFileSync(t, JSON.stri
 /* ---------- license ---------- */
 function licenseStatus() {
   const st = readJson(LICENSE, {});
-  const out = { machine: MACHINE, vendor: CONFIG.vendorName || '', vendorPhone: CONFIG.vendorPhone || '' };
+  const out = { machine: MACHINE, version: VERSION, vendor: CONFIG.vendorName || '', vendorPhone: CONFIG.vendorPhone || '' };
   if (!st.key) return { ...out, ok: false, reason: 'new' };
   const k = lic.readKey(PUBLIC_KEY, st.key);
   if (!k.ok || k.machine !== MACHINE) return { ...out, ok: false, reason: 'invalid' };
@@ -221,9 +222,9 @@ function nextPort() {
   PORT++; server.listen(PORT, '127.0.0.1');
 }
 server.on('listening', () => {
-  log('Start: port ' + PORT + ', machine ' + MACHINE);
+  log('Start v' + VERSION + ': port ' + PORT + ', machine ' + MACHINE);
   console.log('==============================================');
-  console.log('  Library ERP is running: http://127.0.0.1:' + PORT);
+  console.log('  Library ERP v' + VERSION + ' is running: http://127.0.0.1:' + PORT);
   console.log('  Machine code: ' + MACHINE);
   console.log('  Data: ' + DATA_DIR);
   console.log('  Do not close this window — minimize it.');
