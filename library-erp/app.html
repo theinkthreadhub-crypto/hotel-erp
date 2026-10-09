@@ -488,7 +488,7 @@ function scrPlans(){
   const p=planEdit?plan(planEdit):null;
   const cnt=id=>D.students.filter(s=>s.planId===id&&s.status!=='left').length;
   const nextOrd=Math.max(0,...D.plans.map(x=>+x.order||0))+1;
-  main.innerHTML=title('Fee Master')+
+  main.innerHTML=title('Fee Master',`<button class="btn sm bad" onclick="delUnusedPlans()">Delete fees with no students</button>`)+
   `<div class="hint">Enter each fee's name, amount, validity (days) and <b>Order No.</b> Order 1 is shown at the top, then 2, 3…<br>
    <b>30</b> days = monthly fee (months are ticked on the receipt). <b>0</b> = one-time fee (Admission, Security, Locker).</div>
   <div class="two"><div class="card form"><h4>${p?'Edit Fee':'New Fee'}</h4><div class="grid">
@@ -536,9 +536,28 @@ async function bulkPlans(){
   D.plans.push(...add);save();toast(`${add.length} fees added`,'ok');scrPlans();
 }
 async function delPlan(id){
-  if(D.students.some(s=>s.planId===id)){toast('Students are on this fee — change their plan first','bad');return;}
-  if(!await ask('Delete this fee?'))return;
-  D.plans=D.plans.filter(p=>p.id!==id);save();scrPlans();
+  const p=plan(id),users=D.students.filter(s=>s.planId===id);
+  if(users.length){
+    const others=plansSorted().filter(x=>x.id!==id&&+x.days>0);
+    if(!others.length){toast('Create another monthly fee first, to move these students to','bad');return;}
+    modal(`Delete fee — ${p.name}`,`<p style="font-size:15px"><b>${users.length}</b> students are on this fee. Move them to:</p>
+      <select id="mv_to">${others.map(o=>`<option value="${o.id}">${esc(o.name)} — ${rs(o.amount)} / ${o.days} days</option>`).join('')}</select>
+      <label style="margin-top:10px;font-size:14px;color:var(--ink)"><input type="checkbox" id="mv_fee" checked style="width:auto"> Also set their fee to the new fee's amount</label>
+      <p class="muted small">Old receipts are not changed.</p>
+      <div class="btns"><button class="btn bad" id="mv_go">Move & delete</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+    $('#mv_go').onclick=()=>{const to=plan(val('mv_to'));
+      users.forEach(s=>{s.planId=to.id;if($('#mv_fee').checked)s.fee=+to.amount;});
+      D.plans=D.plans.filter(x=>x.id!==id);save();closeModal();toast(`${users.length} students moved to ${to.name}. Fee deleted.`,'ok');scrPlans();};
+    return;
+  }
+  if(!await ask(`Delete the fee <b>${esc(p.name)}</b>?`))return;
+  D.plans=D.plans.filter(x=>x.id!==id);save();scrPlans();
+}
+async function delUnusedPlans(){
+  const L=D.plans.filter(p=>!D.students.some(s=>s.planId===p.id));
+  if(!L.length){toast('Every fee has students — nothing to delete');return;}
+  if(!await ask(`Delete these ${L.length} fees with no students?<br><span class="small">${L.map(p=>esc(p.name)+' ('+rs(p.amount)+')').join(', ')}</span>`))return;
+  const ids=new Set(L.map(p=>p.id));D.plans=D.plans.filter(p=>!ids.has(p.id));save();toast(`${L.length} fees deleted`,'ok');scrPlans();
 }
 
 /* ================= STUDENT ADD / EDIT ================= */
