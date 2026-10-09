@@ -25,14 +25,33 @@ jobs:
         with:
           name: LibraryERP-windows
           path: library-erp/dist/*.exe
-      # Pakka link: releases/download/library-erp-latest/LibraryERP.exe (har push par nayi exe)
+
+  # Installer (NSIS 64-bit) + pakka download link
+  setup:
+    needs: build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: library-erp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: LibraryERP-windows
+          path: library-erp/dist
+      - run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - run: makensis -V2 -DVERSION=$(node -p "require('./package.json').version") installer.nsi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LibraryERP-Setup
+          path: library-erp/dist/LibraryERP-Setup.exe
+      # releases/download/library-erp-latest/LibraryERP-Setup.exe (har push par naya)
       - name: Publish latest release
         if: github.ref == 'refs/heads/liberp'
-        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete library-erp-latest --yes --cleanup-tag || true
-          gh release create library-erp-latest dist/LibraryERP.exe \
+          gh release create library-erp-latest dist/LibraryERP-Setup.exe dist/LibraryERP.exe \
             --target "${{ github.sha }}" --title "Library ERP (latest)" \
-            --notes "Customer ke liye LibraryERP.exe. Commit ${{ github.sha }}. Activation key LibraryKeygen se banayein."
+            --notes "LibraryERP-Setup.exe = install karne wala (recommended). LibraryERP.exe = bina install. Commit ${{ github.sha }}."

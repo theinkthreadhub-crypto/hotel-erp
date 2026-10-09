@@ -34,7 +34,17 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 | `F2` / `F9` | List mein Edit / WhatsApp |
 | `Esc` | Wapas |
 
-## Customer ke computer par
+## Customer ke computer par (Setup se install)
+
+1. `LibraryERP-Setup.exe` chalayein → Next → Install → Finish.
+2. ERP `C:\LibraryERP` mein install hota hai. Desktop aur Start Menu par **Library ERP** shortcut ban jata hai.
+3. Aage se Desktop wale **Library ERP** icon se kholein.
+4. Naya version aaye to wahi Setup dobara chalayein. Data aur activation wahi rehte hain.
+5. Uninstall: Start Menu → Library ERP → Uninstall. Data tab tak nahi hatta, jab tak aap Yes na dabayein.
+
+Pehle bina install wali exe chala rahe the? To us folder ka `LibraryData` folder `C:\LibraryERP` mein copy kar dein. ERP pehli baar kholne se pehle copy karein, phir data aur activation wahi milenge.
+
+## Bina install (sirf exe)
 
 1. `LibraryERP.exe` ko kisi folder mein rakhein, jaise `D:\LibraryERP`, aur double-click karein.
 2. ERP apni window mein khulega. Server peeche chupchaap chalta hai, koi kaali window nahi dikhti.
@@ -67,9 +77,11 @@ Command line se: `node keygen.js 3D1EA-73DCE 1m "Library ka naam"` (`1m`, `3m`, 
 1. [Node.js](https://nodejs.org) install karein.
 2. Is folder mein `build.bat` double-click karein.
 3. `dist\LibraryERP.exe` aur `dist\LibraryKeygen.exe` ban jayenge.
+4. Setup ke liye [NSIS](https://nsis.sourceforge.io) chahiye. `npm run setup` chalayein, `dist\LibraryERP-Setup.exe` ban jayega.
 
 GitHub par `liberp` branch mein push karte hi nayi exe ban jaati hai. Hamesha latest exe yahan milegi:
-https://github.com/theinkthreadhub-crypto/hotel-erp/releases/download/library-erp-latest/LibraryERP.exe
+https://github.com/theinkthreadhub-crypto/hotel-erp/releases/download/library-erp-latest/LibraryERP-Setup.exe
+(bina install wali: `.../library-erp-latest/LibraryERP.exe`)
 
 - `config.json` mein `vendorName` aur `vendorPhone` bharkar build karein. Activation screen par "WhatsApp par bhejein" button aa jaayega.
 - `public_key.pem` badalne par purani saari keys band ho jaati hain. Ise tabhi badlein jab `private_key.pem` kho gayi ho.
