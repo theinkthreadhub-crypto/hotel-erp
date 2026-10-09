@@ -3,3 +3,4 @@ dist/
 LibraryData/
 private_key.pem
 LibraryERP-log.txt
+LibraryKeys.csv
