@@ -735,6 +735,37 @@ const GROWTH_DEFAULTS = {
   fssai: ''
 };
 
+/* ================= SETU PRO SAAS CONFIG (set by the Super Admin, read-only here) ================= */
+// On Setu Cloud the server writes D.saas (plan, modules, bill template, rules) and ignores any change
+// a device makes to it. LAN / browser installs have no D.saas, so everything stays on there.
+const FEATURE_SCREENS = {
+  kot: ['kitchen'], online: ['online', 'settlement'], inventory: ['purchase', 'stock', 'suppliers'], qr: ['qr'],
+  loyalty: ['customers'], staff: ['staff'], captain: ['captain'], reservations: ['reservations'], tokens: ['tokens'],
+  reports: ['reports'], outlets: ['outlets']
+};
+function featureOn(k){ return !(typeof D !== 'undefined' && D && D.saas && D.saas.features && D.saas.features[k] === false); }
+function screenOn(s){ return Object.keys(FEATURE_SCREENS).every(k => !FEATURE_SCREENS[k].includes(s) || featureOn(k)); }
+function billCfg(){ return (typeof D !== 'undefined' && D && D.saas && D.saas.billing) || {}; }
+function billFields(){ return billCfg().fields || []; }
+function saasRules(){ return (typeof D !== 'undefined' && D && D.saas && D.saas.rules) || {}; }
+function applySaas(s){
+  const c = s.saas;
+  if(!c || typeof c !== 'object') return;
+  const b = c.billing || {};
+  if(b.paper === '58' || b.paper === '80'){ s.settings.width = +b.paper; s.settings.billPaper = 'thermal'; }
+  if(b.paper === 'A6') s.settings.billPaper = 'A6';
+  if(b.footer) s.settings.footer = b.footer;
+  const r = c.rules || {};
+  if(r.maxDiscPct !== null && r.maxDiscPct !== undefined) s.settings.maxDiscPct = +r.maxDiscPct;
+}
+function setExtra(i, v){
+  const f = billFields()[i];
+  if(!f) return;
+  B.extra = B.extra || {};
+  B.extra[f.label] = v;
+}
+const extraHTML = b => Object.entries(b.extra || {}).map(([k, v]) => `<div>${esc(k)}: <b>${esc(v)}</b></div>`).join('');
+
 function ensureGrowth(s){
   s.settings = { ...GROWTH_DEFAULTS, ...s.settings };
   if(!Array.isArray(s.kots)) s.kots = [];
@@ -749,6 +780,7 @@ function ensureGrowth(s){
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
   if(!s.settings.outletCode) s.settings.outletCode = 'OUT-' + Math.random().toString(36).slice(2,6).toUpperCase();
   if(!s.settings.installId) s.settings.installId = newInstallId();
+  applySaas(s);
   return s;
 }
 
@@ -863,7 +895,9 @@ function mirrorToIndexedDB(data){
 }
 
 function save(){
-  if(SRV.on){
+  if(SRV.on && SRV.readOnly){
+    // Setu Support view: nothing is saved
+  } else if(SRV.on){
     // LAN/desktop mode: the main-counter PC keeps the database on disk
     SRV.edits++;
     SRV.dirty = true;
@@ -892,7 +926,7 @@ function save(){
 // When Setu is served by app_main.py the database lives in one file on the main PC.
 // Every device keeps a copy in D, pushes its edits with the version it started from,
 // and on a version clash merges (base, mine, theirs) record by record.
-const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
+const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', hotelName: '', hostLocked: false, readOnly: false, blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
 const TOKEN_KEY = 'setu_device_token';
 const HOTEL_KEY = 'setu_hotel_code';
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
@@ -914,6 +948,8 @@ async function srvDetect(){
     SRV.local = !!j.local;
     SRV.cloud = !!j.cloud;
     SRV.saas = !!j.saas;
+    // The hotel's own domain / subdomain already decides the hotel
+    if(j.hostLocked){ SRV.hostLocked = true; SRV.hotel = j.hotel; SRV.hotelName = j.name || ''; }
     return j.setu === true;
   }catch(e){ return false; }
 }
@@ -1046,6 +1082,8 @@ async function srvPush(){
         if(SRV.edits === edits) SRV.dirty = false;
         SRV.blocked = false;
         SRV.signup = false;
+        // The server added its own parts (plan config, license keys): pull them in
+        if(j.changed){ SRV.version = -1; setTimeout(srvPoll, 300); }
         srvStatus(true);
         continue;
       }
@@ -1066,6 +1104,7 @@ async function srvPush(){
         setTimeout(srvPush, 60000);
         return;
       }
+      if(r.status === 403 && SRV.readOnly){ SRV.dirty = false; return; }
       if(r.status === 403){
         // Restore / reset is allowed only from the main counter PC or a Manager device
         SRV.forceNext = false;
@@ -1116,6 +1155,28 @@ window.addEventListener('beforeunload', e => {
   if(SRV.on && SRV.dirty){ e.preventDefault(); e.returnValue = ''; }
 });
 
+// Super Admin "Support Access" link: hotel_erp.html#support=CODE.TOKEN (time-limited, read-only)
+function supportFromLink(){
+  const m = /#support=([A-Z0-9]{4,12})\.([0-9a-f]{32})/.exec(location.hash);
+  if(!m || !SRV.saas) return;
+  history.replaceState(null, '', location.pathname);
+  SRV.hotel = m[1];
+  SRV.token = m[2];
+  SRV.readOnly = true;
+  activeUser = {name: 'Setu Support (sirf dekhna)', role: 'admin', access: 'manager', time: Date.now(), support: true};
+  try{ sessionStorage.setItem(AUTH_KEY, JSON.stringify(activeUser)); }catch(e){}
+  setTimeout(() => toast('Support mode: sirf dekh sakte hain, kuch save nahi hoga'), 800);
+}
+
+// First login of a hotel the Super Admin created: start a fresh database for it
+function setupCloudHotel(j, pass){
+  D = ensureGrowth(seed());
+  D.auth = {isRegistered: true, userId: j.phone || 'admin', password: pass, ownerName: j.owner || 'Manager', phone: j.phone || '', registeredAt: Date.now()};
+  Object.assign(D.settings, {name: j.hotelName || '', owner: j.phone || '', phone: j.phone || '', adminPin: pass});
+  Object.assign(SRV, {version: 0, base: null, signup: true, dirty: true});
+  SRV.edits++;
+}
+
 function srvStartPolling(){
   if(!SRV.pollTimer) SRV.pollTimer = setInterval(srvPoll, 2500);
 }
@@ -1159,6 +1220,7 @@ function showConnectScreen(msg, view){
       ${head('Setu Cloud — Naya Hotel', 'Free trial ke saath shuru karein. Card ki zaroorat nahi.')}
       <form id="signup-form" style="text-align:left">
         <div class="login-field"><label>Hotel / Restaurant ka naam *</label><input id="su_hotel" required maxlength="80"></div>
+        <div class="login-field"><label>Business type *</label><select id="su_type"><option value="restaurant">Restaurant</option><option value="cafe">Cafe / QSR</option><option value="hotel">Hotel (Rooms + Restaurant)</option><option value="cloudkitchen">Cloud Kitchen</option></select></div>
         <div class="login-field"><label>Owner ka naam *</label><input id="su_owner" required maxlength="60"></div>
         <div class="login-field"><label>Mobile (10 digit) *</label><input id="su_phone" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div>
         <div class="login-field"><label>Email</label><input id="su_email" type="email" maxlength="100"></div>
@@ -1180,7 +1242,7 @@ function showConnectScreen(msg, view){
       try{
         const fresh = ensureGrowth(seed());
         const r = await fetch('/api/signup', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
-          hotelName: v('su_hotel'), ownerName: v('su_owner'), phone: v('su_phone'), email: v('su_email'), password: v('su_pass'), installId: fresh.settings.installId})});
+          hotelName: v('su_hotel'), businessType: $('#su_type').value, ownerName: v('su_owner'), phone: v('su_phone'), email: v('su_email'), password: v('su_pass'), installId: fresh.settings.installId})});
         const j = await r.json().catch(() => ({}));
         if(!r.ok){ fail(j.error || 'Sign Up nahi hua'); return; }
         D = fresh;
@@ -1213,9 +1275,9 @@ function showConnectScreen(msg, view){
   }
 
   el.innerHTML = `<div class="login-card">
-      ${head(SRV.saas ? 'Setu Cloud — Login' : 'Setu — Device Connect', SRV.cloud ? 'Ye phone/tablet internet se Setu Cloud se judega' : 'Ye phone/tablet Main Counter PC se judega (restaurant WiFi)')}
+      ${head(SRV.hostLocked ? esc(SRV.hotelName || 'Setu') : SRV.saas ? 'Setu Cloud — Login' : 'Setu — Device Connect', SRV.cloud ? 'Ye phone/tablet internet se Setu Cloud se judega' : 'Ye phone/tablet Main Counter PC se judega (restaurant WiFi)')}
       <form id="connect-form" style="text-align:left">
-        ${SRV.saas ? `<div class="login-field"><label>Hotel Code</label><input id="connect_hotel" required placeholder="jaise SHARM482" value="${esc(SRV.hotel || lsGet(HOTEL_KEY) || '')}" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"></div>` : ''}
+        ${SRV.saas && !SRV.hostLocked ? `<div class="login-field"><label>Hotel Code</label><input id="connect_hotel" required placeholder="jaise SHARM482" value="${esc(SRV.hotel || lsGet(HOTEL_KEY) || '')}" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"></div>` : ''}
         <div class="login-field">
           <label>${SRV.saas ? 'Password / PIN (Manager, Cashier ya Staff)' : 'Manager ya Cashier PIN'}</label>
           <input id="connect_pin" type="password" required placeholder="PIN" autocomplete="off">
@@ -1223,15 +1285,15 @@ function showConnectScreen(msg, view){
         ${errBox}
         <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">${SRV.saas ? 'Login' : 'Connect'}</button>
       </form>
-      ${SRV.saas ? '<p style="font-size:12px;margin:12px 0 0">Naya hotel? <a href="#" id="to-signup"><b>Free Sign Up karein</b></a></p>' : ''}
+      ${SRV.saas && !SRV.hostLocked ? '<p style="font-size:12px;margin:12px 0 0">Naya hotel? <a href="#" id="to-signup"><b>Free Sign Up karein</b></a></p>' : ''}
       ${foot}
     </div>`;
   el.style.display = 'flex';
-  if(SRV.saas) $('#to-signup').onclick = ev => { ev.preventDefault(); showConnectScreen('', 'signup'); };
+  if(SRV.saas && !SRV.hostLocked) $('#to-signup').onclick = ev => { ev.preventDefault(); showConnectScreen('', 'signup'); };
   $('#connect-form').onsubmit = async ev => {
     ev.preventDefault();
     try{
-      if(SRV.saas) SRV.hotel = $('#connect_hotel').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if(SRV.saas && !SRV.hostLocked) SRV.hotel = $('#connect_hotel').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       const headers = {'Content-Type': 'application/json'};
       if(SRV.hotel) headers['X-Setu-Hotel'] = SRV.hotel;
       const r = await fetch('/api/login', {method: 'POST', headers, body: JSON.stringify({pin: $('#connect_pin').value.trim()})});
@@ -1249,6 +1311,15 @@ function showConnectScreen(msg, view){
       activeUser = {name: j.name || (j.role === 'admin' ? 'Manager' : 'Staff'), role: j.role === 'admin' ? 'admin' : 'cashier', access: j.role === 'admin' ? 'manager' : j.role, time: Date.now()};
       lsSet(AUTH_KEY, JSON.stringify(activeUser));
       el.style.display = 'none';
+      if(j.setup){
+        setupCloudHotel(j, $('#connect_pin').value.trim());
+        await srvPush();
+        audit('Login', `${activeUser.name} · pehli baar (Setu Cloud)`);
+        save();
+        startUI();
+        srvStartPolling();
+        return;
+      }
       if(await srvInitData()){
         audit('Login', `${activeUser.name} (${activeUser.access}) · ${SRV.cloud ? 'cloud' : 'phone/tablet'}`);
         save();
@@ -1331,7 +1402,13 @@ async function newSyncKey(){
     <p class="muted">Ye key dobara nahi dikhegi.</p><div class="btns"><button class="btn ok" onclick="closeModal()">Theek hai</button></div>`);
 }
 
-const planButtons = b => b.plans.map(p => `<button class="btn ok" onclick="payPlan('${esc(p.id)}')">${esc(p.label)} — ₹${(+p.price).toLocaleString('en-IN')} (${p.days} din, auto-renew)</button>`).join('');
+const planButtons = b => {
+  const tiers = [...new Set(b.plans.map(p => p.tier || ''))];
+  return tiers.map(t => `<div style="width:100%;font-weight:700;margin-top:6px">${esc(b.plans.find(p => (p.tier || '') === t).tierLabel || 'Plan')}${t === b.tier ? ' <span class="muted">(abhi ka plan)</span>' : ''}</div>`
+    + b.plans.filter(p => (p.tier || '') === t).map(p => `<button class="btn ${t === b.tier ? 'ok' : 'g'}" onclick="payPlan('${esc(p.id)}')">${esc(p.label)} — ₹${(+p.price).toLocaleString('en-IN')} / ${p.days} din</button>`).join('')).join('');
+};
+const FEATURE_LABELS = {kot: 'Kitchen Display', online: 'Zomato/Swiggy', inventory: 'Stock & Purchase', qr: 'QR Menu', loyalty: 'Loyalty & Wallet',
+  staff: 'Staff Salary', captain: 'Captain App', reservations: 'Reservations', tokens: 'Token TV', reports: 'Reports & Tally', outlets: 'Multi-Outlet'};
 
 async function drawSaasCard(el, headT){
   let b;
@@ -1347,13 +1424,15 @@ async function drawSaasCard(el, headT){
       <div style="font-size:13px;line-height:1.8;flex:1;min-width:240px">
         Hotel Code: <b style="font:800 18px 'JetBrains Mono',monospace;letter-spacing:1px">${esc(b.code)}</b><br>
         Link: <code>${esc(link)}</code><br>
-        Subscription: ${st}${b.autoPay ? ` · Auto-pay: <b>${esc(b.autoPay)}</b>` : ''}<br>
+        Plan: <b>${esc(b.tierLabel || '')}</b> · Subscription: ${st}${b.autoPay ? ` · Auto-pay: <b>${esc(b.autoPay)}</b>` : ''}<br>
+        Modules: ${Object.keys(FEATURE_LABELS).map(k => `<span style="display:inline-block;margin:2px 4px 2px 0;padding:1px 8px;border-radius:99px;font-size:11px;${(b.features || {})[k] ? 'background:#dcfce7;color:#166534' : 'background:#f1f5f9;color:#94a3b8;text-decoration:line-through'}">${FEATURE_LABELS[k]}</span>`).join('')}<br>
         <span class="muted">Staff login: Hotel Code + apna PIN. 1234 / 1111 jaise PIN cloud par nahi chalte.</span>
       </div>
     </div>
     ${mgr ? `<div class="btns" style="margin-top:10px">${b.keyId ? planButtons(b) : '<span class="muted">Online payment abhi chalu nahi hai — vendor se UPI / cash par renew karwayein.</span>'}
       ${['active', 'authenticated'].includes(b.autoPay) ? '<button class="btn g" onclick="cancelAutoPay()">Auto-renew band karein</button>' : ''}
       <button class="btn g" onclick="newSyncKey()">Counter PC Sync Key</button></div>` : '<p class="muted">Payment / Sync Key ke liye Manager login karein.</p>'}
+    ${(b.supportLog || []).length ? `<p class="muted" style="margin:10px 0 0;font-size:12px">Setu Support ne dekha: ${b.supportLog.map(x => `${new Date(x.at).toLocaleString('en-IN')} (${x.minutes} min${x.reason ? ', ' + esc(x.reason) : ''})`).join(' · ')}</p>` : ''}
     ${b.payments.length ? `<table style="margin-top:10px"><thead><tr><th>Date</th><th>Plan</th><th>Din</th><th>Amount</th></tr></thead><tbody>
       ${b.payments.map(p => `<tr><td>${new Date(p.at).toLocaleDateString('en-IN')}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? '₹' + (p.amount / 100).toLocaleString('en-IN') : '-'}</td></tr>`).join('')}
     </tbody></table>` : ''}`;
@@ -2421,6 +2500,10 @@ function go(s, approved){
   if(activeUser.access === 'captain' && !CAPTAIN_ALLOW.includes(s)){
     if(!approved){ s = 'captain'; }
   }
+  if(!screenOn(s)){
+    toast('Ye module aapke Setu plan mein nahi hai. Upgrade ke liye Settings (G) → Setu Cloud dekhein.');
+    s = 'gateway';
+  }
   if(!approved && !isManager() && CASHIER_BLOCK.includes(s)){
     const m = MENU.find(x => x[2] === s);
     withManager(`${m ? m[1] : s} kholna`, () => go(s, true));
@@ -2443,6 +2526,7 @@ function drawSide(){
   let cat = '';
   let html = `<button class="${cur==='gateway'?'active':''}" onclick="go('gateway')"><u>Esc</u> Gateway</button>`;
   MENU.forEach(m => {
+    if(!screenOn(m[2])) return;   // module not in this hotel's Setu Cloud plan
     if(m[3] !== cat){
       cat = m[3];
       html += `<div class="side-cat">${cat}</div>`;
@@ -3089,6 +3173,7 @@ function newB(tbl = 'T-1', channel = 'Dine-In'){
     cart: [],
     redeem: 0,
     sent: {},
+    extra: {},
     token: 0,
     isKaccha: false,
     createdAt: nowTime()
@@ -3232,6 +3317,7 @@ function scrBill(){
           <label>Mobile (WhatsApp)</label>
           <input value="${esc(B.phone)}" oninput="onPhone(this.value)" inputmode="tel" placeholder="10-digit number">
         </div>
+        ${billFields().map((f, i) => `<div><label>${esc(f.label)}${f.required ? ' *' : ''}</label><input value="${esc((B.extra || {})[f.label] || '')}" oninput="setExtra(${i}, this.value)" maxlength="60"></div>`).join('')}
       </div>
       <div id="pts"></div>
 
@@ -3487,6 +3573,7 @@ function kacchaToB(k){
     cart: k.cart.map(c => ({...c})),
     redeem: k.redeem || 0,
     sent: {...(k.sent || {})},
+    extra: {...(k.extra || {})},
     token: 0,
     isKaccha: true,
     createdAt: k.createdAt || nowTime()
@@ -3521,6 +3608,7 @@ function saveKacchaBill(silent = false, noRender = false){
     cust: B.cust.trim(),
     phone: B.phone.trim(),
     note: B.note.trim(),
+    extra: {...(B.extra || {})},
     disc: B.disc || 0,
     mode: B.mode || 'Cash',
     cart: B.cart.map(c => ({...c})),
@@ -3595,6 +3683,15 @@ function finalizePakkaBill(approvedDisc){
     const wb = walletBal(B.phone);
     if(wb < t.total){ toast(`Wallet balance kam hai (${money(wb)}). Customers (R) mein top-up karein`); return; }
   }
+  // Bill template fields and rules from the Setu Cloud plan
+  const extra = {};
+  for(const f of billFields()){
+    const v = String((B.extra || {})[f.label] || '').trim();
+    if(f.required && !v){ toast(`${f.label} bharein`); return; }
+    if(v) extra[f.label] = v.slice(0, 60);
+  }
+  const pa = +saasRules().phoneAbove || 0;
+  if(pa && t.total >= pa && !hasPh && !isAggregator(ch)){ toast(`${money(pa)} ya zyada ke bill par customer ka mobile number zaroori hai`); return; }
   const discPct = t.sub ? (+B.disc || 0) / t.sub * 100 : 0;
   if(!approvedDisc && (+B.disc || 0) > 0 && discPct > (+st.maxDiscPct || 0) && !isManager()){
     withManager(`${money(B.disc)} discount (${Math.round(discPct)}%) dena`, by => finalizePakkaBill(by));
@@ -3614,6 +3711,7 @@ function finalizePakkaBill(approvedDisc){
     cust: B.cust.trim(),
     phone: B.phone.trim(),
     note: B.note.trim(),
+    ...(Object.keys(extra).length ? {extra} : {}),
     mode: B.mode,
     gstRate: gstRate(),
     scheme: D.settings.gstScheme || 'regular',
@@ -3719,6 +3817,7 @@ function escHead(e){
   if(st.phone) e.center('Ph: ' + st.phone);
   if(st.gstin && st.gstScheme !== 'none') e.center('GSTIN: ' + st.gstin);
   if(st.fssai) e.center('FSSAI Lic. No: ' + st.fssai);
+  if(billCfg().headerNote) e.center(billCfg().headerNote);
   return e.hr();
 }
 
@@ -3730,8 +3829,9 @@ function escBill(b){
   if((b.scheme || 'regular') === 'regular' && g) e.center('SAC: 996331');
   e.lr('Bill No: #' + b.no, dmy(b.date) + ' ' + b.time);
   if(b.token) e.center('TOKEN #' + b.token, true);
-  if(b.table) e.line('Table/Ref: ' + b.table);
-  if(b.cust) e.line('Customer: ' + b.cust);
+  if(b.table && billCfg().showTable !== false) e.line('Table/Ref: ' + b.table);
+  if(b.cust && billCfg().showCustomer !== false) e.line('Customer: ' + b.cust);
+  Object.entries(b.extra || {}).forEach(([k, v]) => e.line(k + ': ' + v));
   if(b.by) e.line('Cashier: ' + b.by);
   e.hr().items(b.items).hr();
   e.lr('Sub Total', b.sub.toFixed(2));
@@ -3813,10 +3913,10 @@ async function testPrint(which){
 
 /* ================= RECEIPTS & KACCHA BILL PRINTING ================= */
 function head(){
-  const s = D.settings;
-  return `<div class="c h">${esc(s.name)}</div><div class="c">${esc(s.address)}</div>
+  const s = D.settings, bc = billCfg();
+  return `${bc.showLogo && bc.logoUrl ? `<div class="c"><img src="${esc(bc.logoUrl)}" alt="" style="max-height:48px;max-width:70%"></div>` : ''}<div class="c h">${esc(s.name)}</div><div class="c">${esc(s.address)}</div>
     ${s.phone ? `<div class="c">Ph: ${esc(s.phone)}</div>` : ''}${s.gstin && s.gstScheme !== 'none' ? `<div class="c">GSTIN: ${esc(s.gstin)}</div>` : ''}
-    ${s.fssai ? `<div class="c">FSSAI Lic. No: ${esc(s.fssai)}</div>` : ''}`;
+    ${s.fssai ? `<div class="c">FSSAI Lic. No: ${esc(s.fssai)}</div>` : ''}${bc.headerNote ? `<div class="c">${esc(bc.headerNote)}</div>` : ''}`;
 }
 
 function billHTML(b){
@@ -3827,7 +3927,7 @@ function billHTML(b){
   ${(b.scheme || 'regular') === 'regular' && b.gstRate ? '<div class="c" style="font-size:10px">SAC: 996331 (Restaurant Service)</div>' : ''}
   <div>Bill No: <b>#${b.no}</b> &nbsp; ${dmy(b.date)} ${b.time}</div>
   ${b.token ? `<div class="c big">TOKEN #${b.token}</div>` : ''}
-  ${b.table ? `<div>Table/Ref: <b>${esc(b.table)}</b></div>` : ''}${b.cust ? `<div>Customer: ${esc(b.cust)}</div>` : ''}<hr>
+  ${b.table && billCfg().showTable !== false ? `<div>Table/Ref: <b>${esc(b.table)}</b></div>` : ''}${b.cust && billCfg().showCustomer !== false ? `<div>Customer: ${esc(b.cust)}</div>` : ''}${extraHTML(b)}<hr>
   <table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>
   ${b.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${i.price}</td><td class="r">${r2(i.price*i.qty)}</td></tr>`).join('')}</table><hr>
   <table><tr><td>Sub Total</td><td class="r">${b.sub.toFixed(2)}</td></tr>
@@ -6403,7 +6503,8 @@ function startUI(){
   if(await srvDetect()){
     SRV.on = true;
     SRV.token = lsGet(TOKEN_KEY) || '';
-    if(SRV.saas) SRV.hotel = lsGet(HOTEL_KEY) || '';
+    if(SRV.saas && !SRV.hostLocked) SRV.hotel = lsGet(HOTEL_KEY) || '';
+    supportFromLink();
     if(!(await srvInitData())) return;   // connect screen is showing
     srvStartPolling();
     applyCloudKeys();

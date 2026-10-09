@@ -1,4 +1,4 @@
-# Setu Cloud SaaS — Setup Guide (Hindi)
+# Setu Pro Cloud SaaS — Setup Guide (Hindi)
 
 *Powered by Aghanya Devanya Enterprises*
 
@@ -51,11 +51,17 @@ npm run secret RAZORPAY_KEY_SECRET
 npm run secret RAZORPAY_WEBHOOK_SECRET
 ```
 
-### Razorpay Plans
+### Plans (Basic / Premium / Diamond)
 
-1. Razorpay Dashboard → **Subscriptions → Plans** → do plan banayein: Monthly ₹999 (har 1 mahina) aur Yearly ₹9,999 (har 12 mahine).
-2. Unke `plan_...` ID [wrangler.toml](wrangler.toml) ki `PLANS` line mein daalein. Price / din / naam bhi wahin badal sakte hain.
-3. Free trial ke din: `TRIAL_DAYS`.
+1. Razorpay Dashboard → **Subscriptions → Plans** → har plan ke liye monthly aur yearly plan banayein (kul 6).
+2. Unke `plan_...` ID [wrangler.toml](wrangler.toml) ki `PLANS` mein daalein. Price, din aur naam wahin badlein.
+3. Kis plan mein kaunse module hain: `src/worker.js` mein `TIERS`. Free trial: `TRIAL_DAYS`, `TRIAL_TIER`.
+
+### Domains (optional)
+
+- **Subdomain** (`royal.setupro.in`): aapka domain Cloudflare par ho → `BASE_DOMAIN`, `APP_HOST` set karein aur `routes` wali line kholein.
+- **Hotel ka apna domain** (`erp.hotelroyal.com`): Cloudflare for SaaS chalu karein → `SAAS_CNAME_TARGET` var + secrets `CF_API_TOKEN`, `CF_ZONE_ID`.
+  Super Admin se domain jodne par DNS records dikhte hain; hotel unhe apne domain provider mein daalta hai; verify + HTTPS hone par hi chalu.
 
 ### Deploy
 
@@ -82,13 +88,25 @@ Razorpay Dashboard → **Webhooks → Add**:
 5. Counter PC (optional): Setu Desktop App → Settings (G) → **Setu Cloud Sync** → Cloud URL + Hotel Code + Sync Key.
    Sync Key kho jaye to cloud par Manager login karke **Counter PC Sync Key** dabakar nayi banayein.
 
-## 3. Vendor Admin Panel
+## 3. Super Admin Panel
 
 `https://setu-cloud.<aapka-naam>.workers.dev/admin.html` → `ADMIN_KEY` daalein.
 
-- Saare hotel: code, owner, mobile, status (trial / active / expired / suspended), kab tak paid
-- **+30 din / + Din...**: cash / UPI se paisa liya ho to yahin se renew (license key apne aap hotel tak jaati hai)
-- **Suspend / Chalu**
+| Hissa | Kya karta hai |
+|---|---|
+| Dashboard | Total / paid / trial / expired hotel, 30 din ka payment, MRR andaaza, jald khatam hone wale |
+| Hotels | Search, status, plan, domain; click karke hotel kholein |
+| + Naya Hotel | Business type template + plan + din + owner password → Hotel Code. Owner pehli baar usi password se login karta hai |
+| Overview & Subscription | Profile, + din (cash / UPI), suspend, lifetime, payment list |
+| Plan & Features | Plan badlein, template lagayein, har module ON / OFF / plan ke hisaab se |
+| Billing Builder | Paper 58 / 80 / A6, logo, table / customer line, header, footer, custom fields (jaise Vehicle No), live preview |
+| Rules | Cashier max discount %, bade bill par mobile zaroori |
+| Domains | Subdomain ya hotel ka apna domain, DNS records, status check |
+| Support | 30 min – 2 ghante ka **sirf-dekhne** wala link; hotel ko Settings mein dikhta hai |
+| Audit Log | Super Admin ka har badlav |
+
+Super Admin ka har badlav database mein save hota hai aur hotel ke saare devices par kuch second mein lag jata hai — **redeploy nahi karna padta**.
+Band module ka data server bhi save nahi karta. Naya module banana ho tabhi code + deploy chahiye.
 
 ## Kya kahan hai
 
@@ -97,7 +115,8 @@ Razorpay Dashboard → **Webhooks → Add**:
 | Hotel ka data | Uska apna Durable Object (SQLite), roz ka backup 30 din |
 | Hotel list | `SetuRegistry` Durable Object |
 | Login | Hotel Code + PIN, 5 galat = 15 min lock, 180 din yaad |
-| Payment | Razorpay Subscription → webhook → signed license key |
+| Payment | Razorpay Subscription → webhook → signed license key; plan ke tier par hotel apne aap shift |
+| Config | `D.saas` (plan, modules, bill template, rules) — server likhta hai, device sirf padhta hai |
 | Counter PC | Asli offline copy, har 5 sec sync, seedha print |
 
 ## Local test

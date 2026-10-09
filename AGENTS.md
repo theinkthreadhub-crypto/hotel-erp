@@ -22,7 +22,7 @@ internet dependency at runtime. All data lives on the customer's PC.
 | `hotel_erp.html` | The entire app: CSS, HTML shell and all JavaScript (~5.7k lines). Almost all work happens here. |
 | `app_main.py` | Main-counter launcher + LAN server on fixed port 8000 (`0.0.0.0`). Keeps the shared database in `setu-db.json` with daily `Backups/`, serves phones/tablets, opens the pywebview window. `--server` = no window. Data dir: `%LOCALAPPDATA%\AghanyaDevanyaERP\Data`. |
 | `Aghanya-Devanya-Hotel-ERP.spec`, `Build-New-EXE.bat` | PyInstaller build. The `.bat` passes its own flags and does not use the `.spec`. Keep both in sync if you add bundled files. |
-| `cloud/` | **Setu Cloud SaaS**: one Cloudflare Worker for all hotels. `SetuHotel` Durable Object (SQLite) per hotel, keyed by Hotel Code (`X-Setu-Hotel`), `SetuRegistry` for the hotel list. Same `/api/*` as `app_main.py` plus `/api/signup`, `/api/billing/*` (Razorpay Subscriptions), `/api/razorpay/webhook`, `/api/synckey`, `/api/admin/*` (vendor, `static/admin.html`). Paid cycles issue signed SETU keys (same format as `keygen.py`) into `subscription.cloudKeys`; clients auto-activate them (`applyCloudKeys`). Expired/suspended = HTTP 402 on writes. See `cloud/README-HINDI.md`. |
+| `cloud/` | **Setu Pro Cloud SaaS** (Cloudflare Worker). `SetuHotel` Durable Object (SQLite) per hotel, keyed by Hotel Code (`X-Setu-Hotel`) or by the hotel's own domain/subdomain (registry `domain` table; host beats header). `SetuRegistry` = hotels, domains, payments, Super Admin audit. Catalogue in `worker.js`: `FEATURES` (module -> data keys), `TIERS` (basic/premium/diamond), `TEMPLATES` (restaurant/cafe/hotel/cloudkitchen). Per-hotel `config` (tier, feature overrides, billing template, rules) is written into the data as `D.saas` by `prepare()` on every save; clients only read it. Off modules: server keeps its stored copy of their keys. Razorpay plans in `PLANS` var (`tier_cycle`). Super Admin UI: `static/admin.html` (`/api/admin/*`, `ADMIN_KEY`). See `cloud/README-HINDI.md`. |
 | `manifest.json`, `sw.js` | PWA install + offline cache. |
 | `keygen.py`, `Generate-Activation-Keys.bat` | Vendor-only license key signer (ECDSA P-256). Needs `setu-license-private.pem`, which is **never** in git (`*.pem` ignored). `python keygen.py <INSTALL-ID> <plan>`. |
 | `favicon.ico`, `icon-*.png`, `logo.png` | Branding assets. |
@@ -101,8 +101,13 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Setu Cloud:** `CloudSync` in `app_main.py` keeps the counter PC as master and syncs `setu-db.json` with the hotel on the Worker
   (`setu-cloud.json` = URL + Hotel Code + sync key, `setu-cloud-base.json` = last common copy). It uses a Python port of `merge3`
   with the cloud as "mine", so bills printed at the counter keep their numbers. **If you change `merge3` / `mergeNode` in the HTML,
-  change the Python port too.** On the cloud (`SRV.cloud` / `SRV.saas`) login = Hotel Code + PIN, weak PINs are refused, 5 wrong PINs
-  lock an IP for 15 min, and direct printing is off. Never trust the client for billing: the Worker decides `blocked`.
+  change the Python port too.** On the cloud (`SRV.cloud` / `SRV.saas`) login = Hotel Code + PIN (or the hotel's domain), weak PINs
+  are refused, 5 wrong PINs lock an IP for 15 min, direct printing is off. Never trust the client for billing or modules: the Worker
+  decides `blocked`, `D.saas` and what off-modules may change.
+- **Setu Pro config in the app:** `featureOn()` / `screenOn()` hide modules (`FEATURE_SCREENS`, `drawSide`, `go`). `applySaas()` (in
+  `ensureGrowth`) maps the bill template and rules onto `settings`. `billFields()` = custom bill fields (`B.extra` -> `bill.extra`,
+  printed by `billHTML` / `escBill`). `saasRules().phoneAbove` needs a mobile on big bills. Support links (`#support=CODE.TOKEN`) open a
+  read-only session (`SRV.readOnly`). LAN / browser installs have no `D.saas`, so everything stays on.
 - **Multi-outlet:** no shared cloud across outlets yet. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
 - **License:** keys are `SETU-...` strings = 13-byte payload (kind, days/minutes, install-ID hash, serial,
   issue day) + 64-byte ECDSA signature, base32. `getActivationKeyInfo()` verifies with WebCrypto against

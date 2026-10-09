@@ -4,9 +4,6 @@ name = "setu-cloud"
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
 
-# Custom domain (optional). Works only when the domain's DNS is on Cloudflare.
-# routes = [ { pattern = "app.example.in", custom_domain = true } ]
-
 # App files + vendor admin page. "npm run assets" copies an allow-list into ./public.
 [assets]
 directory = "./public"
@@ -15,12 +12,30 @@ run_worker_first = ["/api/*", "/"]
 
 [vars]
 TRIAL_DAYS = "14"
-# Razorpay plan ids come from Razorpay Dashboard -> Subscriptions -> Plans.
-# price is in rupees (for display), days = license days added per paid cycle.
-PLANS = '{"monthly":{"label":"Monthly","price":999,"days":30,"razorpay":"plan_PASTE_MONTHLY_ID"},"yearly":{"label":"Yearly","price":9999,"days":365,"razorpay":"plan_PASTE_YEARLY_ID"}}'
+TRIAL_TIER = "premium"
+# Razorpay plans: one per tier x cycle. Plan ids from Razorpay Dashboard -> Subscriptions -> Plans.
+# price in rupees (display), days = license days added per paid cycle, tier = basic / premium / diamond.
+PLANS = """{
+  "basic_monthly":   {"tier":"basic",   "label":"Basic Monthly",   "price":999,   "days":30,  "razorpay":"plan_PASTE_ID"},
+  "basic_yearly":    {"tier":"basic",   "label":"Basic Yearly",    "price":9999,  "days":365, "razorpay":"plan_PASTE_ID"},
+  "premium_monthly": {"tier":"premium", "label":"Premium Monthly", "price":1999,  "days":30,  "razorpay":"plan_PASTE_ID"},
+  "premium_yearly":  {"tier":"premium", "label":"Premium Yearly",  "price":19999, "days":365, "razorpay":"plan_PASTE_ID"},
+  "diamond_monthly": {"tier":"diamond", "label":"Diamond Monthly", "price":2999,  "days":30,  "razorpay":"plan_PASTE_ID"},
+  "diamond_yearly":  {"tier":"diamond", "label":"Diamond Yearly",  "price":29999, "days":365, "razorpay":"plan_PASTE_ID"}
+}"""
 
-# Secrets (npm run setup-secrets): LICENSE_PRIVATE_KEY, ADMIN_KEY,
-# RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET
+# ---- Domains (optional) ----
+# BASE_DOMAIN: your own domain on Cloudflare, e.g. "setupro.in". Hotels then get <slug>.setupro.in
+#   (add the route below as well). APP_HOST: the main app address, e.g. "app.setupro.in".
+# SAAS_CNAME_TARGET: where a hotel's own domain must point (Cloudflare for SaaS fallback origin),
+#   e.g. "customers.setupro.in". Custom domains also need secrets CF_API_TOKEN + CF_ZONE_ID.
+BASE_DOMAIN = ""
+APP_HOST = ""
+SAAS_CNAME_TARGET = ""
+# routes = [ { pattern = "app.setupro.in", custom_domain = true }, { pattern = "*.setupro.in/*", zone_name = "setupro.in" } ]
+
+# Secrets (npm run secret <NAME>): LICENSE_PRIVATE_KEY (npm run license-key), ADMIN_KEY,
+# RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, CF_API_TOKEN, CF_ZONE_ID
 
 # Every hotel = one Durable Object with its own SQLite database
 [[durable_objects.bindings]]

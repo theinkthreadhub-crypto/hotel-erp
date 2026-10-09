@@ -4,118 +4,393 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Setu Vendor Admin</title>
+<title>Setu Pro Super Admin</title>
 <style>
-  :root{ --bg:#f1f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --pri:#0ea5e9; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; }
-  @media (prefers-color-scheme: dark){ :root{ --bg:#0b1220; --card:#111a2e; --ink:#e2e8f0; --muted:#94a3b8; --line:#1e293b; } }
+  :root{ --bg:#f1f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --pri:#0ea5e9; --pri-ink:#fff; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; --soft:#f8fafc; }
+  @media (prefers-color-scheme: dark){ :root{ --bg:#0b1220; --card:#111a2e; --ink:#e2e8f0; --muted:#94a3b8; --line:#1e293b; --soft:#0f172a; } }
   *{ box-sizing:border-box }
   body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif }
-  header{ padding:16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--line); background:var(--card) }
-  h1{ font-size:18px; margin:0 auto 0 0 }
-  main{ padding:16px; max-width:1200px; margin:0 auto }
-  input, button, select{ font:inherit; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink) }
-  button{ cursor:pointer; background:var(--pri); color:#fff; border:0; font-weight:600 }
+  header{ padding:12px 16px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:5 }
+  h1{ font-size:17px; margin:0 } h2{ font-size:16px; margin:0 0 10px } h3{ font-size:14px; margin:16px 0 8px }
+  nav{ display:flex; gap:4px; margin-left:auto; flex-wrap:wrap }
+  nav button{ background:transparent; color:var(--ink); border:1px solid transparent }
+  nav button.on{ background:var(--pri); color:var(--pri-ink) }
+  main{ padding:16px; max-width:1240px; margin:0 auto }
+  input, button, select, textarea{ font:inherit; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink) }
+  button{ cursor:pointer; background:var(--pri); color:var(--pri-ink); border:0; font-weight:600 }
   button.g{ background:transparent; color:var(--ink); border:1px solid var(--line) }
-  button.bad{ background:var(--bad) }
+  button.bad{ background:var(--bad); color:#fff }
+  button:disabled{ opacity:.5; cursor:default }
+  label{ display:block; font-size:12px; color:var(--muted); margin-bottom:3px }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px }
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px }
+  .grid > div > input, .grid > div > select{ width:100% }
   .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:14px }
   .stat{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px }
   .stat b{ display:block; font-size:22px }
-  .wrap{ overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:10px }
-  table{ width:100%; border-collapse:collapse; min-width:820px }
-  th, td{ text-align:left; padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:middle }
-  th{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em }
-  .pill{ padding:2px 8px; border-radius:99px; font-size:12px; font-weight:700 }
+  .wrap{ overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:12px }
+  table{ width:100%; border-collapse:collapse }
+  .wrap table{ min-width:860px }
+  th, td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle }
+  th{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em }
+  tr.click{ cursor:pointer } tr.click:hover td{ background:var(--soft) }
+  .pill{ padding:2px 8px; border-radius:99px; font-size:12px; font-weight:700; white-space:nowrap }
   .p-active{ background:#dcfce7; color:#166534 } .p-trial{ background:#e0f2fe; color:#075985 }
-  .p-expired{ background:#fee2e2; color:#991b1b } .p-suspended{ background:#f1f5f9; color:#334155 }
-  .muted{ color:var(--muted) } .act{ display:flex; gap:6px; flex-wrap:wrap }
-  .act button{ padding:5px 9px; font-size:12px }
-  #login{ max-width:380px; margin:60px auto; background:var(--card); padding:22px; border-radius:12px; border:1px solid var(--line) }
+  .p-expired{ background:#fee2e2; color:#991b1b } .p-suspended{ background:#e2e8f0; color:#334155 } .p-pending{ background:#fef3c7; color:#92400e }
+  .muted{ color:var(--muted) } .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin:12px 0; overflow-x:auto }
+  .tabs button{ background:transparent; color:var(--muted); border-radius:8px 8px 0 0; white-space:nowrap }
+  .tabs button.on{ color:var(--ink); background:var(--soft); border:1px solid var(--line); border-bottom-color:var(--soft) }
+  .feat{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--soft) }
+  .feat select{ margin-left:auto }
+  .two{ display:grid; grid-template-columns:1fr 300px; gap:16px } @media (max-width:820px){ .two{ grid-template-columns:1fr } }
+  .rcpt{ background:#fff; color:#000; font:12px/1.35 ui-monospace, Consolas, monospace; padding:10px; border:1px dashed #94a3b8; margin:0 auto }
+  .rcpt .c{ text-align:center } .rcpt hr{ border:0; border-top:1px dashed #000 } .rcpt .r{ text-align:right } .rcpt td{ padding:1px 0; border:0 }
+  #drawer{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; z-index:10; overflow:auto; padding:20px 12px }
+  #drawer .panel{ max-width:980px; margin:0 auto; background:var(--card); border-radius:14px; padding:18px; border:1px solid var(--line) }
+  #login{ max-width:380px; margin:60px auto }
   #login input{ width:100%; margin:10px 0 }
-  #err{ color:var(--bad); font-weight:600 }
+  .err{ color:var(--bad); font-weight:600 } .ok{ color:var(--ok); font-weight:600 }
+  code{ font:12px ui-monospace, Consolas, monospace; background:var(--soft); padding:1px 5px; border-radius:5px; word-break:break-all }
+  #toast{ position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#0f172a; color:#fff; padding:9px 16px; border-radius:10px; display:none; z-index:20 }
 </style>
 </head>
 <body>
-<div id="login">
-  <h1>Setu Vendor Admin</h1>
+<div id="login" class="card">
+  <h1>Setu Pro Super Admin</h1>
   <p class="muted">Aghanya Devanya Enterprises — sirf vendor ke liye</p>
   <form id="lf"><input id="key" type="password" placeholder="Admin Key" autocomplete="off" required><button style="width:100%">Kholein</button></form>
-  <p id="err"></p>
+  <p id="lerr" class="err"></p>
 </div>
+
 <div id="app" hidden>
   <header>
-    <h1>Setu Hotels</h1>
-    <input id="q" placeholder="Search naam / code / mobile">
-    <button class="g" onclick="load()">Refresh</button>
-    <button class="g" onclick="sessionStorage.removeItem('setu_admin');location.reload()">Logout</button>
+    <h1>Setu Pro Super Admin</h1>
+    <nav id="nav"></nav>
+    <button class="g" onclick="logout()">Logout</button>
   </header>
-  <main>
-    <div class="stats" id="stats"></div>
-    <div class="wrap"><table><thead><tr><th>Hotel</th><th>Code</th><th>Owner / Mobile</th><th>Status</th><th>Paid Till</th><th>Joined</th><th>Actions</th></tr></thead><tbody id="rows"></tbody></table></div>
-  </main>
+  <main id="main"></main>
 </div>
+<div id="drawer"><div class="panel" id="panel"></div></div>
+<div id="toast"></div>
+
 <script>
-let KEY = '', HOTELS = [];
+let KEY = '', META = null, HOTELS = [], VIEW = 'dash', CUR = null, TAB = 'overview';
 try{ KEY = sessionStorage.getItem('setu_admin') || ''; }catch(e){}
+const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const d = ms => ms ? new Date(ms).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '-';
-const state = h => h.status === 'suspended' ? 'suspended' : (h.paid_until < Date.now() ? 'expired' : h.status);
+const d8 = ms => ms ? new Date(ms).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '-';
+const dt = ms => ms ? new Date(ms).toLocaleString('en-IN', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : '-';
+const rs = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const state = h => h.status === 'suspended' ? 'suspended' : ((h.paid_until ?? h.paidUntil) < Date.now() && !h.lifetime ? 'expired' : h.status);
+const pill = s => `<span class="pill p-${esc(s)}">${esc(s)}</span>`;
+function toast(t){ const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2600); }
 
 async function api(path, body){
-  const r = await fetch(path, {method: body ? 'POST' : 'GET', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: body ? JSON.stringify(body) : undefined});
+  const r = await fetch(path, {method: 'POST', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
   if(r.status === 401) throw new Error('Admin Key galat hai');
-  const j = await r.json();
-  if(!r.ok) throw new Error(j.error || r.status);
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
 }
+const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ alert(e.message); } };
 
-async function load(){
-  HOTELS = (await api('/api/admin/hotels', {})).hotels;
-  draw();
+// ---------------- navigation ----------------
+const VIEWS = {dash: 'Dashboard', hotels: 'Hotels', add: '+ Naya Hotel', audit: 'Audit Log'};
+function nav(){
+  $('#nav').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${VIEW === k ? 'on' : ''}" onclick="show('${k}')">${v}</button>`).join('');
 }
+const show = run(async v => { VIEW = v; nav(); await ({dash: drawDash, hotels: drawHotels, add: drawAdd, audit: drawAudit})[v](); });
 
-function draw(){
-  const q = document.getElementById('q').value.trim().toLowerCase();
-  const list = HOTELS.filter(h => !q || [h.name, h.code, h.phone, h.owner].join(' ').toLowerCase().includes(q));
+async function loadHotels(){ HOTELS = (await api('/api/admin/hotels')).hotels; }
+
+// ---------------- dashboard ----------------
+async function drawDash(){
+  await loadHotels();
+  const st = await api('/api/admin/stats');
   const c = s => HOTELS.filter(h => state(h) === s).length;
-  document.getElementById('stats').innerHTML = [['Total', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')]]
-    .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('');
-  document.getElementById('rows').innerHTML = list.map(h => `<tr>
-    <td><b>${esc(h.name)}</b><div class="muted">${esc(h.email || '')}</div></td>
-    <td><code>${esc(h.code)}</code></td>
-    <td>${esc(h.owner)}<div class="muted">${esc(h.phone)}</div></td>
-    <td><span class="pill p-${state(h)}">${state(h)}</span><div class="muted">${esc(h.plan || '')}</div></td>
-    <td>${d(h.paid_until)}</td>
-    <td>${d(h.created)}</td>
-    <td class="act">
-      <button onclick="extend('${esc(h.code)}', 30)">+30 din</button>
-      <button class="g" onclick="extend('${esc(h.code)}')">+ Din...</button>
-      ${h.status === 'suspended' ? `<button class="g" onclick="setStatus('${esc(h.code)}','active')">Chalu</button>` : `<button class="bad" onclick="setStatus('${esc(h.code)}','suspended')">Suspend</button>`}
-    </td></tr>`).join('') || '<tr><td colspan="7" class="muted">Koi hotel nahi</td></tr>';
+  // Monthly recurring estimate from each paying hotel's monthly price for its tier
+  const monthly = t => { const p = Object.values(META.plans).find(x => x.tier === t && x.days <= 31); return p ? p.price : 0; };
+  const mrr = HOTELS.filter(h => state(h) === 'active').reduce((a, h) => a + monthly(h.tier), 0);
+  const month = Date.now() - 30 * 864e5;
+  const soon = HOTELS.filter(h => ['active', 'trial'].includes(state(h)) && h.paid_until - Date.now() < 7 * 864e5).sort((a, b) => a.paid_until - b.paid_until);
+  $('#main').innerHTML = `
+    <div class="stats">${[['Total Hotels', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')],
+      ['Naye (30 din)', HOTELS.filter(h => h.created > month).length], ['Payment (30 din)', rs(st.paid30.s / 100)], ['MRR (andaaza)', rs(mrr)]]
+      .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('')}</div>
+    <div class="two">
+      <div class="card"><h2>7 din mein khatam hone wale</h2>
+        <table><tr><th>Hotel</th><th>Status</th><th>Kab tak</th><th>Mobile</th></tr>
+        ${soon.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')"><td><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td><td>${esc(h.phone)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Koi nahi</td></tr>'}</table>
+      </div>
+      <div class="card"><h2>Haal ke payment</h2>
+        <table>${st.recent.map(p => `<tr><td>${esc(p.name || p.code)}<div class="muted">${esc(p.plan)} · ${dt(p.at)}</div></td><td class="r">${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</td></tr>`).join('') || '<tr><td class="muted">Abhi koi nahi</td></tr>'}</table>
+      </div>
+    </div>`;
 }
 
-async function extend(code, days){
-  days = days || +prompt('Kitne din jodne hain? (cash / UPI payment ke baad)', '30');
-  if(!days || days < 1) return;
-  if(!confirm(`${code} ko ${days} din dene hain? Hotel ke data mein nayi license key chali jayegi.`)) return;
-  try{ await api('/api/admin/hotel', {code, days}); await load(); }catch(e){ alert(e.message); }
+// ---------------- hotels list ----------------
+async function drawHotels(){
+  await loadHotels();
+  $('#main').innerHTML = `
+    <div class="row" style="margin-bottom:10px"><input id="q" placeholder="Search naam / code / mobile / domain" style="flex:1;min-width:220px">
+      <select id="fs"><option value="">Sab status</option><option>active</option><option>trial</option><option>expired</option><option>suspended</option></select></div>
+    <div class="wrap"><table><thead><tr><th>Hotel</th><th>Code</th><th>Type / Plan</th><th>Owner</th><th>Status</th><th>Paid Till</th><th>Domain</th><th>Joined</th></tr></thead><tbody id="rows"></tbody></table></div>`;
+  $('#q').oninput = $('#fs').onchange = rows;
+  rows();
+}
+function rows(){
+  const q = $('#q').value.trim().toLowerCase(), f = $('#fs').value;
+  const list = HOTELS.filter(h => (!f || state(h) === f) && (!q || [h.name, h.code, h.phone, h.owner, ...(h.domains || []).map(d => d.host)].join(' ').toLowerCase().includes(q)));
+  $('#rows').innerHTML = list.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')">
+    <td><b>${esc(h.name)}</b><div class="muted">${esc(h.email || '')}</div></td><td><code>${esc(h.code)}</code></td>
+    <td>${esc((META.templates[h.btype] || {}).label || h.btype || '-')}<div class="muted">${esc((META.tiers[h.tier] || {}).label || '-')}</div></td>
+    <td>${esc(h.owner)}<div class="muted">${esc(h.phone)}</div></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td>
+    <td>${(h.domains || []).map(d => `<div>${esc(d.host)} ${d.status !== 'active' ? pill('pending') : ''}</div>`).join('') || '<span class="muted">-</span>'}</td><td>${d8(h.created)}</td></tr>`).join('')
+    || '<tr><td colspan="8" class="muted">Koi hotel nahi</td></tr>';
 }
 
-async function setStatus(code, status){
-  if(!confirm(status === 'suspended' ? `${code} ko suspend karein? Wahan cloud par save band ho jayega.` : `${code} ko phir chalu karein?`)) return;
-  try{ await api('/api/admin/hotel', {code, status}); await load(); }catch(e){ alert(e.message); }
+// ---------------- add hotel (onboarding) ----------------
+function drawAdd(){
+  const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  $('#main').innerHTML = `<div class="card"><h2>Naya Hotel Banayein</h2>
+    <p class="muted">Customer → Business Type → Plan → Features → Login. Hotel pehli baar Hotel Code + yahi password se login karega; uske baad apna data khud banega.</p>
+    <form id="af"><div class="grid">
+      <div><label>Hotel / Restaurant naam *</label><input name="name" required></div>
+      <div><label>Owner naam *</label><input name="owner" required></div>
+      <div><label>Mobile (10 digit) *</label><input name="phone" required pattern="[0-9]{10}" inputmode="numeric"></div>
+      <div><label>Email</label><input name="email" type="email"></div>
+      <div><label>Business Type (Template)</label><select name="businessType" id="a_type">${tpl}</select></div>
+      <div><label>Plan</label><select name="tier" id="a_tier">${tiers}</select></div>
+      <div><label>Kitne din</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
+      <div><label>Payment</label><select name="paid"><option value="">Free trial</option><option value="1">Paid (cash / UPI le liya)</option></select></div>
+      <div><label>Owner ka pehla password (6+ akshar) *</label><input name="password" required minlength="6"></div>
+    </div><div class="row" style="margin-top:12px"><button>Hotel Banayein</button><span id="ares"></span></div></form></div>`;
+  $('#a_type').onchange = () => $('#a_tier').value = META.templates[$('#a_type').value].tier;
+  $('#a_type').onchange();
+  $('#af').onsubmit = run(async e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    f.paid = !!f.paid;
+    const j = await api('/api/admin/create', f);
+    $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel ban gaya: ${esc(f.name)}</h2>
+      <p>Owner ko ye bhejein (WhatsApp):</p>
+      <div class="card" style="background:var(--soft)">Link: <code>${esc(location.origin)}/hotel_erp.html</code><br>Hotel Code: <b>${esc(j.code)}</b><br>Password: jo aapne set kiya<br>
+        Counter PC Sync Key: <code>${esc(j.syncKey)}</code> <span class="muted">(dobara nahi dikhegi)</span></div>
+      <div class="row"><button onclick="openHotel('${esc(j.code)}')">Hotel kholein</button><button class="g" onclick="show('add')">Aur hotel</button></div></div>`;
+  });
 }
 
+// ---------------- audit ----------------
+async function drawAudit(code){
+  const j = await api('/api/admin/audit', {code: code || ''});
+  const html = `<table><tr><th>Kab</th><th>Kya</th><th>Hotel</th><th>Detail</th><th>Kisne</th></tr>
+    ${j.rows.map(r => `<tr><td>${dt(r.at)}</td><td><b>${esc(r.action)}</b></td><td><code>${esc(r.code)}</code></td><td>${esc(r.detail)}</td><td class="muted">${esc(r.actor)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Kuch nahi</td></tr>'}</table>`;
+  if(code) return html;
+  $('#main').innerHTML = `<div class="card"><h2>Super Admin Audit Log</h2><p class="muted">Har badlav, support access aur naya hotel yahan likha jata hai.</p><div style="overflow-x:auto">${html}</div></div>`;
+}
+
+// ---------------- one hotel ----------------
+const openHotel = run(async code => {
+  CUR = await api('/api/admin/hotel', {code});
+  TAB = 'overview';
+  $('#drawer').style.display = 'block';
+  drawHotel();
+});
+function closeHotel(){ $('#drawer').style.display = 'none'; CUR = null; if(VIEW !== 'add') show(VIEW); }
+const update = run(async (u, msg) => {
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: u});
+  toast(msg || 'Save ho gaya — hotel ke devices par kuch second mein lag jayega');
+  drawHotel();
+});
+
+const TABS = {overview: 'Overview & Subscription', features: 'Plan & Features', billing: 'Billing Builder', rules: 'Rules', domains: 'Domains', support: 'Support', log: 'History'};
+function drawHotel(){
+  const h = CUR;
+  $('#panel').innerHTML = `<div class="row"><div><h2 style="margin:0">${esc(h.name)} <code>${esc(h.code)}</code></h2>
+      <span class="muted">${esc((META.templates[h.businessType] || {}).label || '')} · ${esc(h.tierLabel)} · ${pill(state(h))}</span></div>
+      <button class="g" style="margin-left:auto" onclick="closeHotel()">Band karein</button></div>
+    <div class="tabs">${Object.entries(TABS).map(([k, v]) => `<button class="${TAB === k ? 'on' : ''}" onclick="TAB='${k}';drawHotel()">${v}</button>`).join('')}</div>
+    <div id="tab"></div>`;
+  ({overview: tabOverview, features: tabFeatures, billing: tabBilling, rules: tabRules, domains: tabDomains, support: tabSupport, log: tabLog})[TAB]();
+}
+
+function tabOverview(){
+  const h = CUR;
+  $('#tab').innerHTML = `
+    <div class="grid">
+      <div><label>Hotel naam</label><input id="p_name" value="${esc(h.name)}"></div>
+      <div><label>Owner</label><input id="p_owner" value="${esc(h.owner)}"></div>
+      <div><label>Mobile</label><input id="p_phone" value="${esc(h.phone)}"></div>
+      <div><label>Email</label><input id="p_email" value="${esc(h.email)}"></div>
+    </div>
+    <div class="row" style="margin-top:8px"><button class="g" onclick="update({profile:{name:p_name.value,owner:p_owner.value,phone:p_phone.value,email:p_email.value}})">Profile Save</button></div>
+    <h3>Subscription</h3>
+    <p>Status: ${pill(state(h))} · Paid till: <b>${h.lifetime ? 'Lifetime' : d8(h.paidUntil)}</b> · Auto-pay: <b>${esc(h.autoPay || '-')}</b> · Data version: ${h.version} (${dt(h.savedAt)})</p>
+    <div class="row">
+      <input id="x_days" type="number" min="1" value="30" style="width:90px"> din
+      <input id="x_amt" type="number" min="0" placeholder="₹ liya (optional)" style="width:160px">
+      <button onclick="if(confirm('Din jodein? Hotel ko nayi license key apne aap mil jayegi.')) update({days:+x_days.value, amount:+x_amt.value||0}, 'Din jod diye')">+ Din Jodein</button>
+      ${h.status === 'suspended' ? `<button class="g" onclick="update({status:'active'})">Chalu karein</button>` : `<button class="bad" onclick="if(confirm('Suspend? Cloud par save band ho jayega.')) update({status:'suspended'})">Suspend</button>`}
+      <button class="g" onclick="if(confirm('Lifetime ${h.lifetime ? 'hatayein' : 'dein'}?')) update({lifetime:${!h.lifetime}})">${h.lifetime ? 'Lifetime hatayein' : 'Lifetime dein'}</button>
+    </div>
+    <h3>Payments</h3>
+    <table><tr><th>Date</th><th>Plan</th><th>Din</th><th>Amount</th></tr>${h.payments.map(p => `<tr><td>${dt(p.at)}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? rs(p.amount / 100) : '-'}</td></tr>`).join('')}</table>`;
+}
+
+function tabFeatures(){
+  const c = CUR.config, ov = c.overrides || {};
+  const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}" ${k === c.tier ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
+  const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  const inTier = k => META.tiers[c.tier].features.includes(k);
+  $('#tab').innerHTML = `
+    <div class="row"><label style="margin:0">Plan</label><select id="f_tier">${tiers}</select>
+      <button onclick="update({tier:f_tier.value}, 'Plan badal gaya')">Plan Save</button>
+      <span class="muted" style="margin-left:12px">Template:</span><select id="f_tpl">${tpl}</select>
+      <button class="g" onclick="if(confirm('Template lagayein? Features, bill template aur rules us template ke default ho jayenge.')) update({applyTemplate:f_tpl.value}, 'Template lag gaya')">Template Lagayein</button></div>
+    <h3>Feature Manager</h3>
+    <p class="muted">"Plan ke hisaab se" = plan badalne par apne aap badlega. ON / OFF = sirf is hotel ke liye zabardasti. Band module ka data server bhi save nahi karta.</p>
+    <div class="grid">${Object.entries(META.features).map(([k, label]) => `<div class="feat">
+      <span>${CUR.features[k] ? '✅' : '⛔'}</span><span>${esc(label)}</span>
+      <select data-f="${k}"><option value="">Plan ke hisaab se (${inTier(k) ? 'ON' : 'OFF'})</option><option value="1" ${ov[k] === true ? 'selected' : ''}>ON</option><option value="0" ${ov[k] === false ? 'selected' : ''}>OFF</option></select></div>`).join('')}</div>
+    <div class="row" style="margin-top:12px"><button onclick="saveFeatures()">Features Save</button></div>`;
+}
+function saveFeatures(){
+  const o = {};
+  document.querySelectorAll('[data-f]').forEach(s => { if(s.value) o[s.dataset.f] = s.value === '1'; });
+  update({overrides: o}, 'Features save — hotel par lag gaye');
+}
+
+function tabBilling(){
+  const b = CUR.config.billing;
+  $('#tab').innerHTML = `<div class="two"><div>
+    <div class="grid">
+      <div><label>Paper</label><select id="b_paper">${[['80', '80 mm Thermal'], ['58', '58 mm Thermal'], ['A6', 'A6 (105 × 148 mm)']].map(([v, l]) => `<option value="${v}" ${b.paper === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div><label>Logo URL (https, optional)</label><input id="b_logo" value="${esc(b.logoUrl)}" placeholder="https://..."></div>
+      <div><label><input type="checkbox" id="b_showLogo" ${b.showLogo ? 'checked' : ''}> Logo dikhayein (A6 / print box)</label>
+        <label><input type="checkbox" id="b_table" ${b.showTable ? 'checked' : ''}> Table No dikhayein</label>
+        <label><input type="checkbox" id="b_cust" ${b.showCustomer ? 'checked' : ''}> Customer naam dikhayein</label></div>
+      <div><label>Header line (naam ke neeche)</label><input id="b_head" value="${esc(b.headerNote)}" maxlength="100" placeholder="Pure Veg · Since 1998"></div>
+      <div style="grid-column:1/-1"><label>Footer (khaali = hotel ki apni setting)</label><input id="b_foot" value="${esc(b.footer)}" maxlength="200" style="width:100%"></div>
+    </div>
+    <h3>Custom Fields (bill par, max 6)</h3>
+    <div id="b_fields"></div>
+    <div class="row" style="margin-top:8px"><button class="g" onclick="addField()">+ Field</button><button onclick="saveBilling()">Billing Template Save</button></div>
+    <p class="muted">Purane bill nahi badalte — naya template sirf naye bills par lagta hai.</p>
+  </div><div><label>Preview</label><div id="b_prev"></div></div></div>`;
+  FIELDS = (b.fields || []).map(f => ({...f}));
+  drawFields();
+  $('#tab').addEventListener('input', preview);
+  $('#tab').addEventListener('change', preview);
+}
+let FIELDS = [];
+function drawFields(){
+  $('#b_fields').innerHTML = FIELDS.map((f, i) => `<div class="row" style="margin-bottom:6px">
+    <input value="${esc(f.label)}" maxlength="30" placeholder="jaise Vehicle No / Room No" oninput="FIELDS[${i}].label=this.value">
+    <label style="margin:0"><input type="checkbox" ${f.required ? 'checked' : ''} onchange="FIELDS[${i}].required=this.checked"> Zaroori</label>
+    <button class="g" onclick="FIELDS.splice(${i},1);drawFields()">Hatayein</button></div>`).join('') || '<p class="muted">Koi custom field nahi</p>';
+  preview();
+}
+function addField(){ if(FIELDS.length < 6){ FIELDS.push({label: '', required: false}); drawFields(); } }
+function billingForm(){
+  return {paper: $('#b_paper').value, logoUrl: $('#b_logo').value.trim(), showLogo: $('#b_showLogo').checked, showTable: $('#b_table').checked,
+    showCustomer: $('#b_cust').checked, headerNote: $('#b_head').value, footer: $('#b_foot').value, fields: FIELDS.filter(f => f.label.trim())};
+}
+function preview(){
+  const b = billingForm(), w = {58: '200px', 80: '270px', A6: '300px'}[b.paper];
+  const logo = b.showLogo && /^https:\/\//.test(b.logoUrl) ? `<div class="c"><img src="${esc(b.logoUrl)}" alt="" style="max-height:44px;max-width:70%"></div>` : '';
+  $('#b_prev').innerHTML = `<div class="rcpt" style="width:${w}">${logo}<div class="c"><b>${esc(CUR.name)}</b></div><div class="c">Main Road, Shahar</div>
+    ${b.headerNote ? `<div class="c">${esc(b.headerNote)}</div>` : ''}<hr><div class="c"><b>TAX INVOICE</b></div>
+    <div>Bill No: #1024 &nbsp; 09/10/2026 8:15 PM</div>${b.showTable ? '<div>Table/Ref: <b>T-4</b></div>' : ''}${b.showCustomer ? '<div>Customer: Rahul</div>' : ''}
+    ${b.fields.map(f => `<div>${esc(f.label)}: <b>……</b></div>`).join('')}<hr>
+    <table style="width:100%"><tr><td>Paneer Tikka</td><td class="r">1</td><td class="r">240.00</td></tr><tr><td>Butter Naan</td><td class="r">4</td><td class="r">200.00</td></tr></table><hr>
+    <table style="width:100%"><tr><td>Sub Total</td><td class="r">440.00</td></tr><tr><td>CGST @2.5%</td><td class="r">11.00</td></tr><tr><td>SGST @2.5%</td><td class="r">11.00</td></tr><tr><td><b>TOTAL</b></td><td class="r"><b>₹462.00</b></td></tr></table><hr>
+    <div class="c">${esc(b.footer || 'Thank you! Visit again')}</div><div class="c" style="font-size:10px">Powered by Aghanya Devanya Enterprises</div></div>
+    <p class="muted" style="font-size:11px">${b.paper === 'A6' ? 'A6 print box se' : b.paper + ' mm thermal'} · logo thermal "Seedha Print" mein nahi chhapta</p>`;
+}
+function saveBilling(){ update({billing: billingForm()}, 'Billing template save — naye bills par lagega'); }
+
+function tabRules(){
+  const r = CUR.config.rules;
+  $('#tab').innerHTML = `<div class="grid">
+      <div><label>Cashier max discount % (zyada par Manager PIN)</label><input id="r_disc" type="number" min="0" max="100" value="${r.maxDiscPct ?? ''}" placeholder="khaali = hotel ki apni setting"></div>
+      <div><label>Is ₹ se bade bill par customer mobile zaroori</label><input id="r_phone" type="number" min="0" value="${r.phoneAbove ?? ''}" placeholder="khaali = band"></div>
+    </div><div class="row" style="margin-top:12px"><button onclick="update({rules:{maxDiscPct:r_disc.value,phoneAbove:r_phone.value}}, 'Rules save')">Rules Save</button></div>
+    <p class="muted">Rules hotel ke har device par lagte hain; cashier inhe Settings se nahi badal sakta.</p>`;
+}
+
+function tabDomains(){
+  const h = CUR;
+  $('#tab').innerHTML = `
+    <table><tr><th>Domain</th><th>Type</th><th>Status</th><th></th></tr>
+    ${(h.domains || []).map(d => `<tr><td><b>${esc(d.host)}</b>${d.status === 'active' ? ` <a href="https://${esc(d.host)}/hotel_erp.html" target="_blank" rel="noopener">kholein</a>` : ''}</td><td>${d.kind === 'sub' ? 'Subdomain' : 'Custom'}</td><td>${pill(d.status)}</td>
+      <td class="row">${d.kind === 'custom' ? `<button class="g" onclick="checkDomain('${esc(d.host)}')">Status check</button>` : ''}<button class="bad" onclick="removeDomain('${esc(d.host)}')">Hatayein</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Koi domain nahi — hotel abhi Hotel Code se login karta hai</td></tr>'}</table>
+    <div id="dns"></div>
+    <h3>Subdomain ${META.baseDomain ? `(<code>xxx.${esc(META.baseDomain)}</code>)` : ''}</h3>
+    ${META.baseDomain ? `<div class="row"><input id="d_slug" placeholder="royal" style="width:180px"><span>.${esc(META.baseDomain)}</span><button onclick="addDomain('sub', d_slug.value)">Jodein</button></div>`
+      : '<p class="muted">wrangler.toml mein BASE_DOMAIN (aapka domain, Cloudflare par) set karein.</p>'}
+    <h3>Hotel ka apna domain</h3>
+    ${META.customDomains ? `<div class="row"><input id="d_host" placeholder="erp.hotelroyal.com" style="width:260px"><button onclick="addDomain('custom', d_host.value)">Jodein</button></div>
+      <p class="muted">Agar hotel ki website pehle se hai to <code>erp.</code> jaisa subdomain dein — main website mat badlein.</p>`
+      : '<p class="muted">Cloudflare for SaaS chahiye: secrets CF_API_TOKEN + CF_ZONE_ID aur var SAAS_CNAME_TARGET.</p>'}`;
+}
+function dnsTable(j){
+  if(!j.records || !j.records.length) return '';
+  return `<div class="card" style="background:var(--soft);margin-top:10px"><b>Hotel ke domain provider mein ye DNS records daalein:</b>
+    <table><tr><th>Type</th><th>Name</th><th>Value</th></tr>${j.records.map(r => `<tr><td>${esc(r.type)}</td><td><code>${esc(r.name)}</code></td><td><code>${esc(r.value)}</code></td></tr>`).join('')}</table>
+    <p class="muted">Verify + HTTPS ready hone ke baad hi domain chalu hota hai (${esc(j.cf || 'pending')} / ssl ${esc(j.ssl || 'pending')}).</p></div>`;
+}
+const addDomain = run(async (kind, value) => {
+  const j = await api('/api/admin/domain/add', {code: CUR.code, kind, value});
+  CUR = await api('/api/admin/hotel', {code: CUR.code});
+  tabDomains();
+  $('#dns').innerHTML = dnsTable(j);
+  toast(j.status === 'active' ? 'Domain chalu: ' + j.host : 'DNS records daalne ke baad Status check karein');
+});
+const checkDomain = run(async host => {
+  const j = await api('/api/admin/domain/check', {code: CUR.code, host});
+  CUR = await api('/api/admin/hotel', {code: CUR.code});
+  tabDomains();
+  $('#dns').innerHTML = dnsTable(j);
+});
+const removeDomain = run(async host => {
+  if(!confirm(host + ' hatayein? Us link se Setu khulna band ho jayega.')) return;
+  await api('/api/admin/domain/remove', {code: CUR.code, host});
+  CUR = await api('/api/admin/hotel', {code: CUR.code});
+  tabDomains();
+});
+
+function tabSupport(){
+  $('#tab').innerHTML = `<p>Support Access se aap hotel ka Setu <b>sirf dekh</b> sakte hain (kuch save nahi hota). Link thodi der mein khud band ho jata hai, aur hotel ko apni Settings mein dikhta hai ki support ne kab dekha.</p>
+    <div class="grid"><div><label>Kitni der</label><select id="s_min"><option value="30">30 minute</option><option value="60" selected>1 ghanta</option><option value="120">2 ghante</option></select></div>
+      <div style="grid-column:span 2"><label>Kyun (hotel ko dikhega)</label><input id="s_why" maxlength="120" placeholder="jaise: GST report ki problem dekhni hai" style="width:100%"></div></div>
+    <div class="row" style="margin-top:10px"><button onclick="supportOpen()">Support Link Banayein</button></div><div id="s_out"></div>
+    <h3>Pichhla Support Access</h3>
+    ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Kabhi nahi</p>'}`;
+}
+const supportOpen = run(async () => {
+  if(!$('#s_why').value.trim()) return alert('Kaaran likhein — hotel ko dikhega');
+  const j = await api('/api/admin/support', {code: CUR.code, minutes: +$('#s_min').value, reason: $('#s_why').value});
+  $('#s_out').innerHTML = `<p class="ok">Link bana (${j.minutes} min): <a href="${esc(j.url)}" target="_blank" rel="noopener">Hotel ka Setu kholein</a></p>`;
+});
+
+const tabLog = run(async () => { $('#tab').innerHTML = '<div style="overflow-x:auto">' + await drawAudit(CUR.code) + '</div>'; });
+
+// ---------------- start ----------------
+function logout(){ try{ sessionStorage.removeItem('setu_admin'); }catch(e){} location.reload(); }
 async function openPanel(){
   try{
-    await load();
+    META = await api('/api/admin/meta');
     try{ sessionStorage.setItem('setu_admin', KEY); }catch(e){}
-    document.getElementById('login').hidden = true;
-    document.getElementById('app').hidden = false;
-  }catch(e){ document.getElementById('err').textContent = e.message; }
+    $('#login').hidden = true;
+    $('#app').hidden = false;
+    show('dash');
+  }catch(e){ $('#lerr').textContent = e.message; }
 }
-
-document.getElementById('lf').onsubmit = e => { e.preventDefault(); KEY = document.getElementById('key').value.trim(); openPanel(); };
-document.getElementById('q').oninput = draw;
+$('#lf').onsubmit = e => { e.preventDefault(); KEY = $('#key').value.trim(); openPanel(); };
+$('#drawer').onclick = e => { if(e.target.id === 'drawer') closeHotel(); };
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && CUR) closeHotel(); });
 if(KEY) openPanel();
 </script>
 </body>
