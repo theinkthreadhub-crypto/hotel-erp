@@ -22,6 +22,9 @@ input[readonly]{background:#f6f3e4}
 #top .scr{background:var(--bar2);padding:2px 10px;border-radius:3px;font-size:13px}
 #top .lic{font-size:12px;padding:2px 8px;border-radius:3px;background:#ffffff22}
 #top .lic.low{background:var(--bad)}#top .lic:empty{display:none}
+#top .cd{font:600 13px Consolas,monospace;background:#ef6c00;order:0}
+#top .cd.last{background:var(--bad);animation:blink 1s steps(2,start) infinite}
+@keyframes blink{50%{background:#7f1d1d}}
 #top .clock{margin-left:auto;font-size:13px;opacity:.9}
 #wrap{flex:1;display:flex;min-height:0}
 #main{flex:1;overflow:auto;padding:14px}
@@ -177,7 +180,7 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 </style>
 </head>
 <body>
-<div id="top"><b id="libname">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess" onclick="D&&go('sessions')" title="Current session — click to change"></span><span class="lic" id="lic"></span><span class="clock" id="clock"></span></div>
+<div id="top"><b id="libname" onclick="D&&go('home')" title="Go to Dashboard" style="cursor:pointer">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess" onclick="D&&go('sessions')" title="Current session — click to change"></span><span class="lic" id="lic"></span><span class="lic cd" id="cd"></span><span class="clock" id="clock"></span></div>
 <div id="wrap"><div id="main"><p class="muted">Loading…</p></div><div id="side"></div></div>
 <div id="modal"><div id="mbox"></div></div>
 <div id="toast"></div>
@@ -1409,7 +1412,7 @@ function plCsv(){const x=sessById(plSess);const end=x.to<today()?x.to:today();
 // Two series side by side (fee blue, expense orange)
 function pairChart(data,{h=210}={}){
   if(!data.length)return '<p class="muted small">No data yet.</p>';
-  const W=560,pl=48,pr=8,pt=12,pb=24,iw=W-pl-pr,ih=h-pt-pb,max=niceMax(Math.max(1,...data.flatMap(d=>[d.a,d.b])));
+  const W=560,pl=48,pr=8,pt=12,pb=24,iw=W-pl-pr,ih=h-pt-pb,max=niceMax(Math.max(1000,...data.flatMap(d=>[d.a,d.b])));
   const band=iw/data.length,bw=Math.min(18,band*.32);let g='';
   for(let i=0;i<=4;i++){const y=pt+ih-ih*i/4;g+=`<line x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke="#ebe6d2"/><text x="${pl-6}" y="${y+4}" text-anchor="end">${compact(max*i/4)}</text>`;}
   const bar=(x,v,c,tip)=>{const bh=ih*v/max,y=pt+ih-bh,r=Math.min(4,bh);return bh>0?`<path d="M${x},${pt+ih}V${y+r}Q${x},${y} ${x+r},${y}H${x+bw-r}Q${x+bw},${y} ${x+bw},${y+r}V${pt+ih}Z" fill="${c}" data-tip="${esc(tip)}"/>`:'';};
@@ -1497,12 +1500,30 @@ async function scrQuit(){
 }
 
 /* ================= LICENSE ================= */
-function licBar(){const e=$('#lic');if(!LIC||!LIC.ok){e.textContent='';return;}
-  e.textContent=LIC.lifetime?'License: Lifetime':`License: ${LIC.daysLeft} days (${dmy(LIC.expiry)})`;e.className='lic'+(!LIC.lifetime&&LIC.daysLeft<=7?' low':'');}
+// License expiry: exact time (ms). Server ki ghadi se sync.
+let licOff=0;
+const fmtDT=ms=>new Date(ms).toLocaleString('en-IN',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+const licEnd=()=>LIC&&LIC.expiryMs?fmtDT(LIC.expiryMs):'';
+function licLeftText(ms){const t=Math.max(0,Math.floor(ms/1000)),d=Math.floor(t/86400),h=Math.floor(t%86400/3600),m=Math.floor(t%3600/60),sec=t%60;
+  return (d?d+'d ':'')+pad(h)+':'+pad(m)+':'+pad(sec);}
+function licBar(){const e=$('#lic');if(!LIC||!LIC.ok){e.textContent='';$('#cd').textContent='';return;}
+  licOff=(LIC.serverNow||Date.now())-Date.now();
+  e.textContent=LIC.lifetime?'License: Lifetime':`License: ${LIC.daysLeft>=1?LIC.daysLeft+' days':'less than 1 day'} (${licEnd()})`;e.className='lic'+(!LIC.lifetime&&LIC.daysLeft<=7?' low':'');licTick();}
+// Countdown: aakhri 48 ghante mein dikhe; aakhri 24 ghante laal blink
+function licTick(){
+  const c=$('#cd');if(!c)return;
+  if(!D||!LIC||!LIC.ok||LIC.lifetime||!LIC.expiryMs){c.textContent='';return;}
+  const left=LIC.expiryMs-(Date.now()+licOff);
+  if(left<=0){c.textContent='';LIC.ok=false;api('license').then(l=>{LIC=l;if(!l.ok)showActivate();else licBar();}).catch(()=>{});return;}
+  if(left>48*3600e3){c.textContent='';return;}
+  c.textContent='⏳ License ends in '+licLeftText(left);c.className='lic cd'+(left<=24*3600e3?' last':'');
+  c.title='Expires '+licEnd()+' — enter a new key in K (License)';
+}
+setInterval(licTick,1000);
 function scrLicense(){
   main.innerHTML=title('License / Activation')+`<div class="card" style="max-width:620px"><table class="info">
     <tr><td>Machine code</td><td><b style="font:700 18px Consolas,monospace">${esc(LIC.machine)}</b></td></tr>
-    ${LIC.lifetime?`<tr><td>Validity</td><td><b class="green">Lifetime</b></td></tr>`:`<tr><td>Valid till</td><td><b>${dmy(LIC.expiry)}</b></td></tr><tr><td>Days left</td><td><b class="${LIC.daysLeft<=7?'red':'green'}">${LIC.daysLeft}</b></td></tr>`}
+    ${LIC.lifetime?`<tr><td>Validity</td><td><b class="green">Lifetime</b></td></tr>`:`<tr><td>Valid till</td><td><b>${licEnd()}</b></td></tr><tr><td>Plan</td><td>${esc(LIC.label||'')}</td></tr><tr><td>Days left</td><td><b class="${LIC.daysLeft<=7?'red':'green'}">${LIC.daysLeft}</b></td></tr>`}
     ${LIC.name?`<tr><td>Licensed to</td><td>${esc(LIC.name)}</td></tr>`:''}</table>
     <div class="form" style="margin-top:12px"><label>New activation key (to renew)</label><textarea id="k_key" rows="3" style="font:12px Consolas,monospace"></textarea>
     <div class="btns"><button class="btn" onclick="doActivate(val('k_key'))">Activate (Ctrl+S)</button>${LIC.vendorPhone?`<button class="btn wa" onclick="askKey()">Request key on WhatsApp</button>`:''}</div></div></div>`;
@@ -1511,12 +1532,12 @@ function scrLicense(){
 function askKey(){waOpen(LIC.vendorPhone,`I need a Library ERP activation key.\nMachine code: ${LIC.machine}${D&&D.settings?'\nLibrary: '+D.settings.name:''}`);}
 async function doActivate(key){
   if(!key){toast('Paste the key','bad');return;}
-  try{LIC=await api('activate',{key});toast(`Activated — ${LIC.lifetime?'Lifetime':LIC.daysLeft+' days'}`,'ok');await boot();}
+  try{LIC=await api('activate',{key});toast(`Activated — ${LIC.lifetime?'Lifetime':(LIC.label||'')+' (till '+licEnd()+')'}`,'ok');await boot();}
   catch(e){toast(e.message,'bad');}
 }
 function showActivate(){
   D=null;$('#side').innerHTML='';$('#scr').textContent='Activation';$('#lic').textContent='';
-  const why={new:'This software is not activated.',invalid:'The activation key is not valid for this computer.',expired:`The license expired on ${dmy(LIC.expiry)}.`,
+  const why={new:'This software is not activated.',invalid:'The activation key is not valid for this computer.',expired:`The license expired on ${LIC.expiryMs?fmtDT(LIC.expiryMs):''}.`,
     clock:'The computer date/time has been set back. Set the correct date and open again.'}[LIC.reason]||'';
   main.innerHTML=`<div class="act card"><h2 style="margin-top:0;color:var(--bar)">Library ERP — Activation</h2>
     <p class="${LIC.reason==='new'?'':'red'}">${why}</p>
@@ -1540,7 +1561,7 @@ async function boot(){
   let data=null;try{data=await api('data');}catch(e){toast(e.message,'bad');return;}
   D=migrate(data);if(!data)save();
   drawSide();licBar();sessBar();
-  if(!LIC.lifetime&&LIC.daysLeft<=7)toast(`License expires in ${LIC.daysLeft} days — please renew (K)`,'bad');
+  if(!LIC.lifetime&&LIC.daysLeft<=7)toast(LIC.daysLeft>=1?`License expires in ${LIC.daysLeft} days — please renew (K)`:`License expires at ${licEnd()} — please renew (K)`,'bad');
   go('home');duePopup();
 }
 function duePopup(){

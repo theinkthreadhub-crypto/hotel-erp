@@ -25,24 +25,35 @@ function machineId() {
 }
 
 const LIFETIME = '9999-12-31';
-// 1m / 3m / 6m / 1y / life ya seedhe din (jaise 45)
-const PLANS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, 'life': 0 };
-function parseDays(v) {
-  v = String(v || '').trim().toLowerCase();
-  if (v in PLANS) return PLANS[v];
-  if (v === 'lifetime') return 0;
-  const d = parseInt(v, 10);
-  if (!(d > 0 && d <= 3650)) throw new Error('Days must be 1-3650, or 1m / 3m / 6m / 1y / life');
-  return d;
+// Duration: 1m / 3m / 6m / 1y (months/year), life, 5min, 2h, 10d, ya sirf number (= din)
+const PLANS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365 };
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+function parseDuration(v) {
+  v = String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (v === 'life' || v === 'lifetime') return { life: true, ms: 0, label: 'Lifetime' };
+  if (v in PLANS) return { ms: PLANS[v] * 864e5, label: plural(PLANS[v], 'day') };
+  let m, ms, label;
+  if ((m = v.match(/^(\d+)(min|mins|minute|minutes)$/))) { ms = +m[1] * 60e3; label = plural(+m[1], 'minute'); }
+  else if ((m = v.match(/^(\d+)(h|hr|hrs|hour|hours)$/))) { ms = +m[1] * 3600e3; label = plural(+m[1], 'hour'); }
+  else if ((m = v.match(/^(\d+)(d|day|days)?$/))) { ms = +m[1] * 864e5; label = plural(+m[1], 'day'); }
+  else throw new Error('Use like: 5min, 2h, 30d, 1m, 3m, 6m, 1y or life');
+  if (!(ms >= 60e3 && ms <= 3650 * 864e5)) throw new Error('Time must be between 1 minute and 3650 days');
+  return { ms, label };
+}
+// Expiry: purani keys mein date (din ke ant tak valid), nayi keys mein exact time (epoch ms)
+function expiryMs(e) {
+  if (e === LIFETIME) return Infinity;
+  if (/^\d{10,}$/.test(e)) return +e;
+  return new Date(e + 'T23:59:59').getTime();
 }
 
-// payload: machine|issued|expiry|days|name   (days 0 = lifetime)
-function makeKey(privatePem, machine, days, name) {
+// payload: machine|issued|expiry|label|name   (expiry = epoch ms, ya LIFETIME)
+function makeKey(privatePem, machine, duration, name) {
   machine = String(machine).trim().toUpperCase();
   if (!/^[0-9A-F]{5}-[0-9A-F]{5}$/.test(machine)) throw new Error('Invalid machine code (format: XXXXX-XXXXX)');
-  days = parseDays(days);
+  const d = parseDuration(duration);
   const issued = today();
-  const payload = [machine, issued, days ? addDays(issued, days) : LIFETIME, days, String(name || '').replace(/[|]/g, ' ').slice(0, 40)].join('|');
+  const payload = [machine, issued, d.life ? LIFETIME : String(Date.now() + d.ms), d.label, String(name || '').replace(/[|]/g, ' ').slice(0, 40)].join('|');
   const sig = crypto.sign(null, Buffer.from(payload), crypto.createPrivateKey(privatePem));
   return 'LIB-' + Buffer.from(payload).toString('base64url') + '.' + sig.toString('base64url');
 }
@@ -55,7 +66,13 @@ function readKey(publicPem, key) {
   try { good = crypto.verify(null, payload, crypto.createPublicKey(publicPem), Buffer.from(m[2], 'base64url')); } catch (e) {}
   if (!good) return { ok: false, error: 'Key is not valid' };
   const [machine, issued, expiry, days, name] = payload.toString().split('|');
-  return { ok: true, machine, issued, expiry, days: +days, name };
+  return { ok: true, machine, issued, expiry, label: /^\d+$/.test(days) ? (+days ? days + ' days' : 'Lifetime') : days, name };
 }
 
-module.exports = { machineId, makeKey, readKey, parseDays, today, addDays, LIFETIME };
+// dd-mm-yyyy hh:mm (bina locale ke — exe mein ICU chhota hota hai)
+function fmtDT(ms) {
+  const d = new Date(ms), p = n => String(n).padStart(2, '0');
+  return p(d.getDate()) + '-' + p(d.getMonth() + 1) + '-' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+
+module.exports = { fmtDT, machineId, makeKey, readKey, parseDuration, expiryMs, today, addDays, LIFETIME };

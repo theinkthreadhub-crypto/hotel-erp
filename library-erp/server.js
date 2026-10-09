@@ -41,15 +41,17 @@ function licenseStatus() {
   const now = Date.now();
   if (st.lastSeen && now < st.lastSeen - 36 * 3600e3) return { ...out, ok: false, reason: 'clock', expiry: k.expiry };
   if (!st.lastSeen || now - st.lastSeen > 60e3) { st.lastSeen = now; writeJson(LICENSE, st); }
-  const daysLeft = Math.round((new Date(k.expiry + 'T00:00:00') - new Date(lic.today() + 'T00:00:00')) / 864e5);
-  if (daysLeft < 0) return { ...out, ok: false, reason: 'expired', expiry: k.expiry };
-  return { ...out, ok: true, expiry: k.expiry, daysLeft, days: k.days, name: k.name, lifetime: k.expiry === lic.LIFETIME };
+  const life = k.expiry === lic.LIFETIME, exp = lic.expiryMs(k.expiry);
+  if (!life && now > exp) return { ...out, ok: false, reason: 'expired', expiryMs: exp };
+  const msLeft = life ? null : exp - now;
+  return { ...out, ok: true, lifetime: life, expiryMs: life ? null : exp, msLeft, serverNow: now,
+    daysLeft: life ? null : Math.floor(msLeft / 864e5), label: k.label, name: k.name };
 }
 function activate(key) {
   const k = lic.readKey(PUBLIC_KEY, key);
   if (!k.ok) throw new Error(k.error);
   if (k.machine !== MACHINE) throw new Error('This key is not for this computer (machine code ' + k.machine + ')');
-  if (k.expiry < lic.today()) throw new Error('This key expired on ' + k.expiry);
+  if (k.expiry !== lic.LIFETIME && lic.expiryMs(k.expiry) < Date.now()) throw new Error('This key has already expired (' + lic.fmtDT(lic.expiryMs(k.expiry)) + ')');
   const st = readJson(LICENSE, {});
   writeJson(LICENSE, { key: String(key).replace(/\s+/g, ''), lastSeen: Math.max(Date.now(), st.lastSeen || 0), activated: new Date().toISOString() });
   return licenseStatus();

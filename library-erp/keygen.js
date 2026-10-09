@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Vendor tool — customer ko activation key banakar dene ke liye. Isse kabhi customer ko na dein.
 //   node keygen.js init                         -> naya key pair (private_key.pem + public_key.pem)
-//   node keygen.js <MACHINE-CODE> <1m|3m|6m|1y|life|all|din> [naam] -> activation key (LibraryKeys.csv mein bhi)
+//   node keygen.js <MACHINE-CODE> <5min|2h|10d|1m|3m|6m|1y|life|all> [naam] -> activation key (LibraryKeys.csv mein bhi)
 //   node keygen.js                              -> poochh kar key banata hai
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const readline = require('readline');
-const { makeKey, parseDays, today, addDays } = require('./license');
+const { makeKey, parseDuration, expiryMs, fmtDT, LIFETIME } = require('./license');
 
 const DIR = process.pkg ? path.dirname(process.execPath) : __dirname;
 const PRIV = path.join(DIR, 'private_key.pem');
@@ -26,12 +26,12 @@ const csv = v => { v = String(v ?? ''); return /[",\n]/.test(v) ? '"' + v.replac
 function gen(machine, days, name) {
   if (!fs.existsSync(PRIV)) throw new Error('private_key.pem not found: ' + PRIV);
   const key = makeKey(fs.readFileSync(PRIV, 'utf8'), machine, days, name);
-  const d = parseDays(days), plan = d ? d + ' days' : 'Lifetime';
-  const till = d ? addDays(today(), d) : 'Lifetime';
+  const plan = parseDuration(days).label, e = key.split('.')[0].slice(4), exp = Buffer.from(e, 'base64url').toString().split('|')[2];
+  const till = exp === LIFETIME ? 'Lifetime' : fmtDT(expiryMs(exp));
   console.log('\nActivation Key (' + plan + ', valid till ' + till + '):\n\n' + key + '\n');
   try {
     if (!fs.existsSync(REG)) fs.writeFileSync(REG, '\ufeffDate,Machine Code,Library,Plan,Valid Till,Activation Key\r\n');
-    fs.appendFileSync(REG, [today(), String(machine).trim().toUpperCase(), name, plan, till, key].map(csv).join(',') + '\r\n');
+    fs.appendFileSync(REG, [fmtDT(Date.now()), String(machine).trim().toUpperCase(), name, plan, till, key].map(csv).join(',') + '\r\n');
   } catch (e) { console.log('(Could not save to LibraryKeys.csv: ' + e.message + ' — close it in Excel if open)'); }
 }
 const ALL = ['1m', '3m', '6m', '1y', 'life'];
@@ -46,9 +46,10 @@ try {
     (async () => {
       try {
         const m = await ask('Machine code (from the customer screen): ');
-        console.log('  1 = 1 month (30 days)\n  2 = 3 months (90 days)\n  3 = 6 months (180 days)\n  4 = 1 year (365 days)\n  5 = Lifetime\n  6 = All plans at once\n  or type a number of days (e.g. 45)');
+        console.log('  1 = 1 month (30 days)\n  2 = 3 months (90 days)\n  3 = 6 months (180 days)\n  4 = 1 year (365 days)\n  5 = Lifetime\n  6 = All plans at once\n  7 = Custom time (minutes / hours / days)\n  or type a number of days (e.g. 45)');
         const c = (await ask('Choose: ')).trim();
-        const d = { 1: '1m', 2: '3m', 3: '6m', 4: '1y', 5: 'life' }[c] || c;
+        let d = { 1: '1m', 2: '3m', 3: '6m', 4: '1y', 5: 'life' }[c] || c;
+        if (c === '7') d = await ask('How long? e.g. 5min, 30min, 2h, 12h, 10d: ');
         const n = await ask('Library name (optional): ');
         (c === '6' ? ALL : [d]).forEach(p => gen(m, p, n));
         console.log('All keys are also saved in LibraryKeys.csv (open with Excel).');
