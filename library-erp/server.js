@@ -8,6 +8,13 @@ const lic = require('./license');
 
 const PORT = +process.env.LIBERP_PORT || 5055;
 const BASE = process.pkg ? path.dirname(process.execPath) : __dirname;
+
+// Koi bhi galti ho to window turant band na ho — message dikhe aur log mein likha jaye
+process.on('uncaughtException', e => {
+  try { fs.appendFileSync(path.join(BASE, 'LibraryERP-error.log'), new Date().toISOString() + ' ' + (e.stack || e) + '\n'); } catch (x) {}
+  console.log('\nERROR: ' + (e.message || e) + '\n\nIs window ki photo vendor ko bhejein. Band karne ke liye Enter dabayein.');
+  process.stdin.resume(); process.stdin.once('data', () => process.exit(1));
+});
 const DATA_DIR = path.join(BASE, 'LibraryData');
 const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const DATA = path.join(DATA_DIR, 'library.json');
