@@ -49,10 +49,10 @@ Data exe ke paas `LibraryData` folder mein rehta hai. Computer badalna ho to ye 
 
 1. `LibraryKeygen.exe` chalayein.
 2. Customer ka machine code daalein.
-3. Din daalein (jaise 30 ya 365).
+3. Plan chunein: `1` = 1 mahina, `2` = 3 mahine, `3` = 6 mahine, `4` = 1 saal, `5` = Lifetime. Ya seedhe din likhein (jaise 45).
 4. Key ban jaayegi. Use copy karke customer ko WhatsApp kar dein.
 
-Command line se: `node keygen.js 3D1EA-73DCE 30 "Library ka naam"`
+Command line se: `node keygen.js 3D1EA-73DCE 1m "Library ka naam"` (`1m`, `3m`, `6m`, `1y`, `life` ya din)
 
 - Key ki expiry key banane ki date se gini jaati hai.
 - Key sirf usi machine code par chalti hai.

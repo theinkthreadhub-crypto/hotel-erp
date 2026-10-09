@@ -910,11 +910,11 @@ function restore(f){
 
 /* ================= LICENSE ================= */
 function licBar(){const e=$('#lic');if(!LIC||!LIC.ok){e.textContent='';return;}
-  e.textContent=`License: ${LIC.daysLeft} din (${dmy(LIC.expiry)})`;e.className='lic'+(LIC.daysLeft<=7?' low':'');}
+  e.textContent=LIC.lifetime?'License: Lifetime':`License: ${LIC.daysLeft} din (${dmy(LIC.expiry)})`;e.className='lic'+(!LIC.lifetime&&LIC.daysLeft<=7?' low':'');}
 function scrLicense(){
   main.innerHTML=title('License / Activation')+`<div class="card" style="max-width:620px"><table class="info">
     <tr><td>Machine code</td><td><b style="font:700 18px Consolas,monospace">${esc(LIC.machine)}</b></td></tr>
-    <tr><td>Valid till</td><td><b>${dmy(LIC.expiry)}</b></td></tr><tr><td>Din bache</td><td><b class="${LIC.daysLeft<=7?'red':'green'}">${LIC.daysLeft}</b></td></tr>
+    ${LIC.lifetime?`<tr><td>Validity</td><td><b class="green">Lifetime</b></td></tr>`:`<tr><td>Valid till</td><td><b>${dmy(LIC.expiry)}</b></td></tr><tr><td>Din bache</td><td><b class="${LIC.daysLeft<=7?'red':'green'}">${LIC.daysLeft}</b></td></tr>`}
     ${LIC.name?`<tr><td>Licensed to</td><td>${esc(LIC.name)}</td></tr>`:''}</table>
     <div class="form" style="margin-top:12px"><label>Renew karne ke liye nayi activation key</label><textarea id="k_key" rows="3" style="font:12px Consolas,monospace"></textarea>
     <div class="btns"><button class="btn" onclick="doActivate(val('k_key'))">Activate (Ctrl+S)</button>${LIC.vendorPhone?`<button class="btn wa" onclick="askKey()">Key ke liye WhatsApp</button>`:''}</div></div></div>`;
@@ -923,7 +923,7 @@ function scrLicense(){
 function askKey(){waOpen(LIC.vendorPhone,`Library ERP activation key chahiye.\nMachine code: ${LIC.machine}${D&&D.settings?'\nLibrary: '+D.settings.name:''}`);}
 async function doActivate(key){
   if(!key){toast('Key paste karein','bad');return;}
-  try{LIC=await api('activate',{key});toast(`Activate ho gaya — ${LIC.daysLeft} din`,'ok');await boot();}
+  try{LIC=await api('activate',{key});toast(`Activate ho gaya — ${LIC.lifetime?'Lifetime':LIC.daysLeft+' din'}`,'ok');await boot();}
   catch(e){toast(e.message,'bad');}
 }
 function showActivate(){
@@ -952,7 +952,7 @@ async function boot(){
   let data=null;try{data=await api('data');}catch(e){toast(e.message,'bad');return;}
   D=migrate(data);if(!data)save();
   drawSide();licBar();
-  if(LIC.daysLeft<=7)toast(`License ${LIC.daysLeft} din mein khatam hoga — renew karein (K)`,'bad');
+  if(!LIC.lifetime&&LIC.daysLeft<=7)toast(`License ${LIC.daysLeft} din mein khatam hoga — renew karein (K)`,'bad');
   go('home');
 }
 setInterval(async()=>{if(!D)return;try{LIC=await api('license');if(!LIC.ok)showActivate();else licBar();}catch(e){}},30*60e3);

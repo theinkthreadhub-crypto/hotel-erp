@@ -35,7 +35,7 @@ function licenseStatus() {
   if (!st.lastSeen || now - st.lastSeen > 60e3) { st.lastSeen = now; writeJson(LICENSE, st); }
   const daysLeft = Math.round((new Date(k.expiry + 'T00:00:00') - new Date(lic.today() + 'T00:00:00')) / 864e5);
   if (daysLeft < 0) return { ...out, ok: false, reason: 'expired', expiry: k.expiry };
-  return { ...out, ok: true, expiry: k.expiry, daysLeft, days: k.days, name: k.name };
+  return { ...out, ok: true, expiry: k.expiry, daysLeft, days: k.days, name: k.name, lifetime: k.expiry === lic.LIFETIME };
 }
 function activate(key) {
   const k = lic.readKey(PUBLIC_KEY, key);

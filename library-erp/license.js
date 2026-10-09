@@ -24,14 +24,25 @@ function machineId() {
   return h.slice(0, 5) + '-' + h.slice(5);
 }
 
-// payload: machine|issued|expiry|days|name
+const LIFETIME = '9999-12-31';
+// 1m / 3m / 6m / 1y / life ya seedhe din (jaise 45)
+const PLANS = { '1m': 30, '3m': 90, '6m': 180, '1y': 365, 'life': 0 };
+function parseDays(v) {
+  v = String(v || '').trim().toLowerCase();
+  if (v in PLANS) return PLANS[v];
+  if (v === 'lifetime') return 0;
+  const d = parseInt(v, 10);
+  if (!(d > 0 && d <= 3650)) throw new Error('Din 1 se 3650 ke beech, ya 1m / 3m / 6m / 1y / life');
+  return d;
+}
+
+// payload: machine|issued|expiry|days|name   (days 0 = lifetime)
 function makeKey(privatePem, machine, days, name) {
   machine = String(machine).trim().toUpperCase();
   if (!/^[0-9A-F]{5}-[0-9A-F]{5}$/.test(machine)) throw new Error('Machine code galat hai (format: XXXXX-XXXXX)');
-  days = parseInt(days, 10);
-  if (!(days > 0 && days <= 3650)) throw new Error('Days 1 se 3650 ke beech hone chahiye');
+  days = parseDays(days);
   const issued = today();
-  const payload = [machine, issued, addDays(issued, days), days, String(name || '').replace(/[|]/g, ' ').slice(0, 40)].join('|');
+  const payload = [machine, issued, days ? addDays(issued, days) : LIFETIME, days, String(name || '').replace(/[|]/g, ' ').slice(0, 40)].join('|');
   const sig = crypto.sign(null, Buffer.from(payload), crypto.createPrivateKey(privatePem));
   return 'LIB-' + Buffer.from(payload).toString('base64url') + '.' + sig.toString('base64url');
 }
@@ -47,4 +58,4 @@ function readKey(publicPem, key) {
   return { ok: true, machine, issued, expiry, days: +days, name };
 }
 
-module.exports = { machineId, makeKey, readKey, today, addDays };
+module.exports = { machineId, makeKey, readKey, parseDays, today, addDays, LIFETIME };
