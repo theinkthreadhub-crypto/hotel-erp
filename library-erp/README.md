@@ -4,16 +4,18 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-- **Fee Master (F):** Fee ka naam, amount aur validity (din) set karein. `30` = 1 mahina. `0` = ek baar wali fee (Admission, Security).
+- **Fee Master (F):** Fee ka naam, amount, validity (din) aur **Order No.** set karein. Order 1 sabse upar dikhta hai. `30` = mahine wali fee. `0` = ek baar wali fee (Admission, Security). "Ek saath kai fee" box mein har line par `Naam, Amount, Din, Order` likhkar sab ek baar mein bana sakte hain.
 - **New Admission (S):** Student ka naam, father, mobile, seat, shift, fee plan. Save karte hi fee dikhti hai aur turant fee le sakte hain.
-- **Fee Collect (C):** Student search karein, mahine daalein. Period apne aap banta hai. Ek baar wali fee, discount, purana baki, partial payment (balance) sab handle hota hai.
+- **Fee Collect (C):** Student search karein. **Mahine tick karein** (Jan, Feb…). Paid mahine hare dikhte hain, due mahine laal. Ek baar wali fee bhi tick karke saath le sakte hain. Discount, purana baki aur partial payment (balance) sab handle hota hai. Receipt aur WhatsApp par likha aata hai kis-kis mahine ki fee di.
+- **Student Record (List mein Enter):** Student ki poori jaankari, kul jama fee, har receipt (date, time, mahine, mode), mahine ka hara/laal chart, aur attendance (aane aur jaane ka time).
 - **Receipt slip:** Library ka naam, address aur contact slip par chhapte hain. Size: 58 mm, 80 mm, A6, A5, A4 (Settings se badlein).
 - **WhatsApp receipt:** Receipt student ke WhatsApp par jaati hai. Bhejne ke liye Send dabana hota hai.
-- **Attendance (A):** Student ID, seat ya mobile likhkar Enter dabayein. Pehli baar IN, doosri baar OUT. Fee due ho to warning aati hai.
+- **Attendance (A):** Student ID, seat ya mobile likhkar Enter dabayein. Pehli baar **Aaya (IN)**, doosri baar **Gaya (OUT)** ka time lagta hai, aur kitni der ruka wo bhi dikhta hai. Time par click karke time badal sakte hain. Fee due ho to warning aati hai.
 - **Attendance Report (M):** Mahine bhar ka P/A grid aur %. Print aur CSV.
-- **Due List (D):** Fee khatam, jaldi khatam hone wali, aur balance baki. WhatsApp reminder ek-ek karke.
+- **Due List (D):** Kis student ke kaun se mahine due hain, aur kitna amount. WhatsApp reminder ek-ek karke.
+- **Fee reminder popup:** ERP kholte hi (din mein ek baar) due students ki list aati hai, WhatsApp button ke saath.
 - **Receipt List (R), Day Book (B):** Reprint, cancel, mode-wise collection, owner ko WhatsApp report.
-- **Bulk Import (I):** Excel se students aur unki fee copy-paste karein, ya CSV file chunein. Pehle preview, phir import.
+- **Bulk Import (I):** **Excel format download** karein, usme students bharein, phir wahi .xlsx file chunein. Preview ke baad import. CSV aur copy-paste bhi chalta hai.
 - **Settings (G):** Library ka naam, contact, address, slip size, footer, shifts.
 - **Backup:**
   - Har din ka local backup `LibraryData\backups` folder mein banta hai (60 din tak).

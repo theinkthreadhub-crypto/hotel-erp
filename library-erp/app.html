@@ -87,6 +87,16 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .agrid td.nm,.agrid th.nm{text-align:left;white-space:nowrap;padding:3px 6px}
 .agrid .p{color:var(--ok);font-weight:700}
 .err td{background:#fff0f0}
+/* month chips */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:6px}
+.mc{display:flex;align-items:flex-start;gap:6px;border:1px solid #cfc7a6;border-radius:4px;padding:6px 8px;background:#fff;cursor:pointer;font-size:13px;margin:0;color:var(--ink)}
+.mc input{width:auto;margin:2px 0 0}
+.mc small{display:block;font-size:11px;color:var(--muted)}
+.mc.paid{background:#e3f4e5;border-color:#9ccfa3;cursor:default}.mc.paid small{color:var(--ok)}
+.mc.due{background:#fdecec;border-color:#f0b4b4}.mc.due small{color:var(--bad)}
+.mc.on{background:var(--hi);border-color:#e0c200;font-weight:600}
+.mc:focus-within{outline:2px solid #f5c400}
+.xgrid{display:flex;flex-wrap:wrap;gap:6px}
 /* modal */
 #modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:50;padding:16px}
 #modal.open{display:flex}
@@ -167,6 +177,15 @@ function migrate(s){
   s=s&&s.settings?s:seed();
   s.settings={...DEF_SET,...s.settings,mail:{...DEF_SET.mail,...(s.settings.mail||{})}};
   ['plans','students','receipts'].forEach(k=>s[k]=s[k]||[]);s.att=s.att||{};s.seq=s.seq||{rcpt:0};
+  // Purana data: period (from-to) se paid mahine banao
+  s.receipts.forEach(r=>{if(!r.mlist)r.mlist=r.from&&r.to?monthsCovered(r.from,r.to):[];});
+  s.students.forEach(st=>{
+    if(!Array.isArray(st.paid)){
+      const P=new Set();s.receipts.filter(r=>r.sid===st.id&&!r.cancel).forEach(r=>r.mlist.forEach(m=>P.add(m)));
+      if(!P.size&&st.validTill&&st.join)monthsCovered(st.join,st.validTill).forEach(m=>P.add(m));
+      st.paid=[...P].sort();syncValid(st);
+    }
+  });
   return s;
 }
 
@@ -194,7 +213,7 @@ const isModal=()=>$('#modal').classList.contains('open');
 function ask(msg,yes='Yes',no='No'){return new Promise(res=>{
   modal('Confirm',`<p style="font-size:15px">${msg}</p><div class="btns"><button class="btn" data-k="Y" autofocus id="ay">${yes} (Y)</button><button class="btn g" data-k="N" id="an">${no} (N)</button></div>`);
   askRes=res;$('#ay').onclick=()=>{askRes=null;closeModal();res(true);};$('#an').onclick=()=>closeModal();});}
-function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(text instanceof Blob?text:new Blob([text],{type:type||'text/plain'}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);}
 const csvCell=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
 const toCsv=rows=>'﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
 
@@ -217,27 +236,58 @@ function words(n){
   return o.join(' ');
 }
 
+/* ================= MONTHS ================= */
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const mName=m=>MON[+m.slice(5)-1]+' '+m.slice(0,4);
+const mAdd=(m,n)=>{let y=+m.slice(0,4),k=+m.slice(5)-1+n;y+=Math.floor(k/12);k=((k%12)+12)%12;return y+'-'+pad(k+1);};
+const mEnd=m=>ymd(new Date(+m.slice(0,4),+m.slice(5),0));
+const curMonth=()=>today().slice(0,7);
+function mRange(a,b){const o=[];for(let m=a;m<=b&&o.length<600;m=mAdd(m,1))o.push(m);return o;}
+// Date range ke mahine: aakhri mahina tab gina jab usme 15+ din cover hon
+function monthsCovered(from,to){
+  if(!from||!to||to<from)return [];
+  let a=from.slice(0,7),b=to.slice(0,7);
+  if(b>a&&+to.slice(8)<15)b=mAdd(b,-1);
+  return mRange(a,b);
+}
+// "Oct 2026 – Dec 2026 (3 mahine)"
+function mText(list){
+  if(!list||!list.length)return '';
+  const L=[...list].sort(),g=[];let st=L[0],pv=L[0];
+  for(const m of L.slice(1)){if(m===mAdd(pv,1)){pv=m;continue;}g.push([st,pv]);st=pv=m;}g.push([st,pv]);
+  return g.map(([a,b])=>a===b?mName(a):`${mName(a)} – ${mName(b)}`).join(', ')+(L.length>1?` (${L.length} mahine)`:'');
+}
+
 /* ================= STUDENT LOGIC ================= */
 const plan=id=>D.plans.find(p=>p.id===id);
 const stu=id=>D.students.find(s=>s.id===id);
-const periodic=()=>D.plans.filter(p=>+p.days>0);
-const oneTime=()=>D.plans.filter(p=>!(+p.days>0));
+const byOrder=(a,b)=>(+a.order||999)-(+b.order||999)||a.name.localeCompare(b.name);
+const plansSorted=()=>D.plans.slice().sort(byOrder);
+const periodic=()=>plansSorted().filter(p=>+p.days>0);
+const oneTime=()=>plansSorted().filter(p=>!(+p.days>0));
 const active=()=>D.students.filter(s=>s.status!=='left');
 function nextCode(){return String(Math.max(1000,...D.students.map(s=>parseInt(s.code,10)||0))+1);}
+// Ek mahine ki fee (90 din wale plan ki fee / 3)
+function monthRate(s,pid){
+  const p=plan(pid||s.planId);if(!p)return 0;
+  const amt=(!pid||pid===s.planId)?+s.fee:+p.amount;
+  return +p.days>31?Math.round(amt*30/p.days):amt;
+}
+function syncValid(s){const p=(s.paid||[]).slice().sort();s.paid=p;s.validTill=p.length?mEnd(p[p.length-1]):'';}
+function unpaidMonths(s){
+  const P=new Set(s.paid||[]);
+  return mRange((s.join||today()).slice(0,7),curMonth()).filter(m=>!P.has(m));
+}
 function stStatus(s){
   if(s.status==='left')return {k:'left',t:'Left'};
-  const t=today(),vt=s.validTill;
-  if(!vt||vt<t){const od=vt?diff(vt,t):Math.max(1,diff(s.join||t,t)+1);return {k:'due',t:vt?`Due ${od} din`:'Fee nahi di',od};}
-  const left=diff(t,vt);
+  const u=unpaidMonths(s);
+  if(u.length)return {k:'due',t:u.length===1?`${mName(u[0])} due`:`${u.length} mahine due`,od:u.length,u};
+  const left=diff(today(),s.validTill);
   if(left<=(+D.settings.expDays||0))return {k:'soon',t:left?left+' din baki':'Aaj last din',left};
   return {k:'ok',t:'Paid',left};
 }
 const tag=s=>{const st=stStatus(s);return `<span class="tag ${st.k}">${esc(st.t)}</span>`+(s.bal>0?` <span class="tag due">Baki ${rs(s.bal)}</span>`:'');};
-function dueAmt(s){
-  const st=stStatus(s),p=plan(s.planId);let a=+s.bal||0;
-  if(st.k==='due'&&p&&+p.days>0)a+=Math.ceil(st.od/p.days)*(+s.fee||0);
-  return a;
-}
+function dueAmt(s){const st=stStatus(s);return (st.k==='due'?st.od*monthRate(s):0)+(+s.bal||0);}
 function findStudents(q,all){
   q=String(q||'').trim().toLowerCase();const list=all?D.students:active();
   if(!q)return list;
@@ -247,8 +297,8 @@ function findStudents(q,all){
 }
 function remindText(s){
   const S=D.settings,st=stStatus(s),amt=dueAmt(s);
-  return `Namaste ${s.name},\n${st.k==='soon'?`Aapki library fee ${dmy(s.validTill)} ko khatam ho rahi hai.`:s.validTill?`Aapki library fee ${dmy(s.validTill)} ko khatam ho chuki hai.`:'Aapki library fee abhi jama nahi hui hai.'}`+
-    `${s.seat?`\nSeat: ${s.seat}`:''}${amt?`\nDue amount: ${rs(amt)}`:''}\nKripya samay par fee jama karein.\n\n- ${S.name}${S.contact?'\n'+S.contact:''}`;
+  const line=st.k==='due'?`Aapki library fee ${mText(st.u)} ki baki hai.`:st.k==='soon'?`Aapki library fee ${dmy(s.validTill)} ko khatam ho rahi hai.`:s.bal>0?'Aapka pichhla balance baki hai.':'Aapki library fee jama hai.';
+  return `Namaste ${s.name},\n${line}${s.seat?`\nSeat: ${s.seat}`:''}${amt?`\nDue amount: ${rs(amt)}`:''}\nKripya samay par fee jama karein.\n\n- ${S.name}${S.contact?'\n'+S.contact:''}`;
 }
 const waRemind=id=>{const s=stu(id);if(s)waOpen(s.mobile,remindText(s));};
 
@@ -269,7 +319,7 @@ const MENU=[
   ['Q','ERP band karein','quit'],
 ];
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
-  daybook:scrDaybook,attrep:scrAttRep,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
+  daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
 let cur='home',gwSel=0,onSave=null,nav=null,keyH=null;
 function go(s,arg){
   if(!D)return;
@@ -283,7 +333,7 @@ function drawSide(){$('#side').innerHTML=`<button onclick="go('home')"><u>Esc</u
   `<div class="keys"><kbd>Enter</kbd> agla field<br><kbd>Ctrl+S</kbd> Save / Accept<br><kbd>↑</kbd><kbd>↓</kbd> list mein chunein<br><kbd>Esc</kbd> wapas</div>`;}
 const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
 const focusEl=(sel)=>setTimeout(()=>{const e=typeof sel==='string'?$(sel):sel;if(e){e.focus();e.select&&e.select();}},30);
-function fields(form){return [...form.querySelectorAll('input,select,textarea')].filter(e=>!e.disabled&&!e.readOnly&&e.type!=='hidden'&&e.type!=='file'&&e.type!=='checkbox'&&e.offsetParent!==null);}
+function fields(form){return [...form.querySelectorAll('input,select,textarea')].filter(e=>!e.disabled&&!e.readOnly&&e.type!=='hidden'&&e.type!=='file'&&(e.type!=='checkbox'||e.closest('.mgrid,.xgrid'))&&e.offsetParent!==null);}
 function navMove(d){const rows=[...main.querySelectorAll('tr[data-id]')];if(!rows.length)return;
   let i=rows.findIndex(r=>r.classList.contains('sel'));i=Math.max(0,Math.min(rows.length-1,(i<0?-1:i)+d));
   rows.forEach(r=>r.classList.remove('sel'));rows[i].classList.add('sel');rows[i].scrollIntoView({block:'nearest'});}
@@ -355,33 +405,53 @@ let planEdit=null;
 function scrPlans(){
   const p=planEdit?plan(planEdit):null;
   const cnt=id=>D.students.filter(s=>s.planId===id&&s.status!=='left').length;
+  const nextOrd=Math.max(0,...D.plans.map(x=>+x.order||0))+1;
   main.innerHTML=title('Fee Master')+
-  `<div class="hint">Har fee ka naam, amount aur validity (din) daalein. <b>30</b> = 1 mahina, <b>90</b> = 3 mahine. <b>0</b> = ek baar wali fee (Admission, Security, Locker).</div>
-  <div class="card form"><h4>${p?'Fee Edit':'Nayi Fee'}</h4><div class="grid">
+  `<div class="hint">Har fee ka naam, amount, validity (din) aur <b>Order No.</b> daalein. Order 1 sabse upar dikhta hai, phir 2, 3…<br>
+   <b>30</b> din = mahine wali fee (receipt par mahine tick hote hain). <b>0</b> = ek baar wali fee (Admission, Security, Locker).</div>
+  <div class="two"><div class="card form"><h4>${p?'Fee Edit':'Nayi Fee'}</h4><div class="grid">
     <div class="w2"><label>Fee ka naam <i>*</i></label><input id="p_name" value="${esc(p?p.name:'')}" placeholder="Monthly Full Day"></div>
     <div><label>Amount (₹) <i>*</i></label><input id="p_amt" type="number" min="0" value="${p?p.amount:''}"></div>
     <div><label>Validity (din)</label><input id="p_days" type="number" min="0" value="${p?p.days:30}"></div>
+    <div><label>Order No.</label><input id="p_ord" type="number" min="1" value="${p?(p.order||''):nextOrd}"></div>
     <div class="w2"><label>Note (optional)</label><input id="p_note" value="${esc(p?p.note||'':'')}" placeholder="Shift / timing / AC"></div>
   </div><div class="btns"><button class="btn" onclick="savePlan()">Save (Ctrl+S)</button>${p?`<button class="btn g" onclick="planEdit=null;scrPlans()">Cancel</button>`:''}</div></div>
-  <div class="card" style="padding:0"><table><thead><tr><th>Fee</th><th class="n">Amount</th><th class="n">Validity</th><th>Type</th><th class="n">Students</th><th></th></tr></thead><tbody>
-  ${D.plans.map(x=>`<tr data-id="${x.id}"><td><b>${esc(x.name)}</b>${x.note?`<br><span class="muted small">${esc(x.note)}</span>`:''}</td><td class="n">${rs(x.amount)}</td>
-    <td class="n">${+x.days>0?x.days+' din':'—'}</td><td>${+x.days>0?'Periodic':'Ek baar'}</td><td class="n">${cnt(x.id)}</td>
+  <div class="card"><h4>Ek saath kai fee banayein</h4>
+    <label>Har line mein: <b>Naam, Amount, Din, Order</b></label>
+    <textarea id="p_bulk" rows="6" style="font:12px Consolas,monospace" placeholder="Monthly Full Day, 800, 30, 1&#10;Monthly Half Day, 500, 30, 2&#10;Admission Fee, 200, 0, 3&#10;Locker, 100, 0, 4"></textarea>
+    <div class="btns"><button class="btn g" onclick="bulkPlans()">Sab add karein</button></div></div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th style="width:80px">Order</th><th>Fee</th><th class="n">Amount</th><th class="n">Validity</th><th>Type</th><th class="n">Students</th><th></th></tr></thead><tbody>
+  ${plansSorted().map(x=>`<tr data-id="${x.id}"><td><input type="number" min="1" value="${x.order||''}" style="width:64px;padding:3px 6px" onchange="setOrder('${x.id}',this.value)"></td>
+    <td><b>${esc(x.name)}</b>${x.note?`<br><span class="muted small">${esc(x.note)}</span>`:''}</td><td class="n">${rs(x.amount)}</td>
+    <td class="n">${+x.days>0?x.days+' din':'—'}</td><td>${+x.days>0?'Mahine wali':'Ek baar'}</td><td class="n">${cnt(x.id)}</td>
     <td class="n"><button class="btn sm g" onclick="planEdit='${x.id}';scrPlans()">Edit</button> <button class="btn sm bad" onclick="delPlan('${x.id}')">Delete</button></td></tr>`).join('')||
-    '<tr><td colspan="6" class="muted">Abhi koi fee nahi. Upar se banayein.</td></tr>'}
+    '<tr><td colspan="7" class="muted">Abhi koi fee nahi. Upar se banayein.</td></tr>'}
   </tbody></table></div>`;
   onSave=savePlan;focusEl('#p_name');
   nav={Enter:id=>{planEdit=id;scrPlans();},F2:id=>{planEdit=id;scrPlans();}};selFirst();
 }
+function setOrder(id,v){const p=plan(id);p.order=Math.max(0,parseInt(v,10)||0)||'';save();scrPlans();}
 async function savePlan(){
-  const name=val('p_name'),amount=num('p_amt'),days=Math.max(0,parseInt(val('p_days'),10)||0),note=val('p_note');
+  const name=val('p_name'),amount=num('p_amt'),days=Math.max(0,parseInt(val('p_days'),10)||0),note=val('p_note'),order=parseInt(val('p_ord'),10)||'';
   if(!name){toast('Fee ka naam daalein','bad');return focusEl('#p_name');}
   if(D.plans.some(x=>x.name.toLowerCase()===name.toLowerCase()&&x.id!==planEdit)){toast('Is naam ki fee pehle se hai','bad');return;}
   if(planEdit){
-    const p=plan(planEdit),old=+p.amount;Object.assign(p,{name,amount,days,note});
+    const p=plan(planEdit),old=+p.amount;Object.assign(p,{name,amount,days,note,order});
     const same=D.students.filter(s=>s.planId===p.id&&s.status!=='left'&&+s.fee===old);
     if(old!==amount&&same.length&&await ask(`${same.length} student ki fee ${rs(old)} hai. Sabki fee ${rs(amount)} kar dein?`))same.forEach(s=>s.fee=amount);
-  }else D.plans.push({id:uid(),name,amount,days,note});
+  }else D.plans.push({id:uid(),name,amount,days,note,order});
   planEdit=null;save();toast('Fee save ho gayi','ok');scrPlans();
+}
+async function bulkPlans(){
+  const lines=$('#p_bulk').value.split(/\r?\n/).map(l=>l.trim()).filter(Boolean),add=[],bad=[];
+  let ord=Math.max(0,...D.plans.map(x=>+x.order||0));
+  lines.forEach((l,i)=>{const [n,a,d,o]=l.split(/\t|,/).map(x=>x.trim());
+    if(!n||isNaN(+a)||a===''){bad.push(i+1);return;}
+    if(D.plans.concat(add).some(x=>x.name.toLowerCase()===n.toLowerCase())){bad.push(i+1);return;}
+    add.push({id:uid(),name:n,amount:+a,days:d===undefined||d===''?30:Math.max(0,parseInt(d,10)||0),order:parseInt(o,10)||++ord,note:''});});
+  if(!add.length){toast('Koi sahi line nahi mili'+(bad.length?` (galat line: ${bad.join(', ')})`:''),'bad');return;}
+  if(!await ask(`${add.length} fee add karein?${bad.length?`<br><span class="red">Line ${bad.join(', ')} skip hogi (galat ya pehle se hai).</span>`:''}`))return;
+  D.plans.push(...add);save();toast(`${add.length} fee add ho gayi`,'ok');scrPlans();
 }
 async function delPlan(id){
   if(D.students.some(s=>s.planId===id)){toast('Is fee par students hain — pehle unka plan badlein','bad');return;}
@@ -414,10 +484,12 @@ function scrStudent(id){
   </div><div class="btns"><button class="btn" onclick="saveStudent()">Save (Ctrl+S)</button><button class="btn g" onclick="go('home')">Cancel (Esc)</button></div></div>
   <div class="card" id="feeprev"></div></div>`;
   const prev=()=>{const p=plan($('#s_plan').value),fee=num('s_fee'),join=val('s_join')||today(),vt=val('s_valid');
-    const from=vt?addDays(vt,1):join;
+    const P=s&&$('#s_valid').readOnly?new Set(s.paid):new Set(monthsCovered(join,vt));
+    const nextM=mRange(join.slice(0,7),mAdd(curMonth(),24)).find(m=>!P.has(m));
     $('#feeprev').innerHTML=`<h4>Fee ki jaankari</h4><table class="info">
       <tr><td>Plan</td><td><b>${esc(p.name)}</b></td></tr><tr><td>Fee</td><td><b style="font-size:18px">${rs(fee)}</b> / ${p.days} din</td></tr>
-      <tr><td>Agli fee period</td><td>${dmy(from)} se ${dmy(addDays(from,p.days-1))}</td></tr>
+      ${P.size?`<tr><td>Paid mahine</td><td>${esc(mText([...P]))}</td></tr>`:''}
+      <tr><td>Agli fee</td><td><b>${nextM?mName(nextM):'—'}</b></td></tr>
       <tr><td>Status</td><td>${vt&&vt>=today()?`<span class="tag ok">Paid till ${dmy(vt)}</span>`:`<span class="tag due">Fee baki</span>`}</td></tr>
       ${oneTime().length?`<tr><td>Ek baar wali fee</td><td>${oneTime().map(o=>esc(o.name)+' '+rs(o.amount)).join('<br>')}</td></tr>`:''}
       ${s&&s.bal?`<tr><td>Purana baki</td><td class="red">${rs(s.bal)}</td></tr>`:''}</table>
@@ -438,10 +510,11 @@ async function saveStudent(id){
   if(v.seat){const c=D.students.find(x=>x!==s&&x.status!=='left'&&x.seat.toLowerCase()===v.seat.toLowerCase()&&(x.shift||'')===(v.shift||''));
     if(c&&!await ask(`Seat ${esc(v.seat)} (${esc(v.shift||'—')}) par pehle se <b>${esc(c.name)}</b> hai. Phir bhi save karein?`))return focusEl('#s_seat');}
   if(s){
-    Object.assign(s,v);if(!$('#s_valid').readOnly)s.validTill=vt;if($('#s_status'))s.status=$('#s_status').value;
+    Object.assign(s,v);if(!$('#s_valid').readOnly&&vt!==(s.validTill||'')){s.paid=monthsCovered(s.join,vt);syncValid(s);}
+    if($('#s_status'))s.status=$('#s_status').value;
     save();toast('Student update ho gaya','ok');go('list');return;
   }
-  const n={id:uid(),...v,validTill:vt,bal:0,status:'active',created:today()};
+  const n={id:uid(),...v,paid:monthsCovered(v.join,vt),bal:0,status:'active',created:today()};syncValid(n);
   D.students.push(n);save();
   if(await ask(`<b>${esc(n.name)}</b> (ID ${esc(n.code)}) save ho gaya.<br>Fee ${rs(n.fee)}. Abhi fee lena hai?`,'Haan, fee lo','Baad mein'))go('collect',n.id);
   else scrStudent();
@@ -453,20 +526,20 @@ function scrList(){
   main.innerHTML=title('Student List',`<button class="btn sm g" onclick="exportStudents()">CSV / Excel Export</button><button class="btn sm g" onclick="go('student')">+ New (S)</button>`)+
   `<div class="card"><div class="row"><input id="q" data-nav placeholder="Search: naam / mobile / ID / seat"><select id="flt" class="fix" style="width:170px">
     ${[['active','Active'],['due','Fee due'],['soon','Jaldi khatam'],['bal','Balance baki'],['left','Left'],['all','Sab']].map(([k,t])=>`<option value="${k}"${k===listFlt?' selected':''}>${t}</option>`).join('')}</select></div>
-    <div class="muted small" style="margin-top:6px"><kbd>↑</kbd><kbd>↓</kbd> chunein · <kbd>Enter</kbd> Fee lo · <kbd>F2</kbd> Edit · <kbd>F9</kbd> WhatsApp reminder</div></div>
-  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Naam</th><th>Mobile</th><th>Seat / Shift</th><th>Plan</th><th class="n">Fee</th><th>Valid till</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+    <div class="muted small" style="margin-top:6px"><kbd>↑</kbd><kbd>↓</kbd> chunein · <kbd>Enter</kbd> Pura record · <kbd>F4</kbd> Fee lo · <kbd>F2</kbd> Edit · <kbd>F9</kbd> WhatsApp reminder</div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Naam</th><th>Mobile</th><th>Seat / Shift</th><th>Plan</th><th class="n">Fee</th><th>Paid till</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
   const draw=()=>{listFlt=$('#flt').value;
     let L=findStudents(val('q'),true).filter(s=>{const k=stStatus(s).k;
       return listFlt==='all'||(listFlt==='left'?k==='left':k!=='left'&&(listFlt==='active'||(listFlt==='bal'?s.bal>0:k===listFlt)));});
     L=L.slice().sort((a,b)=>(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
-    $('#tb').innerHTML=L.map(s=>`<tr data-id="${s.id}"><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b>${s.father?`<br><span class="muted small">S/o ${esc(s.father)}</span>`:''}</td>
+    $('#tb').innerHTML=L.map(s=>`<tr data-id="${s.id}"><td>${esc(s.code)}</td><td><a href="#" onclick="go('record','${s.id}');return false"><b>${esc(s.name)}</b></a>${s.father?`<br><span class="muted small">S/o ${esc(s.father)}</span>`:''}</td>
       <td>${esc(s.mobile)}</td><td>${esc(s.seat||'—')}${s.shift?`<br><span class="muted small">${esc(s.shift)}</span>`:''}</td><td>${esc((plan(s.planId)||{}).name||'')}</td>
-      <td class="n">${rs(s.fee)}</td><td>${dmy(s.validTill)||'—'}</td><td>${tag(s)}</td>
+      <td class="n">${rs(s.fee)}</td><td>${s.validTill?mName(s.validTill.slice(0,7)):'—'}</td><td>${tag(s)}</td>
       <td class="n" style="white-space:nowrap"><button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button> <button class="btn sm g" onclick="go('student','${s.id}')">Edit</button> <button class="btn sm wa" onclick="waRemind('${s.id}')">WA</button> <button class="btn sm bad" onclick="delStudent('${s.id}')">✕</button></td></tr>`).join('')||
       '<tr><td colspan="9" class="muted">Koi student nahi mila.</td></tr>';
     selFirst();};
   $('#q').oninput=draw;$('#flt').onchange=draw;draw();
-  nav={Enter:id=>go('collect',id),F2:id=>go('student',id),F9:waRemind};focusEl('#q');
+  nav={Enter:id=>go('record',id),F4:id=>go('collect',id),F2:id=>go('student',id),F9:waRemind};focusEl('#q');
 }
 async function delStudent(id){
   const s=stu(id);
@@ -480,6 +553,51 @@ function exportStudents(){
     .concat(D.students.map(s=>[s.code,s.name,s.father,s.mobile,s.address,s.seat,s.shift,(plan(s.planId)||{}).name,s.fee,s.join,s.validTill,s.bal||0,s.status]));
   dl(`students_${today()}.csv`,toCsv(rows),'text/csv');
 }
+
+/* ================= STUDENT RECORD ================= */
+let recMonth=null;
+function scrRecord(id){
+  const s=stu(id);if(!s){go('list');return;}
+  $('#scr').textContent='Student Record';recMonth=recMonth||curMonth();
+  const st=stStatus(s),R=D.receipts.filter(r=>r.sid===s.id).slice().sort((a,b)=>b.no-a.no),ok=R.filter(r=>!r.cancel);
+  const paidBy={};ok.forEach(r=>(r.mlist||[]).forEach(m=>paidBy[m]=r));
+  const P=new Set(s.paid||[]),cm=curMonth(),jm=(s.join||today()).slice(0,7);
+  const months=mRange(jm<mAdd(cm,-23)?mAdd(cm,-23):jm,mAdd(cm,3));
+  const fee=sum(ok,'fee'),ext=sum(ok,'extraAmt'),disc=sum(ok,'disc'),paid=sum(ok,'paid');
+  main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Fee lo (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button>`)+
+  (st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due:</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Baki ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
+    <button class="btn sm wa" style="margin-left:8px" onclick="waRemind('${s.id}')">WhatsApp reminder bhejein</button></div>`:'')+
+  `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
+    <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
+    <tr><td>Mobile</td><td>${esc(s.mobile)}</td></tr>${s.address?`<tr><td>Address</td><td>${esc(s.address)}</td></tr>`:''}
+    <tr><td>Seat / Shift</td><td>${esc(s.seat||'—')} ${s.shift?'/ '+esc(s.shift):''}</td></tr>
+    <tr><td>Plan / Fee</td><td>${esc((plan(s.planId)||{}).name||'')} — <b>${rs(s.fee)}</b></td></tr>
+    <tr><td>Join date</td><td>${dmy(s.join)}</td></tr><tr><td>Paid till</td><td><b>${s.validTill?mName(s.validTill.slice(0,7))+' ('+dmy(s.validTill)+')':'—'}</b></td></tr>
+    ${s.note?`<tr><td>Note</td><td>${esc(s.note)}</td></tr>`:''}</table></div>
+  <div class="card"><h4>Fee ka hisaab</h4><div class="tot">
+    <div><span>Kul receipts</span><b>${ok.length}</b></div><div><span>Mahine ki fee</span><b>${rs(fee)}</b></div>
+    ${ext?`<div><span>Ek baar wali fee</span><b>${rs(ext)}</b></div>`:''}${disc?`<div><span>Discount</span><b>${rs(disc)}</b></div>`:''}
+    <div class="big"><span>Kul jama</span><span>${rs(paid)}</span></div><div><span>Baki balance</span><b class="${s.bal>0?'red':''}">${rs(s.bal||0)}</b></div>
+    <div><span>Aakhri fee</span><b>${ok[0]?dmy(ok[0].date)+' · '+rs(ok[0].paid)+' · '+esc(ok[0].mode):'—'}</b></div></div></div></div>
+  <div class="card"><h4>Mahine (hara = paid, laal = due)</h4><div class="mgrid">${months.map(m=>{const r=paidBy[m];
+    return P.has(m)?`<div class="mc paid"><span>${mName(m)}<small>✓ ${r?'#'+r.no+' · '+dmy(r.date):'Paid'}</small></span></div>`:
+      `<div class="mc${m<=cm?' due':''}"><span>${mName(m)}<small>${m<=cm?'Due':'—'}</small></span></div>`;}).join('')}</div></div>
+  <div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Fee history (sabhi receipts)</h4><table><thead><tr><th>No</th><th>Date / Time</th><th>Mahine</th><th>Ek baar wali</th><th class="n">Total</th><th class="n">Diya</th><th>Mode</th><th class="n">Baki</th><th>Note</th><th></th></tr></thead><tbody>
+    ${R.map(r=>`<tr class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)} <span class="muted small">${esc(r.time||'')}</span></td><td class="small">${esc(mText(r.mlist)||'—')}</td>
+      <td class="small">${esc(rExtras(r).map(x=>x.name+' '+rs(x.amt)).join(', '))}</td><td class="n">${rs(r.total)}</td><td class="n"><b>${rs(r.paid)}</b></td><td>${esc(r.mode)}</td>
+      <td class="n">${r.bal?rs(r.bal):''}</td><td class="small">${esc(r.note||'')}${r.cancel?' <b>(Cancel)</b>':''}</td>
+      <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">Abhi koi receipt nahi.</td></tr>'}
+  </tbody></table></div>
+  <div class="card" style="padding:0"><h4 style="padding:10px 12px 0;display:flex;gap:10px;align-items:center">Attendance (aane / jaane ka time) <input type="month" id="rc_m" value="${recMonth}" style="width:auto;padding:2px 6px"></h4><div id="rc_att"></div></div>`;
+  const drawA=()=>{recMonth=$('#rc_m').value||curMonth();
+    const days=mRange(recMonth,recMonth).length?[...Array(new Date(+recMonth.slice(0,4),+recMonth.slice(5),0).getDate())].map((_,i)=>recMonth+'-'+pad(i+1)):[];
+    const L=days.filter(d=>(D.att[d]||{})[s.id]).map(d=>[d,D.att[d][s.id]]);
+    $('#rc_att').innerHTML=`<p style="margin:6px 12px">Is mahine present: <b class="green">${L.length}</b> din</p><table><thead><tr><th>Date</th><th>Aaya (In)</th><th>Gaya (Out)</th><th>Kitni der</th></tr></thead><tbody>
+      ${L.reverse().map(([d,a])=>`<tr><td>${dmy(d)}</td><td>${esc(a.in||'—')}</td><td>${esc(a.out||'—')}</td><td>${dur(a.in,a.out)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Is mahine koi attendance nahi.</td></tr>'}</tbody></table>`;};
+  $('#rc_m').onchange=drawA;drawA();
+  keyH=e=>{const k={F4:()=>go('collect',s.id),F2:()=>go('student',s.id),F9:()=>waRemind(s.id)}[e.key];if(k){e.preventDefault();k();return true;}return false;};
+}
+function dur(a,b){if(!a||!b)return '';const [h1,m1]=a.split(':').map(Number),[h2,m2]=b.split(':').map(Number);let m=(h2*60+m2)-(h1*60+m1);if(m<0)return '';return Math.floor(m/60)+'h '+pad(m%60)+'m';}
 
 /* ================= FEE COLLECT ================= */
 let colSid=null;
@@ -505,17 +623,24 @@ function scrCollect(sid){
 function drawCollect(){
   const s=stu(colSid);if(!s)return;
   const per=periodic(),one=oneTime(),hist=D.receipts.filter(r=>r.sid===s.id).slice(-6).reverse();
-  const from=s.validTill?addDays(s.validTill,1):(s.join||today());
   const first=!D.receipts.some(r=>r.sid===s.id&&!r.cancel);
+  const P=new Set(s.paid||[]),cm=curMonth(),due=unpaidMonths(s);
+  const paidBy={};D.receipts.filter(r=>r.sid===s.id&&!r.cancel).forEach(r=>(r.mlist||[]).forEach(m=>paidBy[m]=r.no));
+  const last=(s.paid||[]).slice(-1)[0]||cm;
+  const jm=(s.join||today()).slice(0,7);let start=[mAdd(cm,-5),due[0]||cm].sort()[0];if(start<jm)start=jm;
+  const months=mRange(start,mAdd(last>cm?last:cm,12));
+  const pre=due.length?due:[months.find(m=>!P.has(m)&&m>=cm)];
   $('#colbody').innerHTML=`<div class="two"><div class="card form"><h4>Receipt — ${esc(s.name)}</h4><div class="grid">
     <div><label>Receipt date</label><input id="c_date" type="date" value="${today()}"></div>
-    <div class="w2"><label>Fee head</label><select id="c_plan">${per.map(p=>`<option value="${p.id}"${p.id===s.planId?' selected':''}>${esc(p.name)} (${p.days} din)</option>`).join('')}</select></div>
-    <div><label>Kitne mahine / period</label><input id="c_months" type="number" min="0" value="1"></div>
-    <div><label>Period from</label><input id="c_from" type="date" value="${from}"></div>
-    <div><label>Period to</label><input id="c_to" type="date"></div>
-    <div><label>Fee amount (₹)</label><input id="c_fee" type="number" min="0"></div>
-    <div><label>Ek baar wali fee</label><select id="c_extra"><option value="">— Nahi —</option>${one.map(p=>`<option value="${p.id}">${esc(p.name)} — ${rs(p.amount)}</option>`).join('')}</select></div>
-    <div><label>Uska amount (₹)</label><input id="c_extraamt" type="number" min="0" value="0"></div>
+    <div class="w2"><label>Fee head</label><select id="c_plan">${per.map(p=>`<option value="${p.id}"${p.id===s.planId?' selected':''}>${esc(p.name)} — ${rs(monthRate(s,p.id))}/mahina</option>`).join('')}</select></div>
+  </div>
+  <label style="margin-top:10px">Kis mahine ki fee? — tick karein (<kbd>Space</kbd> tick, <kbd>←</kbd><kbd>→</kbd> agla mahina)</label>
+  <div class="mgrid">${months.map(m=>P.has(m)?`<label class="mc paid"><input type="checkbox" checked disabled><span>${mName(m)}<small>✓ Paid${paidBy[m]?' #'+paidBy[m]:''}</small></span></label>`:
+    `<label class="mc${m<=cm?' due':''}${pre.includes(m)?' on':''}"><input type="checkbox" data-m="${m}"${pre.includes(m)?' checked':''}><span>${mName(m)}<small>${m<=cm?'Due':'Advance'}</small></span></label>`).join('')}</div>
+  ${one.length?`<label style="margin-top:10px">Ek baar wali fee</label><div class="xgrid">${one.map((p,i)=>`<label class="mc${first&&!P.size&&!i?' on':''}"><input type="checkbox" data-x="${p.id}"${first&&!P.size&&!i?' checked':''}><span>${esc(p.name)}<small>${rs(p.amount)}</small></span></label>`).join('')}</div>`:''}
+  <div class="grid" style="margin-top:10px">
+    <div><label>Mahine ki fee (₹)</label><input id="c_fee" type="number" min="0"></div>
+    <div><label>Ek baar wali fee (₹)</label><input id="c_extraamt" type="number" min="0" value="0"></div>
     <div><label>Discount (₹)</label><input id="c_disc" type="number" min="0" value="0"></div>
     <div><label>Received (₹) <i>*</i></label><input id="c_paid" type="number" min="0"></div>
     <div><label>Mode</label><select id="c_mode">${MODES.map(m=>`<option>${m}</option>`).join('')}</select></div>
@@ -527,60 +652,67 @@ function drawCollect(){
     <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
     <tr><td>Mobile</td><td>${esc(s.mobile)}</td></tr><tr><td>Seat / Shift</td><td>${esc(s.seat||'—')} ${s.shift?'/ '+esc(s.shift):''}</td></tr>
     <tr><td>Plan / Fee</td><td>${esc((plan(s.planId)||{}).name||'')} — <b>${rs(s.fee)}</b></td></tr>
-    <tr><td>Join date</td><td>${dmy(s.join)}</td></tr><tr><td>Paid till</td><td><b>${dmy(s.validTill)||'—'}</b></td></tr>
+    <tr><td>Join date</td><td>${dmy(s.join)}</td></tr><tr><td>Paid till</td><td><b>${s.validTill?mName(s.validTill.slice(0,7)):'—'}</b></td></tr>
+    ${due.length?`<tr><td>Due mahine</td><td class="red">${esc(mText(due))}</td></tr>`:''}
     <tr><td>Purana baki</td><td class="${s.bal>0?'red':''}">${rs(s.bal||0)}</td></tr></table>
-    <div class="btns"><button class="btn sm g" onclick="go('student','${s.id}')">Edit</button><button class="btn sm wa" onclick="waRemind('${s.id}')">Reminder</button></div></div>
-  <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>Period</th><th class="n">Paid</th></tr></thead><tbody>
-    ${hist.map(r=>`<tr class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)}</td><td class="small">${r.from?dmy(r.from)+' – '+dmy(r.to):esc(r.extra||'—')}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Pehli receipt</td></tr>'}
+    <div class="btns"><button class="btn sm g" onclick="go('record','${s.id}')">Pura record</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit</button><button class="btn sm wa" onclick="waRemind('${s.id}')">Reminder</button></div></div>
+  <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>Mahine</th><th class="n">Paid</th></tr></thead><tbody>
+    ${hist.map(r=>`<tr class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)}</td><td class="small">${esc(mText(r.mlist)||r.extra||'—')}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">Pehli receipt</td></tr>'}
   </tbody></table></div></div></div>`;
   let paidTouched=false;
-  const feeOf=pid=>pid===s.planId?+s.fee:+(plan(pid)||{}).amount||0;
-  const tot=()=>{const fee=num('c_fee'),ex=num('c_extraamt'),dc=num('c_disc'),ob=+s.bal||0,t=Math.max(0,fee+ex+ob-dc);
+  const picked=()=>[...main.querySelectorAll('.mgrid input[data-m]:checked')].map(e=>e.dataset.m);
+  const extras=()=>[...main.querySelectorAll('.xgrid input[data-x]:checked')].map(e=>plan(e.dataset.x)).filter(Boolean);
+  const tot=()=>{const fee=num('c_fee'),ex=num('c_extraamt'),dc=num('c_disc'),ob=+s.bal||0,t=Math.max(0,fee+ex+ob-dc),ml=picked();
     if(!paidTouched)$('#c_paid').value=t;const paid=num('c_paid');
-    $('#c_tot').innerHTML=`<div><span>Fee</span><b>${rs(fee)}</b></div>${ex?`<div><span>Ek baar wali fee</span><b>${rs(ex)}</b></div>`:''}${ob?`<div><span>Purana baki</span><b>${rs(ob)}</b></div>`:''}
+    $('#c_tot').innerHTML=`${ml.length?`<div><span>Mahine: ${esc(mText(ml))}</span></div>`:''}<div><span>Mahine ki fee</span><b>${rs(fee)}</b></div>${ex?`<div><span>${esc(extras().map(p=>p.name).join(', ')||'Ek baar wali fee')}</span><b>${rs(ex)}</b></div>`:''}${ob?`<div><span>Purana baki</span><b>${rs(ob)}</b></div>`:''}
       ${dc?`<div><span>Discount</span><b>− ${rs(dc)}</b></div>`:''}<div class="big"><span>Total</span><span>${rs(t)}</span></div>
       <div><span>Received</span><b class="green">${rs(paid)}</b></div><div><span>Balance (baki)</span><b class="${t-paid>0?'red':''}">${rs(t-paid)}</b></div>`;};
-  const period=()=>{const p=plan(val('c_plan')),m=Math.max(0,parseInt(val('c_months'),10)||0),f=val('c_from');
-    $('#c_to').value=m&&f&&p?addDays(f,p.days*m-1):'';$('#c_fee').value=feeOf(p&&p.id)*m;tot();};
-  $('#c_plan').onchange=period;$('#c_months').oninput=period;$('#c_from').oninput=period;
-  $('#c_extra').onchange=()=>{$('#c_extraamt').value=(plan(val('c_extra'))||{}).amount||0;tot();};
+  const recalc=()=>{main.querySelectorAll('.mgrid input[data-m],.xgrid input[data-x]').forEach(e=>e.closest('.mc').classList.toggle('on',e.checked));
+    $('#c_fee').value=monthRate(s,val('c_plan'))*picked().length;$('#c_extraamt').value=sum(extras(),'amount');tot();};
+  main.querySelectorAll('.mgrid input[data-m],.xgrid input[data-x]').forEach(e=>e.onchange=recalc);
+  $('#c_plan').onchange=recalc;
   ['c_fee','c_extraamt','c_disc'].forEach(i=>$('#'+i).addEventListener('input',tot));
   $('#c_paid').addEventListener('input',()=>{paidTouched=true;tot();});
-  if(first&&!s.validTill&&one.length){$('#c_extra').value=one[0].id;$('#c_extraamt').value=one[0].amount;}
-  period();onSave=saveReceipt;focusEl('#c_months');
+  keyH=e=>{const a=document.activeElement;if(!a||a.type!=='checkbox'||!a.closest('.mgrid,.xgrid'))return false;
+    if(e.key==='ArrowRight'||e.key==='ArrowLeft'){e.preventDefault();const L=[...main.querySelectorAll('.mgrid input:not([disabled]),.xgrid input')],i=L.indexOf(a);
+      const n=L[i+(e.key==='ArrowRight'?1:-1)];if(n)n.focus();return true;}
+    return false;};
+  recalc();onSave=saveReceipt;focusEl(main.querySelector('.mgrid input[data-m]')||'#c_fee');
 }
 async function saveReceipt(){
   const s=stu(colSid);if(!s)return;
-  const p=plan(val('c_plan')),months=Math.max(0,parseInt(val('c_months'),10)||0),ex=plan(val('c_extra'));
-  const from=months?val('c_from'):'',to=months?val('c_to'):'';
-  if(months&&!p){toast('Fee Master mein periodic fee banayein','bad');return;}
-  if(months&&(!from||!to||to<from)){toast('Period ki date sahi karein','bad');return focusEl('#c_from');}
-  const fee=num('c_fee'),extraAmt=ex?num('c_extraamt'):0,disc=num('c_disc'),oldBal=+s.bal||0,total=Math.max(0,fee+extraAmt+oldBal-disc),paid=num('c_paid');
+  const p=plan(val('c_plan')),mlist=[...main.querySelectorAll('.mgrid input[data-m]:checked')].map(e=>e.dataset.m).sort();
+  const ex=[...main.querySelectorAll('.xgrid input[data-x]:checked')].map(e=>plan(e.dataset.x)).filter(Boolean);
+  if(mlist.length&&!p){toast('Fee Master mein mahine wali fee banayein','bad');return;}
+  const fee=num('c_fee'),extraAmt=num('c_extraamt'),disc=num('c_disc'),oldBal=+s.bal||0,total=Math.max(0,fee+extraAmt+oldBal-disc),paid=num('c_paid');
+  if(!mlist.length&&!ex.length&&!oldBal&&!await ask('Koi mahina ya fee tick nahi hai. Phir bhi receipt banayein?'))return;
   if(paid<=0&&!await ask('Received ₹0 hai. Phir bhi receipt banayein?'))return focusEl('#c_paid');
   if(paid>total&&!await ask(`Received (${rs(paid)}) total (${rs(total)}) se zyada hai. Aage badhein?`))return focusEl('#c_paid');
   const r={id:uid(),no:++D.seq.rcpt,date:val('c_date')||today(),time:nowTime(),sid:s.id,code:s.code,name:s.name,
-    head:months?p.name:'',months,from,to,fee,extra:ex?ex.name:'',extraAmt,disc,oldBal,total,paid,bal:r2(total-paid),mode:val('c_mode'),note:val('c_note'),
+    head:mlist.length?p.name:'',mlist,months:mlist.length,from:mlist.length?mlist[0]+'-01':'',to:mlist.length?mEnd(mlist[mlist.length-1]):'',fee,
+    extras:ex.map(x=>({name:x.name,amt:+x.amount})),extra:ex.map(x=>x.name).join(', '),extraAmt,disc,oldBal,total,paid,bal:r2(total-paid),mode:val('c_mode'),note:val('c_note'),
     prevValid:s.validTill||'',prevBal:oldBal};
-  D.receipts.push(r);s.bal=r.bal;if(to&&to>(s.validTill||''))s.validTill=to;
+  D.receipts.push(r);s.bal=r.bal;s.paid=[...new Set([...(s.paid||[]),...mlist])];syncValid(s);
   save();toast(`Receipt #${r.no} save ho gayi`,'ok');
   if(D.settings.autoPrint)printReceipt(r.id);
   if(D.settings.autoWa)waReceipt(r.id);
   scrCollect();afterReceipt(r);
 }
 function afterReceipt(r){
-  modal(`Receipt #${r.no} — ${r.name}`,`<p style="font-size:16px">Received <b>${rs(r.paid)}</b> (${esc(r.mode)})${r.to?` · Valid till <b>${dmy(r.to)}</b>`:''}${r.bal?` · <span class="red">Baki ${rs(r.bal)}</span>`:''}</p>
+  modal(`Receipt #${r.no} — ${r.name}`,`<p style="font-size:16px">Received <b>${rs(r.paid)}</b> (${esc(r.mode)})${r.mlist&&r.mlist.length?` · Mahine: <b>${esc(mText(r.mlist))}</b>`:''}${r.bal?` · <span class="red">Baki ${rs(r.bal)}</span>`:''}</p>
     <div class="btns"><button class="btn" data-k="P" onclick="printReceipt('${r.id}')">Print (P)</button><button class="btn wa" data-k="W" onclick="waReceipt('${r.id}')">WhatsApp (W)</button>
     <button class="btn g" data-k="N" autofocus onclick="scrCollect()">Agla student (N)</button><button class="btn g" data-k="H" onclick="go('home')">Gateway (H)</button></div>`);
 }
 function rcptText(r){
   const S=D.settings,s=stu(r.sid)||{},L=[`*${S.name}*`,`Fee Receipt No: ${r.no}${r.cancel?' (CANCELLED)':''}`,`Date: ${dmy(r.date)}`,'',`Name: ${r.name} (ID ${r.code})`];
   if(s.seat)L.push(`Seat: ${s.seat}${s.shift?' | '+s.shift:''}`);
-  if(r.months)L.push(`${r.head}: ${rs(r.fee)}`,`Period: ${dmy(r.from)} to ${dmy(r.to)}`);else if(r.fee)L.push(`Fee: ${rs(r.fee)}`);
-  if(r.extraAmt)L.push(`${r.extra}: ${rs(r.extraAmt)}`);if(r.oldBal)L.push(`Purana baki: ${rs(r.oldBal)}`);if(r.disc)L.push(`Discount: -${rs(r.disc)}`);
-  L.push('',`*Received: ${rs(r.paid)}* (${r.mode})`);if(r.bal)L.push(`Balance: ${rs(r.bal)}`);if(r.to)L.push(`*Valid till: ${dmy(r.to)}*`);
+  if(r.mlist&&r.mlist.length)L.push(`${r.head}: ${rs(r.fee)}`,`*Fee mahine: ${mText(r.mlist)}*`);else if(r.fee)L.push(`Fee: ${rs(r.fee)}`);
+  rExtras(r).forEach(x=>L.push(`${x.name}: ${rs(x.amt)}`));if(r.oldBal)L.push(`Purana baki: ${rs(r.oldBal)}`);if(r.disc)L.push(`Discount: -${rs(r.disc)}`);
+  L.push('',`*Received: ${rs(r.paid)}* (${r.mode})`);if(r.bal)L.push(`Balance: ${rs(r.bal)}`);if(r.to)L.push(`Valid till: ${dmy(r.to)}`);
   L.push('',S.footer);if(S.contact)L.push(`Contact: ${S.contact}`);
   return L.filter(x=>x!==undefined).join('\n');
 }
+const rExtras=r=>r.extras&&r.extras.length?r.extras:r.extraAmt?[{name:r.extra||'Ek baar wali fee',amt:r.extraAmt}]:[];
 const waReceipt=id=>{const r=D.receipts.find(x=>x.id===id);const s=stu(r.sid);waOpen(s&&s.mobile,rcptText(r));};
 
 /* ================= PRINT ================= */
@@ -589,8 +721,8 @@ function printHtml(html,page){$('#print').innerHTML=`<style>@page{${page}}</styl
 function rcptHtml(r){
   const S=D.settings,s=stu(r.sid)||{},big=!['58','80'].includes(S.slip);
   const L=[];
-  if(r.months||r.fee)L.push([esc(r.head||'Fee')+(r.months>1?` × ${r.months}`:'')+(r.from?`<br><small>${dmy(r.from)} to ${dmy(r.to)}</small>`:''),r.fee]);
-  if(r.extraAmt)L.push([esc(r.extra),r.extraAmt]);if(r.oldBal)L.push(['Purana baki',r.oldBal]);if(r.disc)L.push(['Discount',-r.disc]);
+  if(r.months||r.fee)L.push([esc(r.head||'Fee')+(r.months>1?` × ${r.months}`:'')+(r.mlist&&r.mlist.length?`<br><small>${esc(mText(r.mlist))}</small>`:''),r.fee]);
+  rExtras(r).forEach(x=>L.push([esc(x.name),x.amt]));if(r.oldBal)L.push(['Purana baki',r.oldBal]);if(r.disc)L.push(['Discount',-r.disc]);
   return `<div class="rcpt ${big?'big ':''}w${S.slip}">
     <div class="c h">${esc(S.name)}</div>${S.address?`<div class="c">${esc(S.address)}</div>`:''}${S.contact?`<div class="c">Mob: ${esc(S.contact)}</div>`:''}
     <div class="c tt">FEE RECEIPT${r.cancel?' — CANCELLED':''}</div>
@@ -602,7 +734,7 @@ function rcptHtml(r){
     <tfoot><tr class="bg"><td>Total</td><td class="r">${rs(r.total)}</td></tr><tr><td>Received (${esc(r.mode)})</td><td class="r"><b>${rs(r.paid)}</b></td></tr>
     ${r.bal?`<tr><td>Balance</td><td class="r">${rs(r.bal)}</td></tr>`:''}</tfoot></table>
     <div style="margin-top:3px">Rupees ${words(r.paid)} only</div>
-    ${r.to?`<div class="c vt">Valid till: <b>${dmy(r.to)}</b></div>`:''}${r.note?`<div>Note: ${esc(r.note)}</div>`:''}
+    ${r.mlist&&r.mlist.length?`<div class="c vt">Fee mahine: <b>${esc(mText(r.mlist))}</b></div>`:''}${r.note?`<div>Note: ${esc(r.note)}</div>`:''}
     ${big?`<div class="sign"><span>Student</span><span>For ${esc(S.name)}</span></div>`:''}
     <div class="c ft">${esc(S.footer)}</div></div>`;
 }
@@ -616,19 +748,29 @@ function scrAtt(){
   main.innerHTML=title('Attendance',`Date <input type="date" id="a_date" value="${attDate}"><button class="btn sm g" onclick="go('attrep')">Month Report (M)</button>`)+
   `<div class="card"><label>Student ID / Seat / Mobile likh kar <kbd>Enter</kbd> — pehli baar IN, doosri baar OUT</label>
     <input id="a_scan" class="scan" autocomplete="off" placeholder="Jaise 1001"><div id="a_msg" style="margin-top:8px;font-size:16px;min-height:22px"></div></div>
-  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Naam</th><th>Seat / Shift</th><th>IN</th><th>OUT</th><th>Status</th><th></th></tr></thead><tbody id="a_tb"></tbody></table></div>`;
+  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Naam</th><th>Seat / Shift</th><th>Aaya (In)</th><th>Gaya (Out)</th><th>Kitni der</th><th>Status</th><th></th></tr></thead><tbody id="a_tb"></tbody></table></div>`;
   $('#a_date').onchange=()=>{attDate=$('#a_date').value||today();drawAtt();};
   $('#a_scan').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();attScan($('#a_scan').value);$('#a_scan').value='';}};
   drawAtt();focusEl('#a_scan');
 }
 function drawAtt(){
-  const day=D.att[attDate]||{},L=active().slice().sort((a,b)=>(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
-  const P=L.filter(s=>day[s.id]).length;
-  $('#a_tb').innerHTML=L.map(s=>{const a=day[s.id];return `<tr><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b> ${stStatus(s).k==='due'?'<span class="tag due">Fee due</span>':''}</td>
-    <td>${esc(s.seat||'—')} ${s.shift?'<span class="muted small">'+esc(s.shift)+'</span>':''}</td><td>${a?esc(a.in||'✓'):''}</td><td>${a?esc(a.out||''):''}</td>
+  const day=D.att[attDate]||{},L=active().slice().sort((a,b)=>(day[b.id]?1:0)-(day[a.id]?1:0)||(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
+  const P=L.filter(s=>day[s.id]).length,inside=L.filter(s=>day[s.id]&&!day[s.id].out).length;
+  $('#a_tb').innerHTML=`<tr><td colspan="8" class="muted">Present: <b class="green">${P}</b> · Abhi andar: <b>${inside}</b> · Absent: <b class="red">${L.length-P}</b> · Total: ${L.length}</td></tr>`+
+  L.map(s=>{const a=day[s.id];return `<tr><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b> ${stStatus(s).k==='due'?'<span class="tag due">Fee due</span>':''}</td>
+    <td>${esc(s.seat||'—')} ${s.shift?'<span class="muted small">'+esc(s.shift)+'</span>':''}</td>
+    <td>${a?`<a href="#" title="Time badlein" onclick="attEdit('${s.id}','in');return false"><b class="green">${esc(a.in||'—')}</b></a>`:''}</td>
+    <td>${a?(a.out?`<a href="#" title="Time badlein" onclick="attEdit('${s.id}','out');return false"><b>${esc(a.out)}</b></a>`:'<span class="tag soon">Andar hai</span>'):''}</td>
+    <td>${a?dur(a.in,a.out):''}</td>
     <td>${a?'<span class="tag ok">Present</span>':'<span class="tag left">Absent</span>'}</td>
-    <td class="n"><button class="btn sm ${a?'g':'ok'}" onclick="attToggle('${s.id}')">${a?'Absent karein':'Present'}</button></td></tr>`;}).join('')||'<tr><td colspan="7" class="muted">Koi active student nahi.</td></tr>';
-  $('#a_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="7" class="muted">Present: <b class="green">${P}</b> · Absent: <b class="red">${L.length-P}</b> · Total: ${L.length}</td></tr>`);
+    <td class="n" style="white-space:nowrap">${!a?`<button class="btn sm ok" onclick="attToggle('${s.id}')">Present (In)</button>`:
+      `${a.out?'':`<button class="btn sm" onclick="attMark('${s.id}')">Out</button> `}<button class="btn sm g" onclick="attToggle('${s.id}')">Absent</button>`}</td></tr>`;}).join('')||'<tr><td colspan="8" class="muted">Koi active student nahi.</td></tr>';
+}
+function attEdit(id,k){
+  const a=(D.att[attDate]||{})[id];if(!a)return;
+  const v=prompt(`${k==='in'?'Aane':'Jaane'} ka time (HH:MM, 24 ghante)`,a[k]||nowTime());if(v===null)return;
+  if(v&&!/^([01]?\d|2[0-3]):[0-5]\d$/.test(v.trim())){toast('Time aise likhein: 09:30 ya 17:45','bad');return;}
+  a[k]=v.trim()?v.trim().padStart(5,'0'):'';save();drawAtt();
 }
 function attScan(q){
   q=String(q||'').trim();if(!q)return;
@@ -643,8 +785,8 @@ function attScan(q){
 }
 function attMark(id){
   const s=stu(id),day=D.att[attDate]=D.att[attDate]||{},t=nowTime(),msg=$('#a_msg');let txt;
-  if(!day[id]){day[id]={in:t,out:''};txt=`<span class="green">IN ${t}</span>`;}
-  else if(!day[id].out){day[id].out=t;txt=`<span style="color:var(--bar);font-weight:600">OUT ${t}</span>`;}
+  if(!day[id]){day[id]={in:t,out:''};txt=`<span class="green">Aaya (IN) ${t}</span>`;}
+  else if(!day[id].out){day[id].out=t;txt=`<span style="color:var(--bar);font-weight:600">Gaya (OUT) ${t} · ${dur(day[id].in,t)}</span>`;}
   else{txt=`<span class="muted">Pehle hi IN ${day[id].in} / OUT ${day[id].out}</span>`;}
   const st=stStatus(s);
   msg.innerHTML=`<b>${esc(s.code)} — ${esc(s.name)}</b> ${txt}${st.k==='due'?` <span class="tag due">Fee due! ${dueAmt(s)?rs(dueAmt(s)):''}</span>`:st.k==='soon'?` <span class="tag soon">${esc(st.t)}</span>`:''}`;
@@ -658,7 +800,7 @@ function attToggle(id){
 let repMonth=null;
 function scrAttRep(){
   repMonth=repMonth||today().slice(0,7);
-  main.innerHTML=title('Attendance Report',`Month <input type="month" id="m_mon" value="${repMonth}"><button class="btn sm g" onclick="attRepCsv()">CSV</button><button class="btn sm g" onclick="printReport($('#m_out').innerHTML)">Print</button>`)+
+  main.innerHTML=title('Attendance Report',`Month <input type="month" id="m_mon" value="${repMonth}"><button class="btn sm g" onclick="attRepCsv()">CSV</button><button class="btn sm g" onclick="attTimesCsv()">In/Out time CSV</button><button class="btn sm g" onclick="printReport($('#m_out').innerHTML)">Print</button>`)+
   `<div class="card" style="padding:0;overflow:auto" id="m_out"></div>`;
   $('#m_mon').onchange=()=>{repMonth=$('#m_mon').value||today().slice(0,7);drawAttRep();};drawAttRep();
 }
@@ -673,9 +815,12 @@ function attRepData(){
 function drawAttRep(){
   const {days,rows}=attRepData();
   $('#m_out').innerHTML=`<p style="padding:8px 10px;margin:0"><b>Attendance — ${repMonth}</b></p><table class="agrid"><thead><tr><th class="nm">ID</th><th class="nm">Naam</th>${days.map(d=>`<th>${+d.slice(8)}</th>`).join('')}<th>P</th><th>A</th><th>%</th></tr></thead><tbody>
-  ${rows.map(r=>`<tr><td class="nm">${esc(r.s.code)}</td><td class="nm">${esc(r.s.name)}</td>${r.marks.map(x=>x?'<td class="p">P</td>':'<td></td>').join('')}<td><b>${r.p}</b></td><td>${r.a}</td><td>${r.pct}%</td></tr>`).join('')||
+  ${rows.map(r=>`<tr><td class="nm">${esc(r.s.code)}</td><td class="nm">${esc(r.s.name)}</td>${r.marks.map((x,i)=>{const a=x&&D.att[days[i]][r.s.id];return x?`<td class="p" title="In ${esc(a.in||'—')} · Out ${esc(a.out||'—')}">P</td>`:'<td></td>';}).join('')}<td><b>${r.p}</b></td><td>${r.a}</td><td>${r.pct}%</td></tr>`).join('')||
   `<tr><td colspan="${days.length+5}" class="muted">Koi data nahi</td></tr>`}</tbody></table>`;
 }
+function attTimesCsv(){const {days,rows}=attRepData(),L=[['Date','ID','Name','In','Out','Kitni der']];
+  days.forEach(d=>rows.forEach(r=>{const a=(D.att[d]||{})[r.s.id];if(a)L.push([dmy(d),r.s.code,r.s.name,a.in||'',a.out||'',dur(a.in,a.out)]);}));
+  dl(`attendance_in_out_${repMonth}.csv`,toCsv(L),'text/csv');}
 function attRepCsv(){const {days,rows}=attRepData();
   dl(`attendance_${repMonth}.csv`,toCsv([['ID','Name','Seat',...days.map(d=>+d.slice(8)),'Present','Absent','%']].concat(rows.map(r=>[r.s.code,r.s.name,r.s.seat,...r.marks.map(x=>x?'P':''),r.p,r.a,r.pct]))),'text/csv');}
 
@@ -686,7 +831,7 @@ function scrDue(f){
   main.innerHTML=title('Due List & Reminder',`<select id="d_flt">${[['due','Fee due (khatam)'],['soon',`${D.settings.expDays} din mein khatam`],['bal','Balance baki'],['all','Sab pending']].map(([k,t])=>`<option value="${k}"${k===dueFlt?' selected':''}>${t}</option>`).join('')}</select>
     <button class="btn sm wa" onclick="remindNext()">Agla reminder bhejein</button><button class="btn sm g" onclick="dueCsv()">CSV</button>`)+
   `<div class="hint">WhatsApp ek-ek karke khulta hai. <b>Agla reminder bhejein</b> dabate jaayein, ya row par <kbd>F9</kbd>. <kbd>Enter</kbd> = Fee lo.</div>
-  <div class="card" style="padding:0"><table><thead><tr><th>#</th><th>ID</th><th>Naam</th><th>Mobile</th><th>Seat</th><th>Valid till</th><th>Status</th><th class="n">Due (approx)</th><th></th></tr></thead><tbody id="d_tb"></tbody></table></div>`;
+  <div class="card" style="padding:0"><table><thead><tr><th>#</th><th>ID</th><th>Naam</th><th>Mobile</th><th>Seat</th><th>Paid till</th><th>Status / Due mahine</th><th class="n">Due amount</th><th></th></tr></thead><tbody id="d_tb"></tbody></table></div>`;
   $('#d_flt').onchange=()=>{dueFlt=$('#d_flt').value;remIdx=0;drawDue();};drawDue();
   nav={Enter:id=>go('collect',id),F9:waRemind};
 }
@@ -695,8 +840,8 @@ function dueRows(){return active().filter(s=>{const k=stStatus(s).k;return dueFl
 function drawDue(){
   const L=dueRows();
   $('#d_tb').innerHTML=L.map((s,i)=>`<tr data-id="${s.id}"><td>${i+1}</td><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b></td><td>${esc(s.mobile)}</td><td>${esc(s.seat||'—')}</td>
-    <td>${dmy(s.validTill)||'—'}</td><td>${tag(s)}</td><td class="n"><b>${rs(dueAmt(s))}</b></td>
-    <td class="n" style="white-space:nowrap"><button class="btn sm wa" onclick="waRemind('${s.id}')">WA</button> <button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button></td></tr>`).join('')||
+    <td>${s.validTill?mName(s.validTill.slice(0,7)):'—'}</td><td>${tag(s)}${stStatus(s).u?`<br><span class="small red">${esc(mText(stStatus(s).u))}</span>`:''}</td><td class="n"><b>${rs(dueAmt(s))}</b></td>
+    <td class="n" style="white-space:nowrap"><button class="btn sm wa" onclick="waRemind('${s.id}')">WA</button> <button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button> <button class="btn sm g" onclick="go('record','${s.id}')">Record</button></td></tr>`).join('')||
     '<tr><td colspan="9" class="muted">Koi pending nahi 👍</td></tr>';
   if(L.length)$('#d_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="7"><b>Total ${L.length} student</b></td><td class="n"><b>${rs(sum(L,dueAmt))}</b></td><td></td></tr>`);
   selFirst();
@@ -704,7 +849,7 @@ function drawDue(){
 function remindNext(){const L=dueRows();if(!L.length)return toast('Koi pending nahi');if(remIdx>=L.length){remIdx=0;toast('Sabko bhej diya — dobara shuru');return;}
   const s=L[remIdx++];navMove(0);const rows=[...main.querySelectorAll('tr[data-id]')];rows.forEach(r=>r.classList.toggle('sel',r.dataset.id===s.id));
   toast(`${remIdx}/${L.length}: ${s.name}`);waRemind(s.id);}
-function dueCsv(){dl(`due_${today()}.csv`,toCsv([['ID','Name','Mobile','Seat','Valid Till','Status','Due']].concat(dueRows().map(s=>[s.code,s.name,s.mobile,s.seat,s.validTill,stStatus(s).t,dueAmt(s)]))),'text/csv');}
+function dueCsv(){dl(`due_${today()}.csv`,toCsv([['ID','Name','Mobile','Seat','Valid Till','Status','Due']].concat(dueRows().map(s=>[s.code,s.name,s.mobile,s.seat,s.validTill,stStatus(s).t+(stStatus(s).u?' ('+mText(stStatus(s).u)+')':''),dueAmt(s)]))),'text/csv');}
 
 /* ================= RECEIPTS ================= */
 let rFrom=null,rTo=null;
@@ -717,7 +862,7 @@ function scrReceipts(){
     const L=D.receipts.filter(r=>r.date>=rFrom&&r.date<=rTo&&(!q||r.name.toLowerCase().includes(q)||String(r.code)===q||String(r.no)===q)).slice().reverse();
     const ok=L.filter(r=>!r.cancel);
     $('#r_tb').innerHTML=L.map(r=>`<tr data-id="${r.id}" class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)}</td><td>${esc(r.code)}</td><td><b>${esc(r.name)}</b></td>
-      <td class="small">${r.months?esc(r.head)+'<br>'+dmy(r.from)+' – '+dmy(r.to):''}${r.extra?'<br>'+esc(r.extra):''}</td><td class="n">${rs(r.total)}</td><td class="n"><b>${rs(r.paid)}</b></td><td class="n">${r.bal?rs(r.bal):''}</td><td>${esc(r.mode)}</td>
+      <td class="small">${r.months?esc(r.head)+'<br>'+esc(mText(r.mlist)):''}${r.extra?'<br>'+esc(r.extra):''}</td><td class="n">${rs(r.total)}</td><td class="n"><b>${rs(r.paid)}</b></td><td class="n">${r.bal?rs(r.bal):''}</td><td>${esc(r.mode)}</td>
       <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button>${r.cancel?'':` <button class="btn sm bad" onclick="cancelReceipt('${r.id}')">Cancel</button>`}</td></tr>`).join('')||
       '<tr><td colspan="10" class="muted">Is date mein koi receipt nahi.</td></tr>';
     if(L.length)$('#r_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="6"><b>${ok.length} receipt</b>${L.length>ok.length?` (${L.length-ok.length} cancel)`:''}</td><td class="n"><b>${rs(sum(ok,'paid'))}</b></td><td colspan="3"></td></tr>`);
@@ -729,7 +874,9 @@ async function cancelReceipt(id){
   const r=D.receipts.find(x=>x.id===id),s=stu(r.sid);
   if(D.receipts.some(x=>x.sid===r.sid&&!x.cancel&&x.no>r.no)){toast('Pehle is student ki baad wali receipt cancel karein','bad');return;}
   if(!await ask(`Receipt #${r.no} (${esc(r.name)}, ${rs(r.paid)}) cancel karein?`))return;
-  r.cancel=true;if(s){s.validTill=r.prevValid;s.bal=r.prevBal;}
+  r.cancel=true;
+  if(s){const keep=new Set();D.receipts.filter(x=>x.sid===s.id&&!x.cancel).forEach(x=>(x.mlist||[]).forEach(m=>keep.add(m)));
+    s.paid=(s.paid||[]).filter(m=>keep.has(m)||!(r.mlist||[]).includes(m));syncValid(s);s.bal=r.prevBal;}
   save();toast('Receipt cancel ho gayi');scrReceipts();
 }
 
@@ -752,7 +899,7 @@ function drawDaybook(){
     <div><label>Receipts</label><b style="font-size:18px">${L.length}</b>${cx?` <span class="muted small">(${cx} cancel)</span>`:''}</div>
     <div><label>Naye admission</label><b style="font-size:18px">${adm}</b></div></div></div>
   <div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Date</th><th>Naam</th><th>Detail</th><th>Mode</th><th class="n">Amount</th></tr></thead><tbody>
-  ${L.map(r=>`<tr><td>${r.no}</td><td>${dmy(r.date)} ${esc(r.time||'')}</td><td>${esc(r.name)} (${esc(r.code)})</td><td class="small">${[r.months?r.head+' '+dmy(r.from)+'–'+dmy(r.to):'',r.extra].filter(Boolean).map(esc).join(', ')}</td><td>${esc(r.mode)}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Koi collection nahi.</td></tr>'}
+  ${L.map(r=>`<tr><td>${r.no}</td><td>${dmy(r.date)} ${esc(r.time||'')}</td><td>${esc(r.name)} (${esc(r.code)})</td><td class="small">${[r.months?r.head+' — '+mText(r.mlist):'',r.extra].filter(Boolean).map(esc).join(', ')}</td><td>${esc(r.mode)}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Koi collection nahi.</td></tr>'}
   </tbody><tfoot><tr><td colspan="5">Total</td><td class="n">${rs(sum(L,'paid'))}</td></tr></tfoot></table></div>`;
 }
 function dayText(){const {L,modes,adm}=dayData(),S=D.settings,act=active();
@@ -766,16 +913,88 @@ const ICOLS={code:['id','studentid','roll','rollno','code','srno'],name:['name',
   paidtill:['paidtill','validtill','feetill','expiry','expirydate','till'],paid:['paid','paidamount','received','jama'],bal:['balance','baki','due','pending']};
 let impRows=[];
 function scrImport(){
-  main.innerHTML=title('Bulk Import — Excel / CSV',`<button class="btn sm g" onclick="impTemplate()">Template download</button>`)+
-  `<div class="hint">Excel mein columns rakhein: <b>Name, Father, Mobile, Address, Seat, Shift, Plan, Fee, Join Date, Paid Till, Paid, Balance</b> (sirf Name zaroori).<br>
-   Excel se rows copy karke neeche <b>paste</b> karein, ya CSV file chunein. Date: DD-MM-YYYY. Plan ka naam Fee Master se match na ho to naya plan (30 din) ban jayega.</div>
-  <div class="card"><div class="row"><input type="file" id="i_file" accept=".csv,.txt" class="fix"><span class="muted small">ya paste karein:</span></div>
+  main.innerHTML=title('Bulk Import — Excel / CSV',`<button class="btn sm ok" onclick="impTemplate()">Excel format download</button>`)+
+  `<div class="hint"><b>1.</b> Upar <b>Excel format download</b> dabayein. <b>2.</b> Us Excel mein apne students bharein (ek line = ek student) aur save karein.
+   <b>3.</b> Neeche wahi Excel file (.xlsx) chunein → Preview → Import.<br>
+   Columns: <b>Name, Father, Mobile, Address, Seat, Shift, Plan, Fee, Join Date, Paid Till, Paid, Balance</b> (sirf Name zaroori). Date: DD-MM-YYYY.
+   Plan ka naam Fee Master se match na ho to naya plan (30 din) ban jayega. "Paid Till" tak ke mahine paid mane jayenge.</div>
+  <div class="card"><div class="row"><input type="file" id="i_file" accept=".xlsx,.csv,.txt" class="fix"><span class="muted small">ya Excel se copy karke paste karein:</span></div>
    <textarea id="i_txt" rows="7" style="margin-top:8px;font:12px Consolas,monospace" placeholder="Name&#9;Mobile&#9;Fee&#10;Rahul Kumar&#9;9876543210&#9;600"></textarea>
    <div class="btns"><button class="btn" onclick="impPreview()">Preview</button><button class="btn ok" id="i_go" onclick="impRun()" disabled>Import karein (Ctrl+S)</button></div></div><div id="i_out"></div>`;
-  $('#i_file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{$('#i_txt').value=rd.result;impPreview();};rd.readAsText(f);};
+  $('#i_file').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+    try{if(/\.xlsx$/i.test(f.name)){const rows=await readXlsx(await f.arrayBuffer());$('#i_txt').value=rows.map(r=>r.map(c=>String(c).replace(/[\t\r\n]+/g,' ')).join('\t')).join('\n');}
+      else $('#i_txt').value=await f.text();impPreview();}
+    catch(err){toast('File nahi padh paye: '+err.message,'bad');}};
   impRows=[];onSave=impRun;focusEl('#i_txt');
 }
-function impTemplate(){dl('students_template.csv',toCsv([['Name','Father','Mobile','Address','Seat','Shift','Plan','Fee','Join Date','Paid Till','Paid','Balance']]),'text/csv');}
+const IMP_HDR=['Name','Father','Mobile','Address','Seat','Shift','Plan','Fee','Join Date','Paid Till','Paid','Balance'];
+function impTemplate(){
+  const plans=periodic().map(p=>p.name).join(', ')||'Monthly';
+  dl('LibraryERP_Import_Format.xlsx',makeXlsx([
+    {name:'Students',rows:[IMP_HDR]},
+    {name:'Help',rows:[['Kaise bharein'],['Students sheet mein har line par ek student. Sirf Name zaroori hai.'],['Date DD-MM-YYYY mein likhein, jaise 05-10-2026.'],
+      ['Plan: '+plans],['Paid Till: jis date tak fee jama hai (us tak ke mahine paid mane jayenge).'],['Paid: purani jama fee (opening receipt banegi). Balance: baki rakam.'],[],
+      ['Example (Students sheet mein aise bharein):'],IMP_HDR,['Rahul Kumar','Ramesh Kumar','9876543210','Orai','12','Morning',periodic()[0]?periodic()[0].name:'Monthly','800','01-10-2026','31-10-2026','800','0']]}
+  ]),'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+/* ---- chhota xlsx reader / writer (offline, bina library) ---- */
+async function unzip(buf){
+  const v=new DataView(buf),u8=new Uint8Array(buf),dec=new TextDecoder();let e=buf.byteLength-22;
+  while(e>=0&&v.getUint32(e,true)!==0x06054b50)e--;if(e<0)throw new Error('Ye Excel (.xlsx) file nahi hai');
+  const n=v.getUint16(e+10,true);let p=v.getUint32(e+16,true);const out={};
+  for(let i=0;i<n;i++){
+    const meth=v.getUint16(p+10,true),csz=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),xl=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),off=v.getUint32(p+42,true);
+    const name=dec.decode(u8.subarray(p+46,p+46+nl));p+=46+nl+xl+cl;
+    const ds=off+30+v.getUint16(off+26,true)+v.getUint16(off+28,true),raw=u8.subarray(ds,ds+csz);
+    out[name]=meth===0?raw:meth===8?new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer()):null;
+  }
+  return out;
+}
+async function readXlsx(buf){
+  const z=await unzip(buf),dec=new TextDecoder(),X=t=>new DOMParser().parseFromString(dec.decode(t),'application/xml');
+  const ss=z['xl/sharedStrings.xml']?[...X(z['xl/sharedStrings.xml']).getElementsByTagName('si')].map(si=>[...si.getElementsByTagName('t')].map(t=>t.textContent).join('')):[];
+  const wb=X(z['xl/workbook.xml']),rels=X(z['xl/_rels/workbook.xml.rels']);
+  const rid=wb.getElementsByTagName('sheet')[0].getAttribute('r:id');
+  let tgt=[...rels.getElementsByTagName('Relationship')].find(r=>r.getAttribute('Id')===rid).getAttribute('Target');
+  tgt=tgt.startsWith('/')?tgt.slice(1):'xl/'+tgt.replace(/^\.\//,'');
+  const rows=[];
+  for(const row of X(z[tgt]).getElementsByTagName('row')){
+    const r=[];
+    for(const c of row.getElementsByTagName('c')){
+      const col=c.getAttribute('r').replace(/\d+/g,'').split('').reduce((a,ch)=>a*26+ch.charCodeAt(0)-64,0)-1,t=c.getAttribute('t'),vv=c.getElementsByTagName('v')[0];
+      let val=t==='s'?ss[+vv.textContent]:t==='inlineStr'?[...c.getElementsByTagName('t')].map(x=>x.textContent).join(''):vv?vv.textContent:'';
+      r[col]=val??'';
+    }
+    rows.push([...r].map(x=>x??''));
+  }
+  return rows.filter(r=>r.some(x=>String(x).trim()));
+}
+function makeXlsx(sheets){
+  const xe=v=>String(v??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const cl=i=>{let s='';i++;while(i){const m=(i-1)%26;s=String.fromCharCode(65+m)+s;i=Math.floor((i-1)/26);}return s;};
+  const sheetXml=(rows,hdr)=>`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><cols><col min="1" max="12" width="18" customWidth="1"/></cols><sheetData>`+
+    rows.map((r,i)=>`<row r="${i+1}">`+r.map((v,j)=>`<c r="${cl(j)}${i+1}" t="inlineStr"${hdr&&i===0?' s="1"':''}><is><t xml:space="preserve">${xe(v)}</t></is></c>`).join('')+'</row>').join('')+`</sheetData></worksheet>`;
+  const F={'[Content_Types].xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_,i)=>`<Override PartName="/xl/worksheets/sheet${i+1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join('')}</Types>`,
+    '_rels/.rels':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+    'xl/workbook.xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets.map((s,i)=>`<sheet name="${xe(s.name)}" sheetId="${i+1}" r:id="rId${i+1}"/>`).join('')}</sheets></workbook>`,
+    'xl/_rels/workbook.xml.rels':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_,i)=>`<Relationship Id="rId${i+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i+1}.xml"/>`).join('')}<Relationship Id="rId${sheets.length+1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`,
+    'xl/styles.xml':`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`};
+  sheets.forEach((s,i)=>F[`xl/worksheets/sheet${i+1}.xml`]=sheetXml(s.rows,i===0));
+  // ZIP (stored, bina compression)
+  const enc=new TextEncoder(),crcT=[...Array(256)].map((_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;return c>>>0;});
+  const crc=b=>{let c=~0;for(const x of b)c=crcT[(c^x)&255]^(c>>>8);return (~c)>>>0;};
+  const parts=[],cen=[];let off=0;
+  for(const [name,txt] of Object.entries(F)){
+    const nb=enc.encode(name),db=enc.encode(txt),c=crc(db),h=new DataView(new ArrayBuffer(30));
+    [[0,0x04034b50,4],[4,20,2],[8,0,2],[14,c,4],[18,db.length,4],[22,db.length,4],[26,nb.length,2]].forEach(([o,v,l])=>l===4?h.setUint32(o,v,true):h.setUint16(o,v,true));
+    const ch=new DataView(new ArrayBuffer(46));
+    [[0,0x02014b50,4],[4,20,2],[6,20,2],[16,c,4],[20,db.length,4],[24,db.length,4],[28,nb.length,2],[42,off,4]].forEach(([o,v,l])=>l===4?ch.setUint32(o,v,true):ch.setUint16(o,v,true));
+    parts.push(h,nb,db);cen.push(ch,nb);off+=30+nb.length+db.length;
+  }
+  const csz=cen.reduce((a,x)=>a+x.byteLength,0),end=new DataView(new ArrayBuffer(22)),n=Object.keys(F).length;
+  [[0,0x06054b50,4],[8,n,2],[10,n,2],[12,csz,4],[16,off,4]].forEach(([o,v,l])=>l===4?end.setUint32(o,v,true):end.setUint16(o,v,true));
+  return new Blob([...parts,...cen,end]);
+}
 function parseCsv(t){
   t=t.replace(/^﻿/,'');const first=t.split(/\r?\n/)[0]||'',sep=first.includes('\t')?'\t':(first.split(';').length>first.split(',').length?';':',');
   const rows=[];let row=[],f='',q=false;
@@ -833,12 +1052,14 @@ async function impRun(){
     if(!p){const nm=x.planName||'Monthly';p=D.plans.find(q=>q.name.toLowerCase()===nm.toLowerCase());
       if(!p){p={id:uid(),name:nm,amount:x.fee,days:30,note:'Import se'};D.plans.push(p);}}
     const s={id:uid(),code:x.code,name:x.name,father:x.father,mobile:x.mobile,address:x.address,seat:x.seat,shift:x.shift,planId:p.id,fee:x.fee,
-      join:x.join,validTill:x.paidtill||'',bal:x.bal,status:'active',note:'',created:today()};
+      join:x.join,paid:monthsCovered(x.join,x.paidtill),bal:x.bal,status:'active',note:'',created:today()};
     if(x.paid>0){
-      const from=x.join,to=x.paidtill||addDays(from,+p.days-1);
-      D.receipts.push({id:uid(),no:++D.seq.rcpt,date:x.join,time:'',sid:s.id,code:s.code,name:s.name,head:p.name,months:1,from,to,fee:x.paid,extra:'',extraAmt:0,disc:0,
+      if(!s.paid.length)s.paid=[x.join.slice(0,7)];
+      const ml=s.paid.slice();
+      D.receipts.push({id:uid(),no:++D.seq.rcpt,date:x.join,time:'',sid:s.id,code:s.code,name:s.name,head:p.name,mlist:ml,months:ml.length,from:ml[0]+'-01',to:mEnd(ml[ml.length-1]),fee:x.paid,extra:'',extraAmt:0,disc:0,
         oldBal:0,total:x.paid+x.bal,paid:x.paid,bal:x.bal,mode:'Cash',note:'Import (opening)',prevValid:'',prevBal:0});
-      s.validTill=to;rc++;}
+      rc++;}
+    syncValid(s);
     D.students.push(s);});
   save();toast(`${good.length} student import ho gaye${rc?`, ${rc} receipt`:''}`,'ok');impRows=[];go('list');
 }
@@ -898,7 +1119,7 @@ async function sendEmailBackup(){
   catch(err){INFO.lastEmailError=err.message;toast('Email nahi gaya: '+err.message,'bad');}
   showMailStatus();
 }
-function testPrint(){printHtml(rcptHtml({no:0,date:today(),time:nowTime(),sid:'',code:'1001',name:'Test Student',head:'Monthly Fee',months:1,from:today(),to:addDays(today(),29),
+function testPrint(){printHtml(rcptHtml({no:0,date:today(),time:nowTime(),sid:'',code:'1001',name:'Test Student',head:'Monthly Fee',months:1,mlist:[curMonth()],from:curMonth()+'-01',to:mEnd(curMonth()),
   fee:500,extra:'',extraAmt:0,disc:0,oldBal:0,total:500,paid:500,bal:0,mode:'Cash',note:''}),PAGE[D.settings.slip]);}
 function restore(f){
   if(!f)return;const rd=new FileReader();
@@ -964,7 +1185,19 @@ async function boot(){
   D=migrate(data);if(!data)save();
   drawSide();licBar();
   if(!LIC.lifetime&&LIC.daysLeft<=7)toast(`License ${LIC.daysLeft} din mein khatam hoga — renew karein (K)`,'bad');
-  go('home');
+  go('home');duePopup();
+}
+function duePopup(){
+  let k='';try{k=localStorage.getItem('liberp_due_popup');}catch(e){}
+  if(k===today())return;
+  const L=active().filter(s=>stStatus(s).k==='due').sort((a,b)=>stStatus(b).od-stStatus(a).od);
+  if(!L.length)return;
+  try{localStorage.setItem('liberp_due_popup',today());}catch(e){}
+  modal(`Fee reminder — ${L.length} student ki fee due hai`,`<table><thead><tr><th>ID</th><th>Naam</th><th>Due mahine</th><th class="n">Amount</th><th></th></tr></thead><tbody>
+    ${L.slice(0,12).map(s=>`<tr><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b></td><td class="small red">${esc(mText(stStatus(s).u))}</td><td class="n">${rs(dueAmt(s))}</td>
+      <td class="n" style="white-space:nowrap"><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp</button> <button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button></td></tr>`).join('')}</tbody></table>
+    ${L.length>12?`<p class="muted small">…aur ${L.length-12} student. Sab Due List mein.</p>`:''}
+    <div class="btns"><button class="btn" data-k="D" autofocus onclick="go('due','due')">Due List kholein (D)</button><button class="btn g" data-k="B" onclick="closeModal()">Baad mein (B)</button></div>`);
 }
 setInterval(async()=>{if(!D)return;try{LIC=await api('license');if(!LIC.ok)showActivate();else licBar();}catch(e){}},30*60e3);
 window.addEventListener('beforeunload',()=>{if(D)navigator.sendBeacon('/api/data',new Blob([JSON.stringify(D)],{type:'application/json'}));});
