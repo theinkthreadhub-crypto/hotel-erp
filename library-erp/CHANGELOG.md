@@ -4,7 +4,8 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
-| **1.5.2** | Email Fix | Email backup ki galti saaf English mein (internet nahi / login galat / firewall); port 465 band ho to apne aap 587 se bhejna |
+| **1.6.0** | Backup Plus | Settings mein "Backup by date": pichhle 60 din ka koi bhi backup Download / Email / Restore; Google Drive (ya pen drive) folder mein roz apne aap backup; restore se pehle safety copy |
+| 1.5.2 | Email Fix | Email backup ki galti saaf English mein (internet nahi / login galat / firewall); port 465 band ho to apne aap 587 se bhejna |
 | 1.5.1 | Support | License aur Activation screen par "Customer support: Setu Pro · 6393995127" |
 | 1.5.0 | Session Wise | Upar patti se session badlna; fee, due, receipt, kharcha aur reports session-wise; pichhle session ki due fee "Switch & collect" se |
 | 1.4.0 | Countdown | License ka live countdown (aakhri 48 ghante); keygen mein minute / ghante wali key; library naam par click se Dashboard |

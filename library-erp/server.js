@@ -66,6 +66,31 @@ function saveData(obj) {
   fs.copyFileSync(DATA, f);
   const old = fs.readdirSync(BACKUP_DIR).filter(x => /^library_\d{4}-\d\d-\d\d\.json$/.test(x)).sort();
   old.slice(0, Math.max(0, old.length - 60)).forEach(x => fs.unlinkSync(path.join(BACKUP_DIR, x)));
+  copyToFolder(obj.settings && obj.settings.backupDir);
+}
+// Extra backup folder (jaise Google Drive ka "G:\My Drive\Library Backup") — Drive app khud upload karta hai
+function copyToFolder(dir) {
+  dir = String(dir || '').trim();
+  if (!dir) return;
+  const meta = readJson(META, {});
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    const f = path.join(dir, 'library_backup_' + lic.today() + '.json');
+    fs.copyFileSync(DATA, f);
+    if (meta.folderError || !meta.lastFolder || meta.lastFolder.slice(0, 10) !== new Date().toISOString().slice(0, 10)) { meta.lastFolder = new Date().toISOString(); meta.folderError = ''; meta.folderPath = f; writeJson(META, meta); }
+  } catch (e) { meta.folderError = e.message; meta.folderErrorAt = new Date().toISOString(); writeJson(META, meta); }
+}
+const isDate = d => /^\d{4}-\d\d-\d\d$/.test(String(d || ''));
+function listBackups() {
+  return fs.readdirSync(BACKUP_DIR).filter(x => /^library_\d{4}-\d\d-\d\d\.json$/.test(x)).sort().reverse()
+    .map(x => { const st = fs.statSync(path.join(BACKUP_DIR, x)); return { date: x.slice(8, 18), size: st.size, time: st.mtime.toISOString() }; });
+}
+// Google Drive (desktop app) ka folder dhoondo
+function detectDrive() {
+  const H = process.env.USERPROFILE || '', out = [];
+  const c = 'DEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l => l + ':\\My Drive').concat([path.join(H, 'Google Drive'), path.join(H, 'My Drive'), path.join(H, 'Google Drive', 'My Drive')]);
+  for (const p of c) { try { if (fs.statSync(p).isDirectory()) out.push(path.join(p, 'Library Backup')); } catch (e) {} }
+  return out;
 }
 
 /* ---------- email backup (SMTP over TLS, jaise Gmail 465) ---------- */
@@ -126,12 +151,15 @@ function studentsCsv(D) {
     .concat((D.students || []).map(s => [s.code, s.name, s.father, s.mobile, s.address, s.seat, s.shift, plan(s.planId), s.fee, s.join, s.validTill, s.bal || 0, s.status]));
   return '﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n');
 }
-async function emailBackup() {
-  const D = readJson(DATA, null);
-  if (!D) throw new Error('No data yet');
-  const s = D.settings || {}, m = s.mail || {};
+async function emailBackup(date) {
+  const cur = readJson(DATA, null);
+  if (!cur) throw new Error('No data yet');
+  // date diya ho to us din ka backup bhejo; mail setting hamesha abhi wali
+  const D = date ? readJson(path.join(BACKUP_DIR, 'library_' + date + '.json'), null) : cur;
+  if (!D) throw new Error('No backup found for ' + date);
+  const s = cur.settings || {}, m = s.mail || {};
   if (!m.user || !m.pass || !m.to) throw new Error('Fill in Gmail ID, App Password and To email in Settings');
-  const d = lic.today(), name = s.name || 'Library';
+  const d = date || lic.today(), name = s.name || 'Library';
   const opts = {
     host: m.host || 'smtp.gmail.com', port: +m.port || 465, user: m.user.trim(), pass: String(m.pass).replace(/\s+/g, ''), to: m.to,
     subject: `${name} — ERP Backup ${d}`,
@@ -152,6 +180,7 @@ async function emailBackup() {
     const mm = readJson(META, {}); mm.lastEmailError = err.message; mm.lastErrorAt = new Date().toISOString(); writeJson(META, mm);
     throw err;
   }
+  if (date) return;
   const meta = readJson(META, {}); meta.lastEmail = new Date().toISOString(); meta.lastEmailError = ''; meta.lastErrorAt = ''; writeJson(META, meta);
 }
 // Saaf English message (ENOTFOUND jaisi technical galti ki jagah)
@@ -208,8 +237,29 @@ const server = http.createServer(async (req, res) => {
       if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Invalid data');
       saveData(d); return send(res, 200, { ok: true });
     }
+    if (url === '/api/restore' && req.method === 'POST') {
+      const d = await body(req);
+      if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Invalid data');
+      // Restore se pehle abhi ka data safety copy mein
+      if (fs.existsSync(DATA)) fs.copyFileSync(DATA, path.join(BACKUP_DIR, 'before-restore_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json'));
+      saveData(d); return send(res, 200, { ok: true });
+    }
     if (url === '/api/info') return send(res, 200, { dataDir: DATA_DIR, backupDir: BACKUP_DIR, ...readJson(META, {}) });
-    if (url === '/api/email-backup' && req.method === 'POST') { await emailBackup(); return send(res, 200, { ok: true, ...readJson(META, {}) }); }
+    if (url === '/api/email-backup' && req.method === 'POST') { const b = await body(req); await emailBackup(isDate(b.date) ? b.date : null); return send(res, 200, { ok: true, ...readJson(META, {}) }); }
+    if (url === '/api/backups') return send(res, 200, { list: listBackups(), drive: detectDrive() });
+    if (url === '/api/backup-file') {
+      const d = new URL(req.url, 'http://x').searchParams.get('d'), f = path.join(BACKUP_DIR, 'library_' + d + '.json');
+      if (!isDate(d) || !fs.existsSync(f)) return send(res, 404, { error: 'No backup for this date' });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="library_backup_${d}.json"`, 'Cache-Control': 'no-store' });
+      return res.end(fs.readFileSync(f));
+    }
+    if (url === '/api/folder-test' && req.method === 'POST') {
+      const dir = String((await body(req)).dir || '').trim(); if (!dir) throw new Error('Enter a folder path');
+      if (!fs.existsSync(DATA)) throw new Error('No data yet');
+      copyToFolder(dir); const meta = readJson(META, {});
+      if (meta.folderError) throw new Error('Could not save to this folder: ' + meta.folderError);
+      return send(res, 200, { ok: true, ...meta });
+    }
     send(res, 404, { error: 'Not found' });
   } catch (e) { send(res, 400, { error: e.message }); }
 });

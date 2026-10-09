@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.5.2** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.6.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -108,6 +108,17 @@ https://github.com/theinkthreadhub-crypto/hotel-erp/releases/download/library-er
 4. **Abhi backup email karein** dabakar test karein.
 
 ERP chalu rehne par din mein ek baar backup apne aap jaata hai.
+
+## Google Drive mein backup (bina email)
+
+1. Computer par **Google Drive for desktop** install karein aur library ke Gmail se sign in karein. "My Drive" ek drive (jaise `G:`) ki tarah dikhne lagega.
+2. ERP mein **G → Backup folder** mein `G:\My Drive\Library Backup` likhein. ERP Drive mil jaane par ye path khud dikhata hai, bas click karein.
+3. **Save & copy backup now** dabayein. Us folder mein `library_backup_YYYY-MM-DD.json` banegi, aur Google Drive use apne aap upload karega.
+4. Ab har din ka backup usi folder mein jayega. Email band karna ho to "Send automatically every day" ko No kar dein.
+
+## Date-wise backup
+
+**G → Backup by date** mein pichhle 60 din ka har din ka backup dikhta hai. Kisi bhi date ka **Download**, **Email** ya **Restore** kar sakte hain. Restore se pehle abhi ka data `before-restore_…json` naam se safety copy mein save hota hai.
 
 ## Backup se data wapas laana (naya computer / format)
 

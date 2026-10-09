@@ -1466,15 +1466,49 @@ async function scrSettings(){
     <div class="w2"><label>Send backup to (comma for many)</label><input id="g_mt" value="${esc(M.to)}"></div>
     <div><label>Send automatically every day</label><select id="g_ma"><option value="1">Yes (once a day)</option><option value="0"${M.auto?'':' selected'}>No</option></select></div>
   </div><div class="btns"><button class="btn" onclick="sendEmailBackup()">Email backup now</button></div><p class="small" id="g_mailst"></p></div>
+  <div class="card"><h4>Backup folder (Google Drive / pen drive)</h4>
+    <div class="hint">Install the <b>Google Drive</b> app on this computer and sign in. Then choose a folder inside Google Drive below
+      (e.g. <b>G:\My Drive\Library Backup</b>). Every day the ERP saves the backup file in this folder and Google Drive uploads it automatically — no email needed.
+      Leave empty to turn this off.</div>
+    <div class="grid"><div class="w2"><label>Backup folder path</label><input id="g_bdir" value="${esc(S.backupDir||'')}" placeholder="G:\My Drive\Library Backup"></div></div>
+    <div id="g_drive" class="small" style="margin-top:6px"></div>
+    <div class="btns"><button class="btn" onclick="testFolder()">Save &amp; copy backup now</button></div><p class="small" id="g_fst"></p></div>
   <div class="btns" style="margin-bottom:14px"><button class="btn ok" onclick="saveSettings().catch(()=>{})">Save Settings (Ctrl+S)</button></div></div>
   <div class="card"><h4>Data backup / restore</h4>
     <div class="btns"><a class="btn g" href="/api/export" download style="text-decoration:none">Backup download (.json)</a><button class="btn g" onclick="exportStudents()">Students CSV / Excel</button>
     <label class="btn g" style="margin:0;color:var(--bar);font-size:14px">Restore backup<input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label></div>
-    <p class="small muted" id="g_info"></p></div>`;
+    <p class="small muted" id="g_info"></p></div>
+  <div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Backup by date <span class="muted small">(one backup per day, last 60 days)</span></h4>
+    <table><thead><tr><th>Date</th><th>Saved at</th><th class="n">Size</th><th></th></tr></thead><tbody id="g_bk"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody></table></div>`;
   onSave=()=>saveSettings().catch(()=>{});focusEl('#g_name');
   try{INFO=await api('info');}catch(e){}
   if($('#g_info'))$('#g_info').innerHTML=`Data folder: <b>${esc(INFO.dataDir||'')}</b><br>Daily local backup: <b>${esc(INFO.backupDir||'')}</b> (kept 60 days)`;
-  showMailStatus();
+  showMailStatus();showFolderStatus();loadBackups();
+}
+async function loadBackups(){
+  let r;try{r=await api('backups');}catch(e){return;}
+  const tb=$('#g_bk');if(!tb)return;
+  tb.innerHTML=r.list.map(b=>`<tr><td><b>${dmy(b.date)}</b>${b.date===today()?' <span class="tag ok">Today</span>':''}</td><td>${new Date(b.time).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}</td><td class="n">${Math.max(1,Math.round(b.size/1024))} KB</td>
+    <td class="n" style="white-space:nowrap"><a class="btn sm g" style="text-decoration:none" href="/api/backup-file?d=${b.date}" download>Download</a> <button class="btn sm g" onclick="emailDate('${b.date}')">Email</button> <button class="btn sm bad" onclick="restoreDate('${b.date}')">Restore</button></td></tr>`).join('')||'<tr><td colspan="4" class="muted">No backups yet.</td></tr>';
+  const dv=$('#g_drive');if(dv)dv.innerHTML=r.drive.length&&!val('g_bdir')?`Google Drive found on this computer: ${r.drive.map(d=>`<a href="#" onclick="$('#g_bdir').value=this.dataset.p;return false" data-p="${esc(d)}">${esc(d)}</a>`).join(' · ')} — click to use it.`:
+    (!r.drive.length&&!val('g_bdir')?'<span class="muted">Google Drive app not found on this computer. Install "Google Drive for desktop" first, or use a pen drive / other folder.</span>':'');
+}
+function showFolderStatus(){const e=$('#g_fst');if(!e)return;
+  e.innerHTML=(INFO.lastFolder?`Last copied to folder: <b class="green">${new Date(INFO.lastFolder).toLocaleString('en-IN')}</b>${INFO.folderPath?' — '+esc(INFO.folderPath):''}`:(D.settings.backupDir?'Not copied yet.':''))+
+    (INFO.folderError?`<br><span class="red">Last error: ${esc(INFO.folderError)}</span>`:'');}
+async function testFolder(){
+  await saveSettings(true);if(!D.settings.backupDir){toast('Enter a folder path first','bad');return;}
+  try{INFO={...INFO,...await api('folder-test',{dir:D.settings.backupDir})};toast('Backup copied to the folder','ok');}
+  catch(e){INFO.folderError=e.message;toast(e.message,'bad');}
+  showFolderStatus();
+}
+async function emailDate(d){
+  await saveSettings(true);toast('Sending…');
+  try{await api('email-backup',{date:d});toast(`Backup of ${dmy(d)} emailed`,'ok');}catch(e){toast('Email failed: '+e.message,'bad');}
+}
+async function restoreDate(d){
+  try{const r=await fetch('/api/backup-file?d='+d,{cache:'no-store'});if(!r.ok)throw new Error('Backup not found');restoreData(await r.json(),`the backup of ${dmy(d)}`);}
+  catch(e){toast(e.message,'bad');}
 }
 function showMailStatus(){const e=$('#g_mailst');if(!e)return;
   e.innerHTML=(INFO.lastEmail?`Last email backup: <b class="green">${new Date(INFO.lastEmail).toLocaleString('en-IN')}</b>`:'No email backup sent yet.')+
@@ -1484,6 +1518,7 @@ function saveSettings(quiet){
   if(!name){toast('Enter the library name','bad');focusEl('#g_name');return Promise.reject();}
   Object.assign(S,{name,contact:val('g_contact'),owner:normPh(val('g_owner')),address:val('g_address'),footer:val('g_footer'),shifts:val('g_shifts'),
     expDays:Math.max(0,parseInt(val('g_exp'),10)||0),slip:val('g_slip'),autoPrint:val('g_ap')==='1',autoWa:val('g_aw')==='1',waMode:val('g_wam')});
+  S.backupDir=val('g_bdir');
   S.mail={...S.mail,user:val('g_mu'),pass:$('#g_mp').value.replace(/\s+/g,''),to:val('g_mt'),auto:val('g_ma')==='1'};
   $('#libname').textContent=S.name;if(!quiet)toast('Settings saved','ok');
   return save();
@@ -1498,11 +1533,15 @@ function testPrint(){printHtml(rcptHtml({no:0,date:today(),time:nowTime(),sid:''
   fee:500,extra:'',extraAmt:0,disc:0,oldBal:0,total:500,paid:500,bal:0,mode:'Cash',note:''}),PAGE[D.settings.slip]);}
 function restore(f){
   if(!f)return;const rd=new FileReader();
-  rd.onload=async()=>{let d;try{d=JSON.parse(rd.result);}catch(e){toast('Invalid file','bad');return;}
-    if(!d||!d.settings||!Array.isArray(d.students)){toast('This is not a Library ERP backup','bad');return;}
-    if(!await ask(`The backup has ${d.students.length} students and ${(d.receipts||[]).length} receipts. Replace the current data with it?`))return;
-    D=migrate(d);await save();toast('Restored','ok');go('home');};
+  rd.onload=()=>{let d;try{d=JSON.parse(rd.result);}catch(e){toast('Invalid file','bad');return;}restoreData(d,'the backup');};
   rd.readAsText(f);
+}
+async function restoreData(d,what){
+  if(!d||!d.settings||!Array.isArray(d.students)){toast('This is not a Library ERP backup','bad');return;}
+  if(!await ask(`${what[0].toUpperCase()+what.slice(1)} has ${d.students.length} students and ${(d.receipts||[]).length} receipts.<br>Replace the current data with it?<br><span class="small muted">Your current data is first saved as a safety copy (before-restore file in the backups folder).</span>`))return;
+  const nd=migrate(d);await saving;
+  try{await api('restore',nd);}catch(e){toast('Restore failed: '+e.message,'bad');return;}
+  D=nd;toast('Restored','ok');sessBar();go('home');
 }
 
 /* ================= QUIT ================= */
