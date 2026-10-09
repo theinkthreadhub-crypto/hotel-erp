@@ -23,7 +23,9 @@ import secrets
 import threading
 import http.server
 import urllib.request
+import urllib.error
 import base64
+import copy
 
 APP_PORT = 8000
 MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one database upload
@@ -151,6 +153,7 @@ class SetuStore:
         self.backup_dir = os.path.join(data_dir, 'Backups')
         os.makedirs(self.backup_dir, exist_ok=True)
         self.lock = threading.Lock()
+        self.on_write = None        # set by CloudSync to push changes quickly
         self.version = 0
         self.saved_at = 0
         self.raw = 'null'           # JSON text of the data object
@@ -223,6 +226,8 @@ class SetuStore:
                     raise
                 time.sleep(0.2)
         self.version, self.saved_at, self.raw = version, saved_at, raw
+        if self.on_write:
+            self.on_write()
         # One rolling backup per day (last write of the day wins)
         try:
             shutil.copy2(self.path, os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json'))
@@ -252,7 +257,292 @@ class SetuStore:
         return None
 
 
-def make_handler(base_dir, store, port):
+# ---------------- Cloud Sync (Setu Cloud on Cloudflare) ----------------
+# This PC stays the master. A background thread mirrors the database to the hotel's
+# Setu Cloud Worker (cloud/ folder) so the owner / captains can use Setu over the internet.
+# Changes on both sides are joined with the same 3-way merge the app uses (merge3 in
+# hotel_erp.html), ported below. Keep the two in step.
+MISSING = object()
+
+
+def _js(x):
+    return json.dumps(x, ensure_ascii=False, separators=(',', ':'))
+
+
+def jeq(a, b):
+    if a is MISSING or b is MISSING:
+        return a is b
+    return a is b or _js(a) == _js(b)
+
+
+def _scalar_key(x):
+    return (type(x).__name__, x)
+
+
+def merge_node(b, m, t, depth):
+    if jeq(m, b):
+        return t           # only the other side changed it
+    if jeq(t, b):
+        return m           # only this side changed it
+    if jeq(m, t):
+        return m
+    if isinstance(m, list) and isinstance(t, list):
+        both = m + t
+        if all(isinstance(x, dict) and x.get('id') for x in both):
+            return merge_by_id(b if isinstance(b, list) else [], m, t, depth)
+        if all(x is not None and not isinstance(x, (dict, list)) for x in both):
+            return list({_scalar_key(x): x for x in both}.values())   # e.g. usedKeys
+        return m
+    if isinstance(m, dict) and isinstance(t, dict) and depth < 6:
+        bo = b if isinstance(b, dict) else {}
+        out = {}
+        for k in dict.fromkeys(list(m) + list(t) + list(bo)):
+            in_m, in_t, in_b = k in m, k in t, k in bo
+            if not in_m and not in_t:
+                continue
+            if not in_m:
+                if in_b and jeq(t[k], bo[k]):
+                    continue    # I deleted it
+                out[k] = t[k]
+                continue
+            if not in_t:
+                if in_b and jeq(m[k], bo[k]):
+                    continue    # they deleted it
+                out[k] = m[k]
+                continue
+            out[k] = merge_node(bo[k] if in_b else MISSING, m[k], t[k], depth + 1)
+        return out
+    return m               # both changed one value: "mine" wins
+
+
+def merge_by_id(b, m, t, depth):
+    def by_id(lst):
+        return {x.get('id') if isinstance(x, dict) else None: x for x in lst}
+    bm, mm, tm = by_id(b), by_id(m), by_id(t)
+    out, seen = [], set()
+    for x in t + m:
+        if x['id'] in seen:
+            continue
+        seen.add(x['id'])
+        bx, mx, tx = bm.get(x['id']), mm.get(x['id']), tm.get(x['id'])
+        if mx is not None and tx is not None:
+            v = merge_node(bx if bx is not None else MISSING, mx, tx, depth + 1)
+        elif mx is not None:
+            v = None if bx is not None and jeq(mx, bx) else mx   # they deleted it
+        else:
+            v = None if bx is not None and jeq(tx, bx) else tx   # I deleted it
+        if v is not None:
+            out.append(v)
+    return out
+
+
+def _num(x):
+    # JavaScript "+x || 0"
+    if isinstance(x, bool):
+        return int(x)
+    if isinstance(x, (int, float)):
+        return x if x == x else 0
+    try:
+        s = str(x).strip()
+        v = float(s) if s else 0
+        return int(v) if float(v).is_integer() else v
+    except Exception:
+        return 0
+
+
+def merge3(base, mine, theirs):
+    out = copy.deepcopy(merge_node(base if base is not None else {}, mine, theirs, 0))
+    ms, ts = mine.get('seq') or {}, theirs.get('seq') or {}
+    seq = {**ts, **ms}
+    # Running numbers must never go backwards
+    for k in ('bill', 'kot'):
+        seq[k] = max(_num(ms.get(k)), _num(ts.get(k)))
+    # Tokens restart daily, so the newer day wins before comparing numbers
+    md, td = str(ms.get('tokenDate') or ''), str(ts.get('tokenDate') or '')
+    seq['tokenDate'] = md if md > td else td
+    if md == td:
+        seq['token'] = max(_num(ms.get('token')), _num(ts.get('token')))
+    else:
+        seq['token'] = _num(ms.get('token')) if md > td else _num(ts.get('token'))
+    out['seq'] = seq
+    # Both sides may have used the same bill / KOT number: new ones from "mine" get fresh numbers
+    for lst, key in (('bills', 'bill'), ('kots', 'kot')):
+        theirs_l = [x for x in theirs.get(lst) or [] if isinstance(x, dict)]
+        base_l = [x for x in (base or {}).get(lst) or [] if isinstance(x, dict)]
+        their_ids = {x.get('id') for x in theirs_l}
+        base_ids = {x.get('id') for x in base_l}
+        taken = {x.get('no') for x in theirs_l}
+        for x in out.get(lst) or []:
+            if not isinstance(x, dict):
+                continue
+            if x.get('id') not in their_ids and x.get('id') not in base_ids and x.get('no') in taken:
+                seq[key] += 1
+                x['no'] = seq[key]
+            taken.add(x.get('no'))
+    return out
+
+
+def _write_json(path, obj):
+    tmp = path + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
+        json.dump(obj, f, ensure_ascii=False)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+def _read_json(path, default):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+class CloudBusy(Exception):
+    pass
+
+
+class CloudSync:
+    """Two-way sync between this PC's setu-db.json and the hotel's Setu Cloud Worker."""
+
+    def __init__(self, store):
+        self.store = store
+        self.cfg_path = os.path.join(store.dir, 'setu-cloud.json')
+        self.state_path = os.path.join(store.dir, 'setu-cloud-state.json')
+        self.base_path = os.path.join(store.dir, 'setu-cloud-base.json')
+        self.cfg = _read_json(self.cfg_path, {})
+        self.state = _read_json(self.state_path, {})
+        self.status = {'ok': None, 'at': 0, 'error': '', 'cloudVersion': self.state.get('cv', -1)}
+        self.wake = threading.Event()
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def configured(self):
+        return bool(self.cfg.get('url') and self.cfg.get('key') and self.cfg.get('enabled', True))
+
+    def public(self):
+        # The sync key never leaves this PC
+        return {'configured': self.configured(), 'url': self.cfg.get('url', ''),
+                'enabled': self.cfg.get('enabled', True), 'hasKey': bool(self.cfg.get('key')), **self.status}
+
+    def set_config(self, url, key, enabled=True):
+        url = (url or '').strip().rstrip('/')
+        if url.endswith('/hotel_erp.html'):
+            url = url[:-len('/hotel_erp.html')]
+        key = (key or '').strip() or self.cfg.get('key', '')
+        if enabled:
+            if not (url.startswith('https://') or url.startswith(('http://127.0.0.1:', 'http://localhost:'))):
+                raise ValueError('Cloud URL https:// se shuru hona chahiye')
+            if not key:
+                raise ValueError('Cloud Sync Key daalein')
+            try:
+                code, _ = self._request('GET', '/api/version', url=url, key=key)
+            except Exception as e:
+                raise ValueError('Cloud se connection nahi hua: ' + str(e))
+            if code == 401:
+                raise ValueError('Cloud Sync Key galat hai')
+            if code != 200:
+                raise ValueError(f'Cloud se sahi jawab nahi mila (HTTP {code})')
+        if url != self.cfg.get('url'):
+            # A different cloud starts from scratch: nothing is "already synced" there
+            self.state = {}
+            try:
+                os.remove(self.base_path)
+            except OSError:
+                pass
+            _write_json(self.state_path, self.state)
+        self.cfg = {'url': url, 'key': key, 'enabled': bool(enabled)}
+        _write_json(self.cfg_path, self.cfg)
+        self.status = {'ok': None, 'at': 0, 'error': '', 'cloudVersion': self.state.get('cv', -1)}
+        self.wake.set()
+
+    def _request(self, method, path, body=None, url=None, key=None):
+        req = urllib.request.Request(
+            (url or self.cfg['url']) + path,
+            data=body.encode('utf-8') if body is not None else None,
+            method=method,
+            headers={'X-Setu-Sync': key or self.cfg['key'], 'Content-Type': 'application/json',
+                     'User-Agent': 'Setu-Main-Counter/1.0'})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                return r.status, r.read().decode('utf-8')
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode('utf-8', 'replace')
+
+    def _loop(self):
+        while True:
+            self.wake.wait(5 if self.status.get('ok') is not False else 20)
+            self.wake.clear()
+            if not self.configured():
+                continue
+            try:
+                self._tick()
+                self.status.update(ok=True, at=int(time.time() * 1000), error='')
+            except CloudBusy:
+                self.wake.set()     # someone wrote in between: try again right away
+            except Exception as e:
+                msg = str(e) or e.__class__.__name__
+                if self.status.get('error') != msg:
+                    self.store.log('CLOUD SYNC: ' + msg)
+                self.status.update(ok=False, at=int(time.time() * 1000), error=msg)
+
+    def _tick(self):
+        code, text = self._request('GET', '/api/version')
+        if code != 200:
+            raise OSError('Cloud Sync Key galat hai' if code == 401 else f'Cloud HTTP {code}')
+        cv = json.loads(text)['version']
+        st_cv, st_lv = self.state.get('cv', -1), self.state.get('lv', -1)
+        if cv == st_cv and self.store.version == st_lv:
+            return
+        base = _read_json(self.base_path, None) if st_cv >= 0 else None
+        if cv != st_cv or base is None:
+            code, text = self._request('GET', '/api/db')
+            if code != 200:
+                raise OSError(f'Cloud HTTP {code}')
+            doc = json.loads(text)
+            cv, theirs = doc['version'], (doc['data'] if doc['version'] else None)
+        else:
+            theirs = copy.deepcopy(base)     # cloud unchanged since the last sync
+        with self.store.lock:
+            lv = self.store.version
+            local = self.store.data() if lv else None
+        if local is None and theirs is None:
+            return
+        if theirs is None:
+            merged = local
+        elif local is None:
+            merged = theirs
+        else:
+            # Cloud as "mine" so bills already printed at this counter keep their numbers
+            merged = merge3(base, theirs, local)
+        if not isinstance(merged, dict) or 'settings' not in merged:
+            raise OSError('Merge ke baad data galat laga, sync roka gaya')
+        if theirs is None or not jeq(merged, theirs):
+            body = '{"baseVersion": %d, "force": false, "data": %s}' % (cv, json.dumps(merged, ensure_ascii=False))
+            code, text = self._request('POST', '/api/db', body)
+            if code == 409:
+                raise CloudBusy()
+            if code != 200:
+                raise OSError(f'Cloud save nahi hua (HTTP {code})')
+            cv = json.loads(text)['version']
+        with self.store.lock:
+            if self.store.version == lv:
+                final = merged
+                if local is None or not jeq(merged, local):
+                    self.store.write(final)
+            else:
+                # The counter saved while we talked to the cloud: put its new edits on top
+                final = merge3(local, merged, self.store.data())
+                self.store.write(final)
+            new_lv = self.store.version
+        _write_json(self.base_path, merged)
+        # lv = -1 tells the next round that this PC still has edits the cloud lacks
+        self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1}
+        _write_json(self.state_path, self.state)
+        self.status['cloudVersion'] = cv
+
+
+def make_handler(base_dir, store, port, cloud=None):
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=base_dir, **kwargs)
@@ -307,6 +597,10 @@ def make_handler(base_dir, store, port):
                 return super().do_GET()
             if path == '/api/ping':
                 return self.send_json(200, {'setu': True, 'version': store.version, 'local': self.is_local()})
+            if path == '/api/cloud':
+                if not self.is_local():
+                    return self.send_json(403, {'error': 'main counter only'})
+                return self.send_json(200, cloud.public() if cloud else {'configured': False})
             if path == '/api/info':
                 return self.send_json(200, {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()})
             if not self.role():
@@ -338,6 +632,18 @@ def make_handler(base_dir, store, port):
                 role, name = found
                 token = store.add_token(role)
                 return self.send_json(200, {'token': token, 'role': role, 'name': name})
+            if path == '/api/cloud':
+                # Cloud URL + sync key are set only from the main counter PC itself
+                if not self.is_local() or not cloud:
+                    return self.send_json(403, {'error': 'main counter only'})
+                try:
+                    body = self.read_json()
+                    cloud.set_config(body.get('url'), body.get('key'), bool(body.get('enabled', True)))
+                except ValueError as e:
+                    return self.send_json(400, {'error': str(e)})
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                return self.send_json(200, cloud.public())
             if path == '/api/print':
                 if not self.role():
                     return self.send_json(401, {'error': 'pin required'})
@@ -405,10 +711,12 @@ def port_busy(port):
 
 def start_server(base_dir, data_dir, port):
     store = SetuStore(data_dir)
+    cloud = CloudSync(store)
+    store.on_write = cloud.wake.set
     store.log(f'Server start: port {port}, database version {store.version}')
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
-    httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port))
+    httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud))
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()

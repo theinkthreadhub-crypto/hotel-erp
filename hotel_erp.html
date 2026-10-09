@@ -890,7 +890,7 @@ function save(){
 // When Setu is served by app_main.py the database lives in one file on the main PC.
 // Every device keeps a copy in D, pushes its edits with the version it started from,
 // and on a version clash merges (base, mine, theirs) record by record.
-const SRV = { on: false, local: true, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
+const SRV = { on: false, local: true, cloud: false, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
 const TOKEN_KEY = 'setu_device_token';
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
 const lsSet = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
@@ -908,6 +908,7 @@ async function srvDetect(){
     if(!r.ok) return false;
     const j = await r.json();
     SRV.local = !!j.local;
+    SRV.cloud = !!j.cloud;
     return j.setu === true;
   }catch(e){ return false; }
 }
@@ -955,10 +956,11 @@ function mergeById(b, m, t, depth){
 }
 
 function merge3(base, mine, theirs){
-  const out = mergeNode(base || {}, mine, theirs, 0);
-  // Running numbers must never go backwards
-  out.seq = {...(theirs.seq || {}), ...(mine.seq || {})};
+  // Copy: mergeNode can hand back "theirs" itself, and theirs.seq must stay readable below
+  const out = {...mergeNode(base || {}, mine, theirs, 0)};
   const ms = mine.seq || {}, ts = theirs.seq || {};
+  // Running numbers must never go backwards
+  out.seq = {...ts, ...ms};
   ['bill', 'kot'].forEach(k => out.seq[k] = Math.max(+ms[k] || 0, +ts[k] || 0));
   // Tokens restart daily, so the newer day wins before comparing numbers
   const md = ms.tokenDate || '', td = ts.tokenDate || '';
@@ -981,7 +983,9 @@ function srvStatus(ok){
   const e = $('#srv-status');
   if(!e) return;
   e.style.display = 'inline';
-  e.textContent = ok ? (SRV.local ? 'Main Counter · LAN Server ON' : 'Connected to Main Counter') : 'Main Counter se connection toota — data save nahi ho raha';
+  e.textContent = SRV.cloud
+    ? (ok ? 'Setu Cloud · Connected' : 'Internet nahi — data save nahi ho raha, page band na karein')
+    : (ok ? (SRV.local ? 'Main Counter · LAN Server ON' : 'Connected to Main Counter') : 'Main Counter se connection toota — data save nahi ho raha');
   e.style.color = ok ? '#34d399' : '#ef4444';
 }
 
@@ -1000,7 +1004,9 @@ async function srvInitData(){
   const j = await srvLoad(await r.text());
   if(j.version === 0 || !j.data){
     if(!SRV.local){
-      showConnectScreen('Main Counter PC par Setu abhi setup nahi hua hai. Pehle wahan Sign Up karein.');
+      showConnectScreen(SRV.cloud
+        ? 'Cloud par abhi data nahi aaya. Main Counter PC par Settings (G) → Setu Cloud Sync chalu karein.'
+        : 'Main Counter PC par Setu abhi setup nahi hua hai. Pehle wahan Sign Up karein.');
       return false;
     }
     // First run of the LAN server: move this PC's browser data into the server file
@@ -1102,7 +1108,7 @@ function showConnectScreen(msg){
     <div class="login-card">
       <img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px;margin:0 auto 10px;display:block;border:1px solid #e2e8f0;background:#fff">
       <h2>Setu — Device Connect</h2>
-      <p class="subtitle">Ye phone/tablet Main Counter PC se judega (restaurant WiFi)</p>
+      <p class="subtitle">${SRV.cloud ? 'Ye phone/tablet internet se Setu Cloud se judega' : 'Ye phone/tablet Main Counter PC se judega (restaurant WiFi)'}</p>
       ${msg ? `<div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px">${esc(msg)}</div>` : ''}
       <form id="connect-form" style="text-align:left">
         <div class="login-field">
@@ -1120,7 +1126,14 @@ function showConnectScreen(msg){
     const err = $('#connect_err');
     try{
       const r = await fetch('/api/login', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pin: $('#connect_pin').value.trim()})});
-      if(!r.ok){ err.textContent = r.status === 403 ? 'Galat PIN' : 'Main Counter se connection nahi hua'; err.style.display = 'block'; return; }
+      if(!r.ok){
+        const j = await r.json().catch(() => ({}));
+        err.textContent = r.status === 429 ? 'Bahut baar galat PIN — 15 minute baad try karein'
+          : j.error === 'weak pin' ? 'Ye PIN bahut aasaan hai (1234 / 1111). Main Counter par Manager/Cashier PIN badlein, phir Cloud se judein.'
+          : r.status === 403 ? 'Galat PIN' : (SRV.cloud ? 'Cloud se connection nahi hua' : 'Main Counter se connection nahi hua');
+        err.style.display = 'block';
+        return;
+      }
       const j = await r.json();
       SRV.token = j.token;
       lsSet(TOKEN_KEY, j.token);
@@ -1132,7 +1145,7 @@ function showConnectScreen(msg){
         save();
         startUI();
       }
-    }catch(e){ err.textContent = 'Main Counter se connection nahi hua'; err.style.display = 'block'; }
+    }catch(e){ err.textContent = SRV.cloud ? 'Internet / Cloud se connection nahi hua' : 'Main Counter se connection nahi hua'; err.style.display = 'block'; }
   };
   setTimeout(() => $('#connect_pin')?.focus(), 50);
 }
@@ -3420,7 +3433,7 @@ const getBill = id => D.bills.find(b => b.id === id);
 /* ================= DIRECT PRINTING (thermal ESC/POS, no print dialog) ================= */
 // Desktop App only: receipts are built as ESC/POS bytes and sent to /api/print, which
 // writes them to the Windows printer as a RAW job. Browser mode keeps the print dialog.
-const directPrint = () => SRV.on && D.settings.printMode === 'direct';
+const directPrint = () => SRV.on && !SRV.cloud && D.settings.printMode === 'direct';
 const printCols = () => (+D.settings.width === 58 ? 32 : 48);
 const asciiSafe = t => String(t ?? '').replace(/₹/g, 'Rs.').replace(/[×✕]/g, 'x').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7E\n]/g, '?');
 
@@ -5731,6 +5744,7 @@ function scrSettings(){
   <div class="title">Restaurant Settings, Online Aggregators & Backup</div>
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Check ho raha hai...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Check ho raha hai...</p></div>
+  <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Setu Cloud Sync (Internet se Access)</h3><p class="muted">Check ho raha hai...</p></div>
   
   <div class="card">
     <h3 style="margin-top:0">Restaurant Details (Printed on Bills)</h3>
@@ -5902,7 +5916,9 @@ function scrSettings(){
 
   <div class="card">
     <h3 style="margin-top:0">Data Backup & Restore</h3>
-    <p class="muted">${SRV.on
+    <p class="muted">${SRV.cloud
+      ? 'Ye Setu Cloud hai. Asli data Main Counter PC par hai aur wahi se cloud mein sync hota hai. Cloud roz raat ka backup 30 din rakhta hai.'
+      : SRV.on
       ? 'Data Main Counter PC par file mein save hota hai aur roz ka auto-backup <b>%LOCALAPPDATA%\\AghanyaDevanyaERP\\Data\\Backups</b> mein banta hai (60 din). Phir bhi hafte mein ek baar backup PC ke bahar (pen-drive / Google Drive) rakhein.'
       : 'Browser mode: data isi browser mein save hai (limit ~5 MB). Roz din khatam hone par ek backup file download karein.'}</p>
     <div class="btns">
@@ -5913,12 +5929,17 @@ function scrSettings(){
   </div>`;
   drawNetCard();
   drawPrintCard();
+  drawCloudCard();
 }
 
 async function drawPrintCard(){
   const el = $('#print-card');
   if(!el) return;
   const st = D.settings, headT = '<h3 style="margin-top:0">Printer Setup (Bina Popup Seedha Print)</h3>';
+  if(SRV.cloud){
+    el.innerHTML = headT + '<p class="muted" style="margin:0">Cloud se kholne par har print Print Box ke saath hota hai. Seedha thermal print Main Counter PC par hi hota hai.</p>';
+    return;
+  }
   if(!SRV.on){
     el.innerHTML = headT + '<p class="muted" style="margin:0">Browser mode mein har print par Windows ka print box aayega. Bina popup print aur Kitchen ke alag printer ke liye Main Counter par <b>Setu Desktop App (EXE)</b> chalayein.</p>';
     return;
@@ -5984,6 +6005,71 @@ async function drawNetCard(){
         <span class="muted">Windows Firewall poochhe to "Private network" par Allow karein. Ye PC band hone par doosre device kaam nahi karenge.</span>
       </div>
     </div>` : '<p class="muted" style="margin:0">Is PC ka network address nahi mila. PC ko WiFi/LAN se jodein.</p>');
+}
+
+// Setu Cloud (cloud/ folder, Cloudflare Worker): the main counter PC syncs its database there,
+// so the owner and staff can open Setu from anywhere with their PIN.
+async function drawCloudCard(){
+  const el = $('#cloud-card');
+  if(!el) return;
+  const headT = '<h3 style="margin-top:0">Setu Cloud Sync (Internet se Access)</h3>';
+  const pinNote = '<span class="muted">Cloud par 1234 / 1111 jaise aasaan PIN se login nahi hota. Manager aur Cashier PIN pehle badlein.</span>';
+  if(SRV.cloud){
+    const u = location.origin + '/hotel_erp.html';
+    el.innerHTML = headT + `
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <div class="qrbox">${qrSvg(u)}<small>Phone se scan karein</small></div>
+        <div style="font-size:13px;line-height:1.7">Aap <b>Setu Cloud</b> par hain. Ye link kisi bhi internet se chalta hai:<br>
+          <code style="font-size:13px;font-weight:700">${esc(u)}</code><br>
+          Bills aur KOT Main Counter PC tak kuch second mein pahunch jaate hain (PC on aur internet chalu ho to).<br>${pinNote}</div>
+      </div>`;
+    return;
+  }
+  if(!SRV.on || !SRV.local){
+    el.innerHTML = headT + `<p class="muted" style="margin:0">${SRV.on ? 'Cloud Sync sirf Main Counter PC par set hota hai.' : 'Cloud Sync ke liye Main Counter PC par <b>Setu Desktop App (EXE)</b> chalayein.'}</p>`;
+    return;
+  }
+  let c = {};
+  try{ c = await (await srvFetch('/api/cloud')).json(); }catch(e){}
+  const when = c.at ? new Date(c.at).toLocaleTimeString('en-IN') : '';
+  const stat = !c.configured ? '<b style="color:#64748b">Band hai</b>'
+    : c.ok === true ? `<b style="color:#16a34a">Chalu — last sync ${esc(when)}</b>`
+    : c.ok === false ? `<b style="color:#dc2626">Sync nahi ho raha: ${esc(c.error || '')}</b>`
+    : '<b style="color:#d97706">Connect ho raha hai...</b>';
+  const link = c.url ? c.url + '/hotel_erp.html' : '';
+  el.innerHTML = headT + `
+    <p style="margin:0 0 10px">Status: ${stat}</p>
+    <div class="grid">
+      <div><label>Cloud URL (vendor dega)</label><input id="cl_url" placeholder="https://setu-cloud.xxxx.workers.dev" value="${esc(c.url || '')}"></div>
+      <div><label>Cloud Sync Key ${c.hasKey ? '(save hai — badalna ho to hi likhein)' : ''}</label><input id="cl_key" type="password" autocomplete="off" placeholder="${c.hasKey ? '••••••••' : 'Sync Key'}"></div>
+    </div>
+    <div class="btns">
+      <button class="btn ok" onclick="saveCloud(true)">Save &amp; Connect</button>
+      ${c.configured ? '<button class="btn bad" onclick="saveCloud(false)">Cloud Sync Band Karein</button>' : ''}
+      <button class="btn g" onclick="drawCloudCard()">Status Refresh</button>
+    </div>
+    ${c.configured && link ? `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:8px">
+      <div class="qrbox">${qrSvg(link)}<small>Owner / staff phone se scan karein</small></div>
+      <div style="font-size:13px;line-height:1.7">Kahin se bhi kholein (4G / ghar ka WiFi):<br><code style="font-size:13px;font-weight:700">${esc(link)}</code><br>
+        Login apne Manager / Cashier / Staff PIN se.<br>${pinNote}<br>
+        <span class="muted">Ye PC aur internet chalu rehne chahiye. Internet jaane par bhi billing yahan chalti rahegi, net aate hi sync ho jayega.</span></div>
+    </div>` : ''}`;
+}
+
+async function saveCloud(enabled){
+  const body = {enabled, url: ($('#cl_url')?.value || '').trim(), key: ($('#cl_key')?.value || '').trim()};
+  if(!enabled && !confirm('Cloud Sync band karein? Phone se internet wala access ruk jayega. (Data is PC par safe rahega)')) return;
+  toast(enabled ? 'Cloud se connect ho raha hai...' : 'Band ho raha hai...');
+  try{
+    const r = await srvFetch('/api/cloud', {method: 'POST', body: JSON.stringify(body)});
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok){ alert(j.error || ('Cloud setting save nahi hui (HTTP ' + r.status + ')')); return; }
+    audit(enabled ? 'Cloud Sync On' : 'Cloud Sync Off', body.url);
+    save();
+    toast(enabled ? 'Cloud Sync chalu ho gaya' : 'Cloud Sync band ho gaya');
+  }catch(e){ alert('Main Counter server se baat nahi hui'); }
+  drawCloudCard();
+  setTimeout(drawCloudCard, 6000);
 }
 
 async function activateSettingsKey(){

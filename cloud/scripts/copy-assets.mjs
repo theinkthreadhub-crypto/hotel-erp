@@ -1,0 +1,18 @@
+// Copies only the public app files from the repo root into cloud/public.
+// An allow-list on purpose: app_main.py, keygen.py, *.pem and key lists must never be served.
+import { mkdirSync, copyFileSync, rmSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, '..', '..');
+const out = join(here, '..', 'public');
+const FILES = ['hotel_erp.html', 'sw.js', 'manifest.json', 'favicon.ico', 'icon-192.png', 'icon-512.png', 'logo.png'];
+
+rmSync(out, { recursive: true, force: true });
+mkdirSync(out, { recursive: true });
+for(const f of FILES){
+  if(!existsSync(join(root, f))){ console.error('Missing: ' + f); process.exit(1); }
+  copyFileSync(join(root, f), join(out, f));
+}
+console.log('Copied ' + FILES.length + ' app files to cloud/public');

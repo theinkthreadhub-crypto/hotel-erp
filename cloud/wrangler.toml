@@ -1,0 +1,30 @@
+# Setu Cloud - Cloudflare Worker config (one deploy = one hotel)
+# Powered by Aghanya Devanya Enterprises
+name = "setu-cloud"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# Custom domain (optional). Works only when the domain's DNS is on Cloudflare.
+# Until then use the free *.workers.dev address that "npm run deploy" prints.
+# routes = [ { pattern = "hotel.example.in", custom_domain = true } ]
+
+# App files (hotel_erp.html, icons, sw.js). "npm run assets" copies them from the repo root.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = ["/api/*", "/"]
+
+[vars]
+HOTEL_ID = "main"
+
+# The hotel database: one Durable Object with built-in SQLite (free plan supports this)
+[[durable_objects.bindings]]
+name = "HOTEL"
+class_name = "SetuHotel"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SetuHotel"]
+
+[observability]
+enabled = true
