@@ -501,7 +501,7 @@ function scrHome(){
   if(!periodic().length)setup.push(`Create a fee plan in <b>F</b> (Fee Master), e.g. Monthly / 30 days.`);
   if(!D.students.length)setup.push(`Add students with <b>S</b>, or import them in bulk from Excel with <b>I</b>.`);
   main.innerHTML=(setup.length?`<div class="hint">Getting started:<br>${setup.map((x,j)=>(j+1)+'. '+x).join('<br>')}
-    ${!D.students.length?`<div style="margin-top:8px">New computer with an old backup (<b>library_backup_….json</b> from email)? <label class="btn sm" style="display:inline-block;margin:0;color:#fff">Restore from backup<input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label></div>`:''}</div>`:'')+
+    ${!D.students.length?`<div style="margin-top:8px">New computer with an old backup (<b>library_backup_….json</b> from email)? <label class="btn sm" style="display:inline-block;margin:0;color:#fff">Restore from backup<input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label> <button class="btn sm ok" onclick="cloudRestoreBox()">Restore from cloud (Library ID + PIN)</button></div>`:''}</div>`:'')+
   `<div class="dash"><div class="gwbox"><h3>Gateway of Library</h3><div id="gwmenu">${gwHtml()}</div><div style="height:8px"></div>
     <p class="muted small" style="padding:0 14px">Press <b>M</b> / <b>T</b> / <b>R</b> / <b>U</b> to open a menu, or <kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd>. Item letters (like <b>C</b>) open directly; <kbd>Alt</kbd>+letter works from any screen.</p></div>
   <div>
@@ -1466,6 +1466,10 @@ async function scrSettings(){
     <div class="w2"><label>Send backup to (comma for many)</label><input id="g_mt" value="${esc(M.to)}"></div>
     <div><label>Send automatically every day</label><select id="g_ma"><option value="1">Yes (once a day)</option><option value="0"${M.auto?'':' selected'}>No</option></select></div>
   </div><div class="btns"><button class="btn" onclick="sendEmailBackup()">Email backup now</button></div><p class="small" id="g_mailst"></p></div>
+  <div class="card"><h4>Cloud backup (Setu Pro)</h4><div id="g_cloud" class="small">Loading…</div>
+    <div class="grid" style="margin-top:8px"><div><label>Restore PIN (4–6 digits)</label><input id="g_pin" type="password" inputmode="numeric" maxlength="6" autocomplete="new-password" placeholder="••••"></div></div>
+    <div class="btns"><button class="btn" onclick="cloudPin()">Set PIN</button><button class="btn g" onclick="cloudSyncNow()">Sync now</button><button class="btn g" onclick="cloudRestoreBox()">Restore from cloud</button></div>
+    <details style="margin-top:8px"><summary class="small muted">Cloud server address (Setu Pro only)</summary><input id="g_curl" value="${esc(S.cloudUrl||'')}" placeholder="https://setu-erp.yourname.workers.dev" style="margin-top:6px"></details></div>
   <div class="card"><h4>Backup folder (Google Drive / pen drive)</h4>
     <div class="hint">Install the <b>Google Drive</b> app on this computer and sign in. Then choose a folder inside Google Drive below
       (e.g. <b>G:\My Drive\Library Backup</b>). Every day the ERP saves the backup file in this folder and Google Drive uploads it automatically — no email needed.
@@ -1483,7 +1487,29 @@ async function scrSettings(){
   onSave=()=>saveSettings().catch(()=>{});focusEl('#g_name');
   try{INFO=await api('info');}catch(e){}
   if($('#g_info'))$('#g_info').innerHTML=`Data folder: <b>${esc(INFO.dataDir||'')}</b><br>Daily local backup: <b>${esc(INFO.backupDir||'')}</b> (kept 60 days)`;
-  showMailStatus();showFolderStatus();loadBackups();
+  showMailStatus();showFolderStatus();loadBackups();cloudStatus();
+}
+let CLOUD={};
+async function cloudStatus(){try{CLOUD=await api('cloud');}catch(e){return;}const e=$('#g_cloud');if(!e)return;
+  if(!CLOUD.enabled){e.innerHTML='<span class="muted">Cloud backup is not set up on this ERP. Contact Setu Pro support to turn it on.</span>';return;}
+  e.innerHTML=`${CLOUD.libId?`Library ID: <b style="font-size:15px">${esc(CLOUD.libId)}</b> · `:''}${CLOUD.lastOk?`Last cloud backup: <b class="green">${new Date(CLOUD.lastOk).toLocaleString('en-IN')}</b>`:'Not backed up to the cloud yet.'}
+    · PIN: ${CLOUD.pinSet?'<b class="green">set ✓</b>':'<b class="red">not set — set a PIN below</b>'}
+    ${CLOUD.error?`<br><span class="red">Last error${CLOUD.errorAt?' ('+new Date(CLOUD.errorAt).toLocaleString('en-IN')+')':''}: ${esc(CLOUD.error)}</span>`:''}
+    <br><span class="muted">The ERP backs up to the Setu Pro cloud automatically whenever the internet is on. Note the Library ID and PIN — you need both to get your data back on a new computer.</span>`;}
+async function cloudSyncNow(){await saveSettings(true);toast('Syncing…');try{await api('cloud-sync',{});toast('Backed up to the cloud','ok');}catch(e){toast(e.message,'bad');}cloudStatus();}
+async function cloudPin(){const pin=$('#g_pin').value.trim();if(!/^\d{4,6}$/.test(pin)){toast('PIN must be 4 to 6 digits','bad');return;}
+  await saveSettings(true);try{await api('cloud-pin',{pin});$('#g_pin').value='';toast('PIN set — remember it','ok');}catch(e){toast(e.message,'bad');}cloudStatus();}
+function cloudRestoreBox(){
+  modal('Restore from cloud',`<p>Enter the <b>Library ID</b> (like SETU-0007) and the <b>PIN</b> of the library. The latest cloud backup will replace the data on this computer.</p>
+    <div class="grid form"><div><label>Library ID</label><input id="cr_id" placeholder="SETU-0007" style="text-transform:uppercase"></div><div><label>PIN</label><input id="cr_pin" type="password" inputmode="numeric" maxlength="6"></div></div>
+    <p class="small muted">Forgot the ID or PIN? Call Setu Pro support${LIC&&LIC.vendorPhone?' — '+esc(LIC.vendorPhone):''}.</p>
+    <div class="btns"><button class="btn ok" id="cr_go">Restore</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+  setTimeout(()=>$('#cr_id').focus(),40);
+  const go_=async()=>{const id=val('cr_id').toUpperCase(),pin=val('cr_pin');if(!id||!pin){toast('Enter Library ID and PIN','bad');return;}
+    $('#cr_go').disabled=true;$('#cr_go').textContent='Restoring…';
+    try{const r=await api('cloud-restore',{libId:id,pin});closeModal();D=migrate(await api('data'));toast(`Restored ${r.students} students from the cloud (backup of ${dmy(r.day)})`,'ok');sessBar();drawSide();go('home');}
+    catch(e){toast(e.message,'bad');$('#cr_go').disabled=false;$('#cr_go').textContent='Restore';}};
+  $('#cr_go').onclick=go_;$('#cr_pin').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();go_();}};
 }
 async function loadBackups(){
   let r;try{r=await api('backups');}catch(e){return;}
@@ -1518,7 +1544,7 @@ function saveSettings(quiet){
   if(!name){toast('Enter the library name','bad');focusEl('#g_name');return Promise.reject();}
   Object.assign(S,{name,contact:val('g_contact'),owner:normPh(val('g_owner')),address:val('g_address'),footer:val('g_footer'),shifts:val('g_shifts'),
     expDays:Math.max(0,parseInt(val('g_exp'),10)||0),slip:val('g_slip'),autoPrint:val('g_ap')==='1',autoWa:val('g_aw')==='1',waMode:val('g_wam')});
-  S.backupDir=val('g_bdir');
+  S.backupDir=val('g_bdir');if($('#g_curl'))S.cloudUrl=val('g_curl');
   S.mail={...S.mail,user:val('g_mu'),pass:$('#g_mp').value.replace(/\s+/g,''),to:val('g_mt'),auto:val('g_ma')==='1'};
   $('#libname').textContent=S.name;if(!quiet)toast('Settings saved','ok');
   return save();

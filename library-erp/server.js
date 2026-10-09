@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
 const net = require('net');
+const zlib = require('zlib');
+const nodeCrypto = require('crypto');
 const { execFile, exec } = require('child_process');
 const lic = require('./license');
 
@@ -203,6 +205,49 @@ async function autoEmail() {
   catch (e) { const mm = readJson(META, {}); mm.lastEmailError = e.message; writeJson(META, mm); console.log('Email backup fail: ' + e.message); }
 }
 
+/* ---------- cloud backup (Setu Pro, Cloudflare) ---------- */
+function cloudUrl() {
+  const D = readJson(DATA, null);
+  return String((D && D.settings && D.settings.cloudUrl) || CONFIG.cloudUrl || '').trim().replace(/\/+$/, '');
+}
+async function cloudCall(p, body) {
+  const u = cloudUrl();
+  if (!u) throw new Error('Cloud backup is not set up');
+  const r = await fetch(u + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(60000) });
+  let j; try { j = await r.json(); } catch (e) { throw new Error('Cloud server did not reply properly (' + r.status + ')'); }
+  if (!r.ok) throw new Error(j.error || 'Cloud error ' + r.status);
+  return j;
+}
+function cloudErr(e) {
+  const c = String((e.cause && e.cause.code) || e.code || '') + ' ' + e.message;
+  if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ETIMEDOUT|ECONNRESET|fetch failed|aborted|timeout/i.test(c)) return 'No internet — the ERP will try again automatically.';
+  return e.message;
+}
+const setCloud = c => { const m = readJson(META, {}); m.cloud = c; writeJson(META, m); };
+async function cloudSync(force) {
+  if (!cloudUrl() || !licenseStatus().ok || !fs.existsSync(DATA)) return;
+  const c = readJson(META, {}).cloud || {};
+  const raw = fs.readFileSync(DATA), hash = nodeCrypto.createHash('sha1').update(raw).digest('hex');
+  if (!force) {
+    if (c.hash === hash && c.day === lic.today()) return;            // kuch naya nahi
+    if (c.lastTry && Date.now() - c.lastTry < 10 * 60e3) return;      // 10 minute mein ek baar
+  }
+  c.lastTry = Date.now();
+  const D = JSON.parse(raw.toString('utf8')), S = D.settings || {}, key = readJson(LICENSE, {}).key;
+  const who = { key, machine: MACHINE, name: S.name || '', contact: S.contact || '', version: VERSION };
+  try {
+    if (!c.libId) { const r = await cloudCall('/api/register', who); c.libId = r.libId; c.token = r.token; setCloud(c); }
+    const st = D.students || [];
+    const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: lic.today(),
+      stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
+      data: zlib.gzipSync(raw).toString('base64') });
+    Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet });
+  } catch (e) { c.error = cloudErr(e); c.errorAt = new Date().toISOString(); }
+  setCloud(c);
+  if (force && c.error) throw new Error(c.error);
+}
+const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet }; };
+
 /* ---------- http ---------- */
 function body(req) {
   return new Promise((res, rej) => {
@@ -236,6 +281,26 @@ const server = http.createServer(async (req, res) => {
       const d = await body(req);
       if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Invalid data');
       saveData(d); return send(res, 200, { ok: true });
+    }
+    if (url === '/api/cloud') return send(res, 200, cloudInfo());
+    if (url === '/api/cloud-sync' && req.method === 'POST') { await cloudSync(true); return send(res, 200, cloudInfo()); }
+    if (url === '/api/cloud-pin' && req.method === 'POST') {
+      const c = readJson(META, {}).cloud || {};
+      if (!c.libId) { await cloudSync(true); Object.assign(c, readJson(META, {}).cloud || {}); }
+      try { await cloudCall('/api/pin', { libId: c.libId, token: c.token, pin: String((await body(req)).pin || '') }); }
+      catch (e) { throw new Error(cloudErr(e)); }
+      c.pinSet = true; setCloud(c); return send(res, 200, cloudInfo());
+    }
+    if (url === '/api/cloud-restore' && req.method === 'POST') {
+      const b = await body(req);
+      let r; try { r = await cloudCall('/api/restore', { libId: b.libId, pin: b.pin, key: readJson(LICENSE, {}).key, machine: MACHINE }); }
+      catch (e) { throw new Error(cloudErr(e)); }
+      const d = JSON.parse(zlib.gunzipSync(Buffer.from(r.data, 'base64')).toString('utf8'));
+      if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Cloud backup is damaged');
+      if (fs.existsSync(DATA)) fs.copyFileSync(DATA, path.join(BACKUP_DIR, 'before-restore_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json'));
+      saveData(d);
+      setCloud({ libId: r.libId, token: r.token, pinSet: true, lastOk: new Date().toISOString(), hash: '', error: '' });
+      return send(res, 200, { ok: true, libId: r.libId, day: r.day, students: d.students.length });
     }
     if (url === '/api/restore' && req.method === 'POST') {
       const d = await body(req);
@@ -313,6 +378,8 @@ server.on('listening', () => {
   console.log('==============================================');
   if (!process.env.LIBERP_NO_OPEN) openApp();
   setTimeout(autoEmail, 20000);
+  setTimeout(() => cloudSync().catch(() => {}), 8000);
+  setInterval(() => cloudSync().catch(() => {}), 2 * 60e3);
   setInterval(autoEmail, 15 * 60e3);
 });
 server.listen(PORT, '127.0.0.1');

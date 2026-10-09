@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.6.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.7.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -108,6 +108,13 @@ https://github.com/theinkthreadhub-crypto/hotel-erp/releases/download/library-er
 4. **Abhi backup email karein** dabakar test karein.
 
 ERP chalu rehne par din mein ek baar backup apne aap jaata hai.
+
+## Setu Pro Cloud backup
+
+Cloudflare par lagane ke steps: [cloud/SETUP.md](cloud/SETUP.md). Server ka code: `cloud/worker.js`.
+Cloud ka address `config.json` ke `cloudUrl` mein daalkar Setup banayein. Har library ka ERP internet milte hi apne aap backup bhejta hai (10 minute mein ek baar, sirf jab data badla ho).
+Library ko **G → Cloud backup** mein Library ID dikhta hai, aur wahi ek **PIN** set karti hai. Naye computer par **Restore from cloud** mein Library ID + PIN daalte hi data wapas aa jata hai.
+Admin page: `https://<aapka-worker>.workers.dev/admin`
 
 ## Google Drive mein backup (bina email)
 
