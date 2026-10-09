@@ -2627,10 +2627,17 @@ function scrGateway(){
   const kacchaEntries = Object.entries(D.kaccha || {});
   const totalKacchaAmt = sum(kacchaEntries, ([_, k]) => calc(k.cart, k.disc, gstRate()).total);
   const pendingOnline = (D.onlineOrders || []).filter(o => o.status === 'new').length;
+  const on = dashOn;
+  const tiles = dashTiles();
+  const kpis = ['kpiSales', 'kpiTables', 'kpiOnline', 'kpiCash', 'kpiMargin'].filter(on);
+  const leftOn = on('channels') || on('top'), rightOn = on('recent') || on('waReport'), anyCol = leftOn || rightOn;
+  const shown = ['welcome', 'license', 'alerts', 'launchpad', 'channels', 'top', 'recent', 'waReport'].some(on) || kpis.length;
 
   main.innerHTML = `
+    ${isManager() ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn g sm" onclick="dashSetup()">Dashboard Set Karein</button></div>` : ''}
+    ${shown ? '' : `<div class="card" style="text-align:center;padding:30px"><b>Dashboard khaali hai</b><p class="muted">${isManager() ? '"Dashboard Set Karein" se chunein kya dikhana hai.' : 'Manager se dashboard set karwayein.'}</p></div>`}
     <!-- Top Welcome Banner -->
-    <div class="dash-welcome">
+    ${on('welcome') ? `<div class="dash-welcome">
       <div>
         <h2>Namaste, ${esc(userName)}!</h2>
         <p>Aapka Setu POS ready hai. Dine-In tables, Takeaway aur Zomato/Swiggy orders sabhi live hain.</p>
@@ -2640,10 +2647,10 @@ function scrGateway(){
         <button class="btn swiggy" onclick="go('online')">Swiggy Orders</button>
         <button class="btn ok" onclick="go('bill')">Naya Bill [B]</button>
       </div>
-    </div>
+    </div>` : ''}
 
     <!-- Aghanya Devanya Subscription Status Card -->
-    <div class="card" style="border:1.5px solid #bae6fd;background:linear-gradient(90deg,#f0f9ff 0%,#e0f2fe 100%);display:flex;justify-content:space-between;align-items:center;padding:12px 18px;margin-bottom:18px;border-radius:12px">
+    ${on('license') ? `<div class="card" style="border:1.5px solid #bae6fd;background:linear-gradient(90deg,#f0f9ff 0%,#e0f2fe 100%);display:flex;justify-content:space-between;align-items:center;padding:12px 18px;margin-bottom:18px;border-radius:12px">
       <div style="display:flex;align-items:center;gap:12px">
         <img src="favicon.ico" alt="AD" style="width:38px;height:38px;border-radius:8px;border:1px solid #bae6fd;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.1);display:block">
         <div>
@@ -2660,11 +2667,11 @@ function scrGateway(){
         <button class="btn zomato sm" style="background:#0284c7" onclick="openSubscriptionModal()">Renew Monthly License</button>
         <button class="btn g sm" onclick="triggerPWAInstall()">Install PC App</button>
       </div>
-    </div>
+    </div>` : ''}
 
     <!-- 5 Key Performance Indicators (KPIs) -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
+    ${kpis.length ? `<div class="kpi-grid">
+      ${on('kpiSales') ? `<div class="kpi-card">
         <div class="kpi-header">
           <span class="kpi-title">Total Sales (Today)</span>
           <span class="kpi-badge blue">SALES</span>
@@ -2673,9 +2680,9 @@ function scrGateway(){
         <div class="kpi-sub">
           <span class="green font-bold">${s.bills.length} Bills Settled</span>
         </div>
-      </div>
+      </div>` : ''}
 
-      <div class="kpi-card">
+      ${on('kpiTables') ? `<div class="kpi-card">
         <div class="kpi-header">
           <span class="kpi-title">Active Dine-In Tables</span>
           <span class="kpi-badge amber">TABLES</span>
@@ -2684,9 +2691,9 @@ function scrGateway(){
         <div class="kpi-sub">
           <span><b>${kacchaEntries.length}</b> Tables pe Kaccha Bill running</span>
         </div>
-      </div>
+      </div>` : ''}
 
-      <div class="kpi-card">
+      ${on('kpiOnline') ? `<div class="kpi-card">
         <div class="kpi-header">
           <span class="kpi-title">Online Orders (Zom/Swig)</span>
           <span class="kpi-badge zomato">ONLINE</span>
@@ -2695,9 +2702,9 @@ function scrGateway(){
         <div class="kpi-sub">
           <span>Zomato: ${money(s.zomatoSales)} · Swiggy: ${money(s.swiggySales)}</span>
         </div>
-      </div>
+      </div>` : ''}
 
-      <div class="kpi-card">
+      ${on('kpiCash') ? `<div class="kpi-card">
         <div class="kpi-header">
           <span class="kpi-title">Cash In Hand (Exp.)</span>
           <span class="kpi-badge green">CASH</span>
@@ -2706,9 +2713,9 @@ function scrGateway(){
         <div class="kpi-sub">
           <span>In: ${rs(s.cashIn)} · Out: ${rs(s.cashOut)}</span>
         </div>
-      </div>
+      </div>` : ''}
 
-      <div class="kpi-card">
+      ${on('kpiMargin') ? `<div class="kpi-card">
         <div class="kpi-header">
           <span class="kpi-title">Net Daily Margin</span>
           <span class="kpi-badge ${netMargin >= 0 ? 'green' : 'red'}">MARGIN</span>
@@ -2717,11 +2724,11 @@ function scrGateway(){
         <div class="kpi-sub">
           <span>Low Stock: <b class="${low.length ? 'red' : 'green'}">${low.length} items</b></span>
         </div>
-      </div>
-    </div>
+      </div>` : ''}
+    </div>` : ''}
 
     <!-- Live Online Orders Banner if new orders arrived -->
-    ${pendingOnline ? `
+    ${on('alerts') && pendingOnline ? `
       <div class="card" style="border-left:5px solid var(--zomato);background:#fff1f2;display:flex;justify-content:space-between;align-items:center">
         <div>
           <b style="font-size:16px;color:var(--zomato)">${pendingOnline} Naye Online Orders Aaye Hain!</b>
@@ -2731,7 +2738,7 @@ function scrGateway(){
       </div>
     ` : ''}
 
-    ${isManager() && auditSummary(today()).rows.length ? `
+    ${on('alerts') && isManager() && auditSummary(today()).rows.length ? `
       <div class="card" style="border-left:5px solid var(--bad);background:#fff5f5;display:flex;justify-content:space-between;align-items:center">
         <div>
           <b style="color:var(--bad)">Aaj ${auditSummary(today()).rows.length} audit alerts</b>
@@ -2741,12 +2748,12 @@ function scrGateway(){
       </div>` : ''}
 
     <!-- Quick Action Launchpad Tiles -->
-    <div class="section-title">
+    ${on('launchpad') && tiles.length ? `<div class="section-title">
       <span>Quick Action Launchpad</span>
       <span class="muted" style="font-weight:400;font-size:12px">(Press highlighted letter on keyboard)</span>
     </div>
     <div class="quick-grid">
-      ${MENU.map(m => `
+      ${tiles.map(m => `
         <div class="quick-tile" onclick="go('${m[2]}')">
           <div class="tile-key-badge">${m[0]}</div>
           <div class="tile-info">
@@ -2757,13 +2764,13 @@ function scrGateway(){
           </div>
         </div>
       `).join('')}
-    </div>
+    </div>` : ''}
 
     <!-- Dashboard 2-Column Overview -->
-    <div class="dash-columns">
+    ${anyCol ? `<div class="${leftOn && rightOn ? 'dash-columns' : ''}">
       <!-- Left Column: Channel & Payment Breakdown -->
       <div>
-        <div class="card">
+        ${on('channels') ? `<div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <b style="font-size:14px">Channel-wise Sales Breakdown</b>
             <span class="muted" style="font-size:12px">${dmy(today())}</span>
@@ -2787,10 +2794,10 @@ function scrGateway(){
               <b style="color:var(--swiggy)">${money(s.swiggySales)}</b>
             </div>
           </div>
-        </div>
+        </div>` : ''}
 
         <!-- Top Selling Items Leaderboard -->
-        <div class="card">
+        ${on('top') ? `<div class="card">
           <b style="font-size:14px;display:block;margin-bottom:12px">Top Selling Dishes (Today)</b>
           ${s.top.length ? `
             ${s.top.slice(0, 5).map(([name, qty], idx) => `
@@ -2800,12 +2807,12 @@ function scrGateway(){
               </div>
             `).join('')}
           ` : '<p class="muted" style="text-align:center;padding:12px">Aaj abhi tak koi order nahi hua</p>'}
-        </div>
+        </div>` : ''}
       </div>
 
       <!-- Right Column: Recent Bills & WhatsApp Report -->
       <div>
-        <div class="card" style="padding:0;overflow:hidden">
+        ${on('recent') ? `<div class="card" style="padding:0;overflow:hidden">
           <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
             <b style="font-size:14px">Recent Bills (Aaj)</b>
             <button class="btn sm g" onclick="go('bills')">View All</button>
@@ -2840,10 +2847,10 @@ function scrGateway(){
               `).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:18px">Aaj koi bill nahi kata</td></tr>'}
             </tbody>
           </table>
-        </div>
+        </div>` : ''}
 
         <!-- WhatsApp Daily Close Report Card -->
-        <div class="card" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-color:#bbf7d0">
+        ${on('waReport') ? `<div class="card" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-color:#bbf7d0">
           <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
             <div>
               <b style="color:#166534;font-size:14px">Send Daily Summary Report to Owner</b>
@@ -2853,10 +2860,66 @@ function scrGateway(){
           <button class="btn wa" style="width:100%;padding:10px" onclick="go('report')">
             Open WhatsApp Report [W]
           </button>
-        </div>
+        </div>` : ''}
       </div>
-    </div>
+    </div>` : ''}
   `;
+}
+
+/* ================= DASHBOARD SETUP (owner chooses what the Gateway shows) ================= */
+// Saved per hotel in settings.dashHide (hidden sections) and settings.dashTiles (launchpad tiles;
+// missing = all). Every device of the hotel shows the same dashboard.
+const DASH_PARTS = [
+  ['welcome', 'Swagat banner + Naya Bill / Zomato / Swiggy buttons'],
+  ['license', 'License / plan card'],
+  ['kpiSales', 'Aaj ki Total Sales'],
+  ['kpiTables', 'Chalu tables (Kaccha Bill)'],
+  ['kpiOnline', 'Online orders (Zomato / Swiggy) sales'],
+  ['kpiCash', 'Cash in hand'],
+  ['kpiMargin', 'Net margin + low stock'],
+  ['alerts', 'Alerts (naye online orders, audit)'],
+  ['launchpad', 'Quick Action tiles'],
+  ['channels', 'Channel-wise sales'],
+  ['top', 'Top selling dishes'],
+  ['recent', 'Aaj ke recent bills'],
+  ['waReport', 'WhatsApp daily report card']
+];
+const dashOn = k => !(D.settings.dashHide || []).includes(k);
+const dashTiles = () => MENU.filter(m => screenOn(m[2]) && (!Array.isArray(D.settings.dashTiles) || D.settings.dashTiles.includes(m[2])));
+
+function dashSetup(){
+  if(!isManager()) return toast('Dashboard sirf Manager / Owner set kar sakta hai');
+  const tileOn = k => !Array.isArray(D.settings.dashTiles) || D.settings.dashTiles.includes(k);
+  modal('Dashboard Set Karein', `
+    <p class="muted" style="margin-top:0">Jo dashboard par chahiye use tick rakhein, baaki hat jayega. Is hotel ke saare devices par yahi dikhega.</p>
+    <b>Dashboard ke hisse</b>
+    <div class="grid" style="margin:8px 0 14px">${DASH_PARTS.map(([k, label]) => `<label style="display:flex;gap:8px;align-items:center;justify-content:flex-start;text-align:left;font-weight:500;margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:inherit"><span style="flex:none"><input type="checkbox" style="width:auto;margin:0" data-dash="${k}" ${dashOn(k) ? 'checked' : ''}></span>${esc(label)}</label>`).join('')}</div>
+    <b>Quick Action tiles</b>
+    <div class="grid" style="margin:8px 0 14px">${MENU.filter(m => screenOn(m[2])).map(m => `<label style="display:flex;gap:8px;align-items:center;justify-content:flex-start;text-align:left;font-weight:500;margin:0;text-transform:none;letter-spacing:0;font-size:13px;color:inherit"><span style="flex:none"><input type="checkbox" style="width:auto;margin:0" data-tile="${m[2]}" ${tileOn(m[2]) ? 'checked' : ''}></span><span><u>${m[0]}</u> ${esc(m[1])}</span></label>`).join('')}</div>
+    <p class="muted" style="font-size:12px">Menu (left side) aur keyboard shortcuts waise hi chalte rahenge — ye sirf dashboard ki safai hai.</p>
+    <div class="btns">
+      <button class="btn ok" onclick="saveDashSetup()">Save</button>
+      <button class="btn g" onclick="saveDashSetup(true)">Sab Dikhayein (Reset)</button>
+      <button class="btn g" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function saveDashSetup(reset){
+  const st = D.settings;
+  if(reset){
+    delete st.dashHide;
+    delete st.dashTiles;
+  } else {
+    st.dashHide = [...document.querySelectorAll('[data-dash]')].filter(x => !x.checked).map(x => x.dataset.dash);
+    const boxes = [...document.querySelectorAll('[data-tile]')];
+    st.dashTiles = boxes.every(x => x.checked) ? null : boxes.filter(x => x.checked).map(x => x.dataset.tile);
+    if(st.dashTiles === null) delete st.dashTiles;
+  }
+  audit('Dashboard Set', reset ? 'Sab dikhaya' : `${(st.dashHide || []).length} hisse chhupaye`);
+  save();
+  closeModal();
+  go('gateway');
+  toast('Dashboard save ho gaya');
 }
 
 /* ================= ZOMATO & SWIGGY ONLINE ORDERS DESK ================= */

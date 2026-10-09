@@ -108,6 +108,8 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   `ensureGrowth`) maps the bill template and rules onto `settings`. `billFields()` = custom bill fields (`B.extra` -> `bill.extra`,
   printed by `billHTML` / `escBill`). `saasRules().phoneAbove` needs a mobile on big bills. Support links (`#support=CODE.TOKEN`) open a
   read-only session (`SRV.readOnly`). LAN / browser installs have no `D.saas`, so everything stays on.
+- **Dashboard setup:** the owner/manager picks what the Gateway shows (`dashSetup()`): sections in `DASH_PARTS` hidden via
+  `settings.dashHide`, launchpad tiles via `settings.dashTiles` (missing = all). New Gateway sections need a `DASH_PARTS` entry + `on('key')` wrap.
 - **Multi-outlet:** no shared cloud across outlets yet. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
 - **License:** keys are `SETU-...` strings = 13-byte payload (kind, days/minutes, install-ID hash, serial,
   issue day) + 64-byte ECDSA signature, base32. `getActivationKeyInfo()` verifies with WebCrypto against
