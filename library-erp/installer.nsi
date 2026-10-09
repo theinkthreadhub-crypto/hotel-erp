@@ -23,9 +23,9 @@ BrandingText "${APP} ${VERSION}"
 
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Library ERP Setup"
-!define MUI_WELCOMEPAGE_TEXT "Ye Library ERP ko is computer par install karega.$\r$\n$\r$\nDesktop par shortcut ban jayega. Data isi folder ke LibraryData mein rahega.$\r$\n$\r$\nAage badhne ke liye Next dabayein."
+!define MUI_WELCOMEPAGE_TEXT "This will install Library ERP on this computer.$\r$\n$\r$\nA desktop shortcut will be created. Your data is kept in the LibraryData folder inside the install folder.$\r$\n$\r$\nClick Next to continue."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${EXE}"
-!define MUI_FINISHPAGE_RUN_TEXT "Library ERP abhi kholein"
+!define MUI_FINISHPAGE_RUN_TEXT "Open Library ERP now"
 
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
@@ -69,7 +69,7 @@ Section "Uninstall"
   RMDir /r "$SMPROGRAMS\${APP}"
   DeleteRegKey HKCU "${UNKEY}"
   DeleteRegKey HKCU "Software\LibraryERP"
-  MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "Library ka saara DATA (students, fee, receipts, backup) bhi delete karein?$\r$\n$\r$\nNahi (No) dabane par data $INSTDIR\LibraryData mein safe rahega." /SD IDNO IDYES deldata IDNO keep
+  MessageBox MB_YESNO|MB_ICONEXCLAMATION|MB_DEFBUTTON2 "Also delete ALL library DATA (students, fees, receipts, backups)?$\r$\n$\r$\nChoose No to keep the data safe in $INSTDIR\LibraryData." /SD IDNO IDYES deldata IDNO keep
   deldata:
     RMDir /r "$INSTDIR\LibraryData"
     Delete "$INSTDIR\LibraryERP-log.txt"

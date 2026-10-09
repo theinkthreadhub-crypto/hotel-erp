@@ -48,8 +48,8 @@ function licenseStatus() {
 function activate(key) {
   const k = lic.readKey(PUBLIC_KEY, key);
   if (!k.ok) throw new Error(k.error);
-  if (k.machine !== MACHINE) throw new Error('Ye key is computer ki nahi hai (machine code ' + k.machine + ')');
-  if (k.expiry < lic.today()) throw new Error('Ye key ' + k.expiry + ' ko expire ho chuki hai');
+  if (k.machine !== MACHINE) throw new Error('This key is not for this computer (machine code ' + k.machine + ')');
+  if (k.expiry < lic.today()) throw new Error('This key expired on ' + k.expiry);
   const st = readJson(LICENSE, {});
   writeJson(LICENSE, { key: String(key).replace(/\s+/g, ''), lastSeen: Math.max(Date.now(), st.lastSeen || 0), activated: new Date().toISOString() });
   return licenseStatus();
@@ -70,7 +70,7 @@ function smtpReader(sock) {
   const check = () => { if (pend && /(^|\n)\d{3} [^\n]*\n$/.test(buf)) { const r = buf, p = pend; buf = ''; pend = null; p.res(r); } };
   sock.on('data', d => { buf += d; check(); });
   sock.on('error', e => { err = e; if (pend) { pend.rej(e); pend = null; } });
-  sock.on('close', () => { if (pend) { pend.rej(new Error('SMTP connection band ho gaya')); pend = null; } });
+  sock.on('close', () => { if (pend) { pend.rej(new Error('SMTP connection closed')); pend = null; } });
   return () => new Promise((res, rej) => { if (err) return rej(err); pend = { res, rej }; check(); });
 }
 const b64 = s => Buffer.from(s).toString('base64');
@@ -114,14 +114,14 @@ function studentsCsv(D) {
 }
 async function emailBackup() {
   const D = readJson(DATA, null);
-  if (!D) throw new Error('Abhi koi data nahi hai');
+  if (!D) throw new Error('No data yet');
   const s = D.settings || {}, m = s.mail || {};
-  if (!m.user || !m.pass || !m.to) throw new Error('Settings mein Gmail id, App Password aur To email bharein');
+  if (!m.user || !m.pass || !m.to) throw new Error('Fill in Gmail ID, App Password and To email in Settings');
   const d = lic.today(), name = s.name || 'Library';
   await sendMail({
     host: m.host || 'smtp.gmail.com', port: +m.port || 465, user: m.user.trim(), pass: String(m.pass).replace(/\s+/g, ''), to: m.to,
     subject: `${name} — ERP Backup ${d}`,
-    text: `${name}\nERP backup: ${d}\n\nStudents: ${(D.students || []).length}\nReceipts: ${(D.receipts || []).length}\n\nRestore: Library ERP → G (Settings) → Restore Backup → library_backup_${d}.json chunein.`,
+    text: `${name}\nERP backup: ${d}\n\nStudents: ${(D.students || []).length}\nReceipts: ${(D.receipts || []).length}\n\nRestore: Library ERP → G (Settings) → Restore Backup → choose library_backup_${d}.json`,
     files: [
       { name: `library_backup_${d}.json`, type: 'application/json', data: JSON.stringify(D) },
       { name: `students_${d}.csv`, type: 'text/csv', data: studentsCsv(D) },
@@ -136,7 +136,7 @@ async function autoEmail() {
   if (meta.lastEmail && meta.lastEmail.slice(0, 10) === new Date().toISOString().slice(0, 10)) return;
   if (meta.lastTry && Date.now() - meta.lastTry < 3600e3) return;
   meta.lastTry = Date.now(); writeJson(META, meta);
-  try { await emailBackup(); console.log('Email backup bhej diya.'); }
+  try { await emailBackup(); console.log('Email backup sent.'); }
   catch (e) { const mm = readJson(META, {}); mm.lastEmailError = e.message; writeJson(META, mm); console.log('Email backup fail: ' + e.message); }
 }
 
@@ -144,8 +144,8 @@ async function autoEmail() {
 function body(req) {
   return new Promise((res, rej) => {
     const ch = []; let n = 0;
-    req.on('data', c => { n += c.length; if (n > 80e6) { rej(new Error('Data bahut bada hai')); req.destroy(); } else ch.push(c); });
-    req.on('end', () => { try { res(ch.length ? JSON.parse(Buffer.concat(ch).toString('utf8')) : {}); } catch (e) { rej(new Error('JSON galat hai')); } });
+    req.on('data', c => { n += c.length; if (n > 80e6) { rej(new Error('Data too large')); req.destroy(); } else ch.push(c); });
+    req.on('end', () => { try { res(ch.length ? JSON.parse(Buffer.concat(ch).toString('utf8')) : {}); } catch (e) { rej(new Error('Invalid JSON')); } });
   });
 }
 const send = (res, code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
@@ -158,7 +158,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(fs.readFileSync(APP));
     }
     if (url === '/api/ping') return send(res, 200, { app: 'library-erp' });
-    if (url === '/api/quit' && req.method === 'POST') { log('ERP band kiya gaya'); send(res, 200, { ok: true }); return setTimeout(() => process.exit(0), 300); }
+    if (url === '/api/quit' && req.method === 'POST') { log('ERP closed by user'); send(res, 200, { ok: true }); return setTimeout(() => process.exit(0), 300); }
     if (url === '/api/license') return send(res, 200, licenseStatus());
     if (url === '/api/activate' && req.method === 'POST') return send(res, 200, activate((await body(req)).key));
     // Expire hone par bhi apna data nikal sakein
@@ -167,11 +167,11 @@ const server = http.createServer(async (req, res) => {
       return res.end(fs.existsSync(DATA) ? fs.readFileSync(DATA) : '{}');
     }
     if (!url.startsWith('/api/')) { res.writeHead(404); return res.end('Not found'); }
-    if (!licenseStatus().ok) return send(res, 403, { error: 'License active nahi hai' });
+    if (!licenseStatus().ok) return send(res, 403, { error: 'License is not active' });
     if (url === '/api/data' && req.method === 'GET') return send(res, 200, readJson(DATA, null));
     if (url === '/api/data' && req.method === 'POST') {
       const d = await body(req);
-      if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Data galat hai');
+      if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Invalid data');
       saveData(d); return send(res, 200, { ok: true });
     }
     if (url === '/api/info') return send(res, 200, { dataDir: DATA_DIR, backupDir: BACKUP_DIR, ...readJson(META, {}) });
@@ -182,7 +182,7 @@ const server = http.createServer(async (req, res) => {
 
 function openApp() {
   const url = `http://127.0.0.1:${PORT}/`;
-  if (process.platform !== 'win32') return console.log('Browser mein kholein: ' + url);
+  if (process.platform !== 'win32') return console.log('Open in browser: ' + url);
   const P = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
   const cands = P.flatMap(p => [path.join(p, 'Microsoft', 'Edge', 'Application', 'msedge.exe'), path.join(p, 'Google', 'Chrome', 'Application', 'chrome.exe')]);
   const br = cands.find(f => fs.existsSync(f));
@@ -194,38 +194,38 @@ function openApp() {
 function pause(msg) {
   log(msg);
   if (GUI) {
-    const t = (msg + '\n\nIs message ki photo vendor ko bhejein. (LibraryERP-log.txt)').replace(/'/g, "''");
+    const t = (msg + '\n\nPlease send a photo of this message to your vendor. (LibraryERP-log.txt)').replace(/'/g, "''");
     exec(`powershell -NoProfile -WindowStyle Hidden -Command "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('${t.replace(/"/g, '')}', 'Library ERP')"`,
       { windowsHide: true }, () => process.exit(1));
     return;
   }
-  console.log('\n' + msg + '\n\nIs window ki photo vendor ko bhejein. Band karne ke liye Enter dabayein.');
+  console.log('\n' + msg + '\n\nPlease send a photo of this window to your vendor. Press Enter to close.');
   process.stdin.resume(); process.stdin.once('data', () => process.exit(1));
 }
 
 server.on('error', e => {
-  if (e.code !== 'EADDRINUSE' && e.code !== 'EACCES') return pause('Server start nahi hua: ' + e.message);
+  if (e.code !== 'EADDRINUSE' && e.code !== 'EACCES') return pause('Server could not start: ' + e.message);
   // Port par pehle se Library ERP chal raha hai to sirf window kholo, warna agla port try karo
   http.get(`http://127.0.0.1:${PORT}/api/ping`, { timeout: 2000 }, r => {
     let b = ''; r.on('data', c => b += c);
     r.on('end', () => {
-      if (b.includes('library-erp')) { log('Pehle se chal raha hai, port ' + PORT); openApp(); setTimeout(() => process.exit(0), 1500); }
+      if (b.includes('library-erp')) { log('Already running, port ' + PORT); openApp(); setTimeout(() => process.exit(0), 1500); }
       else nextPort();
     });
   }).on('error', nextPort).on('timeout', function () { this.destroy(); });
 });
 function nextPort() {
-  if (PORT >= FIRST_PORT + 20) return pause('Koi khali port nahi mila (' + FIRST_PORT + '-' + PORT + ').');
+  if (PORT >= FIRST_PORT + 20) return pause('No free port found (' + FIRST_PORT + '-' + PORT + ').');
   PORT++; server.listen(PORT, '127.0.0.1');
 }
 server.on('listening', () => {
   log('Start: port ' + PORT + ', machine ' + MACHINE);
   console.log('==============================================');
-  console.log('  Library ERP chal raha hai: http://127.0.0.1:' + PORT);
+  console.log('  Library ERP is running: http://127.0.0.1:' + PORT);
   console.log('  Machine code: ' + MACHINE);
   console.log('  Data: ' + DATA_DIR);
-  console.log('  Ye window band na karein — minimize kar dein.');
-  console.log('  ERP window na khule to browser mein upar wala link kholein.');
+  console.log('  Do not close this window — minimize it.');
+  console.log('  If the ERP window does not open, open the link above in a browser.');
   console.log('==============================================');
   if (!process.env.LIBERP_NO_OPEN) openApp();
   setTimeout(autoEmail, 20000);

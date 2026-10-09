@@ -15,24 +15,24 @@ const PUB = path.join(DIR, 'public_key.pem');
 const REG = path.join(DIR, 'LibraryKeys.csv'); // har key ka record — Excel mein khulta hai
 
 function init() {
-  if (fs.existsSync(PRIV)) { console.log('private_key.pem pehle se hai. Naya banane ke liye purana hatayein (purani keys band ho jayengi).'); return; }
+  if (fs.existsSync(PRIV)) { console.log('private_key.pem already exists. Remove it to create a new one (old keys will stop working).'); return; }
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
   fs.writeFileSync(PRIV, privateKey.export({ type: 'pkcs8', format: 'pem' }));
   fs.writeFileSync(PUB, publicKey.export({ type: 'spki', format: 'pem' }));
-  console.log('Ban gaya:\n  ' + PRIV + '  (SECRET — sambhal kar rakhein)\n  ' + PUB + '  (app build mein jata hai)');
+  console.log('Created:\n  ' + PRIV + '  (SECRET — keep it safe)\n  ' + PUB + '  (goes into the app build)');
 }
 
 const csv = v => { v = String(v ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function gen(machine, days, name) {
-  if (!fs.existsSync(PRIV)) throw new Error('private_key.pem nahi mili: ' + PRIV);
+  if (!fs.existsSync(PRIV)) throw new Error('private_key.pem not found: ' + PRIV);
   const key = makeKey(fs.readFileSync(PRIV, 'utf8'), machine, days, name);
-  const d = parseDays(days), plan = d ? d + ' din' : 'Lifetime';
+  const d = parseDays(days), plan = d ? d + ' days' : 'Lifetime';
   const till = d ? addDays(today(), d) : 'Lifetime';
   console.log('\nActivation Key (' + plan + ', valid till ' + till + '):\n\n' + key + '\n');
   try {
     if (!fs.existsSync(REG)) fs.writeFileSync(REG, '\ufeffDate,Machine Code,Library,Plan,Valid Till,Activation Key\r\n');
     fs.appendFileSync(REG, [today(), String(machine).trim().toUpperCase(), name, plan, till, key].map(csv).join(',') + '\r\n');
-  } catch (e) { console.log('(LibraryKeys.csv mein save nahi hua: ' + e.message + ' — Excel mein khuli ho to band karein)'); }
+  } catch (e) { console.log('(Could not save to LibraryKeys.csv: ' + e.message + ' — close it in Excel if open)'); }
 }
 const ALL = ['1m', '3m', '6m', '1y', 'life'];
 
@@ -45,15 +45,15 @@ try {
     const ask = q => new Promise(r => rl.question(q, r));
     (async () => {
       try {
-        const m = await ask('Machine code (customer ki screen se): ');
-        console.log('  1 = 1 mahina (30 din)\n  2 = 3 mahine (90 din)\n  3 = 6 mahine (180 din)\n  4 = 1 saal (365 din)\n  5 = Lifetime\n  6 = Sabhi plan ek saath\n  ya seedhe din likhein (jaise 45)');
-        const c = (await ask('Chunein: ')).trim();
+        const m = await ask('Machine code (from the customer screen): ');
+        console.log('  1 = 1 month (30 days)\n  2 = 3 months (90 days)\n  3 = 6 months (180 days)\n  4 = 1 year (365 days)\n  5 = Lifetime\n  6 = All plans at once\n  or type a number of days (e.g. 45)');
+        const c = (await ask('Choose: ')).trim();
         const d = { 1: '1m', 2: '3m', 3: '6m', 4: '1y', 5: 'life' }[c] || c;
-        const n = await ask('Library ka naam (optional): ');
+        const n = await ask('Library name (optional): ');
         (c === '6' ? ALL : [d]).forEach(p => gen(m, p, n));
-        console.log('Saari keys LibraryKeys.csv mein bhi save hain (Excel se kholein).');
+        console.log('All keys are also saved in LibraryKeys.csv (open with Excel).');
       } catch (e) { console.log('Error: ' + e.message); }
-      await ask('Band karne ke liye Enter dabayein...');
+      await ask('Press Enter to close...');
       rl.close();
     })();
   }

@@ -32,14 +32,14 @@ function parseDays(v) {
   if (v in PLANS) return PLANS[v];
   if (v === 'lifetime') return 0;
   const d = parseInt(v, 10);
-  if (!(d > 0 && d <= 3650)) throw new Error('Din 1 se 3650 ke beech, ya 1m / 3m / 6m / 1y / life');
+  if (!(d > 0 && d <= 3650)) throw new Error('Days must be 1-3650, or 1m / 3m / 6m / 1y / life');
   return d;
 }
 
 // payload: machine|issued|expiry|days|name   (days 0 = lifetime)
 function makeKey(privatePem, machine, days, name) {
   machine = String(machine).trim().toUpperCase();
-  if (!/^[0-9A-F]{5}-[0-9A-F]{5}$/.test(machine)) throw new Error('Machine code galat hai (format: XXXXX-XXXXX)');
+  if (!/^[0-9A-F]{5}-[0-9A-F]{5}$/.test(machine)) throw new Error('Invalid machine code (format: XXXXX-XXXXX)');
   days = parseDays(days);
   const issued = today();
   const payload = [machine, issued, days ? addDays(issued, days) : LIFETIME, days, String(name || '').replace(/[|]/g, ' ').slice(0, 40)].join('|');
@@ -49,11 +49,11 @@ function makeKey(privatePem, machine, days, name) {
 
 function readKey(publicPem, key) {
   const m = String(key || '').replace(/\s+/g, '').match(/^LIB-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/);
-  if (!m) return { ok: false, error: 'Key ka format galat hai' };
+  if (!m) return { ok: false, error: 'Invalid key format' };
   const payload = Buffer.from(m[1], 'base64url');
   let good = false;
   try { good = crypto.verify(null, payload, crypto.createPublicKey(publicPem), Buffer.from(m[2], 'base64url')); } catch (e) {}
-  if (!good) return { ok: false, error: 'Key valid nahi hai' };
+  if (!good) return { ok: false, error: 'Key is not valid' };
   const [machine, issued, expiry, days, name] = payload.toString().split('|');
   return { ok: true, machine, issued, expiry, days: +days, name };
 }
