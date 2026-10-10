@@ -112,13 +112,11 @@ function drawLibs(L){
       <span class="chip ${d===Infinity?'ok':d<0?'bad':d<=7?'warn':''}">License ${d===Infinity?'Lifetime':d<0?'expired':d+'d left'}</span>
       <span class="chip">${l.active}/${l.students} students</span>
       <span class="chip">${l.receipts} receipts</span>
-      ${l.img_count?`<span class="chip">${l.img_count} photos</span>`:''}
       <span class="chip ${pd==null?'warn':pd<0?'bad':'ok'}">${pd==null?'Payment not set':pd<0?'Payment due ('+dmy(l.paid_till)+')':'Paid till '+dmy(l.paid_till)}</span>
       <span class="chip ${l.pinSet?'ok':'bad'}">PIN ${l.pinSet?'set':'not set'}</span>
     </div>
     <div class="acts"><button class="btn sm" onclick='payBox(${JSON.stringify(l.id)})'>Payment</button>
       <button class="btn sm g" onclick='libTickets(${JSON.stringify(l.id)})'>Tickets</button>
-      <button class="btn sm g" onclick='imgBox(${JSON.stringify(l.id)})'${l.img_count?'':' disabled'}>Photos</button>
       <button class="btn sm g" onclick='dlBackup(${JSON.stringify(l.id)})'>Backup</button>
       <button class="btn sm g" onclick='setPin(${JSON.stringify(l.id)})'>Set PIN</button>
       <button class="btn sm bad" onclick='delLib(${JSON.stringify(l.id)},${JSON.stringify(l.name||l.id)})'>Delete</button></div></div>`;}).join('')||'<p class="muted">No library has connected yet.</p>';
@@ -142,10 +140,6 @@ async function savePay(id){try{await api('pay',{body:{id,paid_till:$('#pt').valu
   toast('Saved','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 async function setPin(id){const p=prompt('New 4–6 digit restore PIN for '+id);if(!p)return;try{await api('pin',{body:{id,pin:p}});toast('PIN set for '+id,'ok');home();}catch(e){toast(e.message,'bad');}}
 async function delLib(id,name){if(!confirm('Delete '+name+' and ALL its cloud backups, photos and tickets? This cannot be undone.'))return;try{await api('delete',{body:{id}});toast(id+' deleted');home();}catch(e){toast(e.message,'bad');}}
-async function imgBox(id){try{const r=await api('images?id='+encodeURIComponent(id));sheet(`<h3>Photos — ${esc(id)} (${r.images.length})</h3>
-  <div class="imgs">${r.images.map(im=>`<a data-full="${BASE}/admin/image?id=${encodeURIComponent(id)}&key=${encodeURIComponent(im.key)}" onclick="openFull(this);return false"><img data-img="${BASE}/admin/image?id=${encodeURIComponent(id)}&key=${encodeURIComponent(im.key)}"><div class="muted" style="font-size:10px">${esc(im.key)}</div></a>`).join('')||'<p class="muted">No photos.</p>'}</div>
-  <button class="btn g full" onclick="closeSheet()">Close</button>`);loadImgs($('#sheet'));}catch(e){toast(e.message,'bad');}}
-async function openFull(a){try{window.open(await authBlob(a.dataset.full),'_blank');}catch(e){toast('Could not open','bad');}}
 
 async function openTickets(id){tab='tickets';let r;try{r=await api('tickets'+(id?'?id='+encodeURIComponent(id)+'&read=1':'?read=1'));}catch(e){toast(e.message,'bad');return;}
   const T=r.tickets;DATA.ticketsUnread=0;
