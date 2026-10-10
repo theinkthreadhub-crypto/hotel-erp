@@ -1,0 +1,4 @@
+build/
+SetuLibrary.apk
+*.p12
+*.keystore

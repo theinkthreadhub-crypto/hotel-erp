@@ -128,7 +128,8 @@ Library ka owner kahin se bhi aaj ka hisaab dekh sakta hai: aaj ki fee (Cash/UPI
 3. **Install** dabayein (ya Chrome menu ⋮ → *Add to Home screen*). Phone par **Setu Library** app ban jaata hai.
 
 Data library ke computer se aata hai: ERP khula ho aur internet ho to har 5 minute mein update hota hai. Phone par sirf hisaab dikhta hai, kuch badal nahi sakte.
-APK chahiye to `pwabuilder.com` par `/view` wala address daalkar Android package bana sakte hain.
+**Android app (APK):** `SetuLibrary.apk` phone par install karein (Unknown apps → Allow). App seedha Online View kholta hai; login yaad rehta hai. WhatsApp button WhatsApp app mein khulta hai.
+APK banane ka code `android/` folder mein hai (`build-apk.sh`). Naya version banana ho to `AndroidManifest.xml` mein `versionCode` badhayein aur **wahi signing key** (`setu-library-release.p12`) use karein, warna phone par update install nahi hoga.
 
 ## Google Drive mein backup (bina email)
 
