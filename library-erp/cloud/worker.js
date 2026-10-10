@@ -212,7 +212,7 @@ const VIEW_HTML = `<!doctype html>
 :root{--b:#2b4c7e;--bg:#f4f6fa;--card:#fff;--t:#1d2433;--m:#6b7385;--ok:#1e8e3e;--bad:#c62828;--warn:#e08a00;--line:#e4e8f0}
 *{box-sizing:border-box}html,body{margin:0}body{font:15px/1.4 "Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--t);-webkit-tap-highlight-color:transparent}
 header{background:var(--b);color:#fff;padding:12px 16px calc(12px);padding-top:max(12px,env(safe-area-inset-top));position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px}
-header .n{flex:1;min-width:0}header b{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}header small{opacity:.85;font-size:12px}
+header .n{flex:1;min-width:0}header .hlogo{width:38px;height:38px;border-radius:9px;background:#fff;object-fit:contain;flex:none}header b{display:block;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}header small{opacity:.85;font-size:12px}
 header button{background:rgba(255,255,255,.15);color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:13px}
 main{padding:14px 14px 40px;max-width:720px;margin:0 auto}
 .card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(20,30,60,.08)}
@@ -311,7 +311,7 @@ function show(warn){
   if(!R.view){app.innerHTML=\`<header><div class="n"><b>\${esc(R.name||R.libId)}</b><small>\${esc(R.libId)}</small></div><button onclick="logout()">Sign out</button></header><main>
     <div class="note">No summary yet. Update the library computer to <b>Library ERP v1.8.0</b> or newer and keep it connected to the internet. (Now: \${esc(R.version||'?')}, last backup \${ago(R.lastSync)})</div><div class="foot">Setu Pro · 6393995127</div></main>\`;return;}
   const v=R.view,T=v.today,M=v.month,pl=T.fee-T.exp,mpl=M.fee-M.exp,pct=M.expected?Math.min(100,Math.round(M.got*100/M.expected)):0,old=v.day!==istToday();
-  app.innerHTML=\`<header><div class="n"><b>\${esc(v.name||R.name)}</b><small>\${esc(R.libId)} · Updated \${ago(v.at)}</small></div><button id="rf" onclick="refresh()">↻ Refresh</button></header><main>
+  app.innerHTML=\`<header>\${v.logo?\`<img class="hlogo" src="\${v.logo}" alt="">\`:''}<div class="n"><b>\${esc(v.name||R.name)}</b><small>\${esc(R.libId)} · Updated \${ago(v.at)}</small></div><button id="rf" onclick="refresh()">↻ Refresh</button></header><main>
   <div class="install" id="inst">Install this as an app on your phone <button onclick="install()">Install</button></div>
   \${warn?\`<div class="note">\${esc(warn)}</div>\`:''}
   \${old?\`<div class="note">The library computer has not sent data today. Showing <b>\${dmy(v.day)}</b>. Open the ERP with internet to update.</div>\`:''}

@@ -147,6 +147,14 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .act{max-width:560px;margin:40px auto}
 .mcode{font:700 30px Consolas,monospace;letter-spacing:3px;text-align:center;background:#f3eed3;border:2px dashed var(--bar);padding:12px;border-radius:6px;user-select:all}
 #print{display:none}
+.lhead{display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:12px}
+.lhead img,.lhead span{width:52px;height:52px;border-radius:12px;object-fit:contain;flex:none;background:#eef3fb;display:flex;align-items:center;justify-content:center;font-size:28px}
+.lhead b{display:block;font-size:17px;color:var(--bar)}.lhead small{color:var(--muted)}
+.logobox{display:flex;gap:14px;align-items:center;margin-top:4px}
+.logobox img{width:88px;height:88px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;padding:4px}
+.logobox .nologo{width:88px;height:88px;border:1px dashed #bdb59a;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
+.rcpt .rlogo{max-width:60%;max-height:18mm;object-fit:contain;margin-bottom:2px}
+#drawer .dlogo img{width:100%;height:100%;object-fit:contain;border-radius:12px;background:#fff}
 #mhome{display:none;background:#ffffff22;color:#fff;border:0;border-radius:4px;font-size:18px;padding:2px 10px}
 @media (max-width:700px){
   #mhome{display:block}
@@ -219,7 +227,8 @@ html.mobile kbd,html.mobile .keys{display:none}
 html.mobile #modal{align-items:flex-end;padding:0}
 html.mobile #mbox{width:100%;border-radius:18px 18px 0 0;max-height:88vh}
 html.mobile #mbox h3{border-radius:18px 18px 0 0;padding:14px 16px}
-html.mobile #toast{bottom:76px;border-radius:10px;width:max-content;max-width:92vw;text-align:center}
+html.mobile .rq .btn{flex:1 1 100%;padding:14px;font-size:16px}
+html.mobile #toast{bottom:auto;top:64px;border-radius:10px;width:max-content;max-width:92vw;text-align:center}
 html.mobile .pick #sugg,html.mobile .sugg{max-height:50vh}
 html.mobile #sugg div,html.mobile .sugg div{padding:11px 12px}
 html.mobile .khelp{display:none}
@@ -356,7 +365,8 @@ function waOpen(num,text){
   if(n.length===10)n='91'+n;
   if(!n){toast('Mobile number missing','bad');return;}
   const t=encodeURIComponent(text);
-  if(D.settings.waMode==='app')location.href=`whatsapp://send?phone=${n}&text=${t}`;
+  if(window.MOBILE)window.open(`whatsapp://send?phone=${n}&text=${t}`);  // phone: seedha WhatsApp app ki chat
+  else if(D&&D.settings&&D.settings.waMode==='app')location.href=`whatsapp://send?phone=${n}&text=${t}`;
   else window.open(`https://wa.me/${n}?text=${t}`,'_blank');
 }
 function words(n){
@@ -494,7 +504,7 @@ const ICON={home:'🏠',student:'➕',list:'👥',plans:'💳',heads:'🏷️',b
   daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
 const BNAV=[['home','Home'],['collect','Fee'],['att','Attendance'],['list','Students'],['menu','Menu']];
 function drawer(open){const d=$('#drawer');if(!d||!D)return;open=open===undefined?!d.classList.contains('open'):open;
-  if(open)d.innerHTML=`<div class="dhead"><div class="dlogo">📚</div><div><b>${esc(D.settings.name)}</b><small>Library ERP v${esc(LIC&&LIC.version||'')}${LIC&&LIC.vendorPhone?' · Support '+esc(LIC.vendorPhone):''}</small></div></div>
+  if(open)d.innerHTML=`<div class="dhead"><div class="dlogo">${D.settings.logo?`<img src="${D.settings.logo}" alt="">`:'📚'}</div><div><b>${esc(D.settings.name)}</b><small>Library ERP v${esc(LIC&&LIC.version||'')}${LIC&&LIC.vendorPhone?' · Support '+esc(LIC.vendorPhone):''}</small></div></div>
     <a class="${cur==='home'?'on':''}" onclick="go('home')"><i>🏠</i>Home</a>`+
     GROUPS.map(g=>`<div class="dsec">${g[1]}</div>`+g[2].map(m=>`<a class="${cur===m[2]?'on':''}" onclick="go('${m[2]}')"><i>${ICON[m[2]]||'•'}</i>${esc(m[1])}</a>`).join('')).join('');
   d.classList.toggle('open',open);$('#dmask').classList.toggle('open',open);}
@@ -503,7 +513,8 @@ function mobNav(s){drawer(false);const m=MENU.find(x=>x[2]===s);
   $('#bnav').innerHTML=BNAV.map(([k,l])=>`<a class="${k===s||(k==='list'&&(s==='record'||s==='student'))?'on':''}" onclick="${k==='menu'?'drawer(true)':`go('${k}')`}"><i>${k==='menu'?'☰':ICON[k]}</i><span>${l}</span></a>`).join('');}
 function mobTiles(){const T=[['student','New Admission'],['collect','Fee Collect'],['att','Attendance'],['list','Students'],['due','Due List'],['expense','Expense'],
   ['bookissue','Book Issue'],['daybook','Day Book'],['receipts','Receipts']];
-  return `<div class="tiles">${T.map(([k,l])=>`<a onclick="go('${k}')"><i>${ICON[k]}</i><span>${l}</span></a>`).join('')}<a onclick="drawer(true)"><i>☰</i><span>All modules</span></a></div>`;}
+  const S=D.settings;
+  return `<div class="lhead">${S.logo?`<img src="${S.logo}" alt="">`:'<span>📚</span>'}<div><b>${esc(S.name)}</b><small>${esc(S.address||S.contact||'Library ERP')}</small></div></div><div class="tiles">${T.map(([k,l])=>`<a onclick="go('${k}')"><i>${ICON[k]}</i><span>${l}</span></a>`).join('')}<a onclick="drawer(true)"><i>☰</i><span>All modules</span></a></div>`;}
 // Phone par keyboard hints (Ctrl+S, Esc, Alt+X, (Y)) hata do
 const KEYHINT=/\s*\((?:Ctrl\+[A-Za-z]+|Ctrl\+Enter|Esc|Alt\+[A-Z]|F\d+|[A-Z]|Enter)\)/g;
 function mobTidy(root){if(!window.MOBILE||!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;
@@ -963,14 +974,18 @@ async function saveReceipt(){
     prevValid:s.validTill||'',prevBal:oldBal};
   D.receipts.push(r);s.bal=r.bal;s.paid=[...new Set([...(s.paid||[]),...mlist])];syncValid(s);
   save();toast(`Receipt #${r.no} saved`,'ok');
-  if(D.settings.autoPrint)printReceipt(r.id);
-  if(D.settings.autoWa)waReceipt(r.id);
   scrCollect();afterReceipt(r);
 }
+// Receipt save ke baad poochho: Print, WhatsApp, dono, ya kuch nahi
 function afterReceipt(r){
-  modal(`Receipt #${r.no} — ${r.name}`,`<p style="font-size:16px">Received <b>${rs(r.paid)}</b> (${esc(r.mode)})${r.mlist&&r.mlist.length?` · Months: <b>${esc(mText(r.mlist))}</b>`:''}${r.bal?` · <span class="red">Balance ${rs(r.bal)}</span>`:''}</p>
-    <div class="btns"><button class="btn" data-k="P" onclick="printReceipt('${r.id}')">Print (P)</button><button class="btn wa" data-k="W" onclick="waReceipt('${r.id}')">WhatsApp (W)</button>
-    <button class="btn g" data-k="N" autofocus onclick="scrCollect()">Next student (N)</button><button class="btn g" data-k="H" onclick="go('home')">Gateway (H)</button></div>`);
+  const s=stu(r.sid)||{},ph=normPh(s.mobile);
+  modal(`✅ Receipt #${r.no} saved — ${r.name}`,`<p style="font-size:16px">Received <b>${rs(r.paid)}</b> (${esc(r.mode)})${r.mlist&&r.mlist.length?` · Months: <b>${esc(mText(r.mlist))}</b>`:''}${r.bal?` · <span class="red">Balance ${rs(r.bal)}</span>`:''}</p>
+    <p style="margin:12px 0 6px;font-weight:600">Send the receipt?</p>
+    <div class="btns rq"><button class="btn" data-k="P" onclick="printReceipt('${r.id}')">🖨️ Print (P)</button>
+      <button class="btn wa" data-k="W" onclick="waReceipt('${r.id}')"${ph?'':' disabled title="No mobile number"'}>WhatsApp (W)${ph?` <small>${esc(ph)}</small>`:''}</button>
+      <button class="btn ok" data-k="B" onclick="printReceipt('${r.id}');${ph?`setTimeout(()=>waReceipt('${r.id}'),1500)`:''}">Print + WhatsApp (B)</button></div>
+    ${ph?'':'<p class="small red">This student has no mobile number — WhatsApp is off. Add it with Edit.</p>'}
+    <div class="btns"><button class="btn g" data-k="N" autofocus onclick="scrCollect()">Next student (N)</button><button class="btn g" data-k="H" onclick="go('home')">Done (H)</button></div>`);
 }
 function rcptText(r){
   const S=D.settings,s=stu(r.sid)||{},L=[`*${S.name}*`,`Fee Receipt No: ${r.no}${r.cancel?' (CANCELLED)':''}`,`Date: ${dmy(r.date)}`,'',`Name: ${r.name} (ID ${r.code})`];
@@ -993,7 +1008,7 @@ function rcptHtml(r){
   if(r.months||r.fee)L.push([esc(r.head||'Fee')+(r.months>1?` × ${r.months}`:'')+(r.mlist&&r.mlist.length?`<br><small>${esc(mText(r.mlist))}</small>`:''),r.fee]);
   rExtras(r).forEach(x=>L.push([esc(x.name),x.amt]));if(r.oldBal)L.push(['Previous balance',r.oldBal]);if(r.disc)L.push(['Discount',-r.disc]);
   return `<div class="rcpt ${big?'big ':''}w${S.slip}">
-    <div class="c h">${esc(S.name)}</div>${S.address?`<div class="c">${esc(S.address)}</div>`:''}${S.contact?`<div class="c">Mob: ${esc(S.contact)}</div>`:''}
+    ${S.logo?`<div class="c"><img class="rlogo" src="${S.logo}" alt=""></div>`:''}<div class="c h">${esc(S.name)}</div>${S.address?`<div class="c">${esc(S.address)}</div>`:''}${S.contact?`<div class="c">Mob: ${esc(S.contact)}</div>`:''}
     <div class="c tt">FEE RECEIPT${r.cancel?' — CANCELLED':''}</div>${sessById(r.sess)?`<div class="c" style="font-size:.85em">Session ${esc(sessById(r.sess).name)}</div>`:''}
     <table><tr><td>No: <b>${r.no}</b></td><td class="r">Date: ${dmy(r.date)}</td></tr>
     <tr><td colspan="2">Name: <b>${esc(r.name)}</b></td></tr>${s.father?`<tr><td colspan="2">Father: ${esc(s.father)}</td></tr>`:''}
@@ -1782,11 +1797,11 @@ async function scrSettings(){
     <div class="w2"><label>Slip footer text</label><input id="g_footer" value="${esc(S.footer)}"></div>
     <div class="w2"><label>Shifts (comma separated)</label><input id="g_shifts" value="${esc(S.shifts)}"></div>
     <div><label>Show "expiring soon" this many days before</label><input id="g_exp" type="number" min="0" value="${S.expDays}"></div>
-  </div></div>
+  </div>
+  <label style="margin-top:12px">Library logo <span class="muted">(printed on the receipt, shown in the app)</span></label>
+  <div class="logobox" id="g_logo">${logoBox()}</div></div>
   <div class="card"><h4>Receipt slip</h4><div class="grid">
     <div><label>Slip size</label><select id="g_slip">${[['58','58 mm thermal'],['80','80 mm thermal'],['A6','A6 (105×148 mm)'],['A5','A5 (half A4)'],['A4','A4']].map(([k,t])=>`<option value="${k}"${S.slip===k?' selected':''}>${t}</option>`).join('')}</select></div>
-    <div><label>Print after save</label><select id="g_ap"><option value="1">Yes</option><option value="0"${S.autoPrint?'':' selected'}>No</option></select></div>
-    <div><label>WhatsApp after save</label><select id="g_aw"><option value="0">No</option><option value="1"${S.autoWa?' selected':''}>Yes</option></select></div>
     <div><label>Open WhatsApp in</label><select id="g_wam"><option value="web">WhatsApp Web (browser)</option><option value="app"${S.waMode==='app'?' selected':''}>WhatsApp ${window.MOBILE?'App':'Desktop App'}</option></select></div>
   </div><div class="btns"><button class="btn g" onclick="saveSettings(true).then(testPrint,()=>{})">Test print</button></div></div>
   ${window.MOBILE?`<div class="card"><h4>Share backup</h4><div class="hint">On the phone, backups go to the <b>Setu Pro cloud</b> automatically. You can also send the backup file to Gmail, WhatsApp or Google Drive.</div><div class="btns"><button class="btn" onclick="api('email-backup',{}).catch(e=>toast(e.message,'bad'))">Share backup file</button></div></div>`:`
@@ -1873,11 +1888,26 @@ async function restoreDate(d){
 function showMailStatus(){const e=$('#g_mailst');if(!e)return;
   e.innerHTML=(INFO.lastEmail?`Last email backup: <b class="green">${new Date(INFO.lastEmail).toLocaleString('en-IN')}</b>`:'No email backup sent yet.')+
     (INFO.lastEmailError?`<br><span class="red">Last error${INFO.lastErrorAt?' ('+new Date(INFO.lastErrorAt).toLocaleString('en-IN')+')':''}: ${esc(INFO.lastEmailError)}</span>`:'');}
+/* ---- library logo: chhota karke (max 320px) settings mein save ---- */
+const logoBox=()=>{const L=D.settings.logo;return `${L?`<img src="${L}" alt="Logo">`:'<div class="nologo">No logo</div>'}
+  <div><label class="btn sm" style="margin:0;color:#fff;display:inline-block">${L?'Change logo':'Upload logo'}<input type="file" accept="image/*" hidden onchange="logoPick(this.files[0])"></label>
+  ${L?` <button class="btn sm bad" onclick="logoDel()">Remove</button>`:''}<div class="muted small" style="margin-top:4px">PNG or JPG. It is resized automatically.</div></div>`;};
+function logoPick(f){
+  if(!f)return;if(!/^image\//.test(f.type)){toast('Choose an image (PNG / JPG)','bad');return;}
+  const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{
+      const k=Math.min(1,320/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));
+      const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
+      let u=c.toDataURL('image/png');if(u.length>90000)u=c.toDataURL('image/jpeg',.85);
+      D.settings.logo=u;save();$('#g_logo').innerHTML=logoBox();toast('Logo saved','ok');};
+    im.onerror=()=>toast('Could not read this image','bad');im.src=rd.result;};
+  rd.readAsDataURL(f);
+}
+async function logoDel(){if(!await ask('Remove the library logo?'))return;delete D.settings.logo;save();$('#g_logo').innerHTML=logoBox();}
 function saveSettings(quiet){
   const S=D.settings,name=val('g_name');
   if(!name){toast('Enter the library name','bad');focusEl('#g_name');return Promise.reject();}
   Object.assign(S,{name,contact:val('g_contact'),owner:normPh(val('g_owner')),address:val('g_address'),footer:val('g_footer'),shifts:val('g_shifts'),
-    expDays:Math.max(0,parseInt(val('g_exp'),10)||0),slip:val('g_slip'),autoPrint:val('g_ap')==='1',autoWa:val('g_aw')==='1',waMode:val('g_wam')});
+    expDays:Math.max(0,parseInt(val('g_exp'),10)||0),slip:val('g_slip'),waMode:val('g_wam')});
   if($('#g_bdir'))S.backupDir=val('g_bdir');if($('#g_curl'))S.cloudUrl=val('g_curl');
   if($('#g_mu'))S.mail={...S.mail,user:val('g_mu'),pass:$('#g_mp').value.replace(/\s+/g,''),to:val('g_mt'),auto:val('g_ma')==='1'};
   $('#libname').textContent=S.name;if(!quiet)toast('Settings saved','ok');

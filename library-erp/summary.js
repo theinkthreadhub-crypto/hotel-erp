@@ -39,6 +39,7 @@ function summary(D, now = new Date()) {
 
   return {
     v: 1, day: t, at: now.toISOString(), name: S.name || '', session: sess ? sess.name : '',
+    logo: S.logo && S.logo.length < 100000 ? S.logo : '',
     students: act.length,
     today: {
       fee: sum(tr, 'paid'), exp: sum(te, 'amount'), admissions: students.filter(s => (s.created || s.join) === t).length,

@@ -4,7 +4,8 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
-| **1.9.0** | Books + Phone | Book Master (O) — book add, Excel bulk upload; Book Issue / Return (J) — late fine; Book Issue Register (Y). **Phone app (LibraryERP.apk):** poora ERP Android phone par — offline data, cloud backup, print aur share |
+| **1.10.0** | Logo | Receipt ke baad sawal: Print / WhatsApp / dono (ab apne aap print nahi); WhatsApp seedha student ki chat mein; Settings mein library ka logo (receipt aur app mein); internet aate hi cloud backup; activation screen ka WhatsApp button theek |
+| 1.9.0 | Books + Phone | Book Master (O) — book add, Excel bulk upload; Book Issue / Return (J) — late fine; Book Issue Register (Y). **Phone app (LibraryERP.apk):** poora ERP Android phone par — offline data, cloud backup, print aur share |
 | 1.8.0 | Online View | Owner ka phone app: `…/view` par Library ID + PIN se aaj ki fee, kharcha, profit, attendance (In/Out), dues aur 7 din ka chart, kahin se bhi; phone par Install (app); cloud backup ab 5 minute mein |
 | 1.7.0 | Cloud | Setu Pro Cloud (Cloudflare): internet milte hi apne aap cloud backup, Library ID + PIN se naye computer par restore, Admin page par saari libraries |
 | 1.6.0 | Backup Plus | Settings mein "Backup by date": pichhle 60 din ka koi bhi backup Download / Email / Restore; Google Drive (ya pen drive) folder mein roz apne aap backup; restore se pehle safety copy |

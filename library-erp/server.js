@@ -231,7 +231,7 @@ async function cloudSync(force) {
   const raw = fs.readFileSync(DATA), hash = nodeCrypto.createHash('sha1').update(raw).digest('hex');
   if (!force) {
     if (c.hash === hash && c.day === lic.today()) return;            // kuch naya nahi
-    if (c.lastTry && Date.now() - c.lastTry < 5 * 60e3) return;       // 5 minute mein ek baar
+    if (c.lastTry && Date.now() - c.lastTry < 5 * 60e3 && !c.error) return;  // 5 minute mein ek baar; fail hua tha (no internet) to har 2 min try
   }
   c.lastTry = Date.now();
   const D = JSON.parse(raw.toString('utf8')), S = D.settings || {}, key = readJson(LICENSE, {}).key;

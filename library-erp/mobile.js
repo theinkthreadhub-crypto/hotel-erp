@@ -146,7 +146,7 @@
       const c = readJson(META, {}).cloud || {}, h = hex(hash('SHA-1', utf8(raw)));
       if (!force) {
         if (c.hash === h && c.day === today()) return;
-        if (c.lastTry && Date.now() - c.lastTry < 5 * 60e3) return;
+        if (c.lastTry && Date.now() - c.lastTry < 5 * 60e3 && !c.error) return;  // pichhli baar fail (no internet) to turant dobara
       }
       c.lastTry = Date.now();
       const D = JSON.parse(raw), S = D.settings || {};
@@ -166,6 +166,9 @@
     return syncing;
   }
   window.__cloudSync = () => cloudSync().catch(() => {});
+  // Internet aate hi backup (Android network callback + browser 'online' event)
+  window.__netUp = () => setTimeout(window.__cloudSync, 1500);
+  window.addEventListener('online', window.__netUp);
   setTimeout(window.__cloudSync, 8000);
   setInterval(window.__cloudSync, 2 * 60e3);
   const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet }; };

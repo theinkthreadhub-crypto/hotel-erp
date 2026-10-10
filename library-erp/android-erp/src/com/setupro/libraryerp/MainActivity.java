@@ -5,6 +5,8 @@ import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.net.ConnectivityManager;
+import android.net.Network;
 import android.net.Uri;
 import android.os.Bundle;
 import android.print.PrintAttributes;
@@ -81,6 +83,14 @@ public class MainActivity extends Activity {
         });
         setContentView(web);
         web.loadDataWithBaseURL(BASE, page(), "text/html", "utf-8", null);
+        // Internet aate hi Setu Pro cloud par backup
+        try {
+            ((ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE)).registerDefaultNetworkCallback(new ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(Network n) {
+                    runOnUiThread(new Runnable() { @Override public void run() { web.evaluateJavascript("window.__netUp&&window.__netUp()", null); } });
+                }
+            });
+        } catch (Exception e) { }
     }
 
     // app.html + summary.js + mobile.js (mobile.js sabse pehle chalta hai aur /api/* sambhalta hai)
