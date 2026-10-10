@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.10.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.11.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -22,7 +22,8 @@ Poora ERP English mein hai. Abhi ka version: **v1.10.0** — saare versions [CHA
 - **Fee Collect (C):** Student search karein. **Mahine tick karein** (Jan, Feb…). Paid mahine hare dikhte hain, due mahine laal. Ek baar wali fee bhi tick karke saath le sakte hain. Discount, purana baki aur partial payment (balance) sab handle hota hai. Receipt aur WhatsApp par likha aata hai kis-kis mahine ki fee di.
 - **Student Record (List mein Enter):** Student ki poori jaankari, kul jama fee, har receipt (date, time, mahine, mode), mahine ka hara/laal chart, aur attendance (aane aur jaane ka time).
 - **Receipt slip:** Library ka naam, address aur contact slip par chhapte hain. Size: 58 mm, 80 mm, A6, A5, A4 (Settings se badlein).
-- **Receipt ke baad:** ERP poochhta hai: **Print**, **WhatsApp** ya **Print + WhatsApp**. WhatsApp seedha student ke number ki chat mein khulta hai, bas Send dabana hai.
+- **Receipt ke baad:** ERP poochhta hai: **Print**, **WhatsApp** ya **Print + WhatsApp**. WhatsApp seedha chat mein khulta hai, bas Send dabana hai. **Settings → After saving a receipt** se har baar poochhne ki jagah seedha WhatsApp / Print / dono chun sakte hain.
+- **WhatsApp no. (receipt par, optional):** khaali chhodein to receipt student ke record wale number par jaati hai; koi aur number likhein (jaise father ka) to usi par.
 - **Logo:** Settings (G) → Library logo → Upload. Logo receipt par chhapta hai aur phone app mein dikhta hai.
 - **Attendance (A):** Student ID, seat ya mobile likhkar Enter dabayein. Pehli baar **Aaya (IN)**, doosri baar **Gaya (OUT)** ka time lagta hai, aur kitni der ruka wo bhi dikhta hai. Time par click karke time badal sakte hain. Fee due ho to warning aati hai.
 - **Attendance Report (M):** Mahine bhar ka P/A grid aur %. Print aur CSV.

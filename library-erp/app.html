@@ -923,6 +923,7 @@ function drawCollect(){
     <div><label>Discount (₹)</label><input id="c_disc" type="number" min="0" value="0"></div>
     <div><label>Received (₹) <i>*</i></label><input id="c_paid" type="number" min="0"></div>
     <div><label>Mode</label><select id="c_mode">${MODES.map(m=>`<option>${m}</option>`).join('')}</select></div>
+    <div><label>WhatsApp no. <span class="muted">(optional)</span></label><input id="c_wa" type="tel" inputmode="numeric" maxlength="13" placeholder="${esc(normPh(s.mobile)||'10-digit mobile')}" title="Empty = student's own number"></div>
     <div class="w2"><label>Note</label><input id="c_note" placeholder="UPI ref / remark"></div>
   </div>
   <div class="tot" style="margin-top:12px" id="c_tot"></div>
@@ -970,21 +971,25 @@ async function saveReceipt(){
   const rdate=val('c_date')||today(),rsess=D.settings.curSession;
   const r={id:uid(),sess:rsess,no:nextNo(D.receipts,rsess),date:rdate,time:nowTime(),sid:s.id,code:s.code,name:s.name,
     head:mlist.length?p.name:'',mlist,months:mlist.length,from:mlist.length?mlist[0]+'-01':'',to:mlist.length?mEnd(mlist[mlist.length-1]):'',fee,
-    extras:ex.map(x=>({name:x.name,amt:+x.amount})),extra:ex.map(x=>x.name).join(', '),extraAmt,disc,oldBal,total,paid,bal:r2(total-paid),mode:val('c_mode'),note:val('c_note'),
+    extras:ex.map(x=>({name:x.name,amt:+x.amount})),extra:ex.map(x=>x.name).join(', '),extraAmt,disc,oldBal,total,paid,bal:r2(total-paid),mode:val('c_mode'),note:val('c_note'),wa:normPh(val('c_wa')),
     prevValid:s.validTill||'',prevBal:oldBal};
   D.receipts.push(r);s.bal=r.bal;s.paid=[...new Set([...(s.paid||[]),...mlist])];syncValid(s);
   save();toast(`Receipt #${r.no} saved`,'ok');
-  scrCollect();afterReceipt(r);
+  scrCollect();
+  const after=D.settings.afterRcpt||'ask',ph=rcptPhone(r);
+  if(after==='ask'||((after==='wa'||after==='both')&&!ph))return afterReceipt(r);
+  if(after==='print'||after==='both')printReceipt(r.id);
+  if(after==='wa'||after==='both')setTimeout(()=>waReceipt(r.id),after==='both'?1500:0);
 }
 // Receipt save ke baad poochho: Print, WhatsApp, dono, ya kuch nahi
 function afterReceipt(r){
-  const s=stu(r.sid)||{},ph=normPh(s.mobile);
+  const ph=rcptPhone(r);
   modal(`✅ Receipt #${r.no} saved — ${r.name}`,`<p style="font-size:16px">Received <b>${rs(r.paid)}</b> (${esc(r.mode)})${r.mlist&&r.mlist.length?` · Months: <b>${esc(mText(r.mlist))}</b>`:''}${r.bal?` · <span class="red">Balance ${rs(r.bal)}</span>`:''}</p>
     <p style="margin:12px 0 6px;font-weight:600">Send the receipt?</p>
     <div class="btns rq"><button class="btn" data-k="P" onclick="printReceipt('${r.id}')">🖨️ Print (P)</button>
       <button class="btn wa" data-k="W" onclick="waReceipt('${r.id}')"${ph?'':' disabled title="No mobile number"'}>WhatsApp (W)${ph?` <small>${esc(ph)}</small>`:''}</button>
       <button class="btn ok" data-k="B" onclick="printReceipt('${r.id}');${ph?`setTimeout(()=>waReceipt('${r.id}'),1500)`:''}">Print + WhatsApp (B)</button></div>
-    ${ph?'':'<p class="small red">This student has no mobile number — WhatsApp is off. Add it with Edit.</p>'}
+    ${ph?'':'<p class="small red">No WhatsApp number — add it on the receipt (WhatsApp no.) or in the student record (Edit).</p>'}
     <div class="btns"><button class="btn g" data-k="N" autofocus onclick="scrCollect()">Next student (N)</button><button class="btn g" data-k="H" onclick="go('home')">Done (H)</button></div>`);
 }
 function rcptText(r){
@@ -997,7 +1002,9 @@ function rcptText(r){
   return L.filter(x=>x!==undefined).join('\n');
 }
 const rExtras=r=>r.extras&&r.extras.length?r.extras:r.extraAmt?[{name:r.extra||'One-time fee',amt:r.extraAmt}]:[];
-const waReceipt=id=>{const r=D.receipts.find(x=>x.id===id);const s=stu(r.sid);waOpen(s&&s.mobile,rcptText(r));};
+// Receipt par likha WhatsApp no. ho to us par, warna student ke record wala number
+const rcptPhone=r=>{const s=stu(r.sid)||{};return normPh(r.wa)||normPh(s.mobile);};
+const waReceipt=id=>{const r=D.receipts.find(x=>x.id===id);waOpen(rcptPhone(r),rcptText(r));};
 
 /* ================= PRINT ================= */
 const PAGE={'58':'margin:0','80':'margin:0',A6:'size:A6;margin:5mm',A5:'size:A5;margin:8mm',A4:'size:A4;margin:12mm'};
@@ -1801,6 +1808,7 @@ async function scrSettings(){
   <label style="margin-top:12px">Library logo <span class="muted">(printed on the receipt, shown in the app)</span></label>
   <div class="logobox" id="g_logo">${logoBox()}</div></div>
   <div class="card"><h4>Receipt slip</h4><div class="grid">
+    <div><label>After saving a receipt</label><select id="g_after">${[['ask','Ask every time (Print / WhatsApp)'],['wa','Send on WhatsApp directly'],['print','Print directly'],['both','Print + WhatsApp directly']].map(([k,t])=>`<option value="${k}"${(S.afterRcpt||'ask')===k?' selected':''}>${t}</option>`).join('')}</select></div>
     <div><label>Slip size</label><select id="g_slip">${[['58','58 mm thermal'],['80','80 mm thermal'],['A6','A6 (105×148 mm)'],['A5','A5 (half A4)'],['A4','A4']].map(([k,t])=>`<option value="${k}"${S.slip===k?' selected':''}>${t}</option>`).join('')}</select></div>
     <div><label>Open WhatsApp in</label><select id="g_wam"><option value="web">WhatsApp Web (browser)</option><option value="app"${S.waMode==='app'?' selected':''}>WhatsApp ${window.MOBILE?'App':'Desktop App'}</option></select></div>
   </div><div class="btns"><button class="btn g" onclick="saveSettings(true).then(testPrint,()=>{})">Test print</button></div></div>
@@ -1907,7 +1915,7 @@ function saveSettings(quiet){
   const S=D.settings,name=val('g_name');
   if(!name){toast('Enter the library name','bad');focusEl('#g_name');return Promise.reject();}
   Object.assign(S,{name,contact:val('g_contact'),owner:normPh(val('g_owner')),address:val('g_address'),footer:val('g_footer'),shifts:val('g_shifts'),
-    expDays:Math.max(0,parseInt(val('g_exp'),10)||0),slip:val('g_slip'),waMode:val('g_wam')});
+    expDays:Math.max(0,parseInt(val('g_exp'),10)||0),slip:val('g_slip'),waMode:val('g_wam'),afterRcpt:val('g_after')||'ask'});
   if($('#g_bdir'))S.backupDir=val('g_bdir');if($('#g_curl'))S.cloudUrl=val('g_curl');
   if($('#g_mu'))S.mail={...S.mail,user:val('g_mu'),pass:$('#g_mp').value.replace(/\s+/g,''),to:val('g_mt'),auto:val('g_ma')==='1'};
   $('#libname').textContent=S.name;if(!quiet)toast('Settings saved','ok');
