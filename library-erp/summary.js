@@ -50,6 +50,13 @@ function summary(D, now = new Date()) {
     att: { present: present.length, inside: present.filter(p => p.in && !p.out).length, list: present.slice(0, 300) },
     dues: { count: dues.length, total: sum(dues, 'amt'), list: dues.slice(0, 100) },
     week,
+    books: (() => {
+      const I = D.issues || [], out = I.filter(x => !x.ret);
+      if (!(D.books || []).length && !I.length) return null;
+      return { titles: (D.books || []).length, out: out.length, overdue: out.filter(x => x.due < t).length,
+        issuedToday: I.filter(x => x.date === t).length, returnedToday: I.filter(x => x.ret === t).length,
+        late: out.filter(x => x.due < t).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 50).map(x => ({ title: x.title, code: x.bcode, name: x.sname, scode: x.scode, due: x.due })) };
+    })(),
   };
 }
 module.exports = { summary };

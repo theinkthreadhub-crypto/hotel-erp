@@ -80,9 +80,9 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .stat.link{cursor:pointer}.stat.link:hover{background:var(--hi)}
 /* student picker */
 .pick{position:relative}
-#sugg{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #bdb59a;z-index:5;max-height:300px;overflow:auto;box-shadow:0 6px 18px #0002}
-#sugg div{padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1ecd6}
-#sugg div.on,#sugg div:hover{background:var(--hi)}
+#sugg,.sugg{position:absolute;left:0;right:0;top:100%;background:#fff;border:1px solid #bdb59a;z-index:5;max-height:300px;overflow:auto;box-shadow:0 6px 18px #0002}
+#sugg div,.sugg div{padding:6px 10px;cursor:pointer;border-bottom:1px solid #f1ecd6}
+#sugg div.on,#sugg div:hover,.sugg div.on,.sugg div:hover{background:var(--hi)}
 .info td{border:0;padding:3px 6px}.info td:first-child{color:var(--muted);width:40%}
 .tot div{display:flex;justify-content:space-between;padding:3px 0}
 .tot .big{font-size:22px;font-weight:700;color:var(--bar);border-top:2px solid var(--bar);margin-top:4px;padding-top:6px}
@@ -209,13 +209,13 @@ const MODES=['Cash','UPI','Card','Bank'];
 const main=$('#main');
 
 const DEF_SET={name:'My Library',address:'',contact:'',footer:'Fee non-refundable. Thank you!',slip:'80',autoPrint:true,autoWa:false,
-  waMode:'web',owner:'',shifts:'Morning,Evening,Full Day',expDays:3,
+  waMode:'web',owner:'',shifts:'Morning,Evening,Full Day',expDays:3,issueDays:15,finePerDay:0,maxBooks:2,
   mail:{user:'',pass:'',to:'',auto:true,host:'smtp.gmail.com',port:465}};
 function seed(){return {settings:{...DEF_SET,mail:{...DEF_SET.mail}},plans:[],students:[],receipts:[],att:{},seq:{rcpt:0}};}
 function migrate(s){
   s=s&&s.settings?s:seed();
   s.settings={...DEF_SET,...s.settings,mail:{...DEF_SET.mail,...(s.settings.mail||{})}};
-  ['plans','students','receipts','expenses'].forEach(k=>s[k]=s[k]||[]);s.att=s.att||{};s.seq=s.seq||{rcpt:0};
+  ['plans','students','receipts','expenses','books','issues'].forEach(k=>s[k]=s[k]||[]);s.att=s.att||{};s.seq=s.seq||{rcpt:0};
   if(!s.expHeads)s.expHeads=['Rent','Electricity','WiFi / Internet','Salary','Cleaning','Water','Stationery','Repair & Maintenance','Other']
     .map((n,i)=>({id:uid(),name:n,order:i+1,note:''}));
   if(!s.sessions||!s.sessions.length)s.sessions=[sessionFor(today())];
@@ -376,14 +376,14 @@ const waRemind=id=>{const s=stu(id);if(s)waOpen(s.mobile,remindText(s));};
 /* ================= NAVIGATION / KEYBOARD ================= */
 // Gateway: 4 groups with dropdowns. Every item also has its own letter (works on Gateway and with Alt from anywhere).
 const GROUPS=[
-  ['M','Masters',[['S','New Admission','student'],['L','Student List','list'],['F','Fee Master','plans'],['H','Expense Heads','heads'],['N','Sessions','sessions']]],
-  ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att']]],
-  ['R','Reports',[['B','Day Book','daybook'],['P','Receipt List / Reprint','receipts'],['D','Due List & Reminder','due'],['V','Income vs Expense','pl'],['X','Expense Report','exprep'],['W','Attendance Report (Month)','attrep']]],
+  ['M','Masters',[['S','New Admission','student'],['L','Student List','list'],['F','Fee Master','plans'],['H','Expense Heads','heads'],['O','Books (Book Master)','books'],['N','Sessions','sessions']]],
+  ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att'],['J','Book Issue / Return','bookissue']]],
+  ['R','Reports',[['B','Day Book','daybook'],['P','Receipt List / Reprint','receipts'],['D','Due List & Reminder','due'],['V','Income vs Expense','pl'],['X','Expense Report','exprep'],['W','Attendance Report (Month)','attrep'],['Y','Book Issue Register','bookreg']]],
   ['U','Utilities',[['I','Bulk Import (Excel / CSV)','import'],['G','Settings & Backup','settings'],['K','License / Activation','license'],['Q','Close ERP','quit']]],
 ];
 const MENU=GROUPS.flatMap(g=>g[2].map(x=>[x[0],x[1],x[2],g[1]]));
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
-  heads:scrHeads,expense:scrExpense,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
+  heads:scrHeads,expense:scrExpense,books:scrBooks,bookissue:scrBookIssue,bookreg:scrBookReg,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
   daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
 let curArg=null,cur='home',gwSel=0,gwOpen=-1,onSave=null,nav=null,keyH=null;
 function go(s,arg){
@@ -513,6 +513,7 @@ function scrHome(){
       <div class="kpi link" onclick="go('expense')"><div class="l">Expenses in ${MON[+cm.slice(5)-1]}</div><div class="v">${rs(expM)}</div><div class="s">${SE.filter(e=>e.date.slice(0,7)===cm).length} entries</div></div>
       <div class="kpi link" onclick="go('pl')"><div class="l">${pl>=0?'Profit':'Loss'} in ${MON[+cm.slice(5)-1]}</div><div class="v ${pl>=0?'green':'red'}">${rs(Math.abs(pl))} ${pl>=0?'▲':'▼'}</div><div class="s">${pl>=0?'Fee collected − expenses':'Expenses '+rs(-pl)+' more than fee'}</div></div>
       <div class="kpi link" onclick="go('att')"><div class="l">Present today</div><div class="v">${pres} <span class="muted" style="font-size:15px">/ ${act.length}</span></div><div class="s">${soon.length} fees expiring soon</div></div>
+      ${D.books.length?`<div class="kpi link" onclick="go('bookissue')"><div class="l">Books with students</div><div class="v">${openIssues().length} <span class="muted" style="font-size:15px">/ ${sum(D.books,x=>+x.copies||1)}</span></div><div class="s">Overdue: <b class="${openIssues().some(x=>x.due<t)?'red':''}">${openIssues().filter(x=>x.due<t).length}</b></div></div>`:''}
     </div>
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><h4 style="margin:0">${mName(cm)} fees received</h4>
       <span><b>${rs(gotCm)}</b> of ${rs(expected)} · <b>${pct}%</b></span></div>
@@ -694,7 +695,8 @@ function scrList(){
   nav={Enter:id=>go('record',id),F4:id=>go('collect',id),F2:id=>go('student',id),F9:waRemind};focusEl('#q');
 }
 async function delStudent(id){
-  const s=stu(id);
+  const s=stu(id),ob=D.issues.filter(x=>x.sid===id&&!x.ret);
+  if(ob.length){toast(`${s.name} still has ${ob.length} book(s): ${ob.map(x=>x.title).join(', ')}. Take them back first.`,'bad');return;}
   if(D.receipts.some(r=>r.sid===id)){
     if(await ask(`${esc(s.name)} has receipts and cannot be deleted. Mark as "Left" instead?`)){s.status='left';save();scrList();}return;}
   if(!await ask(`Delete <b>${esc(s.name)}</b>?`))return;
@@ -740,6 +742,9 @@ function scrRecord(id){
       <td class="n">${r.bal?rs(r.bal):''}</td><td class="small">${esc(r.note||'')}${r.cancel?' <b>(Cancelled)</b>':''}</td>
       <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">No receipts yet.</td></tr>'}
   </tbody></table></div>
+  ${(()=>{const B=D.issues.filter(x=>x.sid===s.id).slice().reverse();return `<div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Books (${B.filter(x=>!x.ret).length} with student) <button class="btn sm ok" onclick="go('bookissue',{sid:'${s.id}'})">Issue a book</button></h4><table><thead><tr><th>Book</th><th>Issued</th><th>Return by</th><th>Returned</th><th class="n">Fine</th><th></th></tr></thead><tbody>
+    ${B.map(x=>`<tr><td><b>${esc(x.bcode)}</b> — ${esc(x.title)}</td><td>${dmy(x.date)}</td><td class="${!x.ret&&x.due<today()?'red':''}">${dmy(x.due)}</td><td>${x.ret?dmy(x.ret):'<span class="tag soon">Out</span>'}</td><td class="n">${x.fine?rs(x.fine):''}</td>
+    <td class="n">${x.ret?'':`<button class="btn sm ok" onclick="returnBook('${x.id}')">Return</button>`}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No books taken.</td></tr>'}</tbody></table></div>`;})()}
   <div class="card" style="padding:0"><h4 style="padding:10px 12px 0;display:flex;gap:10px;align-items:center">Attendance (in / out time) <input type="month" id="rc_m" value="${recMonth}" style="width:auto;padding:2px 6px"></h4><div id="rc_att"></div></div>`;
   const drawA=()=>{recMonth=$('#rc_m').value||curMonth();
     const days=mRange(recMonth,recMonth).length?[...Array(new Date(+recMonth.slice(0,4),+recMonth.slice(5),0).getDate())].map((_,i)=>recMonth+'-'+pad(i+1)):[];
@@ -1044,15 +1049,17 @@ function scrDaybook(){
 function dayData(){const L=D.receipts.filter(r=>!r.cancel&&r.date>=dbFrom&&r.date<=dbTo),E=D.expenses.filter(e=>e.date>=dbFrom&&e.date<=dbTo);
   return {L,E,modes:MODES.map(m=>[m,sum(L.filter(r=>r.mode===m),'paid')]).filter(x=>x[1]),adm:D.students.filter(s=>(s.created||s.join)>=dbFrom&&(s.created||s.join)<=dbTo).length,
     cx:D.receipts.filter(r=>r.cancel&&r.date>=dbFrom&&r.date<=dbTo).length,
-    cashIn:sum(L.filter(r=>r.mode==='Cash'),'paid'),cashOut:sum(E.filter(e=>e.mode==='Cash'),'amount')};}
+    F:D.issues.filter(x=>x.ret&&x.fine>0&&x.ret>=dbFrom&&x.ret<=dbTo),
+    cashIn:sum(L.filter(r=>r.mode==='Cash'),'paid')+sum(D.issues.filter(x=>x.ret&&x.fine>0&&x.ret>=dbFrom&&x.ret<=dbTo&&(x.fmode||'Cash')==='Cash'),'fine'),cashOut:sum(E.filter(e=>e.mode==='Cash'),'amount')};}
 function drawDaybook(){
-  const {L,E,modes,adm,cx,cashIn,cashOut}=dayData(),fee=sum(L,'paid'),exp=sum(E,'amount'),cash=cashIn-cashOut;
+  const {L,E,F,modes,adm,cx,cashIn,cashOut}=dayData(),fee=sum(L,'paid'),exp=sum(E,'amount'),cash=cashIn-cashOut;
   $('#b_out').innerHTML=`<div class="card"><p style="margin:0 0 8px"><b>${dmy(dbFrom)}${dbTo!==dbFrom?' to '+dmy(dbTo):''}</b></p><div class="kpis" style="margin:0">
     <div class="kpi"><div class="l">Fee collected</div><div class="v" style="color:var(--bar)">${rs(fee)}</div><div class="s">${modes.map(([m,a])=>m+' '+rs(a)).join(' · ')||'—'}</div></div>
     <div class="kpi"><div class="l">Expenses</div><div class="v">${rs(exp)}</div><div class="s">${E.length} entries</div></div>
     <div class="kpi"><div class="l">${fee-exp>=0?'Profit':'Loss'}</div><div class="v ${fee-exp>=0?'green':'red'}">${rs(Math.abs(fee-exp))} ${fee-exp>=0?'▲':'▼'}</div><div class="s">Fee − expenses</div></div>
-    <div class="kpi"><div class="l">Cash in hand</div><div class="v ${cash<0?'red':''}">${cash<0?'−':''}${rs(Math.abs(cash))}</div><div class="s">Cash fee ${rs(cashIn)} − cash expense ${rs(cashOut)}</div></div>
+    <div class="kpi"><div class="l">Cash in hand</div><div class="v ${cash<0?'red':''}">${cash<0?'−':''}${rs(Math.abs(cash))}</div><div class="s">Cash in ${rs(cashIn)} − cash expense ${rs(cashOut)}</div></div>
     <div class="kpi"><div class="l">Receipts / admissions</div><div class="v">${L.length} / ${adm}</div><div class="s">${cx?cx+' receipts cancelled':'&nbsp;'}</div></div></div>
+    ${F.length?`<p class="small" style="margin:8px 0 0">Book fines received: <b>${rs(sum(F,'fine'))}</b> (${F.length} late returns: ${F.map(x=>esc(x.sname)+' '+rs(x.fine)+(x.fmode&&x.fmode!=='Cash'?' '+esc(x.fmode):'')).join(', ')}) — included in cash in hand when paid in cash.</p>`:''}
     ${cash<0?`<p class="red small" style="margin:8px 0 0">More cash was spent than collected — ${rs(-cash)} came from UPI / bank / pocket.</p>`:''}</div>
   <div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Fee received</h4><table><thead><tr><th>No</th><th>Date</th><th>Name</th><th>Detail</th><th>Mode</th><th class="n">Amount</th></tr></thead><tbody>
   ${L.map(r=>`<tr><td>${r.no}</td><td>${dmy(r.date)} ${esc(r.time||'')}</td><td>${esc(r.name)} (${esc(r.code)})</td><td class="small">${[r.months?r.head+' — '+mText(r.mlist):'',r.extra].filter(Boolean).map(esc).join(', ')}</td><td>${esc(r.mode)}</td><td class="n">${rs(r.paid)}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No collection.</td></tr>'}
@@ -1333,6 +1340,213 @@ async function delUnusedHeads(){
   if(!await ask(`Delete these ${L.length} heads with no entries?<br><span class="small">${L.map(h=>esc(h.name)).join(', ')}</span>`))return;
   const ids=new Set(L.map(h=>h.id));D.expHeads=D.expHeads.filter(h=>!ids.has(h.id));save();toast(`${L.length} heads deleted`,'ok');scrHeads();
 }
+
+/* ================= BOOKS: MASTER, ISSUE / RETURN, REGISTER ================= */
+// Book = ek title (copies ke saath). Issue = ek copy ek student ko. Available = copies − jo abhi bahar hain.
+const book=id=>D.books.find(b=>b.id===id);
+const openIssues=()=>D.issues.filter(x=>!x.ret);
+const outOf=id=>D.issues.filter(x=>x.bookId===id&&!x.ret).length;
+const availOf=b=>Math.max(0,(+b.copies||1)-outOf(b.id));
+const lateDays=x=>Math.max(0,diff(x.due,x.ret||today()));
+const fineOf=x=>lateDays(x)*(+D.settings.finePerDay||0);
+function nextBookCode(){return String(Math.max(0,...D.books.map(b=>parseInt(b.code,10)||0))+1);}
+function findBooks(q){
+  q=String(q||'').trim().toLowerCase();if(!q)return D.books;
+  return D.books.filter(b=>String(b.code).toLowerCase()===q||b.title.toLowerCase().includes(q)||(b.author||'').toLowerCase().includes(q)||(b.isbn||'')===q||(b.category||'').toLowerCase().includes(q));
+}
+// Type-and-pick box (student / book). Returns keyboard handler for keyH.
+function picker(inp,box,find,row,pick){
+  let si=0,res=[];
+  const draw=()=>{res=find(inp.value).slice(0,12);si=0;box.hidden=!inp.value.trim();
+    box.innerHTML=res.map((x,i)=>`<div class="${i?'':'on'}" data-i="${i}">${row(x)}</div>`).join('')||'<div class="muted">No match</div>';
+    box.querySelectorAll('[data-i]').forEach(d=>d.onmousedown=ev=>{ev.preventDefault();done(res[+d.dataset.i]);});};
+  const done=x=>{box.hidden=true;inp.value='';pick(x);};
+  inp.oninput=draw;inp.onblur=()=>setTimeout(()=>box.hidden=true,150);
+  return e=>{
+    if(document.activeElement!==inp)return false;
+    if(e.key==='Enter'&&box.hidden&&inp.value.trim()){draw();}
+    if(box.hidden)return false;
+    if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();si=Math.max(0,Math.min(res.length-1,si+(e.key==='ArrowDown'?1:-1)));
+      box.querySelectorAll('[data-i]').forEach((d,i)=>d.classList.toggle('on',i===si));return true;}
+    if(e.key==='Enter'){e.preventDefault();if(res[si])done(res[si]);return true;}
+    return false;
+  };
+}
+
+/* ---- Book Master (O) ---- */
+let bookEdit=null,bookQ='';
+function scrBooks(){
+  const b=bookEdit?book(bookEdit):null,S=D.settings,out=openIssues().length,tot=sum(D.books,x=>+x.copies||1);
+  const cats=[...new Set(D.books.map(x=>x.category).filter(Boolean))].sort();
+  main.innerHTML=title('Books — Book Master',`<button class="btn sm ok" onclick="bookTemplate()">Download Excel format</button>
+    <label class="btn sm" style="margin:0">Bulk upload (Excel / CSV)<input type="file" id="bk_file" accept=".xlsx,.csv,.txt" hidden></label>
+    <button class="btn sm g" onclick="booksCsv()">CSV</button>`)+
+  `<div class="kpis"><div class="kpi"><div class="l">Book titles</div><div class="v">${D.books.length}</div></div>
+    <div class="kpi"><div class="l">Total copies</div><div class="v">${tot}</div></div>
+    <div class="kpi link" onclick="go('bookissue')"><div class="l">Issued now</div><div class="v">${out}</div><div class="s">Overdue: <b class="red">${openIssues().filter(x=>x.due<today()).length}</b></div></div>
+    <div class="kpi"><div class="l">Available</div><div class="v green">${Math.max(0,tot-out)}</div></div></div>
+  <div class="two"><div class="card form"><h4>${b?`Edit book — ${esc(b.code)}`:'Add book'}</h4><div class="grid">
+    <div><label>Book No. <i>*</i></label><input id="b_code" value="${esc(b?b.code:nextBookCode())}"></div>
+    <div class="w2"><label>Title <i>*</i></label><input id="b_title" value="${esc(b?b.title:'')}" placeholder="e.g. Lucent General Knowledge"></div>
+    <div><label>Author</label><input id="b_author" value="${esc(b?b.author||'':'')}"></div>
+    <div><label>Publisher</label><input id="b_pub" value="${esc(b?b.publisher||'':'')}"></div>
+    <div><label>Category / Subject</label><input id="b_cat" list="b_cats" value="${esc(b?b.category||'':'')}" placeholder="UPSC, SSC, Novel…"><datalist id="b_cats">${cats.map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>
+    <div><label>Copies</label><input id="b_copies" type="number" min="1" value="${b?b.copies||1:1}"></div>
+    <div><label>Rack / Shelf</label><input id="b_rack" value="${esc(b?b.rack||'':'')}"></div>
+    <div><label>Price (₹)</label><input id="b_price" type="number" min="0" value="${b?b.price||'':''}"></div>
+    <div><label>ISBN</label><input id="b_isbn" value="${esc(b?b.isbn||'':'')}"></div>
+  </div><div class="btns"><button class="btn" onclick="saveBook()">Save (Ctrl+S)</button>${b?`<button class="btn g" onclick="bookEdit=null;scrBooks()">Cancel</button>`:''}</div></div>
+  <div class="card form"><h4>Issue rules</h4><div class="grid">
+    <div><label>Return within (days)</label><input id="b_days" type="number" min="1" value="${S.issueDays}"></div>
+    <div><label>Fine per late day (₹)</label><input id="b_fine" type="number" min="0" value="${S.finePerDay}"></div>
+    <div><label>Max books per student</label><input id="b_max" type="number" min="1" value="${S.maxBooks}"></div>
+  </div><div class="btns"><button class="btn g" onclick="saveBookRules()">Save rules</button></div>
+  <p class="muted small">Bulk upload: click <b>Download Excel format</b>, fill one book per row, then choose the file with <b>Bulk upload</b>. Columns: <b>Book No, Title, Author, Publisher, Category, Copies, Rack, Price, ISBN</b> (only Title is required; Book No is given automatically if empty).</p></div></div>
+  <div class="card" style="padding:0"><div style="padding:10px 12px"><input id="b_q" data-nav placeholder="Search book no / title / author / category" value="${esc(bookQ)}"></div>
+  <table><thead><tr><th>Book No.</th><th>Title</th><th>Author</th><th>Category</th><th>Rack</th><th class="n">Copies</th><th class="n">Issued</th><th class="n">Available</th><th></th></tr></thead><tbody id="b_tb"></tbody></table></div>`;
+  const draw=()=>{bookQ=$('#b_q').value;const L=findBooks(bookQ).slice().sort((a,c)=>(parseInt(a.code,10)||0)-(parseInt(c.code,10)||0)||String(a.code).localeCompare(c.code));
+    $('#b_tb').innerHTML=L.slice(0,500).map(x=>{const o=outOf(x.id),av=availOf(x);return `<tr data-id="${x.id}"><td><b>${esc(x.code)}</b></td><td><b>${esc(x.title)}</b>${x.publisher?`<br><span class="muted small">${esc(x.publisher)}</span>`:''}</td><td>${esc(x.author||'')}</td><td>${esc(x.category||'')}</td><td>${esc(x.rack||'')}</td>
+      <td class="n">${+x.copies||1}</td><td class="n">${o||''}</td><td class="n ${av?'green':'red'}">${av}</td>
+      <td class="n" style="white-space:nowrap"><button class="btn sm ok" onclick="go('bookissue',{book:'${x.id}'})"${av?'':' disabled'}>Issue</button> <button class="btn sm g" onclick="bookEdit='${x.id}';scrBooks()">Edit</button> <button class="btn sm bad" onclick="delBook('${x.id}')">Delete</button></td></tr>`;}).join('')||
+      `<tr><td colspan="9" class="muted">${D.books.length?'No book matches.':'No books yet. Add one above, or upload many from Excel.'}</td></tr>`;selFirst();};
+  $('#b_q').oninput=draw;draw();
+  $('#bk_file').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+    try{bookImport(/\.xlsx$/i.test(f.name)?await readXlsx(await f.arrayBuffer()):parseCsv(await f.text()));}catch(err){toast('Could not read file: '+err.message,'bad');}};
+  onSave=saveBook;focusEl(b?'#b_title':'#b_title');
+  nav={Enter:id=>{bookEdit=id;scrBooks();},F2:id=>{bookEdit=id;scrBooks();},F4:id=>go('bookissue',{book:id})};
+}
+function saveBook(){
+  const v={code:val('b_code')||nextBookCode(),title:val('b_title'),author:val('b_author'),publisher:val('b_pub'),category:val('b_cat'),
+    copies:Math.max(1,parseInt(val('b_copies'),10)||1),rack:val('b_rack'),price:num('b_price')||'',isbn:val('b_isbn')};
+  if(!v.title){toast('Enter the book title','bad');return focusEl('#b_title');}
+  if(D.books.some(x=>x.id!==bookEdit&&String(x.code).toLowerCase()===v.code.toLowerCase())){toast(`Book No. ${v.code} already exists`,'bad');return focusEl('#b_code');}
+  if(bookEdit){const o=outOf(bookEdit);if(v.copies<o){toast(`${o} copies are issued right now — copies cannot be less than ${o}`,'bad');return focusEl('#b_copies');}
+    const b=book(bookEdit);Object.assign(b,v);D.issues.filter(x=>x.bookId===b.id).forEach(x=>{x.bcode=b.code;x.title=b.title;});}
+  else D.books.push({id:uid(),...v,created:today()});
+  bookEdit=null;save();toast('Book saved','ok');scrBooks();
+}
+function saveBookRules(){const S=D.settings;S.issueDays=Math.max(1,parseInt(val('b_days'),10)||15);S.finePerDay=Math.max(0,num('b_fine'));S.maxBooks=Math.max(1,parseInt(val('b_max'),10)||2);
+  save();toast('Issue rules saved','ok');}
+async function delBook(id){
+  const b=book(id);if(outOf(id)){toast('This book is issued right now. Take it back first.','bad');return;}
+  const h=D.issues.filter(x=>x.bookId===id).length;
+  if(!await ask(`Delete book <b>${esc(b.code)} — ${esc(b.title)}</b>?${h?`<br><span class="small">Its ${h} old issue records stay in the register.</span>`:''}`))return;
+  D.books=D.books.filter(x=>x.id!==id);save();toast('Book deleted');scrBooks();
+}
+const BOOK_HDR=['Book No','Title','Author','Publisher','Category','Copies','Rack','Price','ISBN'];
+function bookTemplate(){
+  dl('LibraryERP_Books_Format.xlsx',makeXlsx([{name:'Books',rows:[BOOK_HDR]},
+    {name:'Help',rows:[['How to fill'],['One book per row in the Books sheet. Only Title is required.'],['Book No: leave empty to number automatically. Copies: empty = 1.'],[],
+      ['Example (fill the Books sheet like this):'],BOOK_HDR,['101','Lucent General Knowledge','Dr. Binay Karna','Lucent Publication','GK','2','A-1','350',''],['','Indian Polity','M. Laxmikanth','McGraw Hill','UPSC','1','B-2','800','']]}]),
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+}
+async function bookImport(rows){
+  if(!rows.length){toast('The file is empty','bad');return;}
+  const norm=h=>String(h).toLowerCase().replace(/[^a-z]/g,''),hdr=rows[0].map(norm);
+  const COL={code:['bookno','no','bookno.','accessionno','accno','code','bookid','id'],title:['title','book','bookname','name'],author:['author','writer'],publisher:['publisher','publication'],
+    category:['category','subject','type'],copies:['copies','qty','quantity','copy'],rack:['rack','shelf','location'],price:['price','mrp','cost'],isbn:['isbn']};
+  const map={};Object.entries(COL).forEach(([k,al])=>{const i=hdr.findIndex(h=>al.includes(h));if(i>=0)map[k]=i;});
+  if(map.title===undefined){toast('The first row must have headings — at least "Title"','bad');return;}
+  const codes=new Set(D.books.map(b=>String(b.code).toLowerCase()));let next=+nextBookCode();
+  const add=[],skip=[];
+  rows.slice(1).forEach((r,i)=>{const g=k=>map[k]===undefined?'':String(r[map[k]]??'').trim();
+    const title=g('title');if(!title){skip.push(`Row ${i+2}: no title`);return;}
+    let code=g('code');if(!code){while(codes.has(String(next)))next++;code=String(next++);}
+    if(codes.has(code.toLowerCase())){skip.push(`Row ${i+2}: Book No. ${code} already exists`);return;}
+    codes.add(code.toLowerCase());
+    add.push({id:uid(),code,title,author:g('author'),publisher:g('publisher'),category:g('category'),copies:Math.max(1,parseInt(g('copies'),10)||1),rack:g('rack'),price:+g('price').replace(/[^\d.]/g,'')||'',isbn:g('isbn'),created:today()});});
+  if(!add.length){toast('No new book found'+(skip.length?' — '+skip[0]:''),'bad');return;}
+  modal('Bulk upload — preview',`<p><b>${add.length}</b> books (${sum(add,'copies')} copies) will be added.${skip.length?` <span class="red">${skip.length} rows skipped.</span>`:''}</p>
+    <div style="max-height:260px;overflow:auto"><table><thead><tr><th>Book No.</th><th>Title</th><th>Author</th><th>Category</th><th class="n">Copies</th></tr></thead><tbody>
+    ${add.slice(0,200).map(b=>`<tr><td>${esc(b.code)}</td><td>${esc(b.title)}</td><td>${esc(b.author)}</td><td>${esc(b.category)}</td><td class="n">${b.copies}</td></tr>`).join('')}</tbody></table></div>
+    ${skip.length?`<p class="small red">${skip.slice(0,8).map(esc).join('<br>')}${skip.length>8?'<br>…':''}</p>`:''}
+    <div class="btns"><button class="btn ok" data-k="Y" id="bi_go">Add ${add.length} books (Y)</button><button class="btn g" data-k="N" onclick="closeModal()">Cancel (N)</button></div>`);
+  $('#bi_go').onclick=()=>{D.books.push(...add);save();closeModal();toast(`${add.length} books added`,'ok');scrBooks();};
+}
+function booksCsv(){dl(`books_${today()}.csv`,toCsv([[...BOOK_HDR,'Issued','Available']].concat(D.books.map(b=>[b.code,b.title,b.author,b.publisher,b.category,b.copies,b.rack,b.price,b.isbn,outOf(b.id),availOf(b)]))),'text/csv');}
+
+/* ---- Book Issue / Return (J) ---- */
+let isSid=null,isBook=null;
+function scrBookIssue(arg){
+  if(arg&&arg.book)isBook=arg.book;if(arg&&arg.sid)isSid=arg.sid;
+  const S=D.settings,t=today(),s=isSid?stu(isSid):null,b=isBook?book(isBook):null;
+  const mine=s?openIssues().filter(x=>x.sid===s.id):[];
+  const O=openIssues().slice().sort((a,c)=>a.due.localeCompare(c.due));
+  main.innerHTML=title('Book Issue / Return',`<button class="btn sm g" onclick="go('books')">Books (O)</button><button class="btn sm g" onclick="go('bookreg')">Register (Y)</button>`)+
+  `<div class="two"><div class="card form"><h4>Issue a book</h4>
+    <div class="pick"><label>1. Student (name / ID / mobile / seat)</label>${s?`<div class="row" style="justify-content:space-between;padding:6px 0"><span><b>${esc(s.code)} — ${esc(s.name)}</b> ${tag(s)}<br><span class="muted small">Has ${mine.length} of ${S.maxBooks} books${mine.length?': '+mine.map(x=>esc(x.title)).join(', '):''}</span></span><button class="btn sm g" onclick="isSid=null;scrBookIssue()">Change</button></div>`:
+      `<input id="is_s" autocomplete="off" placeholder="Start typing…"><div class="sugg" id="is_ss" hidden></div>`}</div>
+    <div class="pick" style="margin-top:10px"><label>2. Book (book no / title / author)</label>${b?`<div class="row" style="justify-content:space-between;padding:6px 0"><span><b>${esc(b.code)} — ${esc(b.title)}</b>${b.author?' · '+esc(b.author):''}<br><span class="muted small">Available ${availOf(b)} of ${+b.copies||1}${b.rack?' · Rack '+esc(b.rack):''}</span></span><button class="btn sm g" onclick="isBook=null;scrBookIssue()">Change</button></div>`:
+      `<input id="is_b" autocomplete="off" placeholder="Book no. or title…"><div class="sugg" id="is_bs" hidden></div>`}</div>
+    <div class="grid" style="margin-top:10px"><div><label>Issue date</label><input id="is_date" type="date" value="${t}"></div>
+      <div><label>Return by</label><input id="is_due" type="date" value="${addDays(t,+S.issueDays||15)}"></div>
+      <div class="w2"><label>Note</label><input id="is_note" placeholder="Condition / remark"></div></div>
+    <div class="btns"><button class="btn ok" onclick="saveIssue()"${s&&b?'':' disabled'}>Issue book (Ctrl+S)</button></div></div>
+  <div class="card form"><h4>Return a book</h4><label>Book no. / title / student name</label><input id="rt_q" autocomplete="off" placeholder="Type and press Enter">
+    <div id="rt_out" style="margin-top:8px"></div>
+    <p class="muted small">Fine: ${S.finePerDay?`${rs(S.finePerDay)} per late day`:'off'} · Return within ${S.issueDays} days · Max ${S.maxBooks} books per student. Change in <a href="#" onclick="go('books');return false">Books (O)</a>.</p></div></div>
+  <div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Books with students now (${O.length})</h4><table><thead><tr><th>Issue No</th><th>Book</th><th>Student</th><th>Issued</th><th>Return by</th><th class="n">Late</th><th></th></tr></thead><tbody>
+  ${O.map(x=>{const l=lateDays(x);return `<tr data-id="${x.id}"><td>${x.no}</td><td><b>${esc(x.bcode)}</b> — ${esc(x.title)}</td><td>${esc(x.scode)} — <b>${esc(x.sname)}</b></td><td>${dmy(x.date)}</td>
+    <td class="${l?'red':''}">${dmy(x.due)}</td><td class="n ${l?'red':''}">${l?l+' days'+(fineOf(x)?' · '+rs(fineOf(x)):''):''}</td>
+    <td class="n" style="white-space:nowrap"><button class="btn sm ok" onclick="returnBook('${x.id}')">Return</button> <button class="btn sm wa" onclick="waBook('${x.id}')">WA</button></td></tr>`;}).join('')||'<tr><td colspan="7" class="muted">No book is out right now.</td></tr>'}
+  </tbody></table></div>`;
+  const H=[];
+  if(!s)H.push(picker($('#is_s'),$('#is_ss'),q=>findStudents(q),x=>`${esc(x.code)} — <b>${esc(x.name)}</b> <span class="muted">${esc(x.mobile)} · Seat ${esc(x.seat||'—')}</span> ${tag(x)}`,x=>{isSid=x.id;scrBookIssue();}));
+  if(!b)H.push(picker($('#is_b'),$('#is_bs'),q=>findBooks(q),x=>`${esc(x.code)} — <b>${esc(x.title)}</b> <span class="muted">${esc(x.author||'')}</span> ${availOf(x)?`<span class="tag ok">${availOf(x)} available</span>`:'<span class="tag due">All issued</span>'}`,x=>{isBook=x.id;scrBookIssue();}));
+  keyH=e=>H.some(h=>h(e));
+  $('#rt_q').onkeydown=e=>{if(e.key!=='Enter')return;e.preventDefault();e.stopPropagation();const q=e.target.value.trim().toLowerCase();if(!q)return;
+    const L=O.filter(x=>String(x.bcode).toLowerCase()===q||String(x.scode).toLowerCase()===q||x.title.toLowerCase().includes(q)||x.sname.toLowerCase().includes(q));
+    if(L.length===1){e.target.value='';returnBook(L[0].id);return;}
+    $('#rt_out').innerHTML=L.length?L.map(x=>`<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--line);padding:4px 0"><span><b>${esc(x.bcode)}</b> ${esc(x.title)}<br><span class="small muted">${esc(x.sname)} · due ${dmy(x.due)}</span></span><button class="btn sm ok" onclick="returnBook('${x.id}')">Return</button></div>`).join(''):'<span class="red">No issued book matches.</span>';};
+  onSave=saveIssue;nav={Enter:id=>returnBook(id),F9:id=>waBook(id)};
+  focusEl(!s?'#is_s':!b?'#is_b':'#is_due');
+}
+function saveIssue(){
+  const s=stu(isSid),b=book(isBook),S=D.settings;
+  if(!s){toast('Choose the student','bad');return focusEl('#is_s');}
+  if(!b){toast('Choose the book','bad');return focusEl('#is_b');}
+  if(!availOf(b)){toast('All copies of this book are issued','bad');return;}
+  const mine=openIssues().filter(x=>x.sid===s.id);
+  if(mine.length>=(+S.maxBooks||2)){toast(`${s.name} already has ${mine.length} books (max ${S.maxBooks}). Take one back first.`,'bad');return;}
+  if(mine.some(x=>x.bookId===b.id)){toast(`${s.name} already has this book`,'bad');return;}
+  const date=val('is_date')||today(),due=val('is_due')||addDays(date,+S.issueDays||15);
+  if(due<date){toast('Return date cannot be before issue date','bad');return focusEl('#is_due');}
+  const x={id:uid(),no:Math.max(0,...D.issues.map(i=>+i.no||0))+1,bookId:b.id,bcode:b.code,title:b.title,sid:s.id,scode:s.code,sname:s.name,date,time:nowTime(),due,ret:'',rtime:'',fine:0,note:val('is_note')};
+  D.issues.push(x);save();toast(`Issued: ${b.title} → ${s.name} (return by ${dmy(due)})`,'ok');
+  isBook=null;scrBookIssue();
+}
+function returnBook(id){
+  const x=D.issues.find(i=>i.id===id);if(!x||x.ret)return;
+  const t=today(),l=Math.max(0,diff(x.due,t)),f=l*(+D.settings.finePerDay||0);
+  modal('Return book',`<p style="font-size:15px"><b>${esc(x.bcode)} — ${esc(x.title)}</b><br>${esc(x.sname)} (ID ${esc(x.scode)})<br>Issued ${dmy(x.date)} · Return by ${dmy(x.due)}</p>
+    ${l?`<p class="red">Returned ${l} days late.</p>`:'<p class="green">Returned on time.</p>'}
+    <div class="grid"><div><label>Fine (₹)</label><input id="rt_fine" type="number" min="0" value="${f}"></div><div><label>Mode</label><select id="rt_mode">${MODES.map(m=>`<option>${m}</option>`).join('')}</select></div><div class="w2"><label>Note</label><input id="rt_note" placeholder="Condition / remark"></div></div>
+    <div class="btns"><button class="btn ok" data-k="Y" id="rt_go" autofocus>Take back (Y)</button><button class="btn g" data-k="N" onclick="closeModal()">Cancel (N)</button></div>`);
+  $('#rt_go').onclick=()=>{x.ret=t;x.rtime=nowTime();x.fine=Math.max(0,+$('#rt_fine').value||0);x.fmode=x.fine?$('#rt_mode').value:'';const n=$('#rt_note').value.trim();if(n)x.note=(x.note?x.note+' · ':'')+n;
+    save();closeModal();toast(`Returned: ${x.title}${x.fine?' · fine '+rs(x.fine):''}`,'ok');go(cur,cur==='bookissue'?null:curArg);};
+}
+function waBook(id){const x=D.issues.find(i=>i.id===id),s=stu(x.sid),S=D.settings,l=lateDays(x);
+  waOpen(s&&s.mobile,`Dear ${x.sname},\nBook: ${x.title} (No. ${x.bcode})\nIssued on: ${dmy(x.date)}\n${l?`Return date was ${dmy(x.due)} — ${l} days late.${fineOf(x)?`\nFine till today: ${rs(fineOf(x))}`:''}\nPlease return it at the earliest.`:`Please return it by ${dmy(x.due)}.`}\n\n- ${S.name}${S.contact?'\n'+S.contact:''}`);}
+
+/* ---- Book Issue Register (Y) ---- */
+let brF='out',brQ='';
+const brRows=()=>{const t=today(),q=brQ.trim().toLowerCase();
+  return D.issues.filter(x=>(brF==='all'||(brF==='out'&&!x.ret)||(brF==='late'&&!x.ret&&x.due<t)||(brF==='ret'&&x.ret))&&
+    (!q||String(x.bcode).toLowerCase()===q||String(x.scode).toLowerCase()===q||x.title.toLowerCase().includes(q)||x.sname.toLowerCase().includes(q))).slice().reverse();};
+function scrBookReg(){
+  main.innerHTML=title('Book Issue Register',`<select id="br_f" style="width:auto">${[['out','With students now'],['late','Overdue'],['ret','Returned'],['all','All']].map(([k,t])=>`<option value="${k}"${brF===k?' selected':''}>${t}</option>`).join('')}</select>
+    <button class="btn sm g" onclick="brCsv()">CSV</button><button class="btn sm g" onclick="printReport($('#br_out').innerHTML)">Print</button>`)+
+  `<div class="card" style="padding:8px 12px"><input id="br_q" data-nav placeholder="Search book no / title / student" value="${esc(brQ)}"></div><div id="br_out"></div>`;
+  const draw=()=>{brF=$('#br_f').value;brQ=$('#br_q').value;const L=brRows(),fines=sum(L,'fine');
+    $('#br_out').innerHTML=`<div class="card" style="padding:0"><table><thead><tr><th>No</th><th>Book</th><th>Student</th><th>Issued</th><th>Return by</th><th>Returned</th><th class="n">Late</th><th class="n">Fine</th><th></th></tr></thead><tbody>
+    ${L.slice(0,1000).map(x=>{const l=lateDays(x);return `<tr data-id="${x.id}"><td>${x.no}</td><td><b>${esc(x.bcode)}</b> — ${esc(x.title)}</td><td>${esc(x.scode)} — ${esc(x.sname)}</td><td>${dmy(x.date)}</td><td>${dmy(x.due)}</td>
+      <td>${x.ret?dmy(x.ret):'<span class="tag soon">Out</span>'}</td><td class="n ${l&&!x.ret?'red':''}">${l?l+' d':''}</td><td class="n">${x.fine?rs(x.fine):(!x.ret&&fineOf(x)?`<span class="muted">${rs(fineOf(x))}</span>`:'')}</td>
+      <td class="n" style="white-space:nowrap">${x.ret?'':`<button class="btn sm ok" onclick="returnBook('${x.id}')">Return</button> <button class="btn sm wa" onclick="waBook('${x.id}')">WA</button>`}</td></tr>`;}).join('')||'<tr><td colspan="9" class="muted">Nothing here.</td></tr>'}
+    </tbody>${L.length?`<tfoot><tr><td colspan="7">${L.length} entries</td><td class="n">${fines?rs(fines):''}</td><td></td></tr></tfoot>`:''}</table></div>`;selFirst();};
+  $('#br_f').onchange=draw;$('#br_q').oninput=draw;draw();
+  nav={Enter:id=>returnBook(id),F9:id=>waBook(id)};focusEl('#br_q');
+}
+function brCsv(){dl(`book_register_${today()}.csv`,toCsv([['No','Book No','Title','Student ID','Student','Issued','Return by','Returned','Late days','Fine','Note']].concat(brRows().map(x=>[x.no,x.bcode,x.title,x.scode,x.sname,dmy(x.date),dmy(x.due),dmy(x.ret),lateDays(x)||'',x.fine||'',x.note||'']))),'text/csv');}
 
 /* ================= EXPENSE ENTRY ================= */
 let expEdit=null;

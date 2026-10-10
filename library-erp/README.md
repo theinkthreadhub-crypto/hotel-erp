@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.8.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.9.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -12,6 +12,9 @@ Poora ERP English mein hai. Abhi ka version: **v1.8.0** — saare versions [CHAN
 - **Expense Heads (H):** Rent, Electricity, WiFi, Salary jaise kharche ke naam. Naye banayein, order set karein, ek saath kai add karein. Entries wala head delete karte waqt entries doosre head mein shift ho jaati hain.
 - **Expense Entry (E):** Date, Head, Amount, Mode, Paid to, Note. Pichhle mahine ke kharche "Use" se dobara bhar sakte hain.
 - **Reports:** Income vs Expense (**V**) mahine-wise Profit/Loss ke saath, Expense Report (**X**) head-wise. Day Book mein fee, kharcha, Profit/Loss aur Cash in hand.
+- **Books (O):** Book Master. Book No., Title, Author, Publisher, Category, Copies, Rack, Price, ISBN. **Download Excel format** se ek saath saari books **Bulk upload** karein. Har book ke saamne kitni copies bahar hain aur kitni available, dikhta hai. Yahin **Issue rules**: kitne din mein lautani hai (default 15), late fine per din, ek student max kitni books le.
+- **Book Issue / Return (J):** Student chunein → Book chunein → `Ctrl+S`. Copy khatam ho, ya student ki max books ho chuki hon, to issue nahi hota. Return: book no. likhkar `Enter` → `Y`. Late ho to fine apne aap lagta hai (badal sakte hain). Bahar gayi books ki list, overdue laal mein, WhatsApp reminder ke saath.
+- **Book Issue Register (Y):** Abhi bahar / Overdue / Returned / All. Print aur CSV. Student Record mein bhi us student ki books dikhti hain. Book fine Day Book ke cash in hand mein judta hai.
 - **Dashboard (Gateway):** Is mahine kitni fee aayi, kitni aani hai (expected), kitni baki hai (pending), aur kul outstanding. Saath mein fee collection ka 6 mahine ka chart, students ka fee status, payment mode, 7 din ki attendance, aur sabse zyada due wale students.
 
 - **Fee Master (F):** Fee ka naam, amount, validity (din) aur **Order No.** set karein. Order 1 sabse upar dikhta hai. `30` = mahine wali fee. `0` = ek baar wali fee (Admission, Security). "Ek saath kai fee" box mein har line par `Naam, Amount, Din, Order` likhkar sab ek baar mein bana sakte hain.

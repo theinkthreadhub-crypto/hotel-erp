@@ -327,6 +327,10 @@ function show(warn){
     <div class="row"><div class="l">\${mpl>=0?'Profit':'Loss'}</div><div class="r"><b class="\${mpl>=0?'ok':'bad'}">\${rs(Math.abs(mpl))}</b></div></div>
     <div class="bar"><i style="width:\${pct}%"></i></div><small style="color:var(--m)">This month's fee: \${rs(M.got)} of \${rs(M.expected)} received (\${pct}%) · <span class="bad">\${rs(M.pending)} pending</span></small></div>
   <div class="card"><h3>Last 7 days</h3>\${weekChart(v.week)}</div>
+  \${v.books?\`<div class="card"><h3>Books</h3><div class="row"><div class="l">With students now</div><div class="r"><b>\${v.books.out}</b></div></div>
+    <div class="row"><div class="l">Issued / returned today</div><div class="r"><b>\${v.books.issuedToday}</b> / <b>\${v.books.returnedToday}</b></div></div>
+    <div class="row"><div class="l">Overdue</div><div class="r"><b class="\${v.books.overdue?'bad':''}">\${v.books.overdue}</b></div></div>
+    \${v.books.late.map(x=>\`<div class="row"><div class="l"><b>\${esc(x.title)}</b><small>No. \${esc(x.code)} · \${esc(x.name)} (ID \${esc(x.scode)})</small></div><div class="r"><small>due</small> <b class="bad">\${dmy(x.due)}</b></div></div>\`).join('')}</div>\`:''}
   <div class="card"><h3>Total dues\${v.session?' · Session '+esc(v.session):''}</h3><div class="row"><div class="l">\${v.dues.count} student\${v.dues.count===1?'':'s'}</div><div class="r"><b class="bad">\${rs(v.dues.total)}</b></div></div></div>
   <div class="tabs">\${[['rc','Fee'],['ex','Expense'],['at','Attendance'],['du','Dues']].map(([k,t])=>\`<button class="\${tab===k?'on':''}" onclick="tab='\${k}';show()">\${t}</button>\`).join('')}</div>
   <div class="card" id="list">\${list()}</div>
