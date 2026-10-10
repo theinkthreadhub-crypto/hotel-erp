@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.13.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.13.1** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -20,7 +20,6 @@ Poora ERP English mein hai. Abhi ka version: **v1.13.0** — saare versions [CHA
 - **Fee Master (F):** Fee ka naam, amount, validity (din) aur **Order No.** set karein. Order 1 sabse upar dikhta hai. `30` = mahine wali fee. `0` = ek baar wali fee (Admission, Security). "Ek saath kai fee" box mein har line par `Naam, Amount, Din, Order` likhkar sab ek baar mein bana sakte hain.
 - **New Admission (S):** Student ka naam, father, mobile, seat, shift, fee plan. Save karte hi fee dikhti hai aur turant fee le sakte hain.
 - **Fee Collect (C):** Student search karein. **Mahine tick karein** (Jan, Feb…). Paid mahine hare dikhte hain, due mahine laal. Ek baar wali fee bhi tick karke saath le sakte hain. Discount, purana baki aur partial payment (balance) sab handle hota hai. Receipt aur WhatsApp par likha aata hai kis-kis mahine ki fee di.
-- **Student photo & documents:** New Admission / Student Record me student ki photo lagayein, aur ID card jaise documents attach karein. Ye apne aap Setu Pro cloud par backup hote hain (restore par wapas aa jaate hain).
 - **Help & Support (Utilities):** Library yahan se Setu Pro ko ticket / feedback bhejti hai; jawab isi screen par aata hai. Internet zaroori hai.
 - **Student Record (List mein Enter):** Student ki poori jaankari, kul jama fee, har receipt (date, time, mahine, mode), mahine ka hara/laal chart, aur attendance (aane aur jaane ka time).
 - **Receipt slip:** Library ka naam, address aur contact slip par chhapte hain. Size: 58 mm, 80 mm, A6, A5, A4 (Settings se badlein).

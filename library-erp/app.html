@@ -150,13 +150,6 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .lhead{display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:12px}
 .lhead img,.lhead span{width:52px;height:52px;border-radius:12px;object-fit:contain;flex:none;background:#eef3fb;display:flex;align-items:center;justify-content:center;font-size:28px}
 .lhead b{display:block;font-size:17px;color:var(--bar)}.lhead small{color:var(--muted)}
-.pbox{display:flex;gap:14px;align-items:center;margin-bottom:12px}
-.pbox .pimg{width:88px;height:108px;object-fit:cover;border:1px solid var(--line);border-radius:10px;background:#fff}
-.pbox .pblank{width:88px;height:108px;border:1px dashed #bdb59a;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:40px;color:#bdb59a;background:#fff}
-.recphoto{width:120px;height:146px;object-fit:cover;border:1px solid var(--line);border-radius:10px;float:right;margin:0 0 8px 12px}
-.docgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
-.docgrid .d{position:relative}.docgrid img{width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
-.docgrid .x{position:absolute;top:2px;right:2px;background:#c62828;color:#fff;border:0;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer}
 .logobox{display:flex;gap:14px;align-items:center;margin-top:4px}
 .logobox img{width:88px;height:88px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;padding:4px}
 .logobox .nologo{width:88px;height:88px;border:1px dashed #bdb59a;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
@@ -765,9 +758,8 @@ function scrStudent(id){
   const v=s||{code:nextCode(),name:'',father:'',mobile:'',address:'',seat:'',shift:'',planId:per[0].id,fee:per[0].amount,join:today(),validTill:'',status:'active',note:''};
   $('#scr').textContent=s?'Student Edit':'New Admission';
   const shifts=String(D.settings.shifts||'').split(',').map(x=>x.trim()).filter(Boolean);
-  _sp=undefined;
   main.innerHTML=title(s?`Student Edit — ${esc(s.name)}`:'New Admission',s?`<button class="btn sm g" onclick="go('collect','${s.id}')">Collect fee</button>`:'')+
-  `<div class="two"><div class="card form"><div class="pbox" id="sphoto">${photoBox(v.photo)}</div><div class="grid">
+  `<div class="two"><div class="card form"><div class="grid">
     <div><label>Student ID <i>*</i></label><input id="s_code" value="${esc(v.code)}"></div>
     <div class="w2"><label>Student name <i>*</i></label><input id="s_name" value="${esc(v.name)}"></div>
     <div><label>Father's name</label><input id="s_father" value="${esc(v.father)}"></div>
@@ -798,24 +790,10 @@ function scrStudent(id){
   ['s_fee','s_join','s_valid'].forEach(i=>$('#'+i).addEventListener('input',prev));
   prev();onSave=()=>saveStudent(id);focusEl('#s_name');
 }
-// Student Record: documents / photos (ID card, fees proof etc.)
-function drawDocs(s){const e=$('#rc_docs');if(!e)return;const D2=s.docs||[];
-  e.innerHTML=D2.length?`<div class="docgrid">${D2.map((d,i)=>`<div class="d"><img src="${d}" onclick="imgFull('${d}')"><button class="x" onclick="docDel('${s.id}',${i})">✕</button></div>`).join('')}</div>`:'<p class="muted small" style="margin:0">No documents. Tap <b>+ Add</b> to attach a photo (ID card, address proof…).</p>';}
-function docAdd(id,f){const s=stu(id);if(!s)return;imgCompress(f,900,u=>{s.docs=s.docs||[];s.docs.push(u);save();drawDocs(s);toast('Document added','ok');});}
-async function docDel(id,i){const s=stu(id);if(!s||!s.docs)return;if(!await ask('Remove this document?'))return;s.docs.splice(i,1);save();drawDocs(s);}
-function imgFull(src){modal('Photo',`<img src="${src}" style="max-width:100%;border-radius:8px"><div class="btns"><button class="btn g" onclick="closeModal()">Close</button></div>`);}
-// New Admission / Edit ki photo
-let _sp=undefined;
-function photoBox(p){return `${p?`<img class="pimg" src="${p}" alt="">`:'<div class="pblank">👤</div>'}
-  <div><label class="btn sm" style="margin:0;color:#fff;display:inline-block">${p?'Change photo':'Add photo'}<input type="file" accept="image/*" capture="environment" hidden onchange="sPhotoPick(this.files[0])"></label>
-  ${p?' <button class="btn sm bad" onclick="sPhotoDel()">Remove</button>':''}<div class="muted small" style="margin-top:4px">Student ki photo (ID card / record)</div></div>`;}
-function sPhotoPick(f){imgCompress(f,420,u=>{_sp=u;$('#sphoto').innerHTML=photoBox(u);});}
-function sPhotoDel(){_sp='';$('#sphoto').innerHTML=photoBox('');}
 async function saveStudent(id){
   const s=id?stu(id):null;
   const v={code:val('s_code'),name:val('s_name'),father:val('s_father'),mobile:normPh(val('s_mobile')),address:val('s_address'),seat:val('s_seat'),
     shift:val('s_shift'),planId:val('s_plan'),fee:num('s_fee'),join:val('s_join')||today(),note:val('s_note')};
-  if(_sp!==undefined)v.photo=_sp||'';
   const vt=val('s_valid');
   if(!v.code){toast('Enter Student ID','bad');return focusEl('#s_code');}
   if(!v.name){toast('Enter student name','bad');return focusEl('#s_name');}
@@ -885,8 +863,7 @@ function scrRecord(id){
   main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button>`)+
   otherDueHtml(s)+(st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due (${esc(curSess().name)}):</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Balance ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
     <button class="btn sm wa" style="margin-left:8px" onclick="waRemind('${s.id}')">Send WhatsApp reminder</button></div>`:'')+
-  `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4>
-    ${s.photo?`<img class="recphoto" src="${s.photo}" alt="" onclick="imgFull('${s.photo}')">`:''}<table class="info">
+  `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
     <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
     <tr><td>Mobile</td><td>${esc(s.mobile)}</td></tr>${s.address?`<tr><td>Address</td><td>${esc(s.address)}</td></tr>`:''}
     <tr><td>Seat / Shift</td><td>${esc(s.seat||'—')} ${s.shift?'/ '+esc(s.shift):''}</td></tr>
@@ -910,7 +887,6 @@ function scrRecord(id){
   ${(()=>{const B=D.issues.filter(x=>x.sid===s.id).slice().reverse();return `<div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Books (${B.filter(x=>!x.ret).length} with student) <button class="btn sm ok" onclick="go('bookissue',{sid:'${s.id}'})">Issue a book</button></h4><table><thead><tr><th>Book</th><th>Issued</th><th>Return by</th><th>Returned</th><th class="n">Fine</th><th></th></tr></thead><tbody>
     ${B.map(x=>`<tr><td><b>${esc(x.bcode)}</b> — ${esc(x.title)}</td><td>${dmy(x.date)}</td><td class="${!x.ret&&x.due<today()?'red':''}">${dmy(x.due)}</td><td>${x.ret?dmy(x.ret):'<span class="tag soon">Out</span>'}</td><td class="n">${x.fine?rs(x.fine):''}</td>
     <td class="n">${x.ret?'':`<button class="btn sm ok" onclick="returnBook('${x.id}')">Return</button>`}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No books taken.</td></tr>'}</tbody></table></div>`;})()}
-  <div class="card"><h4 style="display:flex;gap:10px;align-items:center;justify-content:space-between">Documents / Photos <label class="btn sm" style="margin:0;color:#fff">+ Add<input type="file" accept="image/*" hidden onchange="docAdd('${s.id}',this.files[0])"></label></h4><div id="rc_docs"></div></div>
   <div class="card" style="padding:0"><h4 style="padding:10px 12px 0;display:flex;gap:10px;align-items:center">Attendance (in / out time) <input type="month" id="rc_m" value="${recMonth}" style="width:auto;padding:2px 6px"></h4><div id="rc_att"></div></div>`;
   const drawA=()=>{recMonth=$('#rc_m').value||curMonth();
     const days=mRange(recMonth,recMonth).length?[...Array(new Date(+recMonth.slice(0,4),+recMonth.slice(5),0).getDate())].map((_,i)=>recMonth+'-'+pad(i+1)):[];
@@ -918,7 +894,6 @@ function scrRecord(id){
     $('#rc_att').innerHTML=`<p style="margin:6px 12px">Present this month: <b class="green">${L.length}</b> days</p><table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Duration</th></tr></thead><tbody>
       ${L.reverse().map(([d,a])=>`<tr><td>${dmy(d)}</td><td>${esc(a.in||'—')}</td><td>${esc(a.out||'—')}</td><td>${dur(a.in,a.out)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No attendance this month.</td></tr>'}</tbody></table>`;};
   $('#rc_m').onchange=drawA;drawA();
-  drawDocs(s);
   keyH=e=>{const k={F4:()=>go('collect',s.id),F2:()=>go('student',s.id),F9:()=>waRemind(s.id)}[e.key];if(k){e.preventDefault();k();return true;}return false;};
 }
 function dur(a,b){if(!a||!b)return '';const [h1,m1]=a.split(':').map(Number),[h2,m2]=b.split(':').map(Number);let m=(h2*60+m2)-(h1*60+m1);if(m<0)return '';return Math.floor(m/60)+'h '+pad(m%60)+'m';}
