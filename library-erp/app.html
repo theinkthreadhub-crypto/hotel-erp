@@ -236,6 +236,10 @@ html.mobile .khelp{display:none}
 .astat div{background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:10px;text-align:center}.astat b{display:block;font-size:22px}.astat span{font-size:12px;color:var(--muted)}
 .slist .av.in{background:#dff3e3;color:var(--ok)}.slist .av.out{background:#eceff4;color:#6b7385}
 .slist .sa .btn{min-width:64px}
+.slist .scard.done{opacity:.75;background:#f6fbf7}
+.remsum{margin:10px 0 2px;font-size:15px}
+.rprev{white-space:pre-wrap;background:#e9fbe9;border-radius:10px;padding:10px 12px;font:14px/1.45 "Segoe UI",Arial,sans-serif;margin:6px 0 0}
+.tpk{display:inline-block;background:#eef3fb;border-radius:6px;padding:2px 6px;margin:2px 1px;text-decoration:none;font-family:Consolas,monospace;font-size:12px}
 html.mobile .title{font-size:0;padding:8px 12px}html.mobile .title .r{font-size:14px}
 html.mobile .title:has(.r:empty){display:none}
 .slist .scard{display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:10px;cursor:pointer}
@@ -462,24 +466,38 @@ function findStudents(q,all){
   return list.filter(s=>String(s.code).toLowerCase()===q||s.name.toLowerCase().includes(q)||(s.father||'').toLowerCase().includes(q)||
     (qd.length>=4&&String(s.mobile).includes(qd))||String(s.seat||'').toLowerCase()===q);
 }
-function remindText(s){
-  const S=D.settings,st=stStatus(s),amt=dueAmt(s);
-  const line=st.k==='due'?`Your library fee for ${mText(st.u)} is pending.`:st.k==='soon'?`Your library fee expires on ${dmy(s.validTill)}.`:s.bal>0?'Your previous balance is pending.':'Your library fee is paid.';
-  return `Dear ${s.name},\n${line}${s.seat?`\nSeat: ${s.seat}`:''}${amt?`\nAmount due: ${rs(amt)}`:''}\nPlease pay your fee on time.\n\n- ${S.name}${S.contact?'\n'+S.contact:''}`;
+/* ---- reminder templates: {name} jaise shabd student ki jaankari se badal jaate hain ---- */
+const TPL_DEF=[
+  {id:'month',name:"This month's fee due",text:'Dear {name},\nYour library fee for *{month}* is due.\nAmount: *{amount}*\nPlease pay by {last_date}.\n\nThank you,\n{library}\n{contact}'},
+  {id:'old',name:'Old fee pending',text:'Dear {name},\nYour library fee for {due_months} is pending.\nTotal due: *{amount}*\nPlease pay at the earliest to keep your seat {seat}.\n\n{library}\n{contact}'},
+  {id:'soon',name:'Fee expiring soon',text:'Dear {name},\nYour library fee is valid till *{valid_till}*.\nPlease renew on time to keep your seat {seat}.\n\n{library}\n{contact}'},
+];
+const TPL_KEYS=['name','father','id','seat','shift','month','due_months','count','amount','fee','valid_till','last_date','library','contact','address'];
+const tpls=()=>{const S=D.settings;if(!Array.isArray(S.tpls)||!S.tpls.length)S.tpls=TPL_DEF.map(t=>({...t}));return S.tpls;};
+const tplById=id=>tpls().find(t=>t.id===id)||tpls()[0];
+// Kaun sa template: sirf is mahine ki fee = month, purani bhi = old, khatam hone wali = soon
+function autoTpl(s){const st=stStatus(s);if(st.k==='soon')return 'soon';if(st.k==='due'&&st.u.length===1&&st.u[0]===curMonth())return 'month';return 'old';}
+function fillTpl(text,s){
+  const S=D.settings,st=stStatus(s),u=st.u||[],cm=curMonth(),day=Math.min(28,Math.max(1,+S.remDay||10));
+  const v={name:s.name,father:s.father||'',id:s.code,seat:s.seat||'—',shift:s.shift||'',month:mName(u.includes(cm)||!u.length?cm:u[u.length-1]),
+    due_months:mText(u)||'—',count:u.length,amount:rs(dueAmt(s)||monthRate(s)),fee:rs(monthRate(s)),valid_till:s.validTill?dmy(s.validTill):'—',
+    last_date:dmy(cm+'-'+pad(day)),library:S.name,contact:S.contact||'',address:S.address||''};
+  return String(text).replace(/\{(\w+)\}/g,(m,k)=>k in v?v[k]:m).replace(/\n{3,}/g,'\n\n').trim();
 }
-const waRemind=id=>{const s=stu(id);if(s)waOpen(s.mobile,remindText(s));};
+function remindText(s,tid){return fillTpl(tplById(tid||autoTpl(s)).text,s);}
+const waRemind=(id,tid)=>{const s=stu(id);if(!s)return;s.remAt=today()+' '+nowTime();save();waOpen(s.mobile,remindText(s,tid));};
 
 /* ================= NAVIGATION / KEYBOARD ================= */
 // Gateway: 4 groups with dropdowns. Every item also has its own letter (works on Gateway and with Alt from anywhere).
 const GROUPS=[
   ['M','Masters',[['S','New Admission','student'],['L','Student List','list'],['F','Fee Master','plans'],['H','Expense Heads','heads'],['O','Books (Book Master)','books'],['N','Sessions','sessions']]],
-  ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att'],['J','Book Issue / Return','bookissue']]],
+  ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att'],['J','Book Issue / Return','bookissue'],['Z','Fee Reminder (WhatsApp)','remind']]],
   ['R','Reports',[['B','Day Book','daybook'],['P','Receipt List / Reprint','receipts'],['D','Due List & Reminder','due'],['V','Income vs Expense','pl'],['X','Expense Report','exprep'],['W','Attendance Report (Month)','attrep'],['Y','Book Issue Register','bookreg']]],
   ['U','Utilities',[['I','Bulk Import (Excel / CSV)','import'],['G','Settings & Backup','settings'],['K','License / Activation','license'],['Q','Close ERP','quit']]],
 ];
 const MENU=GROUPS.flatMap(g=>g[2].map(x=>[x[0],x[1],x[2],g[1]]));
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
-  heads:scrHeads,expense:scrExpense,books:scrBooks,bookissue:scrBookIssue,bookreg:scrBookReg,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
+  heads:scrHeads,expense:scrExpense,remind:scrRemind,books:scrBooks,bookissue:scrBookIssue,bookreg:scrBookReg,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
   daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
 let curArg=null,cur='home',gwSel=0,gwOpen=-1,onSave=null,nav=null,keyH=null;
 function go(s,arg){
@@ -501,7 +519,7 @@ function gwToggle(gi){gwOpen=gwOpen===gi?-1:gi;gwSel=gwRows().findIndex(r=>r.g==
 const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
 /* ---- phone app shell: drawer, bottom tabs, home tiles ---- */
 const ICON={home:'🏠',student:'➕',list:'👥',plans:'💳',heads:'🏷️',books:'📚',sessions:'📅',collect:'🧾',expense:'💸',att:'🕒',bookissue:'🔄',
-  daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
+  daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',remind:'🔔',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
 const BNAV=[['home','Home'],['collect','Fee'],['att','Attendance'],['list','Students'],['menu','Menu']];
 function drawer(open){const d=$('#drawer');if(!d||!D)return;open=open===undefined?!d.classList.contains('open'):open;
   if(open)d.innerHTML=`<div class="dhead"><div class="dlogo">${D.settings.logo?`<img src="${D.settings.logo}" alt="">`:'📚'}</div><div><b>${esc(D.settings.name)}</b><small>Library ERP v${esc(LIC&&LIC.version||'')}${LIC&&LIC.vendorPhone?' · Support '+esc(LIC.vendorPhone):''}</small></div></div>
@@ -512,7 +530,7 @@ function mobNav(s){drawer(false);const m=MENU.find(x=>x[2]===s);
   $('#scr').textContent=s==='home'?'Home':s==='record'?'Student Record':m?m[1]:'';
   $('#bnav').innerHTML=BNAV.map(([k,l])=>`<a class="${k===s||(k==='list'&&(s==='record'||s==='student'))?'on':''}" onclick="${k==='menu'?'drawer(true)':`go('${k}')`}"><i>${k==='menu'?'☰':ICON[k]}</i><span>${l}</span></a>`).join('');}
 function mobTiles(){const T=[['student','New Admission'],['collect','Fee Collect'],['att','Attendance'],['list','Students'],['due','Due List'],['expense','Expense'],
-  ['bookissue','Book Issue'],['daybook','Day Book'],['receipts','Receipts']];
+  ['remind','Fee Reminder'],['bookissue','Book Issue'],['daybook','Day Book']];
   const S=D.settings;
   return `<div class="lhead">${S.logo?`<img src="${S.logo}" alt="">`:'<span>📚</span>'}<div><b>${esc(S.name)}</b><small>${esc(S.address||S.contact||'Library ERP')}</small></div></div><div class="tiles">${T.map(([k,l])=>`<a onclick="go('${k}')"><i>${ICON[k]}</i><span>${l}</span></a>`).join('')}<a onclick="drawer(true)"><i>☰</i><span>All modules</span></a></div>`;}
 // Phone par keyboard hints (Ctrl+S, Esc, Alt+X, (Y)) hata do
@@ -1146,6 +1164,58 @@ function remindNext(){const L=dueRows();if(!L.length)return toast('Nothing pendi
   const s=L[remIdx++];navMove(0);const rows=[...main.querySelectorAll('tr[data-id]')];rows.forEach(r=>r.classList.toggle('sel',r.dataset.id===s.id));
   toast(`${remIdx}/${L.length}: ${s.name}`);waRemind(s.id);}
 function dueCsv(){dl(`due_${today()}.csv`,toCsv([['ID','Name','Mobile','Seat','Valid Till','Status','Due']].concat(dueRows().map(s=>[s.code,s.name,s.mobile,s.seat,s.validTill,stStatus(s).t+(stStatus(s).u?' ('+mText(stStatus(s).u)+')':''),dueAmt(s)]))),'text/csv');}
+
+/* ================= FEE REMINDER (Z) ================= */
+let remFlt='month',remTpl='',remEdit='';
+function remRows(){const cm=curMonth();
+  return active().filter(s=>{const st=stStatus(s);
+    if(remFlt==='month')return st.k==='due'&&st.u.includes(cm);
+    if(remFlt==='old')return st.k==='due'&&st.u.some(m=>m<cm);
+    if(remFlt==='soon')return st.k==='soon';
+    return st.k==='due'||st.k==='soon'||s.bal>0;})
+  .sort((a,b)=>dueAmt(b)-dueAmt(a));}
+const sentToday=s=>(s.remAt||'').slice(0,10)===today();
+function scrRemind(f){
+  if(f)remFlt=f;const T=tpls();
+  if(!remTpl||!T.some(t=>t.id===remTpl))remTpl='auto';
+  const L=remRows(),left=L.filter(s=>!sentToday(s)&&normPh(s.mobile)).length;
+  main.innerHTML=title('Fee Reminder',`<button class="btn sm g" onclick="go('due')">Due List (D)</button>`)+
+  `<div class="card form"><div class="grid">
+    <div><label>Send to</label><select id="rm_f">${[['month',"This month's fee due"],['old','Old fee pending'],['soon',`Fee expiring in ${D.settings.expDays} days`],['all','All pending']].map(([k,t])=>`<option value="${k}"${k===remFlt?' selected':''}>${t}</option>`).join('')}</select></div>
+    <div><label>Message template</label><select id="rm_t"><option value="auto">Automatic (best for each student)</option>${T.map(t=>`<option value="${t.id}"${t.id===remTpl?' selected':''}>${esc(t.name)}</option>`).join('')}</select></div>
+  </div>
+  <div class="remsum"><b>${L.length}</b> students · <b class="green">${L.length-left}</b> sent today · <b class="red">${left}</b> left</div>
+  <div class="btns"><button class="btn wa" onclick="remNext()"${left?'':' disabled'}>Send next reminder (W)</button><button class="btn g" onclick="remTplBox()">Edit templates</button></div>
+  ${L[0]?`<details style="margin-top:8px"><summary class="small muted">Message preview — ${esc(L[0].name)}</summary><pre class="rprev">${esc(remindText(L[0],remTpl==='auto'?'':remTpl))}</pre></details>`:''}
+  <p class="small muted" style="margin:6px 0 0">WhatsApp opens one student at a time with the message ready — press Send in WhatsApp, come back and tap <b>Send next</b>.</p></div>
+  <div class="slist">${L.map(s=>{const st=stStatus(s),ph=normPh(s.mobile),sent=sentToday(s);return `<div class="scard${sent?' done':''}"><div class="av">${esc((s.name||'?').trim().charAt(0).toUpperCase())}</div>
+    <div class="sc"><b>${esc(s.name)}</b><small>ID ${esc(s.code)}${s.seat?' · Seat '+esc(s.seat):''} · ${ph?esc(ph):'<span class="red">no mobile</span>'}</small>
+    <div>${st.u&&st.u.length?`<span class="tag due">${esc(mText(st.u))}</span> `:tag(s)+' '}<b class="red">${rs(dueAmt(s))}</b>${s.remAt?` <span class="muted small">${sent?'✓ sent today '+esc(s.remAt.slice(11)):'last sent '+dmy(s.remAt.slice(0,10))}</span>`:''}</div></div>
+    <div class="sa"><button class="btn sm wa" onclick="remSend('${s.id}')"${ph?'':' disabled'}>${sent?'Again':'Send'}</button><button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button></div></div>`;}).join('')||'<div class="card muted">Nobody to remind 👍</div>'}</div>`;
+  $('#rm_f').onchange=()=>scrRemind($('#rm_f').value);
+  $('#rm_t').onchange=()=>{remTpl=$('#rm_t').value;scrRemind();};
+  keyH=(e,typing)=>{if(!typing&&!e.ctrlKey&&!e.altKey&&(e.key==='w'||e.key==='W')){e.preventDefault();remNext();return true;}return false;};
+}
+function remSend(id){waRemind(id,remTpl==='auto'?'':remTpl);setTimeout(()=>{if(cur==='remind')scrRemind();},400);}
+function remNext(){const s=remRows().find(x=>!sentToday(x)&&normPh(x.mobile));if(!s){toast('Everyone has been reminded today 👍','ok');return;}
+  toast(`Reminder: ${s.name}`);remSend(s.id);}
+// Templates: naam aur message badlein; {name} jaise shabd apne aap bharte hain
+function remTplBox(id){
+  const T=tpls(),t=T.find(x=>x.id===(id||remEdit))||T[0];remEdit=t.id;const isDef=TPL_DEF.some(x=>x.id===t.id);
+  modal('Reminder templates',`<label>Template</label><select id="tp_sel">${T.map(x=>`<option value="${x.id}"${x.id===t.id?' selected':''}>${esc(x.name)}</option>`).join('')}<option value="__new">+ New template</option></select>
+    <label style="margin-top:8px">Name</label><input id="tp_name" value="${esc(t.name)}">
+    <label style="margin-top:8px">Message</label><textarea id="tp_text" rows="8">${esc(t.text)}</textarea>
+    <div class="small muted" style="margin:6px 0">Tap to insert: ${TPL_KEYS.map(k=>`<a href="#" class="tpk" onclick="tplIns('{${k}}');return false">{${k}}</a>`).join(' ')}</div>
+    <div class="small muted">*text* = bold on WhatsApp. {last_date} = fee due date (day ${+D.settings.remDay||10} of the month, change below).</div>
+    <div class="grid" style="margin-top:8px"><div><label>Fee due by (day of month)</label><input id="tp_day" type="number" min="1" max="28" value="${+D.settings.remDay||10}"></div></div>
+    <div class="btns"><button class="btn ok" onclick="tplSave()">Save</button>${isDef?`<button class="btn g" onclick="tplReset()">Reset to default</button>`:`<button class="btn bad" onclick="tplDel()">Delete</button>`}<button class="btn g" onclick="closeModal();scrRemind()">Close</button></div>`);
+  $('#tp_sel').onchange=e=>{if(e.target.value==='__new'){const n={id:uid(),name:'My template',text:'Dear {name},\n\n{library}'};tpls().push(n);save();remTplBox(n.id);}else remTplBox(e.target.value);};
+}
+function tplIns(k){const a=$('#tp_text'),i=a.selectionStart??a.value.length;a.value=a.value.slice(0,i)+k+a.value.slice(a.selectionEnd??i);a.focus();a.selectionStart=a.selectionEnd=i+k.length;}
+function tplSave(){const t=tplById(remEdit),name=val('tp_name'),text=$('#tp_text').value.trim();if(!name||!text){toast('Enter the name and message','bad');return;}
+  Object.assign(t,{name,text});D.settings.remDay=Math.min(28,Math.max(1,parseInt(val('tp_day'),10)||10));save();toast('Template saved','ok');remTplBox(t.id);}
+function tplReset(){const d=TPL_DEF.find(x=>x.id===remEdit);Object.assign(tplById(remEdit),{name:d.name,text:d.text});save();remTplBox(remEdit);}
+async function tplDel(){const t=tplById(remEdit);D.settings.tpls=tpls().filter(x=>x.id!==t.id);remEdit='';if(remTpl===t.id)remTpl='auto';save();toast('Template deleted');remTplBox();}
 
 /* ================= RECEIPTS ================= */
 let rFrom=null,rTo=null;

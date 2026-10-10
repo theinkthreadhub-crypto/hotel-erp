@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.11.1** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.12.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -27,6 +27,7 @@ Poora ERP English mein hai. Abhi ka version: **v1.11.1** — saare versions [CHA
 - **Logo:** Settings (G) → Library logo → Upload. Logo receipt par chhapta hai aur phone app mein dikhta hai.
 - **Attendance (A):** Student ID, seat ya mobile likhkar Enter dabayein. Pehli baar **Aaya (IN)**, doosri baar **Gaya (OUT)** ka time lagta hai, aur kitni der ruka wo bhi dikhta hai. Time par click karke time badal sakte hain. Fee due ho to warning aati hai.
 - **Attendance Report (M):** Mahine bhar ka P/A grid aur %. Print aur CSV.
+- **Fee Reminder (Z):** "This month's fee due", "Old fee pending" ya "Expiring soon" chunein → **Send next reminder** dabate jayein. Har student ki WhatsApp chat message ke saath khulti hai; bheje gaye par "✓ sent today" lagta hai. **Edit templates** mein message badlein — `{name}`, `{month}`, `{amount}`, `{due_months}`, `{last_date}`, `{seat}`, `{library}` apne aap bhar jaate hain. Apna naya template bhi bana sakte hain.
 - **Due List (D):** Kis student ke kaun se mahine due hain, aur kitna amount. WhatsApp reminder ek-ek karke.
 - **Fee reminder popup:** ERP kholte hi (din mein ek baar) due students ki list aati hai, WhatsApp button ke saath.
 - **Receipt List (R), Day Book (B):** Reprint, cancel, mode-wise collection, owner ko WhatsApp report.
