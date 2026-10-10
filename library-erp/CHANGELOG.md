@@ -4,7 +4,8 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
-| **1.12.0** | Reminder | **Fee Reminder (Z)**: is mahine ki fee due / purani fee / expiring soon — ek-ek karke WhatsApp, "sent today ✓"; **message templates** khud badlein ({name}, {month}, {amount}, {last_date}…), apne naye template bhi |
+| **1.13.0** | Admin + Photos | Student photo (admission/record) aur documents attach; internet milte hi photos ka auto cloud backup (restore par wapas). **Help & Support**: library Setu Pro ko ticket bheje, jawab yahin. **Super Admin app (SetuAdmin.apk)**: sab libraries ka backup health, license bacha, usage, payment track aur tickets ek jagah |
+| 1.12.0 | Reminder | **Fee Reminder (Z)**: is mahine ki fee due / purani fee / expiring soon — ek-ek karke WhatsApp, "sent today ✓"; **message templates** khud badlein ({name}, {month}, {amount}, {last_date}…), apne naye template bhi |
 | 1.11.1 | Support no. | Setu Pro customer support number sahi kiya: **6392995127** (ERP, phone apps, Online View) |
 | 1.11.0 | WhatsApp no. | Settings: receipt ke baad kya ho — har baar poochho / seedha WhatsApp / seedha Print / dono. Fee Collect mein optional **WhatsApp no.**: khaali = student ka number, bhara = usi number par receipt |
 | 1.10.0 | Logo | Receipt ke baad sawal: Print / WhatsApp / dono (ab apne aap print nahi); WhatsApp seedha student ki chat mein; Settings mein library ka logo (receipt aur app mein); internet aate hi cloud backup; activation screen ka WhatsApp button theek |

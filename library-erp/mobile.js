@@ -155,15 +155,37 @@
         if (!c.libId) { const r = await cloudCall('/api/register', who); c.libId = r.libId; c.token = r.token; setCloud(c); }
         const st = D.students || [];
         let view = null; try { view = window.LibSummary ? window.LibSummary(D) : null; } catch (e) {}
+        const clean = (window.LibImages ? JSON.stringify(window.LibImages.stripImages(D)) : raw);   // images alag
         const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: today(),
           stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
-          view, data: A.gzip(raw) });
+          view, data: A.gzip(clean) });
         Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet });
+        setCloud(c);
+        await syncImages(c, D);
       } catch (e) { c.error = e.message; c.errorAt = new Date().toISOString(); }
       setCloud(c);
       if (force && c.error) throw new Error(c.error);
     })().finally(() => { syncing = null; });
     return syncing;
+  }
+  async function syncImages(c, D) {
+    if (!window.LibImages) return;
+    const imgs = window.LibImages.collectImages(D), have = c.imgHashes || {}, want = {};
+    for (const k in imgs) want[k] = hex(hash('SHA-1', utf8(imgs[k])));
+    const changed = Object.keys(want).filter(k => have[k] !== want[k]);
+    const removed = Object.keys(have).filter(k => !(k in want));
+    let done = 0;
+    for (const k of changed) { if (done >= 12) break; await cloudCall('/api/image', { libId: c.libId, token: c.token, key: k, hash: want[k], data: imgs[k] }); have[k] = want[k]; done++; }
+    for (const k of removed) { if (done >= 12) break; await cloudCall('/api/image', { libId: c.libId, token: c.token, key: k, data: null }); delete have[k]; done++; }
+    c.imgHashes = have;
+  }
+  async function pullImages(libId, token, D) {
+    if (!window.LibImages) return {};
+    let kk; try { kk = await cloudCall('/api/image-keys', { libId, token }); } catch (e) { return {}; }
+    const imgs = {}, hashes = {};
+    for (const it of (kk.keys || [])) { try { const r = await cloudCall('/api/image-get', { libId, token, key: it.key }); imgs[it.key] = r.data; hashes[it.key] = it.hash; } catch (e) {} }
+    window.LibImages.mergeImages(D, imgs);
+    return hashes;
   }
   window.__cloudSync = () => cloudSync().catch(() => {});
   // Internet aate hi backup (Android network callback + browser 'online' event)
@@ -195,9 +217,21 @@
       const r = await cloudCall('/api/restore', { libId: body.libId, pin: body.pin, key: readJson(LICENSE, {}).key, machine: MACHINE });
       const d = JSON.parse(A.gunzip(r.data));
       if (!validData(d)) throw new Error('Cloud backup is damaged');
+      let imgHashes = {}; try { imgHashes = await pullImages(r.libId, r.token, d); } catch (e) {}
       safetyCopy(); saveData(d);
-      setCloud({ libId: r.libId, token: r.token, pinSet: true, lastOk: new Date().toISOString(), hash: '', error: '' });
+      setCloud({ libId: r.libId, token: r.token, pinSet: true, lastOk: new Date().toISOString(), hash: '', error: '', imgHashes });
       return { ok: true, libId: r.libId, day: r.day, students: d.students.length };
+    }
+    if (path === 'cloud-ticket') {
+      const cc = readJson(META, {}).cloud || {};
+      if (!cc.libId) { await cloudSync(true); Object.assign(cc, readJson(META, {}).cloud || {}); }
+      if (!cc.libId) throw new Error('Connect to the cloud first (G → Cloud backup → Sync now)');
+      return await cloudCall('/api/ticket', { libId: cc.libId, token: cc.token, subject: body.subject, message: body.message, ticketId: body.ticketId });
+    }
+    if (path === 'cloud-tickets') {
+      const cc = readJson(META, {}).cloud || {};
+      if (!cc.libId) return { tickets: [] };
+      return await cloudCall('/api/tickets', { libId: cc.libId, token: cc.token });
     }
     if (path === 'restore') { if (!validData(body)) throw new Error('Invalid data'); safetyCopy(); saveData(body); return { ok: true }; }
     if (path === 'info') return { dataDir: 'Phone (app storage)', backupDir: 'Phone (app storage) / backups', ...readJson(META, {}) };

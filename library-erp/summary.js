@@ -60,4 +60,34 @@ function summary(D, now = new Date()) {
     })(),
   };
 }
-module.exports = { summary };
+// ---- Images: cloud me alag store hoti hain, isliye main backup se nikaali jaati hain ----
+// Keys: 'logo', 'stu_<studentId>', 'doc_<studentId>_<index>'
+function collectImages(D) {
+  const m = {}, S = D.settings || {};
+  if (S.logo) m['logo'] = S.logo;
+  (D.students || []).forEach(s => {
+    if (s.photo) m['stu_' + s.id] = s.photo;
+    (s.docs || []).forEach((d, i) => { if (d) m['doc_' + s.id + '_' + i] = d; });
+  });
+  return m;
+}
+// Main cloud backup chhota rakhne ke liye images hata do (local/email backup me rehti hain)
+function stripImages(D) {
+  const c = JSON.parse(JSON.stringify(D));
+  if (c.settings) delete c.settings.logo;
+  (c.students || []).forEach(s => { delete s.photo; delete s.docs; });
+  return c;
+}
+// Cloud se laayi images wapas data me daalo
+function mergeImages(D, imgs) {
+  const S = D.settings || (D.settings = {});
+  for (const k in (imgs || {})) {
+    const v = imgs[k];
+    if (k === 'logo') { S.logo = v; continue; }
+    let m = k.match(/^stu_(.+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) s.photo = v; continue; }
+    m = k.match(/^doc_(.+)_(\d+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) { s.docs = s.docs || []; s.docs[+m[2]] = v; } }
+  }
+  return D;
+}
+module.exports = { summary, collectImages, stripImages, mergeImages };
+if (typeof window !== 'undefined') window.LibImages = { collectImages, stripImages, mergeImages };

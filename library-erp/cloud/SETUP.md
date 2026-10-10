@@ -59,6 +59,8 @@ Cloudflare ki screen thodi alag dikh sakti hai, par button ke naam yahi rehte ha
    - Password: jo Kaam 4 mein rakha
    - "Libraries (0)" dikhega ✅
 
+**Super Admin app:** `<address>/super` par Basic password se login — sab libraries, backup health, license, payment aur tickets. Phone app: `SetuAdmin.apk`.
+
 **Ye address (bina /admin ke) Claude ko bhej dein.** Wo ERP ke Setup ke andar daal diya jayega. Uske baad har library ka ERP apne aap is cloud se judega.
 
 ---

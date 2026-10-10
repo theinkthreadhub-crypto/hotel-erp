@@ -8,7 +8,7 @@ const zlib = require('zlib');
 const nodeCrypto = require('crypto');
 const { execFile, exec } = require('child_process');
 const lic = require('./license');
-const { summary } = require('./summary');
+const { summary, collectImages, stripImages, mergeImages } = require('./summary');
 
 let PORT = +process.env.LIBERP_PORT || 5055;
 const FIRST_PORT = PORT;
@@ -239,14 +239,39 @@ async function cloudSync(force) {
   try {
     if (!c.libId) { const r = await cloudCall('/api/register', who); c.libId = r.libId; c.token = r.token; setCloud(c); }
     const st = D.students || [];
+    const clean = Buffer.from(JSON.stringify(stripImages(D)), 'utf8');   // images alag jaati hain
     const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: lic.today(),
       stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
       view: (() => { try { return summary(D); } catch (e) { log('summary: ' + e.message); return null; } })(),
-      data: zlib.gzipSync(raw).toString('base64') });
+      data: zlib.gzipSync(clean).toString('base64') });
     Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet });
+    setCloud(c);
+    await syncImages(c, D);   // badli hui photos cloud par
   } catch (e) { c.error = cloudErr(e); c.errorAt = new Date().toISOString(); }
   setCloud(c);
   if (force && c.error) throw new Error(c.error);
+}
+// Sirf badli / hataai gayi images cloud par bhejo (ek tick me zyada se zyada 12)
+async function syncImages(c, D) {
+  const imgs = collectImages(D), have = c.imgHashes || {}, want = {};
+  const sha = s => nodeCrypto.createHash('sha1').update(s).digest('hex');
+  for (const k in imgs) want[k] = sha(imgs[k]);
+  const changed = Object.keys(want).filter(k => have[k] !== want[k]);
+  const removed = Object.keys(have).filter(k => !(k in want));
+  let done = 0;
+  for (const k of changed) { if (done >= 12) break; await cloudCall('/api/image', { libId: c.libId, token: c.token, key: k, hash: want[k], data: imgs[k] }); have[k] = want[k]; done++; }
+  for (const k of removed) { if (done >= 12) break; await cloudCall('/api/image', { libId: c.libId, token: c.token, key: k, data: null }); delete have[k]; done++; }
+  c.imgHashes = have; c.imgPending = (changed.length + removed.length) - done;
+}
+// Cloud se saari images laakar data me milao (restore ke baad)
+async function pullImages(libId, token, D) {
+  let kk; try { kk = await cloudCall('/api/image-keys', { libId, token }); } catch (e) { return {}; }
+  const imgs = {}, hashes = {};
+  for (const it of (kk.keys || [])) {
+    try { const r = await cloudCall('/api/image-get', { libId, token, key: it.key }); imgs[it.key] = r.data; hashes[it.key] = it.hash; } catch (e) {}
+  }
+  mergeImages(D, imgs);
+  return hashes;
 }
 const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet }; };
 
@@ -300,9 +325,24 @@ const server = http.createServer(async (req, res) => {
       const d = JSON.parse(zlib.gunzipSync(Buffer.from(r.data, 'base64')).toString('utf8'));
       if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Cloud backup is damaged');
       if (fs.existsSync(DATA)) fs.copyFileSync(DATA, path.join(BACKUP_DIR, 'before-restore_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json'));
+      let imgHashes = {}; try { imgHashes = await pullImages(r.libId, r.token, d); } catch (e) { log('pullImages: ' + e.message); }  // photos wapas
       saveData(d);
-      setCloud({ libId: r.libId, token: r.token, pinSet: true, lastOk: new Date().toISOString(), hash: '', error: '' });
+      setCloud({ libId: r.libId, token: r.token, pinSet: true, lastOk: new Date().toISOString(), hash: '', error: '', imgHashes });
       return send(res, 200, { ok: true, libId: r.libId, day: r.day, students: d.students.length });
+    }
+    if (url === '/api/cloud-ticket' && req.method === 'POST') {
+      const c = readJson(META, {}).cloud || {};
+      if (!c.libId) { await cloudSync(true); Object.assign(c, readJson(META, {}).cloud || {}); }
+      if (!c.libId) throw new Error('Connect to the cloud first (G → Cloud backup → Sync now)');
+      const b = await body(req);
+      try { return send(res, 200, await cloudCall('/api/ticket', { libId: c.libId, token: c.token, subject: b.subject, message: b.message, ticketId: b.ticketId })); }
+      catch (e) { throw new Error(cloudErr(e)); }
+    }
+    if (url === '/api/cloud-tickets' && req.method === 'POST') {
+      const c = readJson(META, {}).cloud || {};
+      if (!c.libId) return send(res, 200, { tickets: [] });
+      try { return send(res, 200, await cloudCall('/api/tickets', { libId: c.libId, token: c.token })); }
+      catch (e) { throw new Error(cloudErr(e)); }
     }
     if (url === '/api/restore' && req.method === 'POST') {
       const d = await body(req);

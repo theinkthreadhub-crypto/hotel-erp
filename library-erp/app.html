@@ -150,6 +150,13 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .lhead{display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:12px}
 .lhead img,.lhead span{width:52px;height:52px;border-radius:12px;object-fit:contain;flex:none;background:#eef3fb;display:flex;align-items:center;justify-content:center;font-size:28px}
 .lhead b{display:block;font-size:17px;color:var(--bar)}.lhead small{color:var(--muted)}
+.pbox{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.pbox .pimg{width:88px;height:108px;object-fit:cover;border:1px solid var(--line);border-radius:10px;background:#fff}
+.pbox .pblank{width:88px;height:108px;border:1px dashed #bdb59a;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:40px;color:#bdb59a;background:#fff}
+.recphoto{width:120px;height:146px;object-fit:cover;border:1px solid var(--line);border-radius:10px;float:right;margin:0 0 8px 12px}
+.docgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px}
+.docgrid .d{position:relative}.docgrid img{width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.docgrid .x{position:absolute;top:2px;right:2px;background:#c62828;color:#fff;border:0;border-radius:50%;width:22px;height:22px;font-size:13px;cursor:pointer}
 .logobox{display:flex;gap:14px;align-items:center;margin-top:4px}
 .logobox img{width:88px;height:88px;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#fff;padding:4px}
 .logobox .nologo{width:88px;height:88px;border:1px dashed #bdb59a;border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px}
@@ -239,6 +246,7 @@ html.mobile .khelp{display:none}
 .slist .scard.done{opacity:.75;background:#f6fbf7}
 .remsum{margin:10px 0 2px;font-size:15px}
 .rprev{white-space:pre-wrap;background:#e9fbe9;border-radius:10px;padding:10px 12px;font:14px/1.45 "Segoe UI",Arial,sans-serif;margin:6px 0 0}
+.hpmsg{padding:8px 10px;border-radius:10px;margin:6px 0;font-size:14px}.hpmsg.lib{background:#eef3fb}.hpmsg.admin{background:#e3f4e5}
 .tpk{display:inline-block;background:#eef3fb;border-radius:6px;padding:2px 6px;margin:2px 1px;text-decoration:none;font-family:Consolas,monospace;font-size:12px}
 html.mobile .title{font-size:0;padding:8px 12px}html.mobile .title .r{font-size:14px}
 html.mobile .title:has(.r:empty){display:none}
@@ -493,12 +501,12 @@ const GROUPS=[
   ['M','Masters',[['S','New Admission','student'],['L','Student List','list'],['F','Fee Master','plans'],['H','Expense Heads','heads'],['O','Books (Book Master)','books'],['N','Sessions','sessions']]],
   ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att'],['J','Book Issue / Return','bookissue'],['Z','Fee Reminder (WhatsApp)','remind']]],
   ['R','Reports',[['B','Day Book','daybook'],['P','Receipt List / Reprint','receipts'],['D','Due List & Reminder','due'],['V','Income vs Expense','pl'],['X','Expense Report','exprep'],['W','Attendance Report (Month)','attrep'],['Y','Book Issue Register','bookreg']]],
-  ['U','Utilities',[['I','Bulk Import (Excel / CSV)','import'],['G','Settings & Backup','settings'],['K','License / Activation','license'],['Q','Close ERP','quit']]],
+  ['U','Utilities',[['I','Bulk Import (Excel / CSV)','import'],['G','Settings & Backup','settings'],['','Help & Support','help'],['K','License / Activation','license'],['Q','Close ERP','quit']]],
 ];
 const MENU=GROUPS.flatMap(g=>g[2].map(x=>[x[0],x[1],x[2],g[1]]));
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
   heads:scrHeads,expense:scrExpense,remind:scrRemind,books:scrBooks,bookissue:scrBookIssue,bookreg:scrBookReg,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
-  daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,license:scrLicense,quit:scrQuit};
+  daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,help:scrHelp,license:scrLicense,quit:scrQuit};
 let curArg=null,cur='home',gwSel=0,gwOpen=-1,onSave=null,nav=null,keyH=null;
 function go(s,arg){
   if(!D)return;
@@ -509,17 +517,17 @@ function go(s,arg){
   if(window.MOBILE)mobNav(s);
 }
 function drawSide(){$('#side').innerHTML=`<button onclick="go('home')"><u>Esc</u>Gateway</button>`+
-  GROUPS.map(g=>`<div class="sg">${g[1]}</div>`+g[2].map(m=>`<button onclick="go('${m[2]}')"><u>Alt+${m[0]}</u>${m[1]}</button>`).join('')).join('')+
+  GROUPS.map(g=>`<div class="sg">${g[1]}</div>`+g[2].map(m=>`<button onclick="go('${m[2]}')">${m[0]?'<u>Alt+'+m[0]+'</u>':'<u></u>'}${m[1]}</button>`).join('')).join('')+
   `<div class="keys"><b>Library ERP v${esc(LIC&&LIC.version||'')}</b>${LIC&&LIC.vendorPhone?`<br>Support: ${esc(LIC.vendor)} ${esc(LIC.vendorPhone)}`:''}<br><kbd>Enter</kbd> next field<br><kbd>Ctrl+S</kbd> Save / Accept<br><kbd>↑</kbd><kbd>↓</kbd> select in list<br><kbd>Esc</kbd> back</div>`;}
 function gwRows(){const R=[];GROUPS.forEach((g,gi)=>{R.push({g:gi});if(gi===gwOpen)g[2].forEach(it=>R.push({it}));});return R;}
-function gwHtml(){return gwRows().map((r,i)=>r.it?`<div class="it sub${i===gwSel?' on':''}" onclick="go('${r.it[2]}')"><u>${r.it[0]}</u>${r.it[1]}</div>`:
+function gwHtml(){return gwRows().map((r,i)=>r.it?`<div class="it sub${i===gwSel?' on':''}" onclick="go('${r.it[2]}')">${r.it[0]?'<u>'+r.it[0]+'</u>':'<u></u>'}${r.it[1]}</div>`:
   `<div class="gh${r.g===gwOpen?' open':''}${i===gwSel?' on':''}" onclick="gwToggle(${r.g})"><u>${GROUPS[r.g][0]}</u>${GROUPS[r.g][1]}<span>${r.g===gwOpen?'▾':'▸'}</span></div>`).join('');}
 function gwDraw(){const e=$('#gwmenu');if(e)e.innerHTML=gwHtml();}
 function gwToggle(gi){gwOpen=gwOpen===gi?-1:gi;gwSel=gwRows().findIndex(r=>r.g===gi)+(gwOpen===gi?1:0);gwDraw();}
 const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
 /* ---- phone app shell: drawer, bottom tabs, home tiles ---- */
 const ICON={home:'🏠',student:'➕',list:'👥',plans:'💳',heads:'🏷️',books:'📚',sessions:'📅',collect:'🧾',expense:'💸',att:'🕒',bookissue:'🔄',
-  daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',remind:'🔔',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
+  daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',remind:'🔔',help:'💬',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
 const BNAV=[['home','Home'],['collect','Fee'],['att','Attendance'],['list','Students'],['menu','Menu']];
 function drawer(open){const d=$('#drawer');if(!d||!D)return;open=open===undefined?!d.classList.contains('open'):open;
   if(open)d.innerHTML=`<div class="dhead"><div class="dlogo">${D.settings.logo?`<img src="${D.settings.logo}" alt="">`:'📚'}</div><div><b>${esc(D.settings.name)}</b><small>Library ERP v${esc(LIC&&LIC.version||'')}${LIC&&LIC.vendorPhone?' · Support '+esc(LIC.vendorPhone):''}</small></div></div>
@@ -530,7 +538,7 @@ function mobNav(s){drawer(false);const m=MENU.find(x=>x[2]===s);
   $('#scr').textContent=s==='home'?'Home':s==='record'?'Student Record':m?m[1]:'';
   $('#bnav').innerHTML=BNAV.map(([k,l])=>`<a class="${k===s||(k==='list'&&(s==='record'||s==='student'))?'on':''}" onclick="${k==='menu'?'drawer(true)':`go('${k}')`}"><i>${k==='menu'?'☰':ICON[k]}</i><span>${l}</span></a>`).join('');}
 function mobTiles(){const T=[['student','New Admission'],['collect','Fee Collect'],['att','Attendance'],['list','Students'],['due','Due List'],['expense','Expense'],
-  ['remind','Fee Reminder'],['bookissue','Book Issue'],['daybook','Day Book']];
+  ['remind','Fee Reminder'],['bookissue','Book Issue'],['help','Help & Support']];
   const S=D.settings;
   return `<div class="lhead">${S.logo?`<img src="${S.logo}" alt="">`:'<span>📚</span>'}<div><b>${esc(S.name)}</b><small>${esc(S.address||S.contact||'Library ERP')}</small></div></div><div class="tiles">${T.map(([k,l])=>`<a onclick="go('${k}')"><i>${ICON[k]}</i><span>${l}</span></a>`).join('')}<a onclick="drawer(true)"><i>☰</i><span>All modules</span></a></div>`;}
 // Phone par keyboard hints (Ctrl+S, Esc, Alt+X, (Y)) hata do
@@ -757,8 +765,9 @@ function scrStudent(id){
   const v=s||{code:nextCode(),name:'',father:'',mobile:'',address:'',seat:'',shift:'',planId:per[0].id,fee:per[0].amount,join:today(),validTill:'',status:'active',note:''};
   $('#scr').textContent=s?'Student Edit':'New Admission';
   const shifts=String(D.settings.shifts||'').split(',').map(x=>x.trim()).filter(Boolean);
+  _sp=undefined;
   main.innerHTML=title(s?`Student Edit — ${esc(s.name)}`:'New Admission',s?`<button class="btn sm g" onclick="go('collect','${s.id}')">Collect fee</button>`:'')+
-  `<div class="two"><div class="card form"><div class="grid">
+  `<div class="two"><div class="card form"><div class="pbox" id="sphoto">${photoBox(v.photo)}</div><div class="grid">
     <div><label>Student ID <i>*</i></label><input id="s_code" value="${esc(v.code)}"></div>
     <div class="w2"><label>Student name <i>*</i></label><input id="s_name" value="${esc(v.name)}"></div>
     <div><label>Father's name</label><input id="s_father" value="${esc(v.father)}"></div>
@@ -789,10 +798,24 @@ function scrStudent(id){
   ['s_fee','s_join','s_valid'].forEach(i=>$('#'+i).addEventListener('input',prev));
   prev();onSave=()=>saveStudent(id);focusEl('#s_name');
 }
+// Student Record: documents / photos (ID card, fees proof etc.)
+function drawDocs(s){const e=$('#rc_docs');if(!e)return;const D2=s.docs||[];
+  e.innerHTML=D2.length?`<div class="docgrid">${D2.map((d,i)=>`<div class="d"><img src="${d}" onclick="imgFull('${d}')"><button class="x" onclick="docDel('${s.id}',${i})">✕</button></div>`).join('')}</div>`:'<p class="muted small" style="margin:0">No documents. Tap <b>+ Add</b> to attach a photo (ID card, address proof…).</p>';}
+function docAdd(id,f){const s=stu(id);if(!s)return;imgCompress(f,900,u=>{s.docs=s.docs||[];s.docs.push(u);save();drawDocs(s);toast('Document added','ok');});}
+async function docDel(id,i){const s=stu(id);if(!s||!s.docs)return;if(!await ask('Remove this document?'))return;s.docs.splice(i,1);save();drawDocs(s);}
+function imgFull(src){modal('Photo',`<img src="${src}" style="max-width:100%;border-radius:8px"><div class="btns"><button class="btn g" onclick="closeModal()">Close</button></div>`);}
+// New Admission / Edit ki photo
+let _sp=undefined;
+function photoBox(p){return `${p?`<img class="pimg" src="${p}" alt="">`:'<div class="pblank">👤</div>'}
+  <div><label class="btn sm" style="margin:0;color:#fff;display:inline-block">${p?'Change photo':'Add photo'}<input type="file" accept="image/*" capture="environment" hidden onchange="sPhotoPick(this.files[0])"></label>
+  ${p?' <button class="btn sm bad" onclick="sPhotoDel()">Remove</button>':''}<div class="muted small" style="margin-top:4px">Student ki photo (ID card / record)</div></div>`;}
+function sPhotoPick(f){imgCompress(f,420,u=>{_sp=u;$('#sphoto').innerHTML=photoBox(u);});}
+function sPhotoDel(){_sp='';$('#sphoto').innerHTML=photoBox('');}
 async function saveStudent(id){
   const s=id?stu(id):null;
   const v={code:val('s_code'),name:val('s_name'),father:val('s_father'),mobile:normPh(val('s_mobile')),address:val('s_address'),seat:val('s_seat'),
     shift:val('s_shift'),planId:val('s_plan'),fee:num('s_fee'),join:val('s_join')||today(),note:val('s_note')};
+  if(_sp!==undefined)v.photo=_sp||'';
   const vt=val('s_valid');
   if(!v.code){toast('Enter Student ID','bad');return focusEl('#s_code');}
   if(!v.name){toast('Enter student name','bad');return focusEl('#s_name');}
@@ -862,7 +885,8 @@ function scrRecord(id){
   main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button>`)+
   otherDueHtml(s)+(st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due (${esc(curSess().name)}):</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Balance ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
     <button class="btn sm wa" style="margin-left:8px" onclick="waRemind('${s.id}')">Send WhatsApp reminder</button></div>`:'')+
-  `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
+  `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4>
+    ${s.photo?`<img class="recphoto" src="${s.photo}" alt="" onclick="imgFull('${s.photo}')">`:''}<table class="info">
     <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
     <tr><td>Mobile</td><td>${esc(s.mobile)}</td></tr>${s.address?`<tr><td>Address</td><td>${esc(s.address)}</td></tr>`:''}
     <tr><td>Seat / Shift</td><td>${esc(s.seat||'—')} ${s.shift?'/ '+esc(s.shift):''}</td></tr>
@@ -886,6 +910,7 @@ function scrRecord(id){
   ${(()=>{const B=D.issues.filter(x=>x.sid===s.id).slice().reverse();return `<div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Books (${B.filter(x=>!x.ret).length} with student) <button class="btn sm ok" onclick="go('bookissue',{sid:'${s.id}'})">Issue a book</button></h4><table><thead><tr><th>Book</th><th>Issued</th><th>Return by</th><th>Returned</th><th class="n">Fine</th><th></th></tr></thead><tbody>
     ${B.map(x=>`<tr><td><b>${esc(x.bcode)}</b> — ${esc(x.title)}</td><td>${dmy(x.date)}</td><td class="${!x.ret&&x.due<today()?'red':''}">${dmy(x.due)}</td><td>${x.ret?dmy(x.ret):'<span class="tag soon">Out</span>'}</td><td class="n">${x.fine?rs(x.fine):''}</td>
     <td class="n">${x.ret?'':`<button class="btn sm ok" onclick="returnBook('${x.id}')">Return</button>`}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">No books taken.</td></tr>'}</tbody></table></div>`;})()}
+  <div class="card"><h4 style="display:flex;gap:10px;align-items:center;justify-content:space-between">Documents / Photos <label class="btn sm" style="margin:0;color:#fff">+ Add<input type="file" accept="image/*" hidden onchange="docAdd('${s.id}',this.files[0])"></label></h4><div id="rc_docs"></div></div>
   <div class="card" style="padding:0"><h4 style="padding:10px 12px 0;display:flex;gap:10px;align-items:center">Attendance (in / out time) <input type="month" id="rc_m" value="${recMonth}" style="width:auto;padding:2px 6px"></h4><div id="rc_att"></div></div>`;
   const drawA=()=>{recMonth=$('#rc_m').value||curMonth();
     const days=mRange(recMonth,recMonth).length?[...Array(new Date(+recMonth.slice(0,4),+recMonth.slice(5),0).getDate())].map((_,i)=>recMonth+'-'+pad(i+1)):[];
@@ -893,6 +918,7 @@ function scrRecord(id){
     $('#rc_att').innerHTML=`<p style="margin:6px 12px">Present this month: <b class="green">${L.length}</b> days</p><table><thead><tr><th>Date</th><th>In</th><th>Out</th><th>Duration</th></tr></thead><tbody>
       ${L.reverse().map(([d,a])=>`<tr><td>${dmy(d)}</td><td>${esc(a.in||'—')}</td><td>${esc(a.out||'—')}</td><td>${dur(a.in,a.out)}</td></tr>`).join('')||'<tr><td colspan="4" class="muted">No attendance this month.</td></tr>'}</tbody></table>`;};
   $('#rc_m').onchange=drawA;drawA();
+  drawDocs(s);
   keyH=e=>{const k={F4:()=>go('collect',s.id),F2:()=>go('student',s.id),F9:()=>waRemind(s.id)}[e.key];if(k){e.preventDefault();k();return true;}return false;};
 }
 function dur(a,b){if(!a||!b)return '';const [h1,m1]=a.split(':').map(Number),[h2,m2]=b.split(':').map(Number);let m=(h2*60+m2)-(h1*60+m1);if(m<0)return '';return Math.floor(m/60)+'h '+pad(m%60)+'m';}
@@ -1216,6 +1242,32 @@ function tplSave(){const t=tplById(remEdit),name=val('tp_name'),text=$('#tp_text
   Object.assign(t,{name,text});D.settings.remDay=Math.min(28,Math.max(1,parseInt(val('tp_day'),10)||10));save();toast('Template saved','ok');remTplBox(t.id);}
 function tplReset(){const d=TPL_DEF.find(x=>x.id===remEdit);Object.assign(tplById(remEdit),{name:d.name,text:d.text});save();remTplBox(remEdit);}
 async function tplDel(){const t=tplById(remEdit);D.settings.tpls=tpls().filter(x=>x.id!==t.id);remEdit='';if(remTpl===t.id)remTpl='auto';save();toast('Template deleted');remTplBox();}
+
+/* ================= HELP & SUPPORT (tickets to Setu Pro) ================= */
+async function scrHelp(){
+  main.innerHTML=title('Help & Support',`<button class="btn sm wa" onclick="waOpen(LIC&&LIC.vendorPhone,'Library ERP help:\n'+(D.settings.name||''))">WhatsApp Setu Pro</button>`)+
+  `<div class="hint">Koi dikkat ho ya suggestion ho to yahan Setu Pro ko bhejein. Jawab yahin dikhega. Internet zaroori hai.<br>${esc((LIC&&LIC.vendor)||'Setu Pro')} · <b>${esc((LIC&&LIC.vendorPhone)||'')}</b></div>
+  <div class="card form"><h4>New message / ticket</h4>
+    <label>Subject</label><input id="hp_sub" placeholder="e.g. Printer problem, Feature request">
+    <label>Message</label><textarea id="hp_msg" rows="4" placeholder="Apni baat likhein…"></textarea>
+    <div class="btns"><button class="btn ok" onclick="helpSend()">Send to Setu Pro</button></div></div>
+  <div id="hp_list"><p class="muted">Loading your messages…</p></div>`;
+  onSave=helpSend;loadTickets();
+}
+async function loadTickets(){
+  let r;try{r=await api('cloud-tickets',{});}catch(e){$('#hp_list').innerHTML=`<p class="muted small">${esc(e.message)}</p>`;return;}
+  const T=r.tickets||[];
+  $('#hp_list').innerHTML=T.length?T.map(t=>`<div class="card" style="padding:0">
+    <h4 style="padding:10px 12px 0;display:flex;justify-content:space-between;gap:8px">${esc(t.subject)} <span class="tag ${t.status==='resolved'?'ok':'soon'}">${esc(t.status)}</span></h4>
+    <div style="padding:4px 12px 12px">
+    ${(t.msgs||[]).map(m=>`<div class="hpmsg ${m.by}"><b>${m.by==='admin'?'Setu Pro':'You'}</b> <span class="muted small">${dmy((m.at||'').slice(0,10))}</span><br>${esc(m.text).replace(/\n/g,'<br>')}</div>`).join('')}
+    ${t.status==='resolved'?'<p class="muted small" style="margin:6px 0 0">Resolved. Reply to reopen.</p>':''}
+    <div class="row" style="margin-top:8px;gap:6px"><input id="rt_${t.id}" placeholder="Reply…"><button class="btn sm" onclick="helpReply('${t.id}')">Send</button></div></div></div>`).join(''):'<p class="muted">No messages yet.</p>';
+}
+async function helpSend(){const sub=val('hp_sub'),msg=$('#hp_msg').value.trim();if(!msg){toast('Write a message','bad');return focusEl('#hp_msg');}
+  try{await api('cloud-ticket',{subject:sub,message:msg});$('#hp_sub').value='';$('#hp_msg').value='';toast('Sent to Setu Pro','ok');loadTickets();}catch(e){toast(e.message,'bad');}}
+async function helpReply(id){const e=$('#rt_'+id),m=e.value.trim();if(!m)return;
+  try{await api('cloud-ticket',{ticketId:id,message:m});e.value='';toast('Sent','ok');loadTickets();}catch(e){toast(e.message,'bad');}}
 
 /* ================= RECEIPTS ================= */
 let rFrom=null,rTo=null;
@@ -1966,20 +2018,23 @@ async function restoreDate(d){
 function showMailStatus(){const e=$('#g_mailst');if(!e)return;
   e.innerHTML=(INFO.lastEmail?`Last email backup: <b class="green">${new Date(INFO.lastEmail).toLocaleString('en-IN')}</b>`:'No email backup sent yet.')+
     (INFO.lastEmailError?`<br><span class="red">Last error${INFO.lastErrorAt?' ('+new Date(INFO.lastErrorAt).toLocaleString('en-IN')+')':''}: ${esc(INFO.lastEmailError)}</span>`:'');}
+/* ---- image chhoti karke (max px) data URL banao; cb(dataUrl) ---- */
+function imgCompress(f,max,cb){
+  if(!f)return;if(!/^image\//.test(f.type)){toast('Choose an image (PNG / JPG)','bad');return;}
+  const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{
+      const k=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));
+      const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
+      let u=c.toDataURL('image/png');if(u.length>80000)u=c.toDataURL('image/jpeg',.82);
+      if(u.length>380000)u=c.toDataURL('image/jpeg',.6);
+      cb(u);};
+    im.onerror=()=>toast('Could not read this image','bad');im.src=rd.result;};
+  rd.readAsDataURL(f);
+}
 /* ---- library logo: chhota karke (max 320px) settings mein save ---- */
 const logoBox=()=>{const L=D.settings.logo;return `${L?`<img src="${L}" alt="Logo">`:'<div class="nologo">No logo</div>'}
   <div><label class="btn sm" style="margin:0;color:#fff;display:inline-block">${L?'Change logo':'Upload logo'}<input type="file" accept="image/*" hidden onchange="logoPick(this.files[0])"></label>
   ${L?` <button class="btn sm bad" onclick="logoDel()">Remove</button>`:''}<div class="muted small" style="margin-top:4px">PNG or JPG. It is resized automatically.</div></div>`;};
-function logoPick(f){
-  if(!f)return;if(!/^image\//.test(f.type)){toast('Choose an image (PNG / JPG)','bad');return;}
-  const rd=new FileReader();rd.onload=()=>{const im=new Image();im.onload=()=>{
-      const k=Math.min(1,320/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(im.width*k));c.height=Math.max(1,Math.round(im.height*k));
-      const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
-      let u=c.toDataURL('image/png');if(u.length>90000)u=c.toDataURL('image/jpeg',.85);
-      D.settings.logo=u;save();$('#g_logo').innerHTML=logoBox();toast('Logo saved','ok');};
-    im.onerror=()=>toast('Could not read this image','bad');im.src=rd.result;};
-  rd.readAsDataURL(f);
-}
+function logoPick(f){imgCompress(f,320,u=>{D.settings.logo=u;save();if($('#g_logo'))$('#g_logo').innerHTML=logoBox();toast('Logo saved','ok');});}
 async function logoDel(){if(!await ask('Remove the library logo?'))return;delete D.settings.logo;save();$('#g_logo').innerHTML=logoBox();}
 function saveSettings(quiet){
   const S=D.settings,name=val('g_name');

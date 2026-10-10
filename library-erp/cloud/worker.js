@@ -21,6 +21,11 @@ async function init(env) {
   if (!env.DB) throw new Error('D1 database is not connected (binding name must be DB)');
   for (const q of SCHEMA) await env.DB.prepare(q).run();
   try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN view TEXT').run(); } catch (e) {}  // Online View (v1.8.0)
+  for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0'])  // payments + images (v1.13.0)
+    try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
+    msgs TEXT, created TEXT, updated TEXT, unread_admin INTEGER DEFAULT 1, unread_lib INTEGER DEFAULT 0)`).run();
   ready = true;
 }
 
@@ -81,7 +86,7 @@ async function push(env, b) {
   await env.DB.batch([
     env.DB.prepare('INSERT INTO backups (lib_id, day, data, updated) VALUES (?, ?, ?, ?) ON CONFLICT(lib_id, day) DO UPDATE SET data = excluded.data, updated = excluded.updated')
       .bind(lib.id, day, data, now()),
-    env.DB.prepare(`UPDATE libraries SET machine = ?, name = ?, contact = ?, version = ?, lic_expiry = ?, students = ?, active = ?, receipts = ?, size = ?, last_sync = ?, view = COALESCE(?, view) WHERE id = ?`)
+    env.DB.prepare(`UPDATE libraries SET machine = ?, name = COALESCE(NULLIF(?,''), name), contact = COALESCE(NULLIF(?,''), contact), version = ?, lic_expiry = ?, students = ?, active = ?, receipts = ?, size = ?, last_sync = ?, view = COALESCE(?, view) WHERE id = ?`)
       .bind(b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, +s.students || 0, +s.active || 0, +s.receipts || 0, data.length, now(), view, lib.id),
     env.DB.prepare(`DELETE FROM backups WHERE lib_id = ? AND day NOT IN (SELECT day FROM backups WHERE lib_id = ? ORDER BY day DESC LIMIT ${KEEP_DAYS})`).bind(lib.id, lib.id),
   ]);
@@ -125,6 +130,64 @@ async function viewData(env, b) {
   return { libId: lib.id, name: lib.name, contact: lib.contact, version: lib.version, lastSync: lib.last_sync, view: v };
 }
 
+const MAX_IMG = 400000;        // ek image ~400 KB tak (base64)
+async function imgCounts(env, id) {
+  const r = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(SUM(length(data)),0) AS s FROM images WHERE lib_id = ?').bind(id).first();
+  await env.DB.prepare('UPDATE libraries SET img_count = ?, img_size = ? WHERE id = ?').bind(r.n, r.s, id).run();
+  return r;
+}
+// ERP ek-ek image bhejta hai: data ho to save, na ho to delete
+async function imagePush(env, b) {
+  const lib = await authLib(env, b);
+  const key = String(b.key || '').slice(0, 120);
+  if (!key) throw new Error('No image key');
+  if (b.data == null || b.data === '') {
+    await env.DB.prepare('DELETE FROM images WHERE lib_id = ? AND key = ?').bind(lib.id, key).run();
+  } else {
+    const data = String(b.data);
+    if (data.length > MAX_IMG) throw new Error('Image too large (' + Math.round(data.length / 1024) + ' KB)');
+    await env.DB.prepare('INSERT INTO images (lib_id, key, hash, data, updated) VALUES (?,?,?,?,?) ON CONFLICT(lib_id, key) DO UPDATE SET hash=excluded.hash, data=excluded.data, updated=excluded.updated')
+      .bind(lib.id, key, String(b.hash || ''), data, now()).run();
+  }
+  const c = await imgCounts(env, lib.id);
+  return { ok: true, count: c.n, size: c.s };
+}
+async function imageKeys(env, b) {
+  const lib = await authLib(env, b);
+  const L = (await env.DB.prepare('SELECT key, hash, length(data) AS size FROM images WHERE lib_id = ?').bind(lib.id).all()).results;
+  return { keys: L };
+}
+async function imageGet(env, b) {
+  const lib = await authLib(env, b);
+  const r = await env.DB.prepare('SELECT key, data FROM images WHERE lib_id = ? AND key = ?').bind(lib.id, String(b.key || '')).first();
+  if (!r) throw new Error('Image not found');
+  return r;
+}
+// Library ERP se feedback / ticket: naya ya purane me reply
+async function ticketPost(env, b) {
+  const lib = await authLib(env, b);
+  const text = String(b.message || '').slice(0, 4000);
+  if (!text) throw new Error('Write a message');
+  if (b.ticketId) {
+    const t = await env.DB.prepare('SELECT * FROM tickets WHERE id = ? AND lib_id = ?').bind(String(b.ticketId), lib.id).first();
+    if (!t) throw new Error('Ticket not found');
+    const msgs = JSON.parse(t.msgs || '[]'); msgs.push({ by: 'lib', text, at: now() });
+    await env.DB.prepare('UPDATE tickets SET msgs=?, status=?, updated=?, unread_admin=1 WHERE id=?')
+      .bind(JSON.stringify(msgs), 'open', now(), String(b.ticketId)).run();
+    return { ok: true, ticketId: b.ticketId };
+  }
+  const id = 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  await env.DB.prepare('INSERT INTO tickets (id, lib_id, lib_name, subject, status, msgs, created, updated, unread_admin, unread_lib) VALUES (?,?,?,?,?,?,?,?,1,0)')
+    .bind(id, lib.id, lib.name || '', String(b.subject || '').slice(0, 120) || 'Feedback', 'open', JSON.stringify([{ by: 'lib', text, at: now() }]), now(), now()).run();
+  return { ok: true, ticketId: id };
+}
+async function ticketList(env, b) {
+  const lib = await authLib(env, b);
+  const L = (await env.DB.prepare('SELECT id, subject, status, msgs, created, updated, unread_lib FROM tickets WHERE lib_id = ? ORDER BY updated DESC LIMIT 50').bind(lib.id).all()).results;
+  await env.DB.prepare('UPDATE tickets SET unread_lib = 0 WHERE lib_id = ?').bind(lib.id).run();
+  return { tickets: L.map(t => ({ ...t, msgs: JSON.parse(t.msgs || '[]') })) };
+}
+
 /* ---------- Admin page (Setu Pro) ---------- */
 function adminAuth(req, env) {
   if (!env.ADMIN_PASSWORD) return 'Set the ADMIN_PASSWORD secret in Worker settings first.';
@@ -157,9 +220,17 @@ async function admin(req, env, url) {
   }
   if (p === '/admin/delete' && req.method === 'POST') {
     const id = (await req.formData()).get('id');
-    await env.DB.batch([env.DB.prepare('DELETE FROM backups WHERE lib_id = ?').bind(id), env.DB.prepare('DELETE FROM libraries WHERE id = ?').bind(id)]);
+    await delLib(env, id);
     return Response.redirect(url.origin + '/admin?msg=' + encodeURIComponent(id + ' deleted'), 303);
   }
+  if (p === '/admin/image') {
+    const r = await env.DB.prepare('SELECT data FROM images WHERE lib_id = ? AND key = ?').bind(url.searchParams.get('id'), url.searchParams.get('key')).first();
+    if (!r) return new Response('Not found', { status: 404 });
+    const m = String(r.data).match(/^data:([^;]+);base64,(.*)$/);
+    if (!m) return new Response(r.data, { headers: { 'Content-Type': 'text/plain' } });
+    return new Response(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0)), { headers: { 'Content-Type': m[1], 'Cache-Control': 'no-store' } });
+  }
+  if (p.startsWith('/admin/api/')) return await adminApi(req, env, url, p.slice(11));
   const days = url.searchParams.get('days');
   if (days) {
     const L = (await env.DB.prepare('SELECT day, updated, length(data) AS size FROM backups WHERE lib_id = ? ORDER BY day DESC').bind(days).all()).results;
@@ -181,6 +252,57 @@ async function admin(req, env, url) {
       <form method="post" action="/admin/pin" onsubmit="const p=prompt('New 4-6 digit PIN for ${esc(l.id)}');if(!p)return false;this.pin.value=p"><input type="hidden" name="id" value="${esc(l.id)}"><input type="hidden" name="pin"><button class="b g">Set PIN</button></form>
       <form method="post" action="/admin/delete" onsubmit="return confirm('Delete ${esc(l.id)} and all its cloud backups?')"><input type="hidden" name="id" value="${esc(l.id)}"><button class="b r">Delete</button></form></td></tr>`).join('') || '<tr><td colspan="11">No library has connected yet.</td></tr>'}
     </tbody></table>`);
+}
+async function delLib(env, id) {
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM backups WHERE lib_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM images WHERE lib_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM tickets WHERE lib_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM libraries WHERE id = ?').bind(id),
+  ]);
+}
+// Super Admin app ke liye JSON API (Basic auth; /super page aur APK isse baat karte hain)
+async function adminApi(req, env, url, op) {
+  const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+  const q = url.searchParams;
+  if (op === 'libs') {
+    const L = (await env.DB.prepare(`SELECT l.*, (SELECT COUNT(*) FROM tickets t WHERE t.lib_id=l.id AND t.status='open') AS tickets_open,
+      (SELECT COUNT(*) FROM tickets t WHERE t.lib_id=l.id AND t.unread_admin=1) AS tickets_unread FROM libraries l ORDER BY seq DESC`).all()).results;
+    const open = (await env.DB.prepare("SELECT COUNT(*) AS n FROM tickets WHERE unread_admin=1").first()).n;
+    return json({ libs: L.map(l => { const { token, pin_hash, view, ...o } = l; return { ...o, pinSet: !!pin_hash }; }), ticketsUnread: open, serverNow: Date.now() });
+  }
+  if (op === 'pay' && req.method === 'POST') {
+    await env.DB.prepare('UPDATE libraries SET paid_till=?, plan=?, amount=?, pay_note=? WHERE id=?')
+      .bind(String(body.paid_till || ''), String(body.plan || ''), +body.amount || 0, String(body.note || '').slice(0, 300), String(body.id)).run();
+    return json({ ok: true });
+  }
+  if (op === 'pin' && req.method === 'POST') {
+    if (!/^\d{4,6}$/.test(String(body.pin || ''))) return fail('PIN must be 4 to 6 digits');
+    await env.DB.prepare('UPDATE libraries SET pin_hash=?, pin_fails=0, pin_lock=0 WHERE id=?').bind(await sha256(String(body.id) + ':' + body.pin), String(body.id)).run();
+    return json({ ok: true });
+  }
+  if (op === 'delete' && req.method === 'POST') { await delLib(env, String(body.id)); return json({ ok: true }); }
+  if (op === 'images') {
+    const L = (await env.DB.prepare('SELECT key, length(data) AS size, updated FROM images WHERE lib_id = ? ORDER BY key').bind(q.get('id')).all()).results;
+    return json({ images: L });
+  }
+  if (op === 'tickets') {
+    const id = q.get('id');
+    const L = (await env.DB.prepare('SELECT * FROM tickets ' + (id ? 'WHERE lib_id = ? ' : '') + 'ORDER BY updated DESC LIMIT 200').bind(...(id ? [id] : [])).all()).results;
+    if (q.get('read')) await env.DB.prepare('UPDATE tickets SET unread_admin=0' + (id ? ' WHERE lib_id=?' : '')).bind(...(id ? [id] : [])).run();
+    return json({ tickets: L.map(t => { const { ...o } = t; o.msgs = JSON.parse(t.msgs || '[]'); return o; }) });
+  }
+  if (op === 'ticket' && req.method === 'POST') {
+    const t = await env.DB.prepare('SELECT * FROM tickets WHERE id = ?').bind(String(body.id)).first();
+    if (!t) return fail('Ticket not found', 404);
+    const msgs = JSON.parse(t.msgs || '[]');
+    if (body.reply) msgs.push({ by: 'admin', text: String(body.reply).slice(0, 4000), at: now() });
+    const status = body.status === 'resolved' ? 'resolved' : body.status === 'open' ? 'open' : t.status;
+    await env.DB.prepare('UPDATE tickets SET msgs=?, status=?, updated=?, unread_admin=0, unread_lib=? WHERE id=?')
+      .bind(JSON.stringify(msgs), status, now(), body.reply ? 1 : t.unread_lib, String(body.id)).run();
+    return json({ ok: true });
+  }
+  return fail('Not found', 404);
 }
 const page = body => new Response(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Setu Pro — Library ERP Cloud</title>
 <style>body{font:14px/1.4 "Segoe UI",Arial,sans-serif;margin:0;background:#f6f7fb;color:#1d1d1d}header{background:#2b4c7e;color:#fff;padding:12px 18px;font-weight:600;font-size:17px}
@@ -345,6 +467,182 @@ if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch
 const c=cred();if(c&&c.pin){const last=store.get('setu_last');if(last&&last.libId===c.libId){R=last;show();}refresh.t=Date.now();load(c,!!(store.get('setu_login')||{}).pin);}else login();
 </script></body></html>
 `; // end VIEW_HTML
+// Ye page cloud/superadmin.html se aata hai: badlav karke `node cloud/embed.js` chalayein.
+const SUPER_HTML = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1f3a63">
+<title>Setu Pro — Super Admin</title>
+<style>
+:root{--b:#1f3a63;--b2:#2b4c7e;--bg:#eef1f6;--card:#fff;--t:#1d2433;--m:#6b7385;--ok:#1e8e3e;--bad:#c62828;--warn:#e08a00;--line:#e3e7ef}
+*{box-sizing:border-box}html,body{margin:0}body{font:15px/1.4 "Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--t);-webkit-tap-highlight-color:transparent}
+header{background:var(--b);color:#fff;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top));position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px}
+header b{flex:1;font-size:17px}header button{background:#ffffff26;color:#fff;border:0;border-radius:8px;padding:8px 10px;font-size:13px}
+main{padding:12px;max-width:820px;margin:0 auto 70px}
+.card{background:var(--card);border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:14px;margin-bottom:12px}
+h3{margin:0 0 10px;font-size:14px;color:var(--m);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+label{display:block;font-size:13px;color:var(--m);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:11px 12px;border:1px solid #cdd4e1;border-radius:10px;font-size:16px;background:#fff;color:var(--t)}
+input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:transparent}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--b2);color:#fff;border:0;border-radius:10px;padding:11px 15px;font-size:15px;font-weight:600;text-decoration:none;cursor:pointer}
+.btn.full{width:100%;margin-top:14px}.btn.g{background:#fff;color:var(--b2);border:1px solid var(--b2)}.btn.ok{background:var(--ok)}.btn.bad{background:var(--bad)}.btn.sm{padding:7px 10px;font-size:13px;border-radius:8px}
+.btn:disabled{opacity:.5}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
+.k{background:var(--card);border-radius:12px;box-shadow:0 1px 4px #1d2b4a1a;padding:10px;text-align:center}.k b{display:block;font-size:22px}.k span{font-size:11px;color:var(--m)}
+.ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.lib{background:var(--card);border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:10px}
+.lib .top{display:flex;gap:10px;align-items:flex-start}
+.lib .logo{width:42px;height:42px;border-radius:10px;background:#eef3fb;object-fit:cover;flex:none}
+.lib .nm{flex:1;min-width:0}.lib .nm b{display:block}.lib .nm small{color:var(--m);font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.chip{font-size:12px;background:#eef3fb;border-radius:20px;padding:3px 9px;color:var(--b2)}
+.chip.bad{background:#fde2e2;color:var(--bad)}.chip.ok{background:#e3f4e5;color:var(--ok)}.chip.warn{background:#fff0d6;color:#9a6200}
+.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.tag{font-size:11px;border-radius:5px;padding:1px 6px;font-weight:600}
+.badge{background:var(--bad);color:#fff;border-radius:20px;font-size:11px;padding:1px 7px;margin-left:4px}
+.tabs{display:flex;position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);z-index:6}
+.tabs a{flex:1;text-align:center;padding:12px 4px;color:var(--m);font-size:13px;font-weight:600;cursor:pointer}.tabs a.on{color:var(--b2)}
+.login{max-width:380px;margin:9vh auto 0;padding:0 16px;text-align:center}.login .logo{font-size:46px}
+.thread .msg{max-width:85%;padding:9px 12px;border-radius:12px;margin:6px 0;font-size:14px;white-space:pre-wrap}
+.thread .lib{background:#eef3fb;border-bottom-left-radius:3px}.thread .admin{background:#dcf3df;margin-left:auto;border-bottom-right-radius:3px}
+.thread .msg small{display:block;color:var(--m);font-size:11px;margin-top:3px}
+#toast{position:fixed;left:50%;top:70px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:10px;display:none;z-index:9;max-width:90vw;text-align:center}
+#toast.ok{background:var(--ok)}#toast.bad{background:var(--bad)}
+.modal{position:fixed;inset:0;background:#0006;display:none;align-items:flex-end;justify-content:center;z-index:10}
+.modal.open{display:flex}.sheet{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:90vh;overflow:auto;padding:16px}
+.imgs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.imgs a img{width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.muted{color:var(--m);font-size:13px}.err{color:var(--bad);min-height:18px;font-size:14px;margin-top:6px}
+.foot{text-align:center;color:var(--m);font-size:12px;margin-top:14px}
+@media(max-width:600px){.kpis{grid-template-columns:repeat(2,1fr)}}
+</style></head><body><div id="app"></div><div id="toast"></div>
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<script>
+const $=s=>document.querySelector(s),app=$('#app');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rs=n=>'₹'+Math.round(+n||0).toLocaleString('en-IN');
+const BASE=location.origin, LIFE='9999-12-31';
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}},del(k){try{localStorage.removeItem(k)}catch(e){}}};
+let PW=null,DATA=null,tab='libs',busy=false;
+function toast(t,c){const e=$('#toast');e.textContent=t;e.className=c||'';e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600);}
+function auth(){return 'Basic '+btoa('admin:'+PW);}
+async function api(op,opts){opts=opts||{};const r=await fetch(BASE+'/admin/api/'+op,{method:opts.body?'POST':'GET',headers:{Authorization:auth(),...(opts.body?{'Content-Type':'application/json'}:{})},body:opts.body?JSON.stringify(opts.body):undefined});
+  if(r.status===401)throw Object.assign(new Error('Wrong admin password'),{auth:1});
+  const j=await r.json().catch(()=>({error:'Server error'}));if(!r.ok)throw new Error(j.error||('Error '+r.status));return j;}
+// Image aur backup auth header ke saath laane padte hain (<img src> header nahi bhejta)
+async function authBlob(url){const r=await fetch(url,{headers:{Authorization:auth()}});if(!r.ok)throw new Error('load '+r.status);return URL.createObjectURL(await r.blob());}
+function loadImgs(root){(root||document).querySelectorAll('img[data-img]').forEach(el=>{const u=el.dataset.img;el.removeAttribute('data-img');
+  authBlob(u).then(o=>el.src=o).catch(()=>{el.style.visibility='hidden';});});}
+async function dlBackup(id){try{const o=await authBlob(BASE+'/admin/download?id='+encodeURIComponent(id));const a=document.createElement('a');a.href=o;a.download=id+'_backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(o),4000);}catch(e){toast('Backup download failed','bad');}}
+
+const dmy=d=>d?(/^\\d{10,}$/.test(d)?new Date(+d):new Date(d)).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—';
+const ago=t=>{if(!t)return 'never';const m=(Date.now()-new Date(t))/60e3;return m<1?'just now':m<60?Math.round(m)+' min ago':m<48*60?Math.round(m/60)+' h ago':Math.round(m/1440)+' d ago';};
+const licDays=e=>e===LIFE?Infinity:Math.ceil(((/^\\d{10,}$/.test(e||'')?+e:new Date(e).getTime())-Date.now())/864e5);
+const staleH=t=>t?(Date.now()-new Date(t))/3600e3:1e9;
+
+function login(msg){
+  app.innerHTML=\`<div class="login"><div class="logo">🛡️</div><h2>Setu Pro — Super Admin</h2><p class="muted">Monitor all libraries, payments and support</p>
+  <div class="card" style="text-align:left"><label>Admin password</label><input id="pw" type="password" autocomplete="current-password" placeholder="Cloudflare ADMIN_PASSWORD">
+  <label class="muted" style="display:flex;gap:8px;align-items:center;margin-top:10px"><input id="rem" type="checkbox" style="width:auto" checked> Remember on this device</label>
+  <div class="err" id="er">\${esc(msg||'')}</div><button class="btn full" id="go">Open dashboard</button></div>
+  <p class="foot">Setu Pro · 6392995127</p></div>\`;
+  const go=async()=>{PW=$('#pw').value;if(!PW){$('#er').textContent='Enter the password';return;}
+    try{await api('libs');if($('#rem').checked)store.set('setu_admin_pw',PW);else store.del('setu_admin_pw');home();}
+    catch(e){PW=null;$('#er').textContent=e.message;}};
+  $('#go').onclick=go;$('#pw').onkeydown=e=>{if(e.key==='Enter')go();};
+  const saved=store.get('setu_admin_pw');if(saved){$('#pw').value=saved;}
+}
+function logout(){PW=null;DATA=null;store.del('setu_admin_pw');login();}
+
+async function home(){try{DATA=await api('libs');}catch(e){if(e.auth)return login(e.message);toast(e.message,'bad');return;}render();}
+function render(){
+  const L=DATA.libs||[];
+  const stale=L.filter(l=>staleH(l.last_sync)>48).length, expy=L.filter(l=>{const d=licDays(l.lic_expiry);return d!==Infinity&&d<=7;}).length;
+  const dueP=L.filter(l=>l.paid_till&&licDaysPay(l.paid_till)<0).length;
+  app.innerHTML=\`<header><b>🛡️ Super Admin</b><button onclick="home()">↻</button><button onclick="logout()">Exit</button></header><main>
+  <div class="kpis">
+    <div class="k"><b>\${L.length}</b><span>Libraries</span></div>
+    <div class="k"><b class="\${stale?'bad':'ok'}">\${stale}</b><span>Backup stale</span></div>
+    <div class="k"><b class="\${expy?'warn':''}">\${expy}</b><span>License ≤7d</span></div>
+    <div class="k"><b class="\${DATA.ticketsUnread?'bad':''}">\${DATA.ticketsUnread}</b><span>New tickets</span></div>
+  </div>
+  <input id="q" placeholder="Search name / ID / mobile" oninput="filt(this.value)" style="margin-bottom:10px">
+  <div id="list"></div></main>
+  <div class="tabs"><a class="\${tab==='libs'?'on':''}" onclick="tab='libs';render()">🏢 Libraries</a><a class="\${tab==='tickets'?'on':''}" onclick="openTickets()">🎫 Tickets\${DATA.ticketsUnread?\`<span class="badge">\${DATA.ticketsUnread}</span>\`:''}</a></div>\`;
+  drawLibs(L);
+}
+const licDaysPay=d=>Math.ceil((new Date(d).getTime()+864e5-Date.now())/864e5);
+function drawLibs(L){
+  $('#list').innerHTML=L.map(l=>{const d=licDays(l.lic_expiry),sh=staleH(l.last_sync),pd=l.paid_till?licDaysPay(l.paid_till):null;
+    return \`<div class="lib" data-s="\${esc((l.id+' '+l.name+' '+l.contact).toLowerCase())}"><div class="top">
+    <img class="logo"\${l.img_count?\` data-img="\${BASE}/admin/image?id=\${encodeURIComponent(l.id)}&key=logo"\`:' style="visibility:hidden"'}>
+    <div class="nm"><b>\${esc(l.name||'(no name)')} \${l.tickets_unread?\`<span class="badge">\${l.tickets_unread} msg</span>\`:''}</b>
+      <small>\${esc(l.id)} · \${esc(l.contact||'—')} · v\${esc(l.version||'?')}</small></div></div>
+    <div class="chips">
+      <span class="chip \${sh>48?'bad':sh>12?'warn':'ok'}">Backup \${ago(l.last_sync)}</span>
+      <span class="chip \${d===Infinity?'ok':d<0?'bad':d<=7?'warn':''}">License \${d===Infinity?'Lifetime':d<0?'expired':d+'d left'}</span>
+      <span class="chip">\${l.active}/\${l.students} students</span>
+      <span class="chip">\${l.receipts} receipts</span>
+      \${l.img_count?\`<span class="chip">\${l.img_count} photos</span>\`:''}
+      <span class="chip \${pd==null?'warn':pd<0?'bad':'ok'}">\${pd==null?'Payment not set':pd<0?'Payment due ('+dmy(l.paid_till)+')':'Paid till '+dmy(l.paid_till)}</span>
+      <span class="chip \${l.pinSet?'ok':'bad'}">PIN \${l.pinSet?'set':'not set'}</span>
+    </div>
+    <div class="acts"><button class="btn sm" onclick='payBox(\${JSON.stringify(l.id)})'>Payment</button>
+      <button class="btn sm g" onclick='libTickets(\${JSON.stringify(l.id)})'>Tickets</button>
+      <button class="btn sm g" onclick='imgBox(\${JSON.stringify(l.id)})'\${l.img_count?'':' disabled'}>Photos</button>
+      <button class="btn sm g" onclick='dlBackup(\${JSON.stringify(l.id)})'>Backup</button>
+      <button class="btn sm g" onclick='setPin(\${JSON.stringify(l.id)})'>Set PIN</button>
+      <button class="btn sm bad" onclick='delLib(\${JSON.stringify(l.id)},\${JSON.stringify(l.name||l.id)})'>Delete</button></div></div>\`;}).join('')||'<p class="muted">No library has connected yet.</p>';
+  loadImgs($('#list'));
+}
+function filt(v){v=v.toLowerCase();for(const el of document.querySelectorAll('.lib'))el.style.display=el.dataset.s.includes(v)?'':'none';}
+
+function sheet(html){$('#sheet').innerHTML=html;$('#modal').classList.add('open');}
+function closeSheet(){$('#modal').classList.remove('open');}
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeSheet();});
+
+function libById(id){return (DATA.libs||[]).find(l=>l.id===id)||{};}
+function payBox(id){const l=libById(id);
+  sheet(\`<h3>Payment — \${esc(l.name||id)}</h3>
+  <label>Paid till (date)</label><input id="pt" type="date" value="\${esc(l.paid_till||'')}">
+  <label>Plan</label><select id="pl">\${['','Monthly','Quarterly','6 Months','Yearly','Lifetime'].map(p=>\`<option\${l.plan===p?' selected':''}>\${p}</option>\`).join('')}</select>
+  <label>Amount (₹)</label><input id="pa" type="number" min="0" value="\${l.amount||''}">
+  <label>Note</label><input id="pn" value="\${esc(l.pay_note||'')}" placeholder="UPI ref / remark">
+  <div class="acts" style="margin-top:14px"><button class="btn ok" onclick="savePay('\${id}')">Save</button><button class="btn g" onclick="closeSheet()">Close</button></div>\`);}
+async function savePay(id){try{await api('pay',{body:{id,paid_till:$('#pt').value,plan:$('#pl').value,amount:+$('#pa').value||0,note:$('#pn').value}});
+  toast('Saved','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+async function setPin(id){const p=prompt('New 4–6 digit restore PIN for '+id);if(!p)return;try{await api('pin',{body:{id,pin:p}});toast('PIN set for '+id,'ok');home();}catch(e){toast(e.message,'bad');}}
+async function delLib(id,name){if(!confirm('Delete '+name+' and ALL its cloud backups, photos and tickets? This cannot be undone.'))return;try{await api('delete',{body:{id}});toast(id+' deleted');home();}catch(e){toast(e.message,'bad');}}
+async function imgBox(id){try{const r=await api('images?id='+encodeURIComponent(id));sheet(\`<h3>Photos — \${esc(id)} (\${r.images.length})</h3>
+  <div class="imgs">\${r.images.map(im=>\`<a data-full="\${BASE}/admin/image?id=\${encodeURIComponent(id)}&key=\${encodeURIComponent(im.key)}" onclick="openFull(this);return false"><img data-img="\${BASE}/admin/image?id=\${encodeURIComponent(id)}&key=\${encodeURIComponent(im.key)}"><div class="muted" style="font-size:10px">\${esc(im.key)}</div></a>\`).join('')||'<p class="muted">No photos.</p>'}</div>
+  <button class="btn g full" onclick="closeSheet()">Close</button>\`);loadImgs($('#sheet'));}catch(e){toast(e.message,'bad');}}
+async function openFull(a){try{window.open(await authBlob(a.dataset.full),'_blank');}catch(e){toast('Could not open','bad');}}
+
+async function openTickets(id){tab='tickets';let r;try{r=await api('tickets'+(id?'?id='+encodeURIComponent(id)+'&read=1':'?read=1'));}catch(e){toast(e.message,'bad');return;}
+  const T=r.tickets;DATA.ticketsUnread=0;
+  app.innerHTML=\`<header><b>🎫 Tickets</b><button onclick="openTickets()">↻</button><button onclick="render()">Back</button></header><main>
+  \${T.map(t=>\`<div class="card" style="cursor:pointer" onclick='ticketBox(\${JSON.stringify(t.id)})'><div style="display:flex;gap:8px"><div style="flex:1"><b>\${esc(t.subject)}</b> \${t.unread_admin?'<span class="badge">new</span>':''}<br><small class="muted">\${esc(t.lib_name||t.lib_id)} · \${esc(t.lib_id)} · \${ago(t.updated)}</small></div>
+    <span class="tag \${t.status==='resolved'?'ok':'warn'}" style="height:fit-content">\${t.status}</span></div>
+    <div class="muted" style="margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">\${esc((t.msgs.slice(-1)[0]||{}).text||'')}</div></div>\`).join('')||'<p class="muted">No tickets yet.</p>'}
+  </main><div class="tabs"><a onclick="render()">🏢 Libraries</a><a class="on">🎫 Tickets</a></div>\`;
+}
+let curTicket=null;
+async function ticketBox(id){const r=await api('tickets');const t=r.tickets.find(x=>x.id===id);if(!t)return;curTicket=id;
+  sheet(\`<h3>\${esc(t.subject)} <span class="tag \${t.status==='resolved'?'ok':'warn'}">\${t.status}</span></h3>
+  <p class="muted">\${esc(t.lib_name||'')} · \${esc(t.lib_id)}</p>
+  <div class="thread">\${t.msgs.map(m=>\`<div class="msg \${m.by}">\${esc(m.text)}<small>\${m.by==='admin'?'You':'Library'} · \${ago(m.at)}</small></div>\`).join('')}</div>
+  <label>Reply</label><textarea id="rp" rows="3" placeholder="Type your reply to the library"></textarea>
+  <div class="acts" style="margin-top:12px"><button class="btn ok" onclick="sendReply('\${id}',false)">Send reply</button>
+  <button class="btn" onclick="sendReply('\${id}',true)">Reply &amp; resolve</button>
+  <button class="btn g" onclick="toggleResolve('\${id}','\${t.status}')">\${t.status==='resolved'?'Reopen':'Mark resolved'}</button>
+  <button class="btn g" onclick="closeSheet()">Close</button></div>\`);}
+async function sendReply(id,resolve){const reply=$('#rp').value.trim();if(!reply&&!resolve){toast('Write a reply','bad');return;}
+  try{await api('ticket',{body:{id,reply:reply||undefined,status:resolve?'resolved':undefined}});toast('Sent','ok');closeSheet();openTickets();}catch(e){toast(e.message,'bad');}}
+async function toggleResolve(id,st){try{await api('ticket',{body:{id,status:st==='resolved'?'open':'resolved'}});toast('Updated','ok');closeSheet();openTickets();}catch(e){toast(e.message,'bad');}}
+async function libTickets(id){await openTickets(id);}
+
+const saved=store.get('setu_admin_pw');if(saved){PW=saved;home().catch(()=>login());}else login();
+</script></body></html>
+`; // end SUPER_HTML
 
 /* ---------- router ---------- */
 export default {
@@ -355,13 +653,15 @@ export default {
       if (url.pathname === '/') return new Response('Setu Pro Library ERP Cloud is running ✓', { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
       if (url.pathname.startsWith('/admin')) return await admin(req, env, url);
       if (url.pathname === '/view' || url.pathname === '/app') return new Response(VIEW_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
+      if (url.pathname === '/super') return new Response(SUPER_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
       if (url.pathname === '/manifest.webmanifest') return new Response(JSON.stringify(MANIFEST), { headers: { 'Content-Type': 'application/manifest+json' } });
       if (url.pathname === '/sw.js') return new Response(SW_JS, { headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' } });
       if (url.pathname === '/icon-192.png' || url.pathname === '/icon-512.png')
         return new Response(Uint8Array.from(atob(url.pathname === '/icon-192.png' ? ICON_192 : ICON_512), c => c.charCodeAt(0)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
       if (req.method !== 'POST' || !url.pathname.startsWith('/api/')) return fail('Not found', 404);
       const b = await req.json();
-      const fn = { '/api/register': register, '/api/push': push, '/api/pin': setPin, '/api/restore': restore, '/api/view': viewData }[url.pathname];
+      const fn = { '/api/register': register, '/api/push': push, '/api/pin': setPin, '/api/restore': restore, '/api/view': viewData,
+        '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList }[url.pathname];
       if (!fn) return fail('Not found', 404);
       return json(await fn(env, b));
     } catch (e) {
