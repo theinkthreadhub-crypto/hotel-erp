@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Setu Keygen</title>
+<style>
+:root{--b:#2b4c7e;--bg:#f3f5f9;--t:#1d2433;--m:#6b7385;--ok:#1e8e3e;--bad:#c62828;--line:#e3e7ef}
+*{box-sizing:border-box}html,body{margin:0}body{font:15px/1.4 "Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--t)}
+header{background:var(--b);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:5;box-shadow:0 2px 6px #0002}
+header b{font-size:18px;flex:1}header button{background:#ffffff26;color:#fff;border:0;border-radius:8px;padding:7px 10px;font-size:13px}
+main{padding:14px;max-width:560px;margin:0 auto 40px}
+.card{background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:14px;margin-bottom:12px}
+h3{margin:0 0 10px;color:var(--b);font-size:16px}
+label{display:block;font-size:13px;color:var(--m);margin:10px 0 4px}
+input,select{width:100%;padding:11px 12px;border:1px solid #cfd6e3;border-radius:10px;font-size:16px;background:#fff;color:var(--t)}
+input:focus,select:focus{outline:2px solid var(--b);border-color:transparent}
+.mc{font:700 22px Consolas,monospace;letter-spacing:2px;text-transform:uppercase;text-align:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;background:var(--b);color:#fff;border:0;border-radius:10px;padding:12px 16px;font-size:15px;font-weight:600}
+.btn.full{width:100%;margin-top:14px}.btn.g{background:#fff;color:var(--b);border:1px solid var(--b)}.btn.wa{background:#1fa855}.btn.ok{background:var(--ok)}.btn.bad{background:var(--bad)}
+.btn:disabled{opacity:.5}
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.plans button{border:1px solid #cfd6e3;background:#fff;border-radius:10px;padding:12px 4px;font-size:14px;font-weight:600;color:var(--t)}
+.plans button.on{background:var(--b);color:#fff;border-color:var(--b)}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.key{font:12px/1.4 Consolas,monospace;word-break:break-all;background:#f1f4f9;border-radius:10px;padding:10px;margin:8px 0;user-select:all}
+.res{border:2px solid var(--ok)}.res .till{font-size:15px;margin:2px 0 6px}
+.acts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.hist .it{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.hist .it:last-child{border:0}
+.hist .it div{flex:1;min-width:0}.hist b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.hist small{color:var(--m);font-size:12px}
+.hist .it button{background:#eef3fb;border:0;border-radius:8px;padding:8px 10px;color:var(--b);font-weight:600}
+.muted{color:var(--m);font-size:13px}.err{color:var(--bad);font-size:14px;min-height:18px;margin-top:8px}
+.lock{max-width:380px;margin:9vh auto 0;padding:0 16px;text-align:center}.lock .logo{font-size:44px}
+.pin{font:700 26px Consolas,monospace;letter-spacing:10px;text-align:center}
+#toast{position:fixed;left:50%;top:70px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:10px;display:none;z-index:9;max-width:90vw;text-align:center}
+#toast.ok{background:var(--ok)}#toast.bad{background:var(--bad)}
+.foot{text-align:center;color:var(--m);font-size:12px;margin-top:16px}
+</style></head><body><div id="app"></div><div id="toast"></div>
+<script>
+// Setu Keygen (phone): Library ERP ki activation key banana. Private key APK mein nahi hai —
+// user ek baar private_key.pem import karta hai, wo phone ke app storage mein rehti hai, PIN lock ke saath.
+const A=window.Android,$=s=>document.querySelector(s),app=$('#app');
+const CFG=(()=>{try{return JSON.parse(A.config())}catch(e){return {}}})();
+const PUBLIC_KEY_B64=CFG.publicKey||'MCowBQYDK2VwAyEAuf8OLf7Fw51KPS7pQETtJifwCWil7qxT8b6fbgBsFqc=';
+const LIFETIME='9999-12-31',KEYF='private_key.pem',PINF='pin.json',HISTF='keys.json';
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+const fmtDT=ms=>{const d=new Date(ms);return pad(d.getDate())+'-'+pad(d.getMonth()+1)+'-'+d.getFullYear()+' '+pad(d.getHours())+':'+pad(d.getMinutes());};
+const b64=u8=>{let s='';for(let i=0;i<u8.length;i+=0x8000)s+=String.fromCharCode.apply(null,u8.subarray(i,i+0x8000));return btoa(s);};
+const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+const b64url=u8=>b64(u8).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const utf8=s=>new TextEncoder().encode(s);
+const hash=(alg,u8)=>unb64(A.hash(alg,b64(u8)));
+const hex=u8=>[...u8].map(x=>x.toString(16).padStart(2,'0')).join('');
+const readJson=(f,d)=>{try{const t=A.readFile(f);return t?JSON.parse(t):d;}catch(e){return d;}};
+const writeJson=(f,o)=>A.writeFile(f,JSON.stringify(o));
+function toast(t,c){const e=$('#toast');e.textContent=t;e.className=c||'';e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600);}
+
+/* ---------- Ed25519 sign (RFC 8032) ---------- */
+const P=2n**255n-19n,L=2n**252n+27742317777372353535851937790883648493n;
+const mod=(a,m=P)=>{const r=a%m;return r>=0n?r:r+m;};
+const pw=(b,e)=>{let r=1n;b=mod(b);while(e>0n){if(e&1n)r=mod(r*b);b=mod(b*b);e>>=1n;}return r;};
+const inv=a=>pw(a,P-2n),Dc=mod(-121665n*inv(121666n)),D2=mod(2n*Dc);
+const leInt=u8=>{let r=0n;for(let i=u8.length-1;i>=0;i--)r=(r<<8n)+BigInt(u8[i]);return r;};
+const leBytes=(n,len)=>{const o=new Uint8Array(len);for(let i=0;i<len;i++){o[i]=Number(n&255n);n>>=8n;}return o;};
+function add(p,q){const a=mod((p[1]-p[0])*(q[1]-q[0])),b=mod((p[1]+p[0])*(q[1]+q[0])),c=mod(p[3]*D2*q[3]),d=mod(p[2]*2n*q[2]);
+  const e=b-a,f=d-c,g=d+c,h=b+a;return [mod(e*f),mod(g*h),mod(f*g),mod(e*h)];}
+function mul(s,p){let q=[0n,1n,1n,0n];while(s>0n){if(s&1n)q=add(q,p);p=add(p,p);s>>=1n;}return q;}
+const BASE=[15112221349535400772501151409588531511454012693041857206046113283949847762202n,46316835694926478169428394003475163141307993866256225615783033603165251855960n,1n,0n];
+BASE[3]=mod(BASE[0]*BASE[1]);
+function enc(p){const zi=inv(p[2]),x=mod(p[0]*zi),y=mod(p[1]*zi),o=leBytes(y,32);if(x&1n)o[31]|=128;return o;}
+const cat=(...a)=>{const o=new Uint8Array(a.reduce((n,x)=>n+x.length,0));let i=0;for(const x of a){o.set(x,i);i+=x.length;}return o;};
+function expand(seed){const h=hash('SHA-512',seed),a=h.slice(0,32);a[0]&=248;a[31]&=127;a[31]|=64;return {a:leInt(a),prefix:h.slice(32)};}
+const pubFromSeed=seed=>enc(mul(expand(seed).a,BASE));
+function sign(seed,msg){const {a,prefix}=expand(seed),Ab=enc(mul(a,BASE));
+  const r=mod(leInt(hash('SHA-512',cat(prefix,msg))),L),R=enc(mul(r,BASE));
+  const k=mod(leInt(hash('SHA-512',cat(R,Ab,msg))),L);return cat(R,leBytes(mod(r+k*a,L),32));}
+// private_key.pem (PKCS#8 Ed25519) se 32 byte seed
+function seedFromPem(t){const m=String(t).match(/-----BEGIN PRIVATE KEY-----([\s\S]+?)-----END PRIVATE KEY-----/);if(!m)throw new Error('This is not a private_key.pem file');
+  const der=unb64(m[1].replace(/\s+/g,''));if(der.length!==48||hex(der.slice(0,16))!=='302e020100300506032b657004220420')throw new Error('This is not an Ed25519 private key');return der.slice(16);}
+const PUB=unb64(PUBLIC_KEY_B64).slice(12);
+let SEED=null;
+
+/* ---------- key banana (license.js jaisa) ---------- */
+const PLANS={'1m':30,'3m':90,'6m':180,'1y':365};
+const plural=(n,w)=>n+' '+w+(n===1?'':'s');
+function parseDuration(v){v=String(v||'').trim().toLowerCase().replace(/\s+/g,'');
+  if(v==='life')return {life:true,ms:0,label:'Lifetime'};
+  if(v in PLANS)return {ms:PLANS[v]*864e5,label:plural(PLANS[v],'day')};
+  let m,ms,label;
+  if((m=v.match(/^(\d+)min$/))){ms=+m[1]*60e3;label=plural(+m[1],'minute');}
+  else if((m=v.match(/^(\d+)h$/))){ms=+m[1]*3600e3;label=plural(+m[1],'hour');}
+  else if((m=v.match(/^(\d+)d$/))){ms=+m[1]*864e5;label=plural(+m[1],'day');}
+  else throw new Error('Choose a plan');
+  if(!(ms>=60e3&&ms<=3650*864e5))throw new Error('Time must be between 1 minute and 3650 days');
+  return {ms,label};}
+function makeKey(machine,dur,name){
+  machine=String(machine).trim().toUpperCase();
+  if(!/^[0-9A-F]{5}-[0-9A-F]{5}$/.test(machine))throw new Error('Machine code must look like XXXXX-XXXXX');
+  const d=parseDuration(dur),exp=d.life?LIFETIME:String(Date.now()+d.ms);
+  const payload=[machine,ymd(new Date()),exp,d.label,String(name||'').replace(/[|]/g,' ').slice(0,40)].join('|');
+  const key='LIB-'+b64url(utf8(payload))+'.'+b64url(sign(SEED,utf8(payload)));
+  return {key,machine,name:String(name||'').trim(),plan:d.label,till:d.life?'Lifetime':fmtDT(+exp),at:Date.now()};}
+
+/* ---------- screens ---------- */
+const pinHash=p=>hex(hash('SHA-256',utf8('SETU-KEYGEN|'+p)));
+function boot(){const k=A.readFile(KEYF);if(!k)return setup();unlock();}
+function setup(msg){
+  app.innerHTML=`<div class="lock"><div class="logo">🔑</div><h2>Setu Keygen</h2><p class="muted">Library ERP activation keys for Setu Pro</p>
+  <div class="card" style="text-align:left"><h3>1. Import your private key</h3><p class="muted">Copy <b>private_key.pem</b> (the file kept with LibraryKeygen.exe) to this phone, then choose it here. It stays inside this app only.</p>
+  <label class="btn g" style="width:100%">Choose private_key.pem<input type="file" id="pf" hidden></label><div id="pfok" class="muted" style="margin-top:6px"></div>
+  <h3 style="margin-top:16px">2. Set a PIN</h3><input id="p1" class="pin" type="password" inputmode="numeric" maxlength="6" placeholder="4–6 digits">
+  <input id="p2" class="pin" type="password" inputmode="numeric" maxlength="6" placeholder="Repeat PIN" style="margin-top:8px">
+  <div class="err" id="er">${esc(msg||'')}</div><button class="btn full" id="go">Save &amp; open</button></div>
+  <p class="foot">Never share private_key.pem with a customer.</p></div>`;
+  let seed=null;
+  $('#pf').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const t=await f.text(),s=seedFromPem(t);
+      if(hex(pubFromSeed(s))!==hex(PUB))throw new Error('This key does not match Library ERP. Choose the right private_key.pem.');
+      seed=s;window._pem=t;$('#pfok').innerHTML='<b style="color:var(--ok)">✓ Key OK</b>';$('#er').textContent='';}
+    catch(err){seed=null;$('#pfok').textContent='';$('#er').textContent=err.message;}};
+  $('#go').onclick=()=>{const a=$('#p1').value,b=$('#p2').value;
+    if(!seed){$('#er').textContent='Choose private_key.pem first';return;}
+    if(!/^\d{4,6}$/.test(a)){$('#er').textContent='PIN must be 4 to 6 digits';return;}
+    if(a!==b){$('#er').textContent='The two PINs are not the same';return;}
+    A.writeFile(KEYF,window._pem);writeJson(PINF,{h:pinHash(a),fails:0});SEED=seed;delete window._pem;main();};}
+function unlock(msg){
+  app.innerHTML=`<div class="lock"><div class="logo">🔑</div><h2>Setu Keygen</h2><p class="muted">Enter your PIN</p>
+  <div class="card"><input id="pn" class="pin" type="password" inputmode="numeric" maxlength="6" autofocus><div class="err" id="er">${esc(msg||'')}</div><button class="btn full" id="go">Open</button></div>
+  <p class="foot"><a href="#" id="forgot">Forgot PIN?</a></p></div>`;
+  const go=()=>{const st=readJson(PINF,{}),p=$('#pn').value;
+    if(st.lock&&st.lock>Date.now()){$('#er').textContent='Too many wrong PINs. Wait '+Math.ceil((st.lock-Date.now())/60000)+' min.';return;}
+    if(pinHash(p)!==st.h){st.fails=(st.fails||0)+1;if(st.fails>=5){st.fails=0;st.lock=Date.now()+15*60e3;}writeJson(PINF,st);$('#er').textContent=st.lock>Date.now()?'Locked for 15 minutes':'Wrong PIN';$('#pn').value='';return;}
+    st.fails=0;st.lock=0;writeJson(PINF,st);
+    try{SEED=seedFromPem(A.readFile(KEYF));}catch(e){return setup('Saved key is damaged — import it again');}
+    main();};
+  $('#go').onclick=go;$('#pn').onkeydown=e=>{if(e.key==='Enter')go();};
+  $('#forgot').onclick=e=>{e.preventDefault();if(confirm('Remove the saved key and PIN? You will need to import private_key.pem again.')){A.deleteFile(KEYF);A.deleteFile(PINF);setup();}};}
+
+let plan='1m',last=null;
+function main(){
+  const H=readJson(HISTF,[]);
+  app.innerHTML=`<header><b>🔑 Setu Keygen</b><button onclick="lockNow()">Lock</button></header><main>
+  <div class="card"><h3>New activation key</h3>
+    <label>Machine code (from the customer's screen)</label><input id="mc" class="mc" placeholder="XXXXX-XXXXX" maxlength="11" autocapitalize="characters" autocomplete="off" value="${esc(last?last.machine:'')}">
+    <label>Library name (optional)</label><input id="nm" placeholder="e.g. Gyan Deep Library" value="${esc(last?last.name:'')}">
+    <label>Plan</label><div class="plans">${[['1m','1 Month'],['3m','3 Months'],['6m','6 Months'],['1y','1 Year'],['life','Lifetime'],['custom','Custom']].map(([k,t])=>`<button data-p="${k}" class="${plan===k?'on':''}">${t}</button>`).join('')}</div>
+    <div id="cus" class="row" style="margin-top:8px;${plan==='custom'?'':'display:none'}"><input id="cn" type="number" min="1" placeholder="e.g. 10"><select id="cu"><option value="d">Days</option><option value="h">Hours</option><option value="min">Minutes</option></select></div>
+    <div class="err" id="er"></div><button class="btn full ok" id="gen">Generate key</button></div>
+  <div id="res"></div>
+  <div class="card hist"><h3 style="display:flex;justify-content:space-between;align-items:center">Keys made (${H.length})${H.length?'<button class="btn g" style="padding:6px 10px;font-size:13px" onclick="exportCsv()">Export CSV</button>':''}</h3>
+    ${H.slice().reverse().slice(0,100).map((h,i)=>`<div class="it"><div><b>${esc(h.name||'—')} · ${esc(h.plan)}</b><small>${esc(h.machine)} · till ${esc(h.till)} · made ${fmtDT(h.at)}</small></div><button onclick="reuse(${H.length-1-i})">Open</button></div>`).join('')||'<p class="muted">No keys yet.</p>'}</div>
+  <p class="foot">Setu Pro · Keep this phone locked. Never share private_key.pem.</p></main>`;
+  const mc=$('#mc');mc.oninput=()=>{let v=mc.value.toUpperCase().replace(/[^0-9A-F]/g,'').slice(0,10);if(v.length>5)v=v.slice(0,5)+'-'+v.slice(5);mc.value=v;};
+  app.querySelectorAll('.plans button').forEach(b=>b.onclick=()=>{plan=b.dataset.p;app.querySelectorAll('.plans button').forEach(x=>x.classList.toggle('on',x===b));$('#cus').style.display=plan==='custom'?'':'none';});
+  $('#gen').onclick=gen;if(last)showRes(last);}
+function gen(){
+  try{const dur=plan==='custom'?(+$('#cn').value||0)+$('#cu').value:plan;
+    const r=makeKey($('#mc').value,dur,$('#nm').value);
+    const H=readJson(HISTF,[]);H.push(r);writeJson(HISTF,H);last=r;main();toast('Key ready','ok');
+    setTimeout(()=>$('#res').scrollIntoView({behavior:'smooth'}),50);}
+  catch(e){$('#er').textContent=e.message;}}
+const keyMsg=r=>`*Library ERP — Activation Key*\nLibrary: ${r.name||'-'}\nMachine code: ${r.machine}\nPlan: ${r.plan} (valid till ${r.till})\n\nCopy the key below and paste it in Library ERP:\n\n${r.key}\n\n— Setu Pro`;
+function showRes(r){$('#res').innerHTML=`<div class="card res"><h3>✅ Activation key</h3><div class="till"><b>${esc(r.plan)}</b> · valid till <b>${esc(r.till)}</b><br><span class="muted">${esc(r.machine)}${r.name?' · '+esc(r.name):''}</span></div>
+  <div class="key" id="kk">${esc(r.key)}</div>
+  <div class="acts"><button class="btn g" onclick="copyKey()">Copy</button><button class="btn wa" onclick="waKey()">WhatsApp</button><button class="btn g" onclick="shareKey()">Share</button></div>
+  <label>Customer WhatsApp no. (optional)</label><input id="wn" type="tel" inputmode="numeric" maxlength="13" placeholder="Empty = choose chat in WhatsApp"></div>`;}
+function copyKey(){const t=last.key;(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Key copied','ok'),()=>{const r=document.createRange();r.selectNodeContents($('#kk'));getSelection().removeAllRanges();getSelection().addRange(r);document.execCommand('copy');toast('Key copied','ok');});}
+function waKey(){let n=($('#wn').value||'').replace(/\D/g,'');if(n.length>10)n=n.slice(-10);const t=encodeURIComponent(keyMsg(last));
+  A.openUrl(n.length===10?`whatsapp://send?phone=91${n}&text=${t}`:`whatsapp://send?text=${t}`);}
+function shareKey(){A.share('activation-key-'+last.machine+'.txt',b64(utf8(keyMsg(last))),'text/plain','Library ERP activation key');}
+function reuse(i){last=readJson(HISTF,[])[i];main();setTimeout(()=>$('#res').scrollIntoView({behavior:'smooth'}),50);}
+function exportCsv(){const H=readJson(HISTF,[]),c=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const t='﻿'+[['Date','Machine Code','Library','Plan','Valid Till','Activation Key']].concat(H.map(h=>[fmtDT(h.at),h.machine,h.name,h.plan,h.till,h.key])).map(r=>r.map(c).join(',')).join('\r\n');
+  A.share('LibraryKeys.csv',b64(utf8(t)),'text/csv','Library ERP keys');}
+function lockNow(){SEED=null;last=null;unlock();}
+window.__back=()=>{if(SEED){lockNow();return 'ok';}return 'exit';};
+document.addEventListener('visibilitychange',()=>{if(document.hidden){lockNow.t=Date.now();}else if(SEED&&lockNow.t&&Date.now()-lockNow.t>5*60e3)lockNow();});
+boot();
+</script></body></html>

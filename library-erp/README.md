@@ -83,6 +83,9 @@ Data exe ke paas `LibraryData` folder mein rehta hai. Computer badalna ho to ye 
 3. Plan chunein: `1` = 1 mahina, `2` = 3 mahine, `3` = 6 mahine, `4` = 1 saal, `5` = Lifetime, `6` = sab ek saath, `7` = apna time (`5min`, `2h`, `10d`). Ya seedhe din likhein (jaise 45).
 4. Key ban jaayegi. Use copy karke customer ko WhatsApp kar dein.
 
+**Phone par (SetuKeygen.apk):** apne phone mein install karein. Pehli baar `private_key.pem` choose karein (wahi file jo LibraryKeygen.exe ke saath hai — WhatsApp "Message yourself" ya Drive se phone par laayein) aur PIN set karein. Phir machine code + plan → **Generate key** → Copy / WhatsApp / Share. Saari keys app mein "Keys made" list mein rehti hain, **Export CSV** bhi hai.
+APK ke andar koi chabi nahi hoti; galat .pem file app nahi leta. App par PIN lock hai (5 galat PIN = 15 min lock), screenshot band hain. Ye APK kabhi customer ko na dein. Code: `android-keygen/`.
+
 Command line se: `node keygen.js 3D1EA-73DCE 1m "Library ka naam"` (`5min`, `2h`, `10d`, `1m`, `3m`, `6m`, `1y`, `life`, `all`)
 
 Expiry ke aakhri 48 ghante mein ERP ke upar live countdown chalta hai (aakhri 24 ghante laal). Time khatam hote hi activation screen aa jaati hai.
