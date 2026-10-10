@@ -131,6 +131,18 @@ Data library ke computer se aata hai: ERP khula ho aur internet ho to har 5 minu
 **Android app (APK):** `SetuLibrary.apk` phone par install karein (Unknown apps → Allow). App seedha Online View kholta hai; login yaad rehta hai. WhatsApp button WhatsApp app mein khulta hai.
 APK banane ka code `android/` folder mein hai (`build-apk.sh`). Naya version banana ho to `AndroidManifest.xml` mein `versionCode` badhayein aur **wahi signing key** (`setu-library-release.p12`) use karein, warna phone par update install nahi hoga.
 
+## Phone par poora ERP (LibraryERP.apk)
+
+Jis library ke paas computer nahi hai, wo phone par poora ERP chala sakti hai: admission, fee receipt, attendance, kharcha, books, reports sab.
+1. `LibraryERP.apk` phone par install karein (Unknown apps → Allow).
+2. App kholte hi **Machine code** dikhega. Vendor ko bhejein; keygen se usi code ki key banakar dein (computer jaisa hi).
+3. Data phone ke andar rehta hai (internet ke bina bhi chalta hai). Internet milte hi Setu Pro cloud par backup jata hai, owner ka phone app bhi chalta hai.
+4. Receipt print: phone ka Print (Bluetooth / Wi-Fi printer, ya PDF save). Backup / CSV / Excel: Share se Gmail, WhatsApp ya Drive mein.
+5. Naya phone: app install → activate → **G → Cloud backup → Restore from cloud** (Library ID + PIN).
+
+Phone wala ERP alag install hai: computer aur phone dono ek saath ek hi library ka data share nahi karte. Ek library ek hi jagah (computer **ya** phone) se chalayein.
+APK banane ka code `android-erp/` folder mein hai (`build-apk.sh`); signing key wahi `setu-library-release.p12`.
+
 ## Google Drive mein backup (bina email)
 
 1. Computer par **Google Drive for desktop** install karein aur library ke Gmail se sign in karein. "My Drive" ek drive (jaise `G:`) ki tarah dikhne lagega.
