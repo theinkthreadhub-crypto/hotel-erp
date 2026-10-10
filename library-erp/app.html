@@ -185,6 +185,79 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 .rcpt .sign span{border-top:1px solid #000;padding-top:2px;min-width:30%;text-align:center}
 .rep{font:12px Arial,sans-serif;color:#000}
 .rep table td,.rep table th{border:1px solid #999;padding:3px 5px}
+
+/* ===== phone app (html.mobile — Android app) ===== */
+#drawer,#dmask,#bnav{display:none}
+html.mobile{--bg:#f3f5f9;--line:#e3e7ef;--hi:#fff6c7}
+html.mobile body{font-size:15px;background:var(--bg)}
+html.mobile #side{display:none}
+html.mobile #top{position:sticky;top:0;z-index:30;flex-wrap:nowrap;gap:8px;padding:8px 10px;box-shadow:0 2px 6px #0002}
+html.mobile #mhome{display:block;font-size:22px;padding:4px 10px;background:none}
+html.mobile #libname{display:none}
+html.mobile #top .scr{background:none;font-size:18px;font-weight:600;padding:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html.mobile #top .clock,html.mobile #top #lic:not(.low){display:none}
+html.mobile #top .lic.sess{font-size:0;padding:0;background:none}
+html.mobile #top .lic.sess select{font-size:13px;margin:0;padding:4px 6px;border-radius:6px}
+html.mobile #wrap{padding-bottom:64px}
+html.mobile #main{padding:12px}
+html.mobile .title{margin:-12px -12px 12px;background:#fff;color:var(--bar);font-size:17px;padding:10px 12px;border-bottom:1px solid var(--line)}
+html.mobile .title .r{margin-left:0;width:100%;flex-wrap:wrap}
+html.mobile .card,html.mobile .kpi{border:0;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;overflow-x:auto}
+html.mobile .hint{border-radius:12px}
+html.mobile .two,html.mobile .charts,html.mobile .dash{display:block}
+html.mobile .grid{grid-template-columns:1fr 1fr}html.mobile .grid .w2{grid-column:1/-1}
+html.mobile input,html.mobile select,html.mobile textarea{font-size:16px;padding:10px 12px;border-radius:10px;border-color:#cfd6e3}
+html.mobile input:focus,html.mobile select:focus,html.mobile textarea:focus{outline:2px solid var(--bar);background:#fff}
+html.mobile .btn{border-radius:10px;padding:11px 16px;font-weight:600}
+html.mobile .btn.sm{padding:7px 11px;border-radius:8px}
+html.mobile .btns{gap:8px;flex-wrap:wrap}
+html.mobile table{font-size:14px}html.mobile td,html.mobile th{white-space:nowrap;padding:8px}
+html.mobile tr.sel td{background:transparent}
+html.mobile .kpis{grid-template-columns:1fr 1fr;gap:10px}
+html.mobile .kpi .v{font-size:20px}html.mobile .kpi.hero{grid-column:1/-1}html.mobile .kpi.hero .v{font-size:28px}
+html.mobile kbd,html.mobile .keys{display:none}
+html.mobile #modal{align-items:flex-end;padding:0}
+html.mobile #mbox{width:100%;border-radius:18px 18px 0 0;max-height:88vh}
+html.mobile #mbox h3{border-radius:18px 18px 0 0;padding:14px 16px}
+html.mobile #toast{bottom:76px;border-radius:10px;width:max-content;max-width:92vw;text-align:center}
+html.mobile .pick #sugg,html.mobile .sugg{max-height:50vh}
+html.mobile #sugg div,html.mobile .sugg div{padding:11px 12px}
+html.mobile .khelp{display:none}
+.astat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px}
+.astat div{background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:10px;text-align:center}.astat b{display:block;font-size:22px}.astat span{font-size:12px;color:var(--muted)}
+.slist .av.in{background:#dff3e3;color:var(--ok)}.slist .av.out{background:#eceff4;color:#6b7385}
+.slist .sa .btn{min-width:64px}
+html.mobile .title{font-size:0;padding:8px 12px}html.mobile .title .r{font-size:14px}
+html.mobile .title:has(.r:empty){display:none}
+.slist .scard{display:flex;align-items:center;gap:12px;background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:10px;cursor:pointer}
+.slist .av{width:42px;height:42px;border-radius:50%;background:#e3ebf7;color:var(--bar);font-weight:700;font-size:18px;display:flex;align-items:center;justify-content:center;flex:none}
+.slist .sc{flex:1;min-width:0}.slist .sc b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slist .sc small{display:block;color:var(--muted);font-size:12.5px;margin:2px 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.slist .sa{display:flex;flex-direction:column;gap:6px}
+/* drawer */
+html.mobile #dmask{display:block;position:fixed;inset:0;background:#0006;z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+html.mobile #dmask.open{opacity:1;pointer-events:auto}
+html.mobile #drawer{display:block;position:fixed;top:0;bottom:0;left:0;width:82vw;max-width:320px;background:#fff;z-index:41;overflow:auto;
+  transform:translateX(-102%);transition:transform .22s ease;box-shadow:4px 0 18px #0003;padding-bottom:20px}
+html.mobile #drawer.open{transform:none}
+#drawer .dhead{background:var(--bar);color:#fff;padding:22px 16px 16px;display:flex;gap:12px;align-items:center}
+#drawer .dhead b{display:block;font-size:17px}#drawer .dhead small{opacity:.85;font-size:12px}
+#drawer .dlogo{font-size:30px;background:#ffffff26;border-radius:12px;width:50px;height:50px;display:flex;align-items:center;justify-content:center;flex:none}
+#drawer .dsec{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:14px 18px 4px}
+#drawer a{display:flex;align-items:center;gap:14px;padding:11px 18px;color:var(--ink);text-decoration:none;font-size:15px}
+#drawer a i{font-style:normal;width:24px;text-align:center;font-size:18px}
+#drawer a.on{background:#e8eef8;color:var(--bar);font-weight:600;border-radius:0 24px 24px 0;margin-right:10px}
+/* bottom tabs */
+html.mobile #bnav{display:flex;position:fixed;left:0;right:0;bottom:0;height:62px;background:#fff;border-top:1px solid var(--line);z-index:30;box-shadow:0 -2px 8px #0000000f}
+#bnav a{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#6b7385;font-size:11px;text-decoration:none}
+#bnav a i{font-style:normal;font-size:20px;line-height:1;filter:grayscale(1);opacity:.7}
+#bnav a.on{color:var(--bar);font-weight:700}#bnav a.on i{filter:none;opacity:1}
+/* home tiles */
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.tiles a{background:#fff;border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:14px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;
+  text-align:center;color:var(--ink);text-decoration:none;font-size:12.5px;font-weight:600;cursor:pointer}
+.tiles a i{font-style:normal;font-size:26px;width:46px;height:46px;border-radius:14px;background:#eef3fb;display:flex;align-items:center;justify-content:center}
+.tiles a:active{transform:scale(.97);background:#f6f8fc}
 @media print{
   body{display:block;background:#fff}
   #top,#wrap,#modal,#toast{display:none!important}
@@ -193,7 +266,8 @@ kbd{background:#fff;border:1px solid #bbb;border-bottom-width:2px;border-radius:
 </style>
 </head>
 <body>
-<div id="top"><button id="mhome" onclick="D&&go('home')" title="Gateway">☰</button><b id="libname" onclick="D&&go('home')" title="Go to Dashboard" style="cursor:pointer">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess"></span><span class="lic" id="lic"></span><span class="lic cd" id="cd"></span><span class="clock" id="clock"></span></div>
+<div id="top"><button id="mhome" onclick="window.MOBILE?drawer():D&&go('home')" title="Menu">☰</button><b id="libname" onclick="D&&go('home')" title="Go to Dashboard" style="cursor:pointer">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess"></span><span class="lic" id="lic"></span><span class="lic cd" id="cd"></span><span class="clock" id="clock"></span></div>
+<div id="dmask" onclick="drawer(false)"></div><div id="drawer"></div><nav id="bnav"></nav>
 <div id="wrap"><div id="main"><p class="muted">Loading…</p></div><div id="side"></div></div>
 <div id="modal"><div id="mbox"></div></div>
 <div id="toast"></div>
@@ -404,6 +478,7 @@ function go(s,arg){
   const m=MENU.find(x=>x[2]===s);
   $('#scr').textContent=m?m[1]:'Gateway of Library';$('#libname').textContent=D.settings.name;
   main.scrollTop=0;SCREENS[s](arg);
+  if(window.MOBILE)mobNav(s);
 }
 function drawSide(){$('#side').innerHTML=`<button onclick="go('home')"><u>Esc</u>Gateway</button>`+
   GROUPS.map(g=>`<div class="sg">${g[1]}</div>`+g[2].map(m=>`<button onclick="go('${m[2]}')"><u>Alt+${m[0]}</u>${m[1]}</button>`).join('')).join('')+
@@ -414,7 +489,28 @@ function gwHtml(){return gwRows().map((r,i)=>r.it?`<div class="it sub${i===gwSel
 function gwDraw(){const e=$('#gwmenu');if(e)e.innerHTML=gwHtml();}
 function gwToggle(gi){gwOpen=gwOpen===gi?-1:gi;gwSel=gwRows().findIndex(r=>r.g===gi)+(gwOpen===gi?1:0);gwDraw();}
 const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
-const focusEl=(sel)=>setTimeout(()=>{const e=typeof sel==='string'?$(sel):sel;if(e){e.focus();e.select&&e.select();}},30);
+/* ---- phone app shell: drawer, bottom tabs, home tiles ---- */
+const ICON={home:'🏠',student:'➕',list:'👥',plans:'💳',heads:'🏷️',books:'📚',sessions:'📅',collect:'🧾',expense:'💸',att:'🕒',bookissue:'🔄',
+  daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
+const BNAV=[['home','Home'],['collect','Fee'],['att','Attendance'],['list','Students'],['menu','Menu']];
+function drawer(open){const d=$('#drawer');if(!d||!D)return;open=open===undefined?!d.classList.contains('open'):open;
+  if(open)d.innerHTML=`<div class="dhead"><div class="dlogo">📚</div><div><b>${esc(D.settings.name)}</b><small>Library ERP v${esc(LIC&&LIC.version||'')}${LIC&&LIC.vendorPhone?' · Support '+esc(LIC.vendorPhone):''}</small></div></div>
+    <a class="${cur==='home'?'on':''}" onclick="go('home')"><i>🏠</i>Home</a>`+
+    GROUPS.map(g=>`<div class="dsec">${g[1]}</div>`+g[2].map(m=>`<a class="${cur===m[2]?'on':''}" onclick="go('${m[2]}')"><i>${ICON[m[2]]||'•'}</i>${esc(m[1])}</a>`).join('')).join('');
+  d.classList.toggle('open',open);$('#dmask').classList.toggle('open',open);}
+function mobNav(s){drawer(false);const m=MENU.find(x=>x[2]===s);
+  $('#scr').textContent=s==='home'?'Home':s==='record'?'Student Record':m?m[1]:'';
+  $('#bnav').innerHTML=BNAV.map(([k,l])=>`<a class="${k===s||(k==='list'&&(s==='record'||s==='student'))?'on':''}" onclick="${k==='menu'?'drawer(true)':`go('${k}')`}"><i>${k==='menu'?'☰':ICON[k]}</i><span>${l}</span></a>`).join('');}
+function mobTiles(){const T=[['student','New Admission'],['collect','Fee Collect'],['att','Attendance'],['list','Students'],['due','Due List'],['expense','Expense'],
+  ['bookissue','Book Issue'],['daybook','Day Book'],['receipts','Receipts']];
+  return `<div class="tiles">${T.map(([k,l])=>`<a onclick="go('${k}')"><i>${ICON[k]}</i><span>${l}</span></a>`).join('')}<a onclick="drawer(true)"><i>☰</i><span>All modules</span></a></div>`;}
+// Phone par keyboard hints (Ctrl+S, Esc, Alt+X, (Y)) hata do
+const KEYHINT=/\s*\((?:Ctrl\+[A-Za-z]+|Ctrl\+Enter|Esc|Alt\+[A-Z]|F\d+|[A-Z]|Enter)\)/g;
+function mobTidy(root){if(!window.MOBILE||!root)return;const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;
+  while((n=w.nextNode())){const p=n.parentElement;if(!p||!p.closest('button,.btn,a,label,h4,.title,option'))continue;const t=n.nodeValue.replace(KEYHINT,'');if(t!==n.nodeValue)n.nodeValue=t;}}
+if(window.MOBILE)$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+if(window.MOBILE){const mo=new MutationObserver(m=>{mo.disconnect();mobTidy($('#main'));mobTidy($('#mbox'));obs();});const obs=()=>{mo.observe($('#main'),{childList:true,subtree:true});mo.observe($('#mbox'),{childList:true,subtree:true});};obs();}
+const focusEl=(sel)=>(window.MOBILE&&!isModal())?0:setTimeout(()=>{const e=typeof sel==='string'?$(sel):sel;if(e){e.focus();e.select&&e.select();}},30);
 function fields(form){return [...form.querySelectorAll('input,select,textarea')].filter(e=>!e.disabled&&!e.readOnly&&e.type!=='hidden'&&e.type!=='file'&&(e.type!=='checkbox'||e.closest('.mgrid,.xgrid'))&&e.offsetParent!==null);}
 function navMove(d){const rows=[...main.querySelectorAll('tr[data-id]')];if(!rows.length)return;
   let i=rows.findIndex(r=>r.classList.contains('sel'));i=Math.max(0,Math.min(rows.length-1,(i<0?-1:i)+d));
@@ -509,13 +605,14 @@ function scrHome(){
   const days=[...Array(7)].map((_,i)=>addDays(t,i-6)).map(d=>({label:new Date(d+'T00:00:00').toLocaleDateString('en-IN',{weekday:'short'}),value:Object.keys(D.att[d]||{}).length,hi:d===t}));
 
   const setup=[];
-  if(D.settings.name==='My Library')setup.push(`Press <b>G</b> and enter the library name, address and contact.`);
-  if(!periodic().length)setup.push(`Create a fee plan in <b>F</b> (Fee Master), e.g. Monthly / 30 days.`);
-  if(!D.students.length)setup.push(`Add students with <b>S</b>, or import them in bulk from Excel with <b>I</b>.`);
+  const K=(k,sc,l)=>window.MOBILE?`<a href="#" onclick="go('${sc}');return false"><b>${l}</b></a>`:`<b>${k}</b>`;
+  if(D.settings.name==='My Library')setup.push(window.MOBILE?`Open ${K('G','settings','Settings')} and enter the library name, address and contact.`:`Press <b>G</b> and enter the library name, address and contact.`);
+  if(!periodic().length)setup.push(`Create a fee plan in ${K('F','plans','Fee Master')}${window.MOBILE?'':' (Fee Master)'}, e.g. Monthly / 30 days.`);
+  if(!D.students.length)setup.push(`Add students with ${K('S','student','New Admission')}, or import them in bulk from Excel with ${K('I','import','Bulk Import')}.`);
   main.innerHTML=(setup.length?`<div class="hint">Getting started:<br>${setup.map((x,j)=>(j+1)+'. '+x).join('<br>')}
     ${!D.students.length?`<div style="margin-top:8px">New computer with an old backup (<b>library_backup_….json</b> from email)? <label class="btn sm" style="display:inline-block;margin:0;color:#fff">Restore from backup<input type="file" accept=".json" hidden onchange="restore(this.files[0])"></label> <button class="btn sm ok" onclick="cloudRestoreBox()">Restore from cloud (Library ID + PIN)</button></div>`:''}</div>`:'')+
-  `<div class="dash"><div class="gwbox"><h3>Gateway of Library</h3><div id="gwmenu">${gwHtml()}</div><div style="height:8px"></div>
-    <p class="muted small" style="padding:0 14px">Press <b>M</b> / <b>T</b> / <b>R</b> / <b>U</b> to open a menu, or <kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd>. Item letters (like <b>C</b>) open directly; <kbd>Alt</kbd>+letter works from any screen.</p></div>
+  `<div class="dash">${window.MOBILE?mobTiles():`<div class="gwbox"><h3>Gateway of Library</h3><div id="gwmenu">${gwHtml()}</div><div style="height:8px"></div>
+    <p class="muted small" style="padding:0 14px">Press <b>M</b> / <b>T</b> / <b>R</b> / <b>U</b> to open a menu, or <kbd>↑</kbd><kbd>↓</kbd> + <kbd>Enter</kbd>. Item letters (like <b>C</b>) open directly; <kbd>Alt</kbd>+letter works from any screen.</p></div>`}
   <div>
     <div class="kpis">
       <div class="kpi hero link" onclick="go('daybook')"><div class="l">Collected in ${MON[+cm.slice(5)-1]}</div><div class="v">${rs(collected)}</div><div class="s">Today ${rs(sum(tr,'paid'))} · ${tr.length} receipts</div></div>
@@ -691,12 +788,15 @@ function scrList(){
   main.innerHTML=title('Student List',`<button class="btn sm g" onclick="exportStudents()">Export CSV / Excel</button><button class="btn sm g" onclick="go('student')">+ New (S)</button>`)+
   `<div class="card"><div class="row"><input id="q" data-nav placeholder="Search: name / mobile / ID / seat"><select id="flt" class="fix" style="width:170px">
     ${[['active','Active'],['due','Fee due'],['soon','Expiring soon'],['bal','Balance pending'],['left','Left'],['all','All']].map(([k,t])=>`<option value="${k}"${k===listFlt?' selected':''}>${t}</option>`).join('')}</select></div>
-    <div class="muted small" style="margin-top:6px"><kbd>↑</kbd><kbd>↓</kbd> select · <kbd>Enter</kbd> Full record · <kbd>F4</kbd> Collect fee · <kbd>F2</kbd> Edit · <kbd>F9</kbd> WhatsApp reminder</div></div>
-  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Seat / Shift</th><th>Plan</th><th class="n">Fee</th><th>Paid till</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>`;
+    <div class="muted small khelp" style="margin-top:6px"><kbd>↑</kbd><kbd>↓</kbd> select · <kbd>Enter</kbd> Full record · <kbd>F4</kbd> Collect fee · <kbd>F2</kbd> Edit · <kbd>F9</kbd> WhatsApp reminder</div></div>
+  ${window.MOBILE?'<div id="tb" class="slist"></div>':'<div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Name</th><th>Mobile</th><th>Seat / Shift</th><th>Plan</th><th class="n">Fee</th><th>Paid till</th><th>Status</th><th></th></tr></thead><tbody id="tb"></tbody></table></div>'}`;
   const draw=()=>{listFlt=$('#flt').value;
     let L=findStudents(val('q'),true).filter(s=>{const k=stStatus(s).k;
       return listFlt==='all'||(listFlt==='left'?k==='left':k!=='left'&&(listFlt==='active'||(listFlt==='bal'?s.bal>0:k===listFlt)));});
     L=L.slice().sort((a,b)=>(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
+    if(window.MOBILE){$('#tb').innerHTML=L.map(s=>`<div class="scard" onclick="go('record','${s.id}')"><div class="av">${esc((s.name||'?').trim().charAt(0).toUpperCase())}</div>
+      <div class="sc"><b>${esc(s.name)}</b><small>ID ${esc(s.code)}${s.seat?' · Seat '+esc(s.seat):''}${s.mobile?' · '+esc(s.mobile):''}</small><div>${tag(s)}</div></div>
+      <div class="sa" onclick="event.stopPropagation()"><button class="btn sm ok" onclick="go('collect','${s.id}')">Fee</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WA</button></div></div>`).join('')||'<div class="card muted">No students found.</div>';return;}
     $('#tb').innerHTML=L.map(s=>`<tr data-id="${s.id}"><td>${esc(s.code)}</td><td><a href="#" onclick="go('record','${s.id}');return false"><b>${esc(s.name)}</b></a>${s.father?`<br><span class="muted small">S/o ${esc(s.father)}</span>`:''}</td>
       <td>${esc(s.mobile)}</td><td>${esc(s.seat||'—')}${s.shift?`<br><span class="muted small">${esc(s.shift)}</span>`:''}</td><td>${esc((plan(s.planId)||{}).name||'')}</td>
       <td class="n">${rs(s.fee)}</td><td>${s.validTill?mName(s.validTill.slice(0,7)):'—'}</td><td>${tag(s)}</td>
@@ -915,9 +1015,9 @@ let attDate=null;
 function scrAtt(){
   attDate=attDate||today();
   main.innerHTML=title('Attendance',`Date <input type="date" id="a_date" value="${attDate}"><button class="btn sm g" onclick="go('attrep')">Month Report (M)</button>`)+
-  `<div class="card"><label>Type Student ID / Seat / Mobile and press <kbd>Enter</kbd> — first time IN, second time OUT</label>
+  `<div class="card"><label>${window.MOBILE?'Search Student ID / Seat / Mobile, or tap IN / OUT below':'Type Student ID / Seat / Mobile and press <kbd>Enter</kbd> — first time IN, second time OUT'}</label>
     <input id="a_scan" class="scan" autocomplete="off" placeholder="e.g. 1001"><div id="a_msg" style="margin-top:8px;font-size:16px;min-height:22px"></div></div>
-  <div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Name</th><th>Seat / Shift</th><th>In</th><th>Out</th><th>Duration</th><th>Status</th><th></th></tr></thead><tbody id="a_tb"></tbody></table></div>`;
+  ${window.MOBILE?'<div id="a_tb"></div>':'<div class="card" style="padding:0"><table><thead><tr><th>ID</th><th>Name</th><th>Seat / Shift</th><th>In</th><th>Out</th><th>Duration</th><th>Status</th><th></th></tr></thead><tbody id="a_tb"></tbody></table></div>'}`;
   $('#a_date').onchange=()=>{attDate=$('#a_date').value||today();drawAtt();};
   $('#a_scan').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();attScan($('#a_scan').value);$('#a_scan').value='';}};
   drawAtt();focusEl('#a_scan');
@@ -925,6 +1025,11 @@ function scrAtt(){
 function drawAtt(){
   const day=D.att[attDate]||{},L=active().slice().sort((a,b)=>(day[b.id]?1:0)-(day[a.id]?1:0)||(parseInt(a.code,10)||0)-(parseInt(b.code,10)||0));
   const P=L.filter(s=>day[s.id]).length,inside=L.filter(s=>day[s.id]&&!day[s.id].out).length;
+  if(window.MOBILE){$('#a_tb').innerHTML=`<div class="astat"><div><b class="green">${P}</b><span>Present</span></div><div><b>${inside}</b><span>Inside</span></div><div><b class="red">${L.length-P}</b><span>Absent</span></div></div><div class="slist">`+
+    L.map(s=>{const a=day[s.id];return `<div class="scard"><div class="av${a?(a.out?' out':' in'):''}">${esc((s.name||'?').trim().charAt(0).toUpperCase())}</div>
+      <div class="sc"><b>${esc(s.name)}</b><small>ID ${esc(s.code)}${s.seat?' · Seat '+esc(s.seat):''}</small>
+      <div>${a?`<span class="tag ok" onclick="attEdit('${s.id}','in')">In ${esc(a.in||'—')}</span> ${a.out?`<span class="tag left" onclick="attEdit('${s.id}','out')">Out ${esc(a.out)} · ${dur(a.in,a.out)}</span>`:'<span class="tag soon">Inside</span>'}`:'<span class="tag left">Absent</span>'}${stStatus(s).k==='due'?' <span class="tag due">Fee due</span>':''}</div></div>
+      <div class="sa">${!a?`<button class="btn ok" onclick="attMark('${s.id}')">IN</button>`:a.out?`<button class="btn sm g" onclick="attToggle('${s.id}')">Absent</button>`:`<button class="btn" onclick="attMark('${s.id}')">OUT</button>`}</div></div>`;}).join('')+'</div>'||'<div class="card muted">No active students.</div>';return;}
   $('#a_tb').innerHTML=`<tr><td colspan="8" class="muted">Present: <b class="green">${P}</b> · Inside now: <b>${inside}</b> · Absent: <b class="red">${L.length-P}</b> · Total: ${L.length}</td></tr>`+
   L.map(s=>{const a=day[s.id];return `<tr><td>${esc(s.code)}</td><td><b>${esc(s.name)}</b> ${stStatus(s).k==='due'?'<span class="tag due">Fee due</span>':''}</td>
     <td>${esc(s.seat||'—')} ${s.shift?'<span class="muted small">'+esc(s.shift)+'</span>':''}</td>
@@ -959,7 +1064,7 @@ function attMark(id){
   else{txt=`<span class="muted">Already IN ${day[id].in} / OUT ${day[id].out}</span>`;}
   const st=stStatus(s);
   msg.innerHTML=`<b>${esc(s.code)} — ${esc(s.name)}</b> ${txt}${st.k==='due'?` <span class="tag due">Fee due! ${dueAmt(s)?rs(dueAmt(s)):''}</span>`:st.k==='soon'?` <span class="tag soon">${esc(st.t)}</span>`:''}`;
-  save();drawAtt();focusEl('#a_scan');
+  save();drawAtt();if(!window.MOBILE)focusEl('#a_scan');
 }
 function attToggle(id){
   const day=D.att[attDate]=D.att[attDate]||{};
