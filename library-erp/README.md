@@ -117,7 +117,7 @@ ERP chalu rehne par din mein ek baar backup apne aap jaata hai.
 Cloudflare par lagane ke steps: [cloud/SETUP.md](cloud/SETUP.md). Server ka code: `cloud/worker.js`.
 Cloud ka address `config.json` ke `cloudUrl` mein daalkar Setup banayein. Har library ka ERP internet milte hi apne aap backup bhejta hai (10 minute mein ek baar, sirf jab data badla ho).
 Library ko **G → Cloud backup** mein Library ID dikhta hai, aur wahi ek **PIN** set karti hai. Naye computer par **Restore from cloud** mein Library ID + PIN daalte hi data wapas aa jata hai.
-Admin page: `https://<aapka-worker>.workers.dev/admin`
+Admin page: `https://setu-erp.theinkthreadhub.workers.dev/admin` · Phone app: `https://setu-erp.theinkthreadhub.workers.dev/view`
 
 ## Online View — owner ka phone app
 
