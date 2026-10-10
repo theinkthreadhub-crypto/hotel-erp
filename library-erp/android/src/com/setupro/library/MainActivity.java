@@ -68,7 +68,7 @@ public class MainActivity extends Activity {
             + "<body style='font-family:sans-serif;background:#f4f6fa;color:#1d2433;text-align:center;padding:60px 24px'>"
             + "<h2 style='color:#2b4c7e'>No internet</h2><p>Connect to the internet and try again.</p>"
             + "<button onclick=\"location.href='" + START + "'\" style='background:#2b4c7e;color:#fff;border:0;border-radius:8px;padding:12px 28px;font-size:16px'>Try again</button>"
-            + "<p style='margin-top:40px;color:#6b7385;font-size:13px'>Setu Pro &middot; 6393995127</p></body></html>";
+            + "<p style='margin-top:40px;color:#6b7385;font-size:13px'>Setu Pro &middot; 6392995127</p></body></html>";
         web.loadDataWithBaseURL(START, html, "text/html", "utf-8", START);
     }
 

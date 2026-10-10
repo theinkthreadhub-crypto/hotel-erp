@@ -265,7 +265,7 @@ function login(msg){
   <label class="chk"><input id="rem" type="checkbox" checked> Keep me signed in on this phone</label>
   <button class="btn" id="go">Open</button></form>
   <p style="margin-top:14px">Library ID and PIN are in the ERP: <b>G → Cloud backup</b></p></div>
-  <div class="foot">Setu Pro · 6393995127</div></div>\`;
+  <div class="foot">Setu Pro · 6392995127</div></div>\`;
   $('#f').onsubmit=e=>{e.preventDefault();const libId=$('#lid').value.trim().toUpperCase(),pin=$('#pin').value.trim();load({libId,pin},$('#rem').checked);};
   if(!s.libId)$('#lid').focus();else $('#pin').focus();
 }
@@ -309,7 +309,7 @@ function list(){
 }
 function show(warn){
   if(!R.view){app.innerHTML=\`<header><div class="n"><b>\${esc(R.name||R.libId)}</b><small>\${esc(R.libId)}</small></div><button onclick="logout()">Sign out</button></header><main>
-    <div class="note">No summary yet. Update the library computer to <b>Library ERP v1.8.0</b> or newer and keep it connected to the internet. (Now: \${esc(R.version||'?')}, last backup \${ago(R.lastSync)})</div><div class="foot">Setu Pro · 6393995127</div></main>\`;return;}
+    <div class="note">No summary yet. Update the library computer to <b>Library ERP v1.8.0</b> or newer and keep it connected to the internet. (Now: \${esc(R.version||'?')}, last backup \${ago(R.lastSync)})</div><div class="foot">Setu Pro · 6392995127</div></main>\`;return;}
   const v=R.view,T=v.today,M=v.month,pl=T.fee-T.exp,mpl=M.fee-M.exp,pct=M.expected?Math.min(100,Math.round(M.got*100/M.expected)):0,old=v.day!==istToday();
   app.innerHTML=\`<header>\${v.logo?\`<img class="hlogo" src="\${v.logo}" alt="">\`:''}<div class="n"><b>\${esc(v.name||R.name)}</b><small>\${esc(R.libId)} · Updated \${ago(v.at)}</small></div><button id="rf" onclick="refresh()">↻ Refresh</button></header><main>
   <div class="install" id="inst">Install this as an app on your phone <button onclick="install()">Install</button></div>
@@ -334,7 +334,7 @@ function show(warn){
   <div class="card"><h3>Total dues\${v.session?' · Session '+esc(v.session):''}</h3><div class="row"><div class="l">\${v.dues.count} student\${v.dues.count===1?'':'s'}</div><div class="r"><b class="bad">\${rs(v.dues.total)}</b></div></div></div>
   <div class="tabs">\${[['rc','Fee'],['ex','Expense'],['at','Attendance'],['du','Dues']].map(([k,t])=>\`<button class="\${tab===k?'on':''}" onclick="tab='\${k}';show()">\${t}</button>\`).join('')}</div>
   <div class="card" id="list">\${list()}</div>
-  <div class="foot">Data of \${dmy(v.day)} · Library computer sends updates every 5 minutes<br>Setu Pro · 6393995127 · <a href="#" onclick="logout();return false">Sign out</a></div></main>\`;
+  <div class="foot">Data of \${dmy(v.day)} · Library computer sends updates every 5 minutes<br>Setu Pro · 6392995127 · <a href="#" onclick="logout();return false">Sign out</a></div></main>\`;
   if(deferred)$('#inst').style.display='flex';
 }
 function refresh(){const c=cred();c&&c.pin?load(c,!!(store.get('setu_login')||{}).pin):login();}
