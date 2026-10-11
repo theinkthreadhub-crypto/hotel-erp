@@ -12,5 +12,6 @@ function embed(src, startMark, endMark, file) {
 let s = fs.readFileSync(W, 'utf8');
 s = embed(s, 'const VIEW_HTML = `', '`; // end VIEW_HTML', 'view.html');
 s = embed(s, 'const SUPER_HTML = `', '`; // end SUPER_HTML', 'superadmin.html');
+s = embed(s, 'const STUDENT_HTML = `', '`; // end STUDENT_HTML', 'student.html');
 fs.writeFileSync(W, s);
 console.log('worker.js updated (' + Math.round(fs.statSync(W).size / 1024) + ' KB)');

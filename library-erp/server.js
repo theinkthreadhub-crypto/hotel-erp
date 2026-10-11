@@ -8,7 +8,7 @@ const zlib = require('zlib');
 const nodeCrypto = require('crypto');
 const { execFile, exec } = require('child_process');
 const lic = require('./license');
-const { summary, collectImages, stripImages, mergeImages } = require('./summary');
+const { summary, pupils, collectImages, stripImages, mergeImages } = require('./summary');
 
 let PORT = +process.env.LIBERP_PORT || 5055;
 const FIRST_PORT = PORT;
@@ -249,6 +249,7 @@ async function cloudSync(force) {
     const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: lic.today(),
       stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
       view: (() => { try { return summary(D); } catch (e) { log('summary: ' + e.message); return null; } })(),
+      pupils: (() => { try { return pupils(D); } catch (e) { log('pupils: ' + e.message); return []; } })(),
       data: zlib.gzipSync(clean).toString('base64') });
     Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
       notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });

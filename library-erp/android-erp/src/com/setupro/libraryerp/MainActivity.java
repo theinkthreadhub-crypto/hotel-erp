@@ -9,6 +9,7 @@ import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.provider.Settings;
@@ -46,6 +47,8 @@ public class MainActivity extends Activity {
     WebView web;
     WebView printView;
     ValueCallback<Uri[]> fileCb;
+    Uri camUri;        // Aadhaar/photo camera se
+    File camFile;
     File root;
 
     @Override
@@ -73,10 +76,26 @@ public class MainActivity extends Activity {
             public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
                 if (fileCb != null) fileCb.onReceiveValue(null);
                 fileCb = cb;
-                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
-                i.addCategory(Intent.CATEGORY_OPENABLE);
-                i.setType("*/*");
-                try { startActivityForResult(Intent.createChooser(i, "Choose file"), PICK_FILE); }
+                camUri = null; camFile = null;
+                boolean img = false;
+                String[] acc = p.getAcceptTypes();
+                if (acc != null) for (String a : acc) { if (a != null && a.contains("image")) img = true; }
+                Intent content = new Intent(Intent.ACTION_GET_CONTENT);
+                content.addCategory(Intent.CATEGORY_OPENABLE);
+                content.setType(img ? "image/*" : "*/*");
+                Intent chooser = Intent.createChooser(content, img ? "Photo / Camera" : "Choose file");
+                if (img) {   // camera option bhi do (Aadhaar photo seedhe camera se)
+                    try {
+                        File dir = new File(getCacheDir(), "share"); dir.mkdirs();
+                        camFile = new File(dir, "cam_" + System.currentTimeMillis() + ".jpg");
+                        camUri = Uri.parse("content://com.setupro.libraryerp.share/" + camFile.getName());
+                        Intent cam = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                        cam.putExtra(MediaStore.EXTRA_OUTPUT, camUri);
+                        cam.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[]{cam});
+                    } catch (Exception e) { camUri = null; camFile = null; }
+                }
+                try { startActivityForResult(chooser, PICK_FILE); }
                 catch (ActivityNotFoundException e) { fileCb = null; return false; }
                 return true;
             }
@@ -143,8 +162,9 @@ public class MainActivity extends Activity {
         super.onActivityResult(req, res, data);
         if (req != PICK_FILE || fileCb == null) return;
         Uri u = res == RESULT_OK && data != null ? data.getData() : null;
+        if (u == null && res == RESULT_OK && camFile != null && camFile.exists() && camFile.length() > 0) u = camUri;   // camera se aayi photo
         fileCb.onReceiveValue(u == null ? null : new Uri[]{u});
-        fileCb = null;
+        fileCb = null; camUri = null; camFile = null;
     }
 
     @Override

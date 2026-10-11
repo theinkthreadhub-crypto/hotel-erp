@@ -158,10 +158,11 @@
         if (!c.libId) { const r = await cloudCall('/api/register', who); c.libId = r.libId; c.token = r.token; setCloud(c); }
         const st = D.students || [];
         let view = null; try { view = window.LibSummary ? window.LibSummary(D) : null; } catch (e) {}
+        let pup = []; try { pup = window.LibPupils ? window.LibPupils(D) : []; } catch (e) {}
         const clean = (window.LibImages ? JSON.stringify(window.LibImages.stripImages(D)) : raw);   // images alag
         const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: today(),
           stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
-          view, data: A.gzip(clean) });
+          view, pupils: pup, data: A.gzip(clean) });
         Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
           notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });
         setCloud(c);

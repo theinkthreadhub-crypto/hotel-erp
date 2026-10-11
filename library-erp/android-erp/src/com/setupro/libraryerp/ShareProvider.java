@@ -13,11 +13,13 @@ import java.io.FileNotFoundException;
 
 // Backup / CSV / Excel file ko Gmail, WhatsApp, Drive ko dene ke liye (sirf cache/share folder, sirf padhne ke liye)
 public class ShareProvider extends ContentProvider {
-    File file(Uri u) throws FileNotFoundException {
+    File file(Uri u) throws FileNotFoundException { return file(u, false); }
+    File file(Uri u, boolean forWrite) throws FileNotFoundException {
         String n = u.getLastPathSegment();
         if (n == null || n.contains("/") || n.contains("..")) throw new FileNotFoundException();
-        File f = new File(new File(getContext().getCacheDir(), "share"), n);
-        if (!f.exists()) throw new FileNotFoundException();
+        File dir = new File(getContext().getCacheDir(), "share"); dir.mkdirs();
+        File f = new File(dir, n);
+        if (!forWrite && !f.exists()) throw new FileNotFoundException();
         return f;
     }
 
@@ -25,7 +27,9 @@ public class ShareProvider extends ContentProvider {
 
     @Override
     public ParcelFileDescriptor openFile(Uri u, String mode) throws FileNotFoundException {
-        return ParcelFileDescriptor.open(file(u), ParcelFileDescriptor.MODE_READ_ONLY);
+        boolean w = mode != null && mode.contains("w");   // camera photo yahin likhti hai
+        int m = w ? (ParcelFileDescriptor.MODE_CREATE | ParcelFileDescriptor.MODE_READ_WRITE | ParcelFileDescriptor.MODE_TRUNCATE) : ParcelFileDescriptor.MODE_READ_ONLY;
+        return ParcelFileDescriptor.open(file(u, w), m);
     }
 
     @Override

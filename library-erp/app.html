@@ -795,7 +795,16 @@ async function delUnusedPlans(){
 }
 
 /* ================= STUDENT ADD / EDIT ================= */
+let AADTMP;   // undefined = no change, '' = removed, string = new Aadhaar photo
+function aadBox(cur){const has=(AADTMP!==undefined?AADTMP:cur);
+  return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    ${has?`<img src="${has}" style="width:60px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`:''}
+    <button type="button" class="btn sm g" onclick="document.getElementById('s_aadfile').click()">📷 ${has?'Change':'Add photo'}</button>
+    ${has?`<button type="button" class="btn sm bad" onclick="aadRemove()">Remove</button>`:''}</div>`;}
+function aadPick(f){if(!f)return;imgCompress(f,1000,u=>{AADTMP=u;const b=$('#aadbox');if(b)b.innerHTML=aadBox();toast('Aadhaar photo added','ok');});}
+function aadRemove(){AADTMP='';const b=$('#aadbox');if(b)b.innerHTML=aadBox();}
 function scrStudent(id){
+  AADTMP=undefined;
   const s=id?stu(id):null,per=periodic();
   if(!per.length){main.innerHTML=title('New Admission')+`<div class="hint">First create at least one fee plan in <b>Fee Master</b> (e.g. Monthly, 30 days).</div><button class="btn" onclick="go('plans')">Open Fee Master (F)</button>`;return;}
   const v=s||{code:nextCode(),name:'',father:'',mobile:'',address:'',seat:'',shift:'',planId:per[0].id,fee:per[0].amount,join:today(),validTill:'',status:'active',note:''};
@@ -808,6 +817,10 @@ function scrStudent(id){
     <div><label>Father's name</label><input id="s_father" value="${esc(v.father)}"></div>
     <div><label>Mobile (WhatsApp) <i>*</i></label><input id="s_mobile" inputmode="numeric" maxlength="13" value="${esc(v.mobile)}"></div>
     <div class="w2"><label>Address</label><input id="s_address" value="${esc(v.address)}"></div>
+    <div><label>Aadhaar No. <span class="muted">(optional)</span></label><input id="s_aadhaar" inputmode="numeric" maxlength="14" value="${esc(v.aadhaar||'')}" placeholder="XXXX XXXX XXXX"></div>
+    <div><label>Aadhaar photo <span class="muted">(camera — auto-compress)</span></label>
+      <input id="s_aadfile" type="file" accept="image/*" capture="environment" style="display:none" onchange="aadPick(this.files[0])">
+      <div id="aadbox">${aadBox(v.aadPhoto)}</div></div>
     <div><label>Seat No.</label><input id="s_seat" value="${esc(v.seat)}"></div>
     <div><label>Shift / Timing</label><input id="s_shift" list="shiftlist" value="${esc(v.shift)}"><datalist id="shiftlist">${shifts.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
     <div><label>Fee Plan <i>*</i></label><select id="s_plan">${per.map(p=>`<option value="${p.id}"${p.id===v.planId?' selected':''}>${esc(p.name)} — ${rs(p.amount)}/${p.days}d</option>`).join('')}</select></div>
@@ -836,7 +849,7 @@ function scrStudent(id){
 async function saveStudent(id){
   const s=id?stu(id):null;
   const v={code:val('s_code'),name:val('s_name'),father:val('s_father'),mobile:normPh(val('s_mobile')),address:val('s_address'),seat:val('s_seat'),
-    shift:val('s_shift'),planId:val('s_plan'),fee:num('s_fee'),join:val('s_join')||today(),note:val('s_note')};
+    shift:val('s_shift'),planId:val('s_plan'),fee:num('s_fee'),join:val('s_join')||today(),note:val('s_note'),aadhaar:(val('s_aadhaar')||'').replace(/\D/g,'')};
   const vt=val('s_valid');
   if(!v.code){toast('Enter Student ID','bad');return focusEl('#s_code');}
   if(!v.name){toast('Enter student name','bad');return focusEl('#s_name');}
@@ -847,9 +860,11 @@ async function saveStudent(id){
   if(s){
     Object.assign(s,v);if(!$('#s_valid').readOnly&&vt!==(s.validTill||'')){s.paid=monthsCovered(s.join,vt);syncValid(s);}
     if($('#s_status'))s.status=$('#s_status').value;
+    if(AADTMP!==undefined){if(AADTMP)s.aadPhoto=AADTMP;else delete s.aadPhoto;}
     save();toast('Student updated','ok');go('list');return;
   }
   const n={id:uid(),...v,paid:monthsCovered(v.join,vt),bal:0,status:'active',created:today()};syncValid(n);
+  if(AADTMP)n.aadPhoto=AADTMP;
   D.students.push(n);save();
   if(await ask(`<b>${esc(n.name)}</b> (ID ${esc(n.code)}) saved.<br>Fee ${rs(n.fee)}. Collect the fee now?`,'Yes, collect','Later'))go('collect',n.id);
   else scrStudent();
@@ -880,12 +895,34 @@ function scrList(){
   nav={Enter:id=>go('record',id),F4:id=>go('collect',id),F2:id=>go('student',id),F9:waRemind};focusEl('#q');
 }
 async function delStudent(id){
-  const s=stu(id),ob=D.issues.filter(x=>x.sid===id&&!x.ret);
+  const s=stu(id),ob=(D.issues||[]).filter(x=>x.sid===id&&!x.ret);
   if(ob.length){toast(`${s.name} still has ${ob.length} book(s): ${ob.map(x=>x.title).join(', ')}. Take them back first.`,'bad');return;}
-  if(D.receipts.some(r=>r.sid===id)){
-    if(await ask(`${esc(s.name)} has receipts and cannot be deleted. Mark as "Left" instead?`)){s.status='left';save();scrList();}return;}
-  if(!await ask(`Delete <b>${esc(s.name)}</b>?`))return;
-  D.students=D.students.filter(x=>x.id!==id);save();scrList();
+  const rc=D.receipts.filter(r=>r.sid===id).length;
+  const warn=rc?`Delete <b>${esc(s.name)}</b> and its <b>${rc} fee receipt(s)</b>?<br>This cannot be undone. (Wrong entry ho to safe.)`:`Delete <b>${esc(s.name)}</b>?<br>This cannot be undone.`;
+  if(!await ask(warn,'Delete','Cancel'))return;
+  D.students=D.students.filter(x=>x.id!==id);
+  if(rc)D.receipts=D.receipts.filter(r=>r.sid!==id);
+  for(const d in (D.att||{})){if(D.att[d]&&D.att[d][id])delete D.att[d][id];}
+  (D.issues||[]).forEach((x,i)=>{if(x.sid===id)x._del=1;});if((D.issues||[]).some(x=>x._del))D.issues=D.issues.filter(x=>!x._del);
+  save();toast('Deleted','ok');scrList();
+}
+// Har student ka apna link — parent fee+attendance+contact dekh le
+function randTok(){return (Date.now().toString(36)+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6));}
+async function shareLink(id){
+  const s=stu(id);if(!s)return;
+  if(s.status==='left'){toast('Student is marked Left','bad');return;}
+  let ci;try{ci=await api('cloud');}catch(e){ci=null;}
+  if(!ci||!ci.enabled||!ci.url){toast('Cloud not set — Online/cloud zaroori hai link ke liye','bad');return;}
+  if(!s.tok){s.tok=randTok();save();}
+  toast('Updating link…');try{await api('cloud-sync',{});}catch(e){}
+  const url=ci.url.replace(/\/+$/,'')+'/s/'+s.tok;
+  const msg=`${s.name} ki library report:\n${url}\n\nYahan fee (diya/baaki), attendance aur hamara contact dekh sakte hain.\n— ${D.settings.name}`;
+  modal('Student link — '+(s.name||''),`
+    <p class="muted">Sirf is student ki detail. Parent ko bhej do — fee, attendance aur aapka number dikhega.</p>
+    <input value="${esc(url)}" readonly onclick="this.select()">
+    <div class="btns" style="margin-top:12px"><button class="btn wa" onclick='waOpen(${JSON.stringify(s.mobile)},${JSON.stringify(msg)})'>WhatsApp to parent</button>
+    <button class="btn g" onclick='navigator.clipboard.writeText(${JSON.stringify(url)}).then(()=>toast("Link copied","ok"))'>Copy link</button>
+    <button class="btn g" onclick="closeModal()">Close</button></div>`);
 }
 function exportStudents(){
   const rows=[['ID','Name','Father','Mobile','Address','Seat','Shift','Plan','Fee','Join','Paid Till','Balance','Status']]
@@ -903,13 +940,14 @@ function scrRecord(id){
   const P=new Set(s.paid||[]),cm=curMonth(),jm=(s.join||today()).slice(0,7);
   const months=mRange(jm<mAdd(cm,-23)?mAdd(cm,-23):jm,mAdd(cm,3));
   const fee=sum(ok,'fee'),ext=sum(ok,'extraAmt'),disc=sum(ok,'disc'),paid=sum(ok,'paid');
-  main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button>`)+
+  main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button><button class="btn sm g" onclick="shareLink('${s.id}')">🔗 Share link</button>`)+
   otherDueHtml(s)+(st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due (${esc(curSess().name)}):</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Balance ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
     <button class="btn sm wa" style="margin-left:8px" onclick="waRemind('${s.id}')">Send WhatsApp reminder</button></div>`:'')+
   `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
     <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
     <tr><td>Mobile</td><td>${esc(s.mobile)}</td></tr>${s.address?`<tr><td>Address</td><td>${esc(s.address)}</td></tr>`:''}
     <tr><td>Seat / Shift</td><td>${esc(s.seat||'—')} ${s.shift?'/ '+esc(s.shift):''}</td></tr>
+    ${s.aadhaar||s.aadPhoto?`<tr><td>Aadhaar</td><td>${s.aadhaar?esc(s.aadhaar.replace(/(\d{4})(?=\d)/g,'$1 ')):'—'}${s.aadPhoto?` <a href="${s.aadPhoto}" target="_blank"><img src="${s.aadPhoto}" style="width:54px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--line);vertical-align:middle;margin-left:6px"></a>`:''}</td></tr>`:''}
     <tr><td>Plan / Fee</td><td>${esc((plan(s.planId)||{}).name||'')} — <b>${rs(s.fee)}</b></td></tr>
     <tr><td>Join date</td><td>${dmy(s.join)}</td></tr><tr><td>Paid till</td><td><b>${s.validTill?mName(s.validTill.slice(0,7))+' ('+dmy(s.validTill)+')':'—'}</b></td></tr>
     ${s.note?`<tr><td>Note</td><td>${esc(s.note)}</td></tr>`:''}</table></div>
@@ -948,8 +986,10 @@ function scrCollect(sid){
   main.innerHTML=title('Fee Collect — Receipt')+
   `<div class="card pick"><label>Select student (name / ID / mobile / seat) — <kbd>↓</kbd> <kbd>Enter</kbd></label><input id="sq" autocomplete="off" placeholder="Start typing…"><div id="sugg" hidden></div></div><div id="colbody"></div>`;
   const sq=$('#sq'),sg=$('#sugg');let si=0,res=[];
-  const draw=()=>{res=findStudents(sq.value).slice(0,12);si=0;
-    sg.hidden=!sq.value.trim();sg.innerHTML=res.map((s,i)=>`<div class="${i?'':'on'}" data-i="${i}">${esc(s.code)} — <b>${esc(s.name)}</b> <span class="muted">${esc(s.mobile)} · Seat ${esc(s.seat||'—')}</span> ${tag(s)}</div>`).join('')||'<div class="muted">No match</div>';
+  const draw=()=>{const all=findStudents(sq.value);res=all.slice(0,50);si=0;
+    sg.hidden=!sq.value.trim();
+    const head=all.length?`<div class="muted" style="padding:5px 10px;background:#faf7ec;position:sticky;top:0">${all.length} student${all.length>1?'s':''}${all.length>50?' — showing 50, type full name':''} · touch to open</div>`:'';
+    sg.innerHTML=head+(res.map((s,i)=>`<div class="${i?'':'on'}" data-i="${i}">${esc(s.code)} — <b>${esc(s.name)}</b> <span class="muted">${esc(s.mobile)} · Seat ${esc(s.seat||'—')}</span> ${tag(s)}</div>`).join('')||'<div class="muted">No match</div>');
     sg.querySelectorAll('[data-i]').forEach(d=>d.onmousedown=ev=>{ev.preventDefault();pick(res[+d.dataset.i].id);});};
   const pick=id=>{sg.hidden=true;sq.value='';colSid=id;drawCollect();};
   sq.oninput=draw;sq.onblur=()=>setTimeout(()=>sg.hidden=true,150);
@@ -1299,7 +1339,7 @@ function scrReceipts(){
     const ok=L.filter(r=>!r.cancel);
     $('#r_tb').innerHTML=L.map(r=>`<tr data-id="${r.id}" class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)}</td><td>${esc(r.code)}</td><td><b>${esc(r.name)}</b></td>
       <td class="small">${r.months?esc(r.head)+'<br>'+esc(mText(r.mlist)):''}${r.extra?'<br>'+esc(r.extra):''}</td><td class="n">${rs(r.total)}</td><td class="n"><b>${rs(r.paid)}</b></td><td class="n">${r.bal?rs(r.bal):''}</td><td>${esc(r.mode)}</td>
-      <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button>${r.cancel?'':` <button class="btn sm bad" onclick="cancelReceipt('${r.id}')">Cancel</button>`}</td></tr>`).join('')||
+      <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button>${r.cancel?'':` <button class="btn sm g" onclick="cancelReceipt('${r.id}')">Cancel</button>`} <button class="btn sm bad" onclick="deleteReceipt('${r.id}')">Delete</button></td></tr>`).join('')||
       '<tr><td colspan="10" class="muted">No receipts in this date range.</td></tr>';
     if(L.length)$('#r_tb').insertAdjacentHTML('beforeend',`<tr><td colspan="6"><b>${ok.length} receipts</b>${L.length>ok.length?` (${L.length-ok.length} cancelled)`:''}</td><td class="n"><b>${rs(sum(ok,'paid'))}</b></td><td colspan="3"></td></tr>`);
     selFirst();};
@@ -1314,6 +1354,15 @@ async function cancelReceipt(id){
   if(s){const keep=new Set();D.receipts.filter(x=>x.sid===s.id&&!x.cancel).forEach(x=>(x.mlist||[]).forEach(m=>keep.add(m)));
     s.paid=(s.paid||[]).filter(m=>keep.has(m)||!(r.mlist||[]).includes(m));syncValid(s);s.bal=r.prevBal;}
   save();toast('Receipt cancelled');scrReceipts();
+}
+// Galat fee entry poori delete (cancel se alag — record hat jata hai)
+async function deleteReceipt(id){
+  const r=D.receipts.find(x=>x.id===id);if(!r)return;const s=stu(r.sid);
+  if(D.receipts.some((x,i)=>x.sid===r.sid&&!x.cancel&&i>D.receipts.indexOf(r))){toast("Delete this student's later receipt first",'bad');return;}
+  if(!await ask(`Delete receipt #${r.no} (${esc(r.name)}, ${rs(r.paid)})?<br>This cannot be undone.`,'Delete','Cancel'))return;
+  if(s&&!r.cancel){const keep=new Set();D.receipts.filter(x=>x.sid===s.id&&!x.cancel&&x!==r).forEach(x=>(x.mlist||[]).forEach(m=>keep.add(m)));
+    s.paid=(s.paid||[]).filter(m=>keep.has(m)||!(r.mlist||[]).includes(m));syncValid(s);if(r.prevBal!=null)s.bal=r.prevBal;}
+  D.receipts=D.receipts.filter(x=>x.id!==id);save();toast('Receipt deleted','ok');scrReceipts();
 }
 
 /* ================= DAY BOOK ================= */

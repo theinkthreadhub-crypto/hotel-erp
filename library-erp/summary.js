@@ -60,13 +60,32 @@ function summary(D, now = new Date()) {
     })(),
   };
 }
+// Per-student public link ke liye data (sirf jinka link bana = s.tok). Aadhaar/private kuch nahi.
+function pupils(D, now = new Date()) {
+  const t = ymd(now), cm = t.slice(0, 7), S = D.settings || {};
+  const sessions = D.sessions || [], plans = D.plans || [], att = D.att || {};
+  const sess = sessions.find(x => x.from <= t && x.to >= t) || sessions.find(x => x.id === S.curSession) || sessions[0];
+  const plan = id => plans.find(p => p.id === id);
+  const rate = s => { const p = plan(s.planId); if (!p) return 0; return +p.days > 31 ? Math.round(+s.fee * 30 / p.days) : +s.fee; };
+  const unpaid = s => { if (!sess) return []; const P = new Set(s.paid || []), a = sess.from.slice(0, 7), b = sess.to.slice(0, 7), jm = (s.join || t).slice(0, 7); const st = a > jm ? a : jm, en = b < cm ? b : cm; return st > en ? [] : mRange(st, en).filter(m => !P.has(m)); };
+  const monthPresent = id => { let n = 0; for (const d in att) if (d.slice(0, 7) === cm && att[d][id]) n++; return n; };
+  const today = att[t] || {};
+  return (D.students || []).filter(s => s.status !== 'left' && s.tok).map(s => {
+    const u = unpaid(s), a = today[s.id] || {};
+    return { id: s.id, tok: s.tok, code: s.code || '', name: s.name || '', seat: s.seat || '',
+      plan: (plan(s.planId) || {}).name || '', feeMonthly: rate(s), paid: (s.paid || []).length,
+      due: u.length * rate(s) + (+s.bal || 0), dueMonths: u.length, dueFrom: u[0] || '',
+      todayIn: a.in || '', todayOut: a.out || '', monthPresent: monthPresent(s.id), join: s.join || '' };
+  });
+}
 // ---- Images: cloud me alag store hoti hain, isliye main backup se nikaali jaati hain ----
-// Keys: 'logo', 'stu_<studentId>', 'doc_<studentId>_<index>'
+// Keys: 'logo', 'stu_<studentId>', 'doc_<studentId>_<index>', 'aad_<studentId>' (Aadhaar — sirf owner)
 function collectImages(D) {
   const m = {}, S = D.settings || {};
   if (S.logo) m['logo'] = S.logo;
   (D.students || []).forEach(s => {
     if (s.photo) m['stu_' + s.id] = s.photo;
+    if (s.aadPhoto) m['aad_' + s.id] = s.aadPhoto;
     (s.docs || []).forEach((d, i) => { if (d) m['doc_' + s.id + '_' + i] = d; });
   });
   return m;
@@ -75,7 +94,7 @@ function collectImages(D) {
 function stripImages(D) {
   const c = JSON.parse(JSON.stringify(D));
   if (c.settings) delete c.settings.logo;
-  (c.students || []).forEach(s => { delete s.photo; delete s.docs; });
+  (c.students || []).forEach(s => { delete s.photo; delete s.docs; delete s.aadPhoto; });
   return c;
 }
 // Cloud se laayi images wapas data me daalo
@@ -85,9 +104,10 @@ function mergeImages(D, imgs) {
     const v = imgs[k];
     if (k === 'logo') { S.logo = v; continue; }
     let m = k.match(/^stu_(.+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) s.photo = v; continue; }
+    m = k.match(/^aad_(.+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) s.aadPhoto = v; continue; }
     m = k.match(/^doc_(.+)_(\d+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) { s.docs = s.docs || []; s.docs[+m[2]] = v; } }
   }
   return D;
 }
-module.exports = { summary, collectImages, stripImages, mergeImages };
-if (typeof window !== 'undefined') window.LibImages = { collectImages, stripImages, mergeImages };
+module.exports = { summary, pupils, collectImages, stripImages, mergeImages };
+if (typeof window !== 'undefined') window.LibImages = { collectImages, stripImages, mergeImages }, window.LibPupils = pupils;
