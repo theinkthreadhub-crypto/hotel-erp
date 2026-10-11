@@ -902,9 +902,9 @@ async function shareLink(id){
   if(!s.tok){s.tok=randTok();save();}
   toast('Updating link…');try{await api('cloud-sync',{});}catch(e){}
   const url=ci.url.replace(/\/+$/,'')+'/s/'+encodeURIComponent((ci.libId||'')+'~'+s.tok);
-  const msg=`${s.name} ki library report:\n${url}\n\nYahan fee (diya/baaki), attendance aur hamara contact dekh sakte hain.\n— ${D.settings.name}`;
-  modal('Student link — '+(s.name||''),`
-    <p class="muted">Sirf is student ki detail. Parent ko bhej do — fee, attendance aur aapka number dikhega.</p>
+  const msg=`${s.name}, ye aapka apna Library App hai:\n${url}\n\nIsse aap library aakar khud *Attendance (In/Out)* laga sakte hain aur apni *fee* dekh sakte hain.\nPhone me add karein: kholkar "Add to Home Screen".\n— ${D.settings.name}`;
+  modal('Student app link — '+(s.name||''),`
+    <p class="muted">Student ko bhej do — wo apne phone me app bana lega (Add to Home Screen), khud In/Out karega aur fee dekhega.</p>
     <input value="${esc(url)}" readonly onclick="this.select()">
     <div class="btns" style="margin-top:12px"><button class="btn wa" onclick='waOpen(${JSON.stringify(s.mobile)},${JSON.stringify(msg)})'>WhatsApp to parent</button>
     <button class="btn g" onclick='navigator.clipboard.writeText(${JSON.stringify(url)}).then(()=>toast("Link copied","ok"))'>Copy link</button>
@@ -1088,7 +1088,7 @@ function rcptText(r){
   L.push('',`*Received: ${rs(r.paid)}* (${r.mode})`);if(r.bal)L.push(`Balance: ${rs(r.bal)}`);if(r.to)L.push(`Valid till: ${dmy(r.to)}`);
   // Pehli receipt ke saath student ka apna link (fee + attendance)
   const isFirst=D.receipts.filter(x=>x.sid===r.sid&&!x.cancel).length<=1,lk=isFirst?studentLink(s):'';
-  if(lk)L.push('',`📱 Student card (apni fee & attendance dekhein, library aakar In/Out karein):`,lk);
+  if(lk)L.push('',`📱 Aapka apna Library App (khud Attendance In/Out + fee dekhein, phone me "Add to Home Screen"):`,lk);
   L.push('',S.footer);if(S.contact)L.push(`Contact: ${S.contact}`);
   return L.filter(x=>x!==undefined).join('\n');
 }

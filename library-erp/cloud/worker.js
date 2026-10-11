@@ -424,6 +424,13 @@ const SW_JS = `const C='setu-view-v1';
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(['/view','/icon-192.png','/manifest.webmanifest'])));self.skipWaiting();});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(K=>Promise.all(K.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(r=>{if(r.ok){const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));}return r;}).catch(()=>caches.match(e.request)));});`;
+// Student app (/s) ka service worker — phone pe installable + offline shell
+const S_SW = `const C='setu-stu-v1';
+self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
+self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const u=new URL(e.request.url);
+  if(u.pathname.indexOf('/s/')===0||u.pathname==='/icon-192.png'||u.pathname==='/icon-512.png'){
+    e.respondWith(fetch(e.request).then(r=>{if(r.ok){const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));}return r;}).catch(()=>caches.match(e.request)));}});`;
 // Ye page cloud/view.html se aata hai: badlav view.html mein karke `node cloud/embed.js` chalayein.
 const VIEW_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -823,7 +830,11 @@ const STUDENT_HTML = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1f3a63">
-<title>My Library Card</title>
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>My Library App</title>
 <style>
 :root{--b:#1f3a63;--b2:#2b4c7e;--bg:#eef1f6;--card:#fff;--t:#1d2433;--m:#6b7385;--ok:#1e8e3e;--bad:#c62828;--warn:#e08a00;--line:#e3e7ef}
 *{box-sizing:border-box}html,body{margin:0}body{font:15px/1.45 "Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--t)}
@@ -848,6 +859,9 @@ const STUDENT_HTML = `<!doctype html>
 .btn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:13px;border-radius:12px;text-decoration:none;font-weight:600;font-size:15px;color:#fff}
 .btn.call{background:var(--b2)}.btn.wa{background:#25d366}
 .foot{text-align:center;color:var(--m);font-size:12px;margin:16px 0}
+.install{background:#1f3a63;color:#fff;border-radius:14px;padding:13px 15px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:14px}
+.install b{display:block}.install .x{margin-left:auto;background:#ffffff26;border:0;color:#fff;border-radius:8px;padding:8px 12px;font-weight:600}
+.ios{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px;font-size:13px;color:var(--t)}
 .msg{text-align:center;padding:50px 20px;color:var(--m)}
 .pill{display:inline-block;font-size:12px;border-radius:20px;padding:3px 11px;margin-top:8px}
 .pill.ok{background:#e3f4e5;color:var(--ok)}.pill.due{background:#fde2e2;color:var(--bad)}
@@ -861,7 +875,28 @@ const mon=m=>m?new Date(m+'-01T00:00:00').toLocaleDateString('en-IN',{month:'sho
 function waHref(c){let d=String(c||'').replace(/\\D/g,'');if(d.length===10)d='91'+d;return 'https://wa.me/'+d;}
 function telHref(c){return 'tel:'+String(c||'').replace(/[^\\d+]/g,'');}
 const SEG=(location.pathname.split('/s/')[1]||new URLSearchParams(location.search).get('t')||'').trim();
-let DATA=null,busy=false;
+let DATA=null,busy=false,canInstall=null;
+// ----- PWA: phone pe "apna app" ban jaye -----
+function setManifest(nm){try{
+  const m={name:nm||'My Library App',short_name:'My App',start_url:location.pathname,scope:'/s/',display:'standalone',
+    background_color:'#eef1f6',theme_color:'#1f3a63',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png'},{src:'/icon-512.png',sizes:'512x512',type:'image/png'}]};
+  const b=new Blob([JSON.stringify(m)],{type:'application/manifest+json'}),u=URL.createObjectURL(b);
+  let l=document.querySelector('link[rel=manifest]');if(!l){l=document.createElement('link');l.rel='manifest';document.head.appendChild(l);}l.href=u;
+}catch(e){}}
+function initPWA(){
+  setManifest();
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('/s-sw.js',{scope:'/s/'}).catch(()=>{});
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();canInstall=e;showInstall();});
+}
+function showInstall(){if(!DATA)return;const host=document.getElementById('installbar');if(host)host.innerHTML=installHtml();}
+function installHtml(){
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
+  if(standalone)return '';
+  if(canInstall)return '<div class="install">📲 <div><b>Install this app</b><span style="opacity:.85">Apne phone me add karo — har baar attendance jaldi</span></div><button class="x" onclick="doInstall()">Install</button></div>';
+  if(ios)return '<div class="ios">📲 <b>Apne phone me app banayein:</b> niche <b>Share</b> (⬆️) dabayein → <b>Add to Home Screen</b>.</div>';
+  return '';
+}
+async function doInstall(){if(!canInstall)return;canInstall.prompt();try{await canInstall.userChoice;}catch(e){}canInstall=null;showInstall();}
 function toast(t){let e=$('tst');if(!e){e=document.createElement('div');e.id='tst';e.style.cssText='position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:10px;z-index:9;font-size:14px';document.body.appendChild(e);}e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2500);}
 async function mark(act){if(busy)return;busy=true;
   try{const r=await fetch('/api/student-mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tok:SEG,act})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Error');
@@ -869,8 +904,13 @@ async function mark(act){if(busy)return;busy=true;
   catch(e){toast(e.message||'Could not mark');}busy=false;}
 async function load(){
   if(!SEG){$('app').innerHTML='<div class="msg">This link is incomplete.</div>';return;}
-  let d;try{const r=await fetch('/api/student',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tok:SEG})});d=await r.json();if(!r.ok)throw new Error(d.error||'Error');}
-  catch(e){$('app').innerHTML='<div class="msg">⚠️ '+esc(e.message||'Could not load')+'</div>';return;}
+  initPWA();
+  let d;
+  try{const r=await fetch('/api/student',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tok:SEG})});d=await r.json();if(!r.ok)throw new Error(d.error||'Error');
+    try{localStorage.setItem('setu_stu_'+SEG,JSON.stringify(d));}catch(e){}}
+  catch(e){ let c=null;try{c=JSON.parse(localStorage.getItem('setu_stu_'+SEG)||'null');}catch(_){}
+    if(c){DATA=c;render(c);return;}
+    $('app').innerHTML='<div class="msg">⚠️ '+esc(e.message||'Could not load')+'</div>';return;}
   DATA=d;render(d);
 }
 function render(d){
@@ -880,6 +920,7 @@ function render(d){
     :!s.todayOut?'<button class="btn out" onclick="mark(\\'out\\')">🚪 Mark OUT</button>'
     :'<div class="done">✓ Attendance done for today</div>';
   $('app').innerHTML=
+    '<div id="installbar">'+installHtml()+'</div>'+
     '<div class="hd"><div class="lib">'+esc(d.lib||'Library')+'</div><h1>'+esc(s.name||'Student')+'</h1>'+
       '<div class="sub">'+(s.code?'ID '+esc(s.code):'')+(s.seat?' · Seat '+esc(s.seat):'')+'</div>'+
       '<span class="pill '+(due>0?'due':'ok')+'">'+(due>0?'Fee due '+rs(due):'All fees clear ✓')+'</span></div>'+
@@ -903,6 +944,7 @@ function render(d){
       '<div class="row" style="justify-content:center;margin-top:8px"><b>'+esc(d.contact)+'</b></div></div>':'')+
     '<div class="foot">Updated '+(d.lastSync?new Date(d.lastSync).toLocaleString('en-IN'):'—')+'<br>Powered by Setu Pro</div>';
   document.title=(s.name||'Student')+' — '+(d.lib||'Library');
+  setManifest((s.name||'Student')+' — '+(d.lib||'Library'));
 }
 load();
 </script></body></html>
@@ -921,6 +963,7 @@ export default {
       if (url.pathname === '/s' || url.pathname.startsWith('/s/')) return new Response(STUDENT_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
       if (url.pathname === '/manifest.webmanifest') return new Response(JSON.stringify(MANIFEST), { headers: { 'Content-Type': 'application/manifest+json' } });
       if (url.pathname === '/sw.js') return new Response(SW_JS, { headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' } });
+      if (url.pathname === '/s-sw.js') return new Response(S_SW, { headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/s/' } });
       if (url.pathname === '/icon-192.png' || url.pathname === '/icon-512.png')
         return new Response(Uint8Array.from(atob(url.pathname === '/icon-192.png' ? ICON_192 : ICON_512), c => c.charCodeAt(0)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
       if (req.method !== 'POST' || !url.pathname.startsWith('/api/')) return fail('Not found', 404);

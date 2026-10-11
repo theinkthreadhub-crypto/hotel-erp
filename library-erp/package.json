@@ -1,6 +1,6 @@
 {
   "name": "library-erp",
-  "version": "1.18.0",
+  "version": "1.18.1",
   "description": "Library ERP \u2014 offline, keyboard se chalne wala, activation key ke saath",
   "main": "server.js",
   "bin": "server.js",
