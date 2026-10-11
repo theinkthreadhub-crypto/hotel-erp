@@ -85,7 +85,6 @@ function collectImages(D) {
   if (S.logo) m['logo'] = S.logo;
   (D.students || []).forEach(s => {
     if (s.photo) m['stu_' + s.id] = s.photo;
-    if (s.aadPhoto) m['aad_' + s.id] = s.aadPhoto;
     (s.docs || []).forEach((d, i) => { if (d) m['doc_' + s.id + '_' + i] = d; });
   });
   return m;
@@ -94,7 +93,7 @@ function collectImages(D) {
 function stripImages(D) {
   const c = JSON.parse(JSON.stringify(D));
   if (c.settings) delete c.settings.logo;
-  (c.students || []).forEach(s => { delete s.photo; delete s.docs; delete s.aadPhoto; });
+  (c.students || []).forEach(s => { delete s.photo; delete s.docs; });
   return c;
 }
 // Cloud se laayi images wapas data me daalo
@@ -104,7 +103,6 @@ function mergeImages(D, imgs) {
     const v = imgs[k];
     if (k === 'logo') { S.logo = v; continue; }
     let m = k.match(/^stu_(.+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) s.photo = v; continue; }
-    m = k.match(/^aad_(.+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) s.aadPhoto = v; continue; }
     m = k.match(/^doc_(.+)_(\d+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) { s.docs = s.docs || []; s.docs[+m[2]] = v; } }
   }
   return D;

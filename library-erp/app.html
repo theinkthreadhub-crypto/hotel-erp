@@ -795,16 +795,7 @@ async function delUnusedPlans(){
 }
 
 /* ================= STUDENT ADD / EDIT ================= */
-let AADTMP;   // undefined = no change, '' = removed, string = new Aadhaar photo
-function aadBox(cur){const has=(AADTMP!==undefined?AADTMP:cur);
-  return `<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    ${has?`<img src="${has}" style="width:60px;height:40px;object-fit:cover;border-radius:6px;border:1px solid var(--line)">`:''}
-    <button type="button" class="btn sm g" onclick="document.getElementById('s_aadfile').click()">📷 ${has?'Change':'Add photo'}</button>
-    ${has?`<button type="button" class="btn sm bad" onclick="aadRemove()">Remove</button>`:''}</div>`;}
-function aadPick(f){if(!f)return;imgCompress(f,1000,u=>{AADTMP=u;const b=$('#aadbox');if(b)b.innerHTML=aadBox();toast('Aadhaar photo added','ok');});}
-function aadRemove(){AADTMP='';const b=$('#aadbox');if(b)b.innerHTML=aadBox();}
 function scrStudent(id){
-  AADTMP=undefined;
   const s=id?stu(id):null,per=periodic();
   if(!per.length){main.innerHTML=title('New Admission')+`<div class="hint">First create at least one fee plan in <b>Fee Master</b> (e.g. Monthly, 30 days).</div><button class="btn" onclick="go('plans')">Open Fee Master (F)</button>`;return;}
   const v=s||{code:nextCode(),name:'',father:'',mobile:'',address:'',seat:'',shift:'',planId:per[0].id,fee:per[0].amount,join:today(),validTill:'',status:'active',note:''};
@@ -818,9 +809,6 @@ function scrStudent(id){
     <div><label>Mobile (WhatsApp) <i>*</i></label><input id="s_mobile" inputmode="numeric" maxlength="13" value="${esc(v.mobile)}"></div>
     <div class="w2"><label>Address</label><input id="s_address" value="${esc(v.address)}"></div>
     <div><label>Aadhaar No. <span class="muted">(optional)</span></label><input id="s_aadhaar" inputmode="numeric" maxlength="14" value="${esc(v.aadhaar||'')}" placeholder="XXXX XXXX XXXX"></div>
-    <div><label>Aadhaar photo <span class="muted">(camera — auto-compress)</span></label>
-      <input id="s_aadfile" type="file" accept="image/*" capture="environment" style="display:none" onchange="aadPick(this.files[0])">
-      <div id="aadbox">${aadBox(v.aadPhoto)}</div></div>
     <div><label>Seat No.</label><input id="s_seat" value="${esc(v.seat)}"></div>
     <div><label>Shift / Timing</label><input id="s_shift" list="shiftlist" value="${esc(v.shift)}"><datalist id="shiftlist">${shifts.map(x=>`<option value="${esc(x)}">`).join('')}</datalist></div>
     <div><label>Fee Plan <i>*</i></label><select id="s_plan">${per.map(p=>`<option value="${p.id}"${p.id===v.planId?' selected':''}>${esc(p.name)} — ${rs(p.amount)}/${p.days}d</option>`).join('')}</select></div>
@@ -860,11 +848,9 @@ async function saveStudent(id){
   if(s){
     Object.assign(s,v);if(!$('#s_valid').readOnly&&vt!==(s.validTill||'')){s.paid=monthsCovered(s.join,vt);syncValid(s);}
     if($('#s_status'))s.status=$('#s_status').value;
-    if(AADTMP!==undefined){if(AADTMP)s.aadPhoto=AADTMP;else delete s.aadPhoto;}
     save();toast('Student updated','ok');go('list');return;
   }
   const n={id:uid(),...v,paid:monthsCovered(v.join,vt),bal:0,status:'active',created:today()};syncValid(n);
-  if(AADTMP)n.aadPhoto=AADTMP;
   D.students.push(n);save();
   if(await ask(`<b>${esc(n.name)}</b> (ID ${esc(n.code)}) saved.<br>Fee ${rs(n.fee)}. Collect the fee now?`,'Yes, collect','Later'))go('collect',n.id);
   else scrStudent();
@@ -947,7 +933,7 @@ function scrRecord(id){
     <tr><td>Student ID</td><td><b>${esc(s.code)}</b></td></tr>${s.father?`<tr><td>Father</td><td>${esc(s.father)}</td></tr>`:''}
     <tr><td>Mobile</td><td>${esc(s.mobile)}</td></tr>${s.address?`<tr><td>Address</td><td>${esc(s.address)}</td></tr>`:''}
     <tr><td>Seat / Shift</td><td>${esc(s.seat||'—')} ${s.shift?'/ '+esc(s.shift):''}</td></tr>
-    ${s.aadhaar||s.aadPhoto?`<tr><td>Aadhaar</td><td>${s.aadhaar?esc(s.aadhaar.replace(/(\d{4})(?=\d)/g,'$1 ')):'—'}${s.aadPhoto?` <a href="${s.aadPhoto}" target="_blank"><img src="${s.aadPhoto}" style="width:54px;height:36px;object-fit:cover;border-radius:5px;border:1px solid var(--line);vertical-align:middle;margin-left:6px"></a>`:''}</td></tr>`:''}
+    ${s.aadhaar?`<tr><td>Aadhaar</td><td>${esc(s.aadhaar.replace(/(\d{4})(?=\d)/g,'$1 '))}</td></tr>`:''}
     <tr><td>Plan / Fee</td><td>${esc((plan(s.planId)||{}).name||'')} — <b>${rs(s.fee)}</b></td></tr>
     <tr><td>Join date</td><td>${dmy(s.join)}</td></tr><tr><td>Paid till</td><td><b>${s.validTill?mName(s.validTill.slice(0,7))+' ('+dmy(s.validTill)+')':'—'}</b></td></tr>
     ${s.note?`<tr><td>Note</td><td>${esc(s.note)}</td></tr>`:''}</table></div>
