@@ -4,6 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
+| **1.19.3** | Cloud reconnect | **"Cloud link is not valid — connect again"** ab khud theek hota hai: cloud ko ERP ka Library ID/token na mile to ERP khud dobara register karke poora data bhej deta hai (naya Library ID banta hai, purane student links dobara Share karne honge) |
 | 1.19.2 | Student APK | **SetuStudent.apk (My Library)** — students ka apna Android app: library ka bheja link tap karo to app me khule, ya pehli baar paste karo; phir har baar seedha apna page (In/Out + fee). Library ko sirf ye APK students ko share karni hai. ERP version wahi |
 | 1.19.1 | Edit fix | **Student edit ab save hota hai**: Save dabane par "ID already generated/exists" galat warning aati thi (Save button student ki id pass nahi karta tha). Excel se aaye students (bina seat) ka edit bhi ab crash nahi karta. Student delete aur fee delete waise hi hain |
 | **1.19.0** | Session total | **Dashboard me poore session (saal) ka hisaab**: total fee collected, total expenses, profit/loss, aur **month-wise table** (fee, kharcha, net). Cancelled receipt count nahi hoti |

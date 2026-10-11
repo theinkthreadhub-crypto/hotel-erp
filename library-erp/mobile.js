@@ -183,9 +183,17 @@
         }
         setCloud(c);
         await syncImages(c, D);
-      } catch (e) { c.error = e.message; c.errorAt = new Date().toISOString(); }
+      } catch (e) {
+        c.error = e.message; c.errorAt = new Date().toISOString();
+        // Cloud ko hamara Library ID/token pehchaan me nahi aaya — khud dobara jodo
+        if (/Cloud link is not valid/i.test(String(e.message)) && (!c.relinkAt || Date.now() - c.relinkAt > 5 * 60e3)) {
+          c.relinkAt = Date.now(); c.oldLibId = c.libId || c.oldLibId || '';
+          delete c.libId; delete c.token; delete c.hash; c.imgHashes = {}; c.error = 'Reconnecting to cloud…';
+          setTimeout(() => cloudSync(true).catch(() => {}), 1500);
+        }
+      }
       setCloud(c);
-      if (c.error) setTimeout(() => cloudSync().catch(() => {}), 15e3);   // net aane tak dobara
+      if (c.error && !/Reconnecting/.test(c.error)) setTimeout(() => cloudSync().catch(() => {}), 15e3);   // net aane tak dobara
       if (force && c.error) throw new Error(c.error);
     })().finally(() => { syncing = null; });
     return syncing;

@@ -280,10 +280,19 @@ async function cloudSync(force) {
       catch (e) { log('Cloud renew: ' + e.message); }
     }
     await syncImages(c, D);   // badli hui photos cloud par
-  } catch (e) { c.error = cloudErr(e); c.errorAt = new Date().toISOString(); }
+  } catch (e) {
+    c.error = cloudErr(e); c.errorAt = new Date().toISOString();
+    // Cloud ko hamara Library ID/token pehchaan me nahi aaya (cloud badla / library hat gayi) — khud dobara jodo
+    if (/Cloud link is not valid/i.test(String(e.message)) && (!c.relinkAt || Date.now() - c.relinkAt > 5 * 60e3)) {
+      log('Cloud link lost (' + (c.libId || '?') + ') — registering again');
+      c.relinkAt = Date.now(); c.oldLibId = c.libId || c.oldLibId || '';
+      delete c.libId; delete c.token; delete c.hash; c.imgHashes = {}; c.error = 'Reconnecting to cloud…';
+      setTimeout(() => cloudSync(true).catch(() => {}), 1500);
+    }
+  }
   syncing = false;
   setCloud(c);
-  if (c.error) setTimeout(() => cloudSync().catch(() => {}), 15e3);   // net aane tak dobara koshish
+  if (c.error && !/Reconnecting/.test(c.error)) setTimeout(() => cloudSync().catch(() => {}), 15e3);   // net aane tak dobara koshish
   if (force && c.error) throw new Error(c.error);
 }
 // Har badlav ke baad jaldi sync (taba-tod edit ko ek saath bhejne ke liye 9s ka wait)
