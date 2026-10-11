@@ -114,7 +114,7 @@ function render(d){
       '<a class="btn call" href="'+telHref(d.contact)+'">📞 Call</a>'+
       '<a class="btn wa" href="'+waHref(d.contact)+'" target="_blank" rel="noopener">💬 WhatsApp</a></div>'+
       '<div class="row" style="justify-content:center;margin-top:8px"><b>'+esc(d.contact)+'</b></div></div>':'')+
-    '<div class="foot">Updated '+(d.lastSync?new Date(d.lastSync).toLocaleString('en-IN'):'—')+'<br>Powered by Setu Pro</div>';
+    '<div class="foot">Updated '+(d.lastSync?new Date(d.lastSync).toLocaleString('en-IN'):'—')+'<br>Powered by Setu Pro'+(window.StudentApp?'<br><a href="#" onclick="StudentApp.reset();return false" style="color:#6b7385">Not you? Change link</a>':'')+'</div>';
   document.title=(s.name||'Student')+' — '+(d.lib||'Library');
   setManifest((s.name||'Student')+' — '+(d.lib||'Library'));
 }
