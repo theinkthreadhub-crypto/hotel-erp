@@ -697,6 +697,16 @@ function scrHome(){
       <div class="kpi link" onclick="go('att')"><div class="l">Present today</div><div class="v">${pres} <span class="muted" style="font-size:15px">/ ${act.length}</span></div><div class="s">${soon.length} fees expiring soon</div></div>
       ${D.books.length?`<div class="kpi link" onclick="go('bookissue')"><div class="l">Books with students</div><div class="v">${openIssues().length} <span class="muted" style="font-size:15px">/ ${sum(D.books,x=>+x.copies||1)}</span></div><div class="s">Overdue: <b class="${openIssues().some(x=>x.due<t)?'red':''}">${openIssues().filter(x=>x.due<t).length}</b></div></div>`:''}
     </div>
+    ${(()=>{const [sa2,sb2]=sessMonths(),ms=mRange(sa2,sb2),sFee=sum(R,'paid'),sExp=sum(SE,'amount'),sPl=sFee-sExp;
+      return `<div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><h4 style="margin:0">Session ${esc(cs.name)} — full year</h4><span class="muted small">${dmy(cs.from)} – ${dmy(cs.to)}</span></div>
+        <div class="kpis" style="margin:10px 0 6px">
+          <div class="kpi hero link" onclick="go('daybook')"><div class="l">Total fee collected</div><div class="v">${rs(sFee)}</div><div class="s">${R.length} receipts</div></div>
+          <div class="kpi link" onclick="go('expense')"><div class="l">Total expenses</div><div class="v">${rs(sExp)}</div><div class="s">${SE.length} entries</div></div>
+          <div class="kpi link" onclick="go('pl')"><div class="l">${sPl>=0?'Profit':'Loss'} (session)</div><div class="v ${sPl>=0?'green':'red'}">${rs(Math.abs(sPl))} ${sPl>=0?'▲':'▼'}</div><div class="s">Fee − expenses</div></div></div>
+        <div style="overflow:auto"><table><thead><tr><th>Month</th><th class="n">Fee collected</th><th class="n">Expenses</th><th class="n">Net</th></tr></thead><tbody>
+        ${ms.map(m=>{const f=sum(R.filter(r=>r.date.slice(0,7)===m),'paid'),e=sum(SE.filter(x=>x.date.slice(0,7)===m),'amount'),n=f-e;
+          return `<tr${m===cm?' style="background:var(--hi)"':''}><td>${mName(m)}</td><td class="n">${rs(f)}</td><td class="n">${rs(e)}</td><td class="n"><b class="${n>=0?'green':'red'}">${n<0?'−':''}${rs(Math.abs(n))}</b></td></tr>`;}).join('')}
+        <tr style="font-weight:700;border-top:2px solid var(--line)"><td>Total</td><td class="n">${rs(sFee)}</td><td class="n">${rs(sExp)}</td><td class="n"><span class="${sPl>=0?'green':'red'}">${sPl<0?'−':''}${rs(Math.abs(sPl))}</span></td></tr></tbody></table></div></div>`;})()}
     <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><h4 style="margin:0">${mName(cm)} fees received</h4>
       <span><b>${rs(gotCm)}</b> of ${rs(expected)} · <b>${pct}%</b></span></div>
       <div class="meter" data-tip="${pct}% of this month's fees received"><i style="width:${pct}%"></i></div>
