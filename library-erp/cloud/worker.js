@@ -26,7 +26,6 @@ async function init(env) {
     'notice TEXT', 'notice_at TEXT', 'lock INTEGER DEFAULT 0', 'lock_msg TEXT',  // admin->library message + remote lock (v1.16.0)
     'pupils TEXT'])  // per-student public link data (v1.17.0)
     try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
-  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS slinks (tok TEXT PRIMARY KEY, lib_id TEXT, sid TEXT)`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
     msgs TEXT, created TEXT, updated TEXT, unread_admin INTEGER DEFAULT 1, unread_lib INTEGER DEFAULT 0)`).run();
@@ -94,12 +93,10 @@ async function push(env, b) {
       .bind(b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, +s.students || 0, +s.active || 0, +s.receipts || 0, data.length, now(), view, lib.id),
     env.DB.prepare(`DELETE FROM backups WHERE lib_id = ? AND day NOT IN (SELECT day FROM backups WHERE lib_id = ? ORDER BY day DESC LIMIT ${KEEP_DAYS})`).bind(lib.id, lib.id),
   ]);
-  // Per-student links: pupils data store + token->student mapping
+  // Per-student links: sirf pupils JSON store (link me libId hota hai, isliye alag mapping ki zarurat nahi — ek hi write)
   if (Array.isArray(b.pupils)) {
     const P = b.pupils.slice(0, 2000);
     await env.DB.prepare('UPDATE libraries SET pupils=? WHERE id=?').bind(JSON.stringify(P), lib.id).run();
-    const rows = P.filter(p => p && p.tok).map(p => env.DB.prepare('INSERT INTO slinks (tok, lib_id, sid) VALUES (?,?,?) ON CONFLICT(tok) DO UPDATE SET lib_id=excluded.lib_id, sid=excluded.sid').bind(String(p.tok), lib.id, String(p.id)));
-    if (rows.length) await env.DB.batch(rows);
   }
   // Remote renew: library ne nayi key laga li (push me wahi key aayi) to pending saaf karo
   const curKey = String(b.key || '').replace(/\s+/g, '');
@@ -154,14 +151,15 @@ async function viewData(env, b) {
 }
 // Per-student public link — token se sirf us student ka fee+attendance (Aadhaar/private kuch nahi)
 async function studentData(env, b) {
-  const tok = String(b.tok || '').trim();
-  if (!tok) throw new Error('No link');
-  const link = await env.DB.prepare('SELECT lib_id, sid FROM slinks WHERE tok=?').bind(tok).first();
-  if (!link) throw new Error('This link is not valid or has been removed.');
-  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils FROM libraries WHERE id=?').bind(link.lib_id).first();
-  if (!lib) throw new Error('Library not found');
+  const seg = String(b.tok || '').trim();           // link segment = "<libId>~<token>"
+  if (!seg) throw new Error('No link');
+  const i = seg.lastIndexOf('~');
+  if (i < 1) throw new Error('This link is not valid.');
+  const libId = seg.slice(0, i), tok = seg.slice(i + 1);
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils FROM libraries WHERE id=?').bind(libId).first();
+  if (!lib) throw new Error('This link is not valid or has been removed.');
   let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
-  const s = P.find(x => x && x.id === link.sid && x.tok === tok);
+  const s = P.find(x => x && x.tok === tok);
   if (!s) throw new Error('Student record not found. Please ask the library to share the link again.');
   return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: s };
 }

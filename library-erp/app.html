@@ -901,7 +901,7 @@ async function shareLink(id){
   if(!ci||!ci.enabled||!ci.url){toast('Cloud not set — Online/cloud zaroori hai link ke liye','bad');return;}
   if(!s.tok){s.tok=randTok();save();}
   toast('Updating link…');try{await api('cloud-sync',{});}catch(e){}
-  const url=ci.url.replace(/\/+$/,'')+'/s/'+s.tok;
+  const url=ci.url.replace(/\/+$/,'')+'/s/'+encodeURIComponent((ci.libId||'')+'~'+s.tok);
   const msg=`${s.name} ki library report:\n${url}\n\nYahan fee (diya/baaki), attendance aur hamara contact dekh sakte hain.\n— ${D.settings.name}`;
   modal('Student link — '+(s.name||''),`
     <p class="muted">Sirf is student ki detail. Parent ko bhej do — fee, attendance aur aapka number dikhega.</p>
