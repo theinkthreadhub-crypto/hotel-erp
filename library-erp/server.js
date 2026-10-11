@@ -70,6 +70,7 @@ function saveData(obj) {
   const old = fs.readdirSync(BACKUP_DIR).filter(x => /^library_\d{4}-\d\d-\d\d\.json$/.test(x)).sort();
   old.slice(0, Math.max(0, old.length - 60)).forEach(x => fs.unlinkSync(path.join(BACKUP_DIR, x)));
   copyToFolder(obj.settings && obj.settings.backupDir);
+  scheduleSync();                                                     // badlav turant cloud par (debounced)
 }
 // Extra backup folder (jaise Google Drive ka "G:\My Drive\Library Backup") — Drive app khud upload karta hai
 function copyToFolder(dir) {
@@ -225,14 +226,19 @@ function cloudErr(e) {
   return e.message;
 }
 const setCloud = c => { const m = readJson(META, {}); m.cloud = c; writeJson(META, m); };
+let syncing = false;
 async function cloudSync(force) {
   if (!cloudUrl() || !licenseStatus().ok || !fs.existsSync(DATA)) return;
+  if (syncing) return;                                                // ek waqt me ek hi sync
   const c = readJson(META, {}).cloud || {};
   const raw = fs.readFileSync(DATA), hash = nodeCrypto.createHash('sha1').update(raw).digest('hex');
   if (!force) {
-    if (c.hash === hash && c.day === lic.today()) return;            // kuch naya nahi
-    if (c.lastTry && Date.now() - c.lastTry < 5 * 60e3 && !c.error) return;  // 5 minute mein ek baar; fail hua tha (no internet) to har 2 min try
+    if (c.hash === hash && c.day === lic.today()) return;            // kuch naya nahi, pehle hi sync hai
+    // badlav hai: jaldi bhejo. Taba-tod edit ko 6s me batch karo; fail (no net) ho to 25s backoff
+    const gap = c.error ? 15e3 : 6e3;
+    if (c.lastTry && Date.now() - c.lastTry < gap) { setTimeout(() => cloudSync().catch(() => {}), gap); return; }
   }
+  syncing = true;
   c.lastTry = Date.now();
   const D = JSON.parse(raw.toString('utf8')), S = D.settings || {}, key = readJson(LICENSE, {}).key;
   const who = { key, machine: MACHINE, name: S.name || '', contact: S.contact || '', version: VERSION };
@@ -255,9 +261,14 @@ async function cloudSync(force) {
     }
     await syncImages(c, D);   // badli hui photos cloud par
   } catch (e) { c.error = cloudErr(e); c.errorAt = new Date().toISOString(); }
+  syncing = false;
   setCloud(c);
+  if (c.error) setTimeout(() => cloudSync().catch(() => {}), 15e3);   // net aane tak dobara koshish
   if (force && c.error) throw new Error(c.error);
 }
+// Har badlav ke baad jaldi sync (taba-tod edit ko ek saath bhejne ke liye 9s ka wait)
+let syncTimer = null;
+function scheduleSync() { if (!cloudUrl()) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => cloudSync().catch(() => {}), 9000); }
 // Sirf badli / hataai gayi images cloud par bhejo (ek tick me zyada se zyada 12)
 async function syncImages(c, D) {
   const imgs = collectImages(D), have = c.imgHashes || {}, want = {};

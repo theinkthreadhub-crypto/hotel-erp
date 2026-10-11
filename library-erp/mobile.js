@@ -107,8 +107,10 @@
     A.writeFile(BK + 'library_' + today() + '.json', txt);
     const old = listBackups().map(b => b.date).sort();
     old.slice(0, Math.max(0, old.length - 60)).forEach(d => A.deleteFile(BK + 'library_' + d + '.json'));
-    setTimeout(() => cloudSync().catch(() => {}), 3000);
+    scheduleSync();
   }
+  let syncTimer = null;
+  function scheduleSync() { if (!cloudUrl()) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => cloudSync().catch(() => {}), 7000); }
   function safetyCopy() {
     const cur = A.readFile(DATA);
     if (cur) A.writeFile(BK + 'before-restore_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json', cur);
@@ -146,7 +148,8 @@
       const c = readJson(META, {}).cloud || {}, h = hex(hash('SHA-1', utf8(raw)));
       if (!force) {
         if (c.hash === h && c.day === today()) return;
-        if (c.lastTry && Date.now() - c.lastTry < 5 * 60e3 && !c.error) return;  // pichhli baar fail (no internet) to turant dobara
+        const gap = c.error ? 15e3 : 6e3;
+        if (c.lastTry && Date.now() - c.lastTry < gap) { setTimeout(() => cloudSync().catch(() => {}), gap); return; }
       }
       c.lastTry = Date.now();
       const D = JSON.parse(raw), S = D.settings || {};
@@ -164,6 +167,7 @@
         await syncImages(c, D);
       } catch (e) { c.error = e.message; c.errorAt = new Date().toISOString(); }
       setCloud(c);
+      if (c.error) setTimeout(() => cloudSync().catch(() => {}), 15e3);   // net aane tak dobara
       if (force && c.error) throw new Error(c.error);
     })().finally(() => { syncing = null; });
     return syncing;
@@ -189,7 +193,7 @@
   }
   window.__cloudSync = () => cloudSync().catch(() => {});
   // Internet aate hi backup (Android network callback + browser 'online' event)
-  window.__netUp = () => setTimeout(window.__cloudSync, 1500);
+  window.__netUp = () => { try { const m = readJson(META, {}); if (m.cloud) { m.cloud.lastTry = 0; m.cloud.error = ''; writeJson(META, m); } } catch (e) {} setTimeout(window.__cloudSync, 800); };  // net aate hi turant
   window.addEventListener('online', window.__netUp);
   setTimeout(window.__cloudSync, 8000);
   setInterval(window.__cloudSync, 2 * 60e3);

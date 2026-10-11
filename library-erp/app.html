@@ -25,6 +25,9 @@ input[readonly]{background:#f6f3e4}
 #top .cd{font:600 13px Consolas,monospace;background:#ef6c00;order:0}
 #top .cd.last{background:var(--bad);animation:blink 1s steps(2,start) infinite}
 @keyframes blink{50%{background:#7f1d1d}}
+#top .sync{font-size:12px;padding:2px 8px;border-radius:3px;background:#ffffff22;cursor:pointer;white-space:nowrap;margin-left:auto}
+#top .sync:empty{display:none}#top .sync.ok{background:#1e7d3240;color:#d6f5dc}#top .sync.amber{background:#ef6c0040;color:#ffdcb8}
+#top .sync~.clock{margin-left:8px}
 #top .clock{margin-left:auto;font-size:13px;opacity:.9}
 #wrap{flex:1;display:flex;min-height:0}
 #main{flex:1;overflow:auto;padding:14px}
@@ -280,7 +283,7 @@ html.mobile #bnav{display:flex;position:fixed;left:0;right:0;bottom:0;height:62p
 </style>
 </head>
 <body>
-<div id="top"><button id="mhome" onclick="window.MOBILE?drawer():D&&go('home')" title="Menu">☰</button><b id="libname" onclick="D&&go('home')" title="Go to Dashboard" style="cursor:pointer">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess"></span><span class="lic" id="lic"></span><span class="lic cd" id="cd"></span><span class="clock" id="clock"></span></div>
+<div id="top"><button id="mhome" onclick="window.MOBILE?drawer():D&&go('home')" title="Menu">☰</button><b id="libname" onclick="D&&go('home')" title="Go to Dashboard" style="cursor:pointer">Library ERP</b><span class="scr" id="scr">Gateway of Library</span><span class="lic sess" id="sess"></span><span class="lic" id="lic"></span><span class="lic cd" id="cd"></span><span class="sync" id="sync" onclick="syncNow()" title="Cloud sync status"></span><span class="clock" id="clock"></span></div>
 <div id="dmask" onclick="drawer(false)"></div><div id="drawer"></div><nav id="bnav"></nav>
 <div id="wrap"><div id="main"><p class="muted">Loading…</p></div><div id="side"></div></div>
 <div id="modal"><div id="mbox"></div></div>
@@ -347,9 +350,23 @@ function save(){
   const snap=JSON.stringify(D);
   saving=saving.then(()=>fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:snap}))
     .then(r=>{if(!r.ok)return r.json().then(j=>{throw new Error(j.error);});})
-    .catch(e=>toast('Could not save data: '+e.message,'bad'));
+    .catch(e=>toast('Could not save data: '+e.message,'bad'))
+    .then(()=>{setSync('save');setTimeout(syncDot,1200);});
   return saving;
 }
+// Top bar sync status: Saved (local) / Synced (cloud) / Offline — saved
+let CLOUD2=null;
+function setSync(state){const e=$('#sync');if(!e)return;
+  if(CLOUD2&&!CLOUD2.enabled){e.textContent='';e.title='';return;}
+  if(state==='save'){e.className='sync amber';e.innerHTML='● Saved';e.title='Saved on this device. Syncing to cloud…';}}
+function syncDot(){const e=$('#sync');if(!e)return;const c=CLOUD2||{};
+  if(!c.enabled){e.textContent='';return;}
+  if(c.error){e.className='sync amber';e.innerHTML='● Saved (offline)';e.title='Working offline — saved here. Will sync to cloud when internet returns.';}
+  else if(c.lastOk){e.className='sync ok';e.innerHTML='● Synced';e.title='Backed up to Setu Pro cloud: '+new Date(c.lastOk).toLocaleString('en-IN');}
+  else{e.className='sync';e.innerHTML='● …';e.title='Connecting to cloud…';}}
+async function refreshSync(){try{CLOUD2=await api('cloud');syncDot();}catch(e){}}
+async function syncNow(){if(!CLOUD2||!CLOUD2.enabled)return;const e=$('#sync');if(e){e.className='sync';e.innerHTML='● Syncing…';}
+  try{await api('cloud-sync',{});toast('Synced to cloud','ok');}catch(e){toast(e.message||'Sync failed','bad');}refreshSync();}
 
 function toast(t,cls){const e=$('#toast');e.textContent=t;e.className=cls||'';e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',cls==='bad'?4000:2200);}
 let askRes=null,lastFocus=null;
@@ -2123,7 +2140,7 @@ async function boot(){
   D=migrate(data);if(!data)save();
   drawSide();licBar();sessBar();
   if(!LIC.lifetime&&LIC.daysLeft<=7)toast(LIC.daysLeft>=1?`License expires in ${LIC.daysLeft} days — please renew (K)`:`License expires at ${licEnd()} — please renew (K)`,'bad');
-  go('home');duePopup();
+  go('home');duePopup();refreshSync();
 }
 function duePopup(){
   let k='';try{k=localStorage.getItem('liberp_due_popup');}catch(e){}
@@ -2138,6 +2155,7 @@ function duePopup(){
     <div class="btns"><button class="btn" data-k="D" autofocus onclick="go('due','due')">Open Due List (D)</button><button class="btn g" data-k="L" onclick="closeModal()">Later (L)</button></div>`);
 }
 setInterval(async()=>{if(!D)return;try{LIC=await api('license');if(!LIC.ok)showActivate();else licBar();}catch(e){}},30*60e3);
+setInterval(()=>{if(D)refreshSync();},20000);
 window.addEventListener('beforeunload',()=>{if(D)navigator.sendBeacon('/api/data',new Blob([JSON.stringify(D)],{type:'application/json'}));});
 boot();
 </script>
