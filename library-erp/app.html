@@ -850,7 +850,7 @@ async function saveStudent(id){
     if($('#s_status'))s.status=$('#s_status').value;
     save();toast('Student updated','ok');go('list');return;
   }
-  const n={id:uid(),...v,paid:monthsCovered(v.join,vt),bal:0,status:'active',created:today()};syncValid(n);
+  const n={id:uid(),...v,paid:monthsCovered(v.join,vt),bal:0,status:'active',created:today(),tok:randTok()};syncValid(n);
   D.students.push(n);save();
   if(await ask(`<b>${esc(n.name)}</b> (ID ${esc(n.code)}) saved.<br>Fee ${rs(n.fee)}. Collect the fee now?`,'Yes, collect','Later'))go('collect',n.id);
   else scrStudent();
@@ -1086,9 +1086,14 @@ function rcptText(r){
   if(r.mlist&&r.mlist.length)L.push(`${r.head}: ${rs(r.fee)}`,`*Fee months: ${mText(r.mlist)}*`);else if(r.fee)L.push(`Fee: ${rs(r.fee)}`);
   rExtras(r).forEach(x=>L.push(`${x.name}: ${rs(x.amt)}`));if(r.oldBal)L.push(`Previous balance: ${rs(r.oldBal)}`);if(r.disc)L.push(`Discount: -${rs(r.disc)}`);
   L.push('',`*Received: ${rs(r.paid)}* (${r.mode})`);if(r.bal)L.push(`Balance: ${rs(r.bal)}`);if(r.to)L.push(`Valid till: ${dmy(r.to)}`);
+  // Pehli receipt ke saath student ka apna link (fee + attendance)
+  const isFirst=D.receipts.filter(x=>x.sid===r.sid&&!x.cancel).length<=1,lk=isFirst?studentLink(s):'';
+  if(lk)L.push('',`📱 Student card (apni fee & attendance dekhein, library aakar In/Out karein):`,lk);
   L.push('',S.footer);if(S.contact)L.push(`Contact: ${S.contact}`);
   return L.filter(x=>x!==undefined).join('\n');
 }
+// Student ka public link (cloud on hone par)
+function studentLink(s){if(!s||!s.tok||!CLOUD2||!CLOUD2.url||!CLOUD2.libId)return '';return CLOUD2.url.replace(/\/+$/,'')+'/s/'+encodeURIComponent(CLOUD2.libId+'~'+s.tok);}
 const rExtras=r=>r.extras&&r.extras.length?r.extras:r.extraAmt?[{name:r.extra||'One-time fee',amt:r.extraAmt}]:[];
 // Receipt par likha WhatsApp no. ho to us par, warna student ke record wala number
 const rcptPhone=r=>{const s=stu(r.sid)||{};return normPh(r.wa)||normPh(s.mobile);};

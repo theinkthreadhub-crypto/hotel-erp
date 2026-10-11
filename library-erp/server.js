@@ -250,9 +250,27 @@ async function cloudSync(force) {
       stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
       view: (() => { try { return summary(D); } catch (e) { log('summary: ' + e.message); return null; } })(),
       pupils: (() => { try { return pupils(D); } catch (e) { log('pupils: ' + e.message); return []; } })(),
+      attSeen: c.attSeen || 0,
       data: zlib.gzipSync(clean).toString('base64') });
     Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
       notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });
+    // Student ne khud jo In/Out kiya (cloud se) usko attendance me merge karo
+    if (Array.isArray(r.attMarks) && r.attMarks.length) {
+      try {
+        const cur = JSON.parse(fs.readFileSync(DATA, 'utf8')); cur.att = cur.att || {};
+        let maxAt = c.attSeen || 0, changed = false;
+        for (const m of r.attMarks) {
+          if (!m || !m.sid || !m.date) continue;
+          const day = cur.att[m.date] || (cur.att[m.date] = {}), a = day[m.sid] || (day[m.sid] = {});
+          if (m.in && a.in !== m.in) { a.in = m.in; changed = true; }
+          if (m.out && a.out !== m.out) { a.out = m.out; changed = true; }
+          if ((m.at || 0) > maxAt) maxAt = m.at;
+        }
+        c.attSeen = maxAt;
+        if (changed) { setCloud(c); saveData(cur); }   // saveData dobara sync karega (attSeen bhej ke cloud clear)
+        else scheduleSync();
+      } catch (e) { log('attMarks: ' + e.message); }
+    }
     setCloud(c);
     // Remote renew: admin ne nayi activation key bheji ho to khud laga do
     if (r.pendingKey && r.pendingKey !== readJson(LICENSE, {}).key) {

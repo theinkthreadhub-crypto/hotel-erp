@@ -4,6 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
+| **1.18.0** | Student app | **Student ka apna page** (link se): library aakar khud **Mark IN / Mark OUT** kare (time server se, ERP me apne aap aa jata hai). **Fee record** — kaun-kaun se month ki fee di, aur **next month** kab ki deni hai. Admission karte hi **link ban jata hai**, aur **pehli receipt** ke WhatsApp ke saath apne aap chala jata hai. Owner ke Record me link rehta hai — delete ho to **Share link** se dobara bhej do |
 | 1.17.2 | — | Student-link ab halka: cloud par har sync pe sirf ek chhoti entry (pehle har student ki alag) — hazaaron libraries free me. Link format me Library ID (purane share-link dobara bhej dein) |
 | 1.17.1 | — | Aadhaar **photo feature hata diya** (storage bachane ke liye) — sirf Aadhaar **number** ERP me save rehta hai. Baaki sab waisa hi |
 | **1.17.0** | Student link + delete | **Student ka apna link**: har student ke Record me **🔗 Share link** — parent ko bhejo, wo fee (diya/baaki), attendance (In/Out, is mahine present din) aur library ka number (Call/WhatsApp) dekh le. Sirf us student ka, roz update. **Delete**: galat **student** (fee receipts samet) ya galat **fee/receipt** poori delete (confirm ke saath). **Admission me Aadhaar** (optional): number + photo **camera se, auto-compress** — sirf owner ko dikhe, public link par kabhi nahi. **Fee search** behtar: naam/ID type karo, list (scroll + count), touch → student khul jaye |

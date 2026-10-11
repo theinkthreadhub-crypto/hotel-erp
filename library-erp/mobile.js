@@ -162,9 +162,25 @@
         const clean = (window.LibImages ? JSON.stringify(window.LibImages.stripImages(D)) : raw);   // images alag
         const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: today(),
           stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
-          view, pupils: pup, data: A.gzip(clean) });
+          view, pupils: pup, attSeen: c.attSeen || 0, data: A.gzip(clean) });
         Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
           notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });
+        // Student self-attendance cloud se merge
+        if (Array.isArray(r.attMarks) && r.attMarks.length) {
+          try {
+            const cur = readJson(DATA, {}); cur.att = cur.att || {};
+            let maxAt = c.attSeen || 0, changed = false;
+            for (const m of r.attMarks) {
+              if (!m || !m.sid || !m.date) continue;
+              const day = cur.att[m.date] || (cur.att[m.date] = {}), a = day[m.sid] || (day[m.sid] = {});
+              if (m.in && a.in !== m.in) { a.in = m.in; changed = true; }
+              if (m.out && a.out !== m.out) { a.out = m.out; changed = true; }
+              if ((m.at || 0) > maxAt) maxAt = m.at;
+            }
+            c.attSeen = maxAt;
+            if (changed) { setCloud(c); saveData(cur); } else scheduleSync();
+          } catch (e) {}
+        }
         setCloud(c);
         await syncImages(c, D);
       } catch (e) { c.error = e.message; c.errorAt = new Date().toISOString(); }

@@ -24,7 +24,7 @@ async function init(env) {
   for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0',
     'pending_key TEXT', 'pending_at TEXT',  // payments + images (v1.13.0), remote renew (v1.14.0)
     'notice TEXT', 'notice_at TEXT', 'lock INTEGER DEFAULT 0', 'lock_msg TEXT',  // admin->library message + remote lock (v1.16.0)
-    'pupils TEXT'])  // per-student public link data (v1.17.0)
+    'pupils TEXT', 'att_pending TEXT'])  // per-student link + student self-attendance (v1.17.0 / v1.18.0)
     try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
@@ -38,6 +38,9 @@ const b64urlToBytes = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while 
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const sha256 = async s => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)));
 const now = () => new Date().toISOString();
+const IST = () => new Date(Date.now() + 5.5 * 3600e3);                 // India time (server UTC se)
+const istDate = () => IST().toISOString().slice(0, 10);               // YYYY-MM-DD
+const istTime = () => IST().toISOString().slice(11, 16);              // HH:MM
 const json = (obj, status = 200) => new Response(JSON.stringify(obj), { status, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
 const fail = (msg, status = 400) => json({ error: msg }, status);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -98,12 +101,19 @@ async function push(env, b) {
     const P = b.pupils.slice(0, 2000);
     await env.DB.prepare('UPDATE libraries SET pupils=? WHERE id=?').bind(JSON.stringify(P), lib.id).run();
   }
+  // Student self-attendance: ERP ne jo merge kar liya (attSeen tak) wo cloud se hata do, baaki wapas bhejo
+  let attMarks = [];
+  { const pend = attPend(lib); let changed = false;
+    const seen = +b.attSeen || 0;
+    if (seen) for (const k in pend) { if ((pend[k].at || 0) <= seen) { delete pend[k]; changed = true; } }
+    if (changed) await env.DB.prepare('UPDATE libraries SET att_pending=? WHERE id=?').bind(JSON.stringify(pend), lib.id).run();
+    attMarks = Object.values(pend); }
   // Remote renew: library ne nayi key laga li (push me wahi key aayi) to pending saaf karo
   const curKey = String(b.key || '').replace(/\s+/g, '');
   let pendingKey = lib.pending_key || '';
   if (pendingKey && pendingKey === curKey) { await env.DB.prepare('UPDATE libraries SET pending_key = NULL, pending_at = NULL WHERE id = ?').bind(lib.id).run(); pendingKey = ''; }
   return { ok: true, libId: lib.id, at: now(), pinSet: !!lib.pin_hash, pendingKey: pendingKey && pendingKey !== curKey ? pendingKey : '',
-    notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '' };
+    notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '', attMarks };
 }
 async function setPin(env, b) {
   const lib = await authLib(env, b);
@@ -156,12 +166,38 @@ async function studentData(env, b) {
   const i = seg.lastIndexOf('~');
   if (i < 1) throw new Error('This link is not valid.');
   const libId = seg.slice(0, i), tok = seg.slice(i + 1);
-  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils FROM libraries WHERE id=?').bind(libId).first();
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending FROM libraries WHERE id=?').bind(libId).first();
   if (!lib) throw new Error('This link is not valid or has been removed.');
   let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
   const s = P.find(x => x && x.tok === tok);
   if (!s) throw new Error('Student record not found. Please ask the library to share the link again.');
-  return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: s };
+  // student ne abhi khud jo In/Out kiya (abhi tak ERP me sync nahi hua) wo bhi dikhao
+  const pend = attPend(lib), k = String(s.id) + '|' + istDate(), m = pend[k];
+  if (m) { if (m.in) s.todayIn = m.in; if (m.out) s.todayOut = m.out; }
+  return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: { ...s } };
+}
+function attPend(lib) { try { return JSON.parse(lib.att_pending || '{}') || {}; } catch (e) { return {}; } }
+// Student khud In/Out kare (link se). Server time (IST). ERP agle sync me kheench lega.
+async function studentMark(env, b) {
+  const seg = String(b.tok || '').trim(), act = b.act === 'out' ? 'out' : 'in';
+  const i = seg.lastIndexOf('~'); if (i < 1) throw new Error('This link is not valid.');
+  const libId = seg.slice(0, i), tok = seg.slice(i + 1);
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending FROM libraries WHERE id=?').bind(libId).first();
+  if (!lib) throw new Error('This link is not valid or has been removed.');
+  let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
+  const s = P.find(x => x && x.tok === tok);
+  if (!s) throw new Error('Student not found.');
+  const pend = attPend(lib), date = istDate(), k = String(s.id) + '|' + date, t = istTime();
+  const cur = pend[k] || { sid: s.id, date, in: '', out: '', at: 0 };
+  if (act === 'in') { if (cur.in) throw new Error('Already marked IN at ' + cur.in + ' today'); cur.in = t; }
+  else { if (!cur.in) throw new Error('Mark IN first.'); if (cur.out) throw new Error('Already marked OUT at ' + cur.out); cur.out = t; }
+  cur.at = Date.now();
+  pend[k] = cur;
+  // purani entries (15 din se purani) safai
+  for (const key in pend) { if (pend[key].at && Date.now() - pend[key].at > 15 * 864e5) delete pend[key]; }
+  await env.DB.prepare('UPDATE libraries SET att_pending=? WHERE id=?').bind(JSON.stringify(pend), lib.id).run();
+  if (act === 'in') s.todayIn = t; else s.todayOut = t;
+  return { ok: true, act, time: t, lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: { ...s } };
 }
 
 const MAX_IMG = 400000;        // ek image ~400 KB tak (base64)
@@ -803,6 +839,11 @@ const STUDENT_HTML = `<!doctype html>
 .att{display:flex;gap:10px}.att .box{flex:1;text-align:center;background:#f3f6fb;border-radius:12px;padding:12px}
 .att .box b{display:block;font-size:20px}.att .box small{color:var(--m);font-size:12px}
 .att .box.in b{color:var(--ok)}.att .box.out b{color:var(--m)}
+.markrow{margin-top:12px}
+.btn.in{width:100%;background:var(--ok)}.btn.out{width:100%;background:#d98200}
+.done{text-align:center;color:var(--ok);font-weight:600;padding:12px;background:#e3f4e5;border-radius:12px}
+.months{display:flex;flex-wrap:wrap;gap:6px}
+.months .m{font-size:12px;background:#e3f4e5;color:var(--ok);border-radius:20px;padding:4px 11px;font-weight:600}
 .cta{display:flex;gap:10px;margin-top:4px}
 .btn{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;padding:13px;border-radius:12px;text-decoration:none;font-weight:600;font-size:15px;color:#fff}
 .btn.call{background:var(--b2)}.btn.wa{background:#25d366}
@@ -816,29 +857,46 @@ const STUDENT_HTML = `<!doctype html>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const rs=n=>'₹'+Math.round(+n||0).toLocaleString('en-IN');
-const dmy=d=>d?new Date(d+(d.length<=7?'-01':'')+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—';
 const mon=m=>m?new Date(m+'-01T00:00:00').toLocaleDateString('en-IN',{month:'short',year:'numeric'}):'—';
 function waHref(c){let d=String(c||'').replace(/\\D/g,'');if(d.length===10)d='91'+d;return 'https://wa.me/'+d;}
 function telHref(c){return 'tel:'+String(c||'').replace(/[^\\d+]/g,'');}
+const SEG=(location.pathname.split('/s/')[1]||new URLSearchParams(location.search).get('t')||'').trim();
+let DATA=null,busy=false;
+function toast(t){let e=$('tst');if(!e){e=document.createElement('div');e.id='tst';e.style.cssText='position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#222;color:#fff;padding:10px 18px;border-radius:10px;z-index:9;font-size:14px';document.body.appendChild(e);}e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2500);}
+async function mark(act){if(busy)return;busy=true;
+  try{const r=await fetch('/api/student-mark',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tok:SEG,act})});const j=await r.json();if(!r.ok)throw new Error(j.error||'Error');
+    toast((act==='in'?'Marked IN at ':'Marked OUT at ')+j.time);DATA=Object.assign({},DATA,{student:j.student});render(DATA);}
+  catch(e){toast(e.message||'Could not mark');}busy=false;}
 async function load(){
-  const tok=(location.pathname.split('/s/')[1]||new URLSearchParams(location.search).get('t')||'').trim();
-  if(!tok){$('app').innerHTML='<div class="msg">This link is incomplete.</div>';return;}
-  let d;try{const r=await fetch('/api/student',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tok})});d=await r.json();if(!r.ok)throw new Error(d.error||'Error');}
+  if(!SEG){$('app').innerHTML='<div class="msg">This link is incomplete.</div>';return;}
+  let d;try{const r=await fetch('/api/student',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tok:SEG})});d=await r.json();if(!r.ok)throw new Error(d.error||'Error');}
   catch(e){$('app').innerHTML='<div class="msg">⚠️ '+esc(e.message||'Could not load')+'</div>';return;}
+  DATA=d;render(d);
+}
+function render(d){
   const s=d.student,due=+s.due||0;
+  const paid=(s.paidMonths||[]);
+  const attBtn=!s.todayIn?'<button class="btn in" onclick="mark(\\'in\\')">✅ Mark IN</button>'
+    :!s.todayOut?'<button class="btn out" onclick="mark(\\'out\\')">🚪 Mark OUT</button>'
+    :'<div class="done">✓ Attendance done for today</div>';
   $('app').innerHTML=
     '<div class="hd"><div class="lib">'+esc(d.lib||'Library')+'</div><h1>'+esc(s.name||'Student')+'</h1>'+
       '<div class="sub">'+(s.code?'ID '+esc(s.code):'')+(s.seat?' · Seat '+esc(s.seat):'')+'</div>'+
       '<span class="pill '+(due>0?'due':'ok')+'">'+(due>0?'Fee due '+rs(due):'All fees clear ✓')+'</span></div>'+
-    '<div class="card"><h3>Fee</h3>'+
-      '<div class="big '+(due>0?'due':'ok')+'"><div class="amt">'+rs(due)+'</div><small>'+(due>0?(s.dueMonths||0)+' month(s) pending'+(s.dueFrom?' · from '+mon(s.dueFrom):''):'Nothing due right now')+'</small></div>'+
-      '<div class="row"><span>Plan</span><b>'+esc(s.plan||'—')+'</b></div>'+
-      '<div class="row"><span>Monthly fee</span><b>'+(s.feeMonthly?rs(s.feeMonthly):'—')+'</b></div>'+
-      '<div class="row"><span>Months paid</span><b>'+(s.paid||0)+'</b></div></div>'+
     '<div class="card"><h3>Attendance</h3>'+
       '<div class="att"><div class="box in"><b>'+esc(s.todayIn||'—')+'</b><small>Today In</small></div>'+
       '<div class="box out"><b>'+esc(s.todayOut||'—')+'</b><small>Today Out</small></div>'+
-      '<div class="box"><b>'+(s.monthPresent||0)+'</b><small>Days this month</small></div></div></div>'+
+      '<div class="box"><b>'+(s.monthPresent||0)+'</b><small>Days this month</small></div></div>'+
+      '<div class="markrow">'+attBtn+'</div></div>'+
+    '<div class="card"><h3>Fee</h3>'+
+      '<div class="big '+(due>0?'due':'ok')+'"><div class="amt">'+rs(due)+'</div><small>'+(due>0?(s.dueMonths||0)+' month(s) pending'+(s.dueFrom?' · from '+mon(s.dueFrom):''):'Nothing due right now')+'</small></div>'+
+      '<div class="row"><span>Next payment</span><b class="'+(due>0?'bad':'')+'">'+(s.nextDue?mon(s.nextDue):'—')+'</b></div>'+
+      '<div class="row"><span>Plan</span><b>'+esc(s.plan||'—')+'</b></div>'+
+      '<div class="row"><span>Monthly fee</span><b>'+(s.feeMonthly?rs(s.feeMonthly):'—')+'</b></div>'+
+      '<div class="row"><span>Months paid</span><b>'+(s.paid||0)+'</b></div></div>'+
+    '<div class="card"><h3>Fee record — paid months</h3>'+
+      (paid.length?'<div class="months">'+paid.map(m=>'<span class="m">'+mon(m)+'</span>').join('')+'</div>':'<div class="muted" style="color:#6b7385;font-size:13px">No payment recorded yet.</div>')+
+      (s.nextDue?'<div class="row" style="margin-top:8px"><span>Next month to pay</span><b class="bad">'+mon(s.nextDue)+'</b></div>':'')+'</div>'+
     (d.contact?'<div class="card"><h3>Library contact</h3><div class="cta">'+
       '<a class="btn call" href="'+telHref(d.contact)+'">📞 Call</a>'+
       '<a class="btn wa" href="'+waHref(d.contact)+'" target="_blank" rel="noopener">💬 WhatsApp</a></div>'+
@@ -868,7 +926,7 @@ export default {
       if (req.method !== 'POST' || !url.pathname.startsWith('/api/')) return fail('Not found', 404);
       const b = await req.json();
       const fn = { '/api/register': register, '/api/push': push, '/api/pin': setPin, '/api/restore': restore, '/api/view': viewData,
-        '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList, '/api/pull-key': pullKey, '/api/student': studentData }[url.pathname];
+        '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList, '/api/pull-key': pullKey, '/api/student': studentData, '/api/student-mark': studentMark }[url.pathname];
       if (!fn) return fail('Not found', 404);
       return json(await fn(env, b));
     } catch (e) {

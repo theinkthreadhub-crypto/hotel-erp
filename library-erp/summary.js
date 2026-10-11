@@ -71,10 +71,13 @@ function pupils(D, now = new Date()) {
   const monthPresent = id => { let n = 0; for (const d in att) if (d.slice(0, 7) === cm && att[d][id]) n++; return n; };
   const today = att[t] || {};
   return (D.students || []).filter(s => s.status !== 'left' && s.tok).map(s => {
-    const u = unpaid(s), a = today[s.id] || {};
+    const u = unpaid(s), a = today[s.id] || {}, P = new Set(s.paid || []);
+    const nextDue = mRange((s.join || t).slice(0, 7), mAdd(cm, 6)).find(m => !P.has(m)) || '';
     return { id: s.id, tok: s.tok, code: s.code || '', name: s.name || '', seat: s.seat || '',
       plan: (plan(s.planId) || {}).name || '', feeMonthly: rate(s), paid: (s.paid || []).length,
-      due: u.length * rate(s) + (+s.bal || 0), dueMonths: u.length, dueFrom: u[0] || '',
+      paidMonths: (s.paid || []).slice().sort().slice(-14),
+      due: u.length * rate(s) + (+s.bal || 0), dueMonths: u.length, dueFrom: u[0] || '', nextDue,
+      validTill: s.validTill || '',
       todayIn: a.in || '', todayOut: a.out || '', monthPresent: monthPresent(s.id), join: s.join || '' };
   });
 }
