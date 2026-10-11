@@ -27,7 +27,12 @@ input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:trans
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
 .chip{font-size:12px;background:#eef3fb;border-radius:20px;padding:3px 9px;color:var(--b2)}
 .chip.bad{background:#fde2e2;color:var(--bad)}.chip.ok{background:#e3f4e5;color:var(--ok)}.chip.warn{background:#fff0d6;color:#9a6200}
-.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:2px 14px;margin:8px 0;font-size:13px}
+.info div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:4px 0}
+.info span{color:var(--m)}.info b{text-align:right;white-space:nowrap}
+.alert{border-radius:10px;padding:8px 11px;font-size:13px;font-weight:600;margin:8px 0;display:flex;align-items:center;gap:7px}
+.alert.warn{background:#fff0d6;color:#9a6200}.alert.bad{background:#fde2e2;color:var(--bad)}
+.acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .tag{font-size:11px;border-radius:5px;padding:1px 6px;font-weight:600}
 .badge{background:var(--bad);color:#fff;border-radius:20px;font-size:11px;padding:1px 7px;margin-left:4px}
 .tabs{display:flex;position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);z-index:6}
@@ -90,16 +95,25 @@ function login(msg){
 function logout(){PW=null;DATA=null;store.del('setu_admin_pw');login();}
 
 async function home(){try{DATA=await api('libs');}catch(e){if(e.auth)return login(e.message);toast(e.message,'bad');return;}render();}
+// Call / WhatsApp — owner ke number par seedhe
+const telHref=c=>'tel:'+String(c||'').replace(/[^\d+]/g,'');
+function waHref(c,name){let d=String(c||'').replace(/\D/g,'');if(d.length===10)d='91'+d;const t=encodeURIComponent('Namaste '+(name||'')+' ji, Setu Pro se baat ho rahi hai — Library ERP ke baare mein.');return 'https://wa.me/'+d+'?text='+t;}
+// urgency: expire/payment-due wali library upar aaye
+function urgency(l){const d=licDays(l.lic_expiry),pd=l.paid_till?licDaysPay(l.paid_till):null;let u=0;
+  if(d!==Infinity){if(d<0)u=200;else if(d<=5)u=Math.max(u,150-d);}
+  if(pd!=null){if(pd<0)u=Math.max(u,120);else if(pd<=5)u=Math.max(u,100-pd);}
+  if(staleH(l.last_sync)>48)u=Math.max(u,50);return u;}
 function render(){
-  const L=DATA.libs||[];
-  const stale=L.filter(l=>staleH(l.last_sync)>48).length, expy=L.filter(l=>{const d=licDays(l.lic_expiry);return d!==Infinity&&d<=7;}).length;
-  const dueP=L.filter(l=>l.paid_till&&licDaysPay(l.paid_till)<0).length;
+  const L=(DATA.libs||[]).slice().sort((a,b)=>urgency(b)-urgency(a)||(b.seq||0)-(a.seq||0));
+  const stale=L.filter(l=>staleH(l.last_sync)>48).length;
+  const exp5=L.filter(l=>{const d=licDays(l.lic_expiry);return d!==Infinity&&d<=5;}).length;
+  const dueP=L.filter(l=>l.paid_till&&licDaysPay(l.paid_till)<=5).length;
   app.innerHTML=`<header><b>🛡️ Super Admin</b><button onclick="home()">↻</button><button onclick="logout()">Exit</button></header><main>
   <div class="kpis">
     <div class="k"><b>${L.length}</b><span>Libraries</span></div>
     <div class="k"><b class="${stale?'bad':'ok'}">${stale}</b><span>Backup stale</span></div>
-    <div class="k"><b class="${expy?'warn':''}">${expy}</b><span>License ≤7d</span></div>
-    <div class="k"><b class="${DATA.ticketsUnread?'bad':''}">${DATA.ticketsUnread}</b><span>New tickets</span></div>
+    <div class="k"><b class="${exp5?'warn':'ok'}">${exp5}</b><span>License ≤5d / expired</span></div>
+    <div class="k"><b class="${dueP?'warn':'ok'}">${dueP}</b><span>Payment due ≤5d</span></div>
   </div>
   <input id="q" placeholder="Search name / ID / mobile" oninput="filt(this.value)" style="margin-bottom:10px">
   <div id="list"></div></main>
@@ -109,20 +123,35 @@ function render(){
 const licDaysPay=d=>Math.ceil((new Date(d).getTime()+864e5-Date.now())/864e5);
 function drawLibs(L){
   $('#list').innerHTML=L.map(l=>{const d=licDays(l.lic_expiry),sh=staleH(l.last_sync),pd=l.paid_till?licDaysPay(l.paid_till):null;
+    // 5 din pehle (ya expire/overdue) alert
+    let al='';
+    if(d!==Infinity&&d<0)al=`<div class="alert bad">⚠️ License expired on ${dmy(l.lic_expiry)} — renew now</div>`;
+    else if(d!==Infinity&&d<=5)al=`<div class="alert warn">⏳ License expires on ${dmy(l.lic_expiry)} — only ${d} day${d===1?'':'s'} left</div>`;
+    if(pd!=null&&pd<0)al+=`<div class="alert bad">💰 Payment overdue since ${dmy(l.paid_till)}</div>`;
+    else if(pd!=null&&pd<=5)al+=`<div class="alert warn">💰 Next payment due on ${dmy(l.paid_till)} — in ${pd} day${pd===1?'':'s'}</div>`;
+    const cls=c=>c;
     return `<div class="lib" data-s="${esc((l.id+' '+l.name+' '+l.contact).toLowerCase())}"><div class="top">
     <img class="logo"${l.img_count?` data-img="${BASE}/admin/image?id=${encodeURIComponent(l.id)}&key=logo"`:' style="visibility:hidden"'}>
     <div class="nm"><b>${esc(l.name||'(no name)')} ${l.tickets_unread?`<span class="badge">${l.tickets_unread} msg</span>`:''}</b>
-      <small><b class="lid" onclick='copyTxt(${JSON.stringify(l.id)})' title="Tap to copy Library ID">${esc(l.id)}</b> · ${esc(l.contact||'—')} · v${esc(l.version||'?')}</small></div></div>
+      <small><b class="lid" onclick='copyTxt(${JSON.stringify(l.id)})' title="Tap to copy Library ID">${esc(l.id)}</b> · 📞 ${esc(l.contact||'—')}</small></div></div>
+    ${al}
+    <div class="info">
+      <div><span>Installed</span><b>${dmy(l.created)}</b></div>
+      <div><span>Students</span><b>${l.active}/${l.students}</b></div>
+      <div><span>Receipts</span><b>${l.receipts||0}</b></div>
+      <div><span>App version</span><b>v${esc(l.version||'?')}</b></div>
+      <div><span>Last payment</span><b>${l.amount?rs(l.amount):'—'}${l.plan?' · '+esc(l.plan):''}</b></div>
+      <div><span>Next payment</span><b class="${pd==null?'':pd<0?'bad':pd<=5?'warn':'ok'}">${pd==null?'not set':dmy(l.paid_till)+(pd<0?' · overdue':' · '+pd+'d')}</b></div>
+      <div><span>License</span><b class="${d===Infinity?'ok':d<0?'bad':d<=5?'warn':'ok'}">${d===Infinity?'Lifetime':d<0?'expired '+dmy(l.lic_expiry):dmy(l.lic_expiry)+' · '+d+'d'}</b></div>
+      <div><span>Backup</span><b class="${sh>48?'bad':sh>12?'warn':'ok'}">${ago(l.last_sync)}</b></div>
+    </div>
     <div class="chips">
-      <span class="chip ${sh>48?'bad':sh>12?'warn':'ok'}">Backup ${ago(l.last_sync)}</span>
-      <span class="chip ${d===Infinity?'ok':d<0?'bad':d<=7?'warn':''}">License ${d===Infinity?'Lifetime':d<0?'expired':d+'d left'}</span>
-      <span class="chip">${l.active}/${l.students} students</span>
-      <span class="chip">${l.receipts} receipts</span>
-      <span class="chip ${pd==null?'warn':pd<0?'bad':'ok'}">${pd==null?'Payment not set':pd<0?'Payment due ('+dmy(l.paid_till)+')':'Paid till '+dmy(l.paid_till)}</span>
-      <span class="chip ${l.pinSet?'ok':'bad'}">PIN ${l.pinSet?'set':'not set'}</span>
+      <span class="chip ${l.pinSet?'ok':'bad'}">Restore PIN ${l.pinSet?'set':'not set'}</span>
       ${l.pendingKey?'<span class="chip warn">Renewal key waiting (library offline)</span>':''}
     </div>
-    <div class="acts"><button class="btn sm ok" onclick='renewBox(${JSON.stringify(l.id)})'>Renew</button>
+    <div class="acts">
+      ${l.contact?`<a class="btn sm g" href="${telHref(l.contact)}">📞 Call</a><a class="btn sm ok" href="${waHref(l.contact,l.name)}" target="_blank" rel="noopener">💬 WhatsApp</a>`:''}
+      <button class="btn sm ok" onclick='renewBox(${JSON.stringify(l.id)})'>Renew</button>
       <button class="btn sm" onclick='payBox(${JSON.stringify(l.id)})'>Payment</button>
       <button class="btn sm g" onclick='libTickets(${JSON.stringify(l.id)})'>Tickets</button>
       <button class="btn sm g" onclick='dlBackup(${JSON.stringify(l.id)})'>Backup</button>

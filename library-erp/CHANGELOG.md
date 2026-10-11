@@ -4,7 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
-| **1.15.0** | Live sync | **Near-real-time sync**: har badlav ~9s me cloud par; net gaya to ERP chalta rahega, net aate hi data khud sync (phone par turant, computer par ~15s). Upar **sync indicator** (● Synced / ● Saved offline), tap par abhi sync. Pehle 5 min lagte the |
+| **1.15.0** | Live sync + Admin | **Near-real-time sync**: har badlav ~9s me cloud par; net gaya to ERP chalta rahega, net aate hi data khud sync (phone par turant, computer par ~15s). Upar **sync indicator** (● Synced / ● Saved offline), tap par abhi sync. Pehle 5 min lagte the. **Super Admin naya look**: har library ka install date, contact par seedhe 📞 Call / 💬 WhatsApp, students, last payment (₹) + plan, **next payment date**, license — sab ek jagah; license/payment **expire hone se 5 din pehle** warning; urgent libraries upar |
 | 1.14.0 | Remote renew | **Super Admin se license renew**: expire hone wali library ke saamne activation key paste karo, uska ERP internet milte hi khud activate (khatam hone ke baad bhi). Library ID tap se copy, backup admin app se save/share. Key SetuKeygen me hi banti hai (chabi cloud me nahi) |
 | 1.13.1 | — | Student photo aur documents (ID card) wala feature hata diya (library ne nahi maanga). Baaki sab waise hi |
 | 1.13.0 | Admin + Photos | Student photo (admission/record) aur documents attach; internet milte hi photos ka auto cloud backup (restore par wapas). **Help & Support**: library Setu Pro ko ticket bheje, jawab yahin. **Super Admin app (SetuAdmin.apk)**: sab libraries ka backup health, license bacha, usage, payment track aur tickets ek jagah |
