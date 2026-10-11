@@ -4,7 +4,8 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
-| **1.13.1** | — | Student photo aur documents (ID card) wala feature hata diya (library ne nahi maanga). Baaki sab waise hi |
+| **1.14.0** | Remote renew | **Super Admin se license renew**: expire hone wali library ke saamne activation key paste karo, uska ERP internet milte hi khud activate (khatam hone ke baad bhi). Library ID tap se copy, backup admin app se save/share. Key SetuKeygen me hi banti hai (chabi cloud me nahi) |
+| 1.13.1 | — | Student photo aur documents (ID card) wala feature hata diya (library ne nahi maanga). Baaki sab waise hi |
 | 1.13.0 | Admin + Photos | Student photo (admission/record) aur documents attach; internet milte hi photos ka auto cloud backup (restore par wapas). **Help & Support**: library Setu Pro ko ticket bheje, jawab yahin. **Super Admin app (SetuAdmin.apk)**: sab libraries ka backup health, license bacha, usage, payment track aur tickets ek jagah |
 | 1.12.0 | Reminder | **Fee Reminder (Z)**: is mahine ki fee due / purani fee / expiring soon — ek-ek karke WhatsApp, "sent today ✓"; **message templates** khud badlein ({name}, {month}, {amount}, {last_date}…), apne naye template bhi |
 | 1.11.1 | Support no. | Setu Pro customer support number sahi kiya: **6392995127** (ERP, phone apps, Online View) |

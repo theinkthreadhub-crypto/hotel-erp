@@ -246,6 +246,13 @@ async function cloudSync(force) {
       data: zlib.gzipSync(clean).toString('base64') });
     Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet });
     setCloud(c);
+    // Remote renew: admin ne nayi activation key bheji ho to khud laga do
+    if (r.pendingKey && r.pendingKey !== readJson(LICENSE, {}).key) {
+      try { const ls = activate(r.pendingKey); if (ls.ok) { log('License renewed from cloud (till ' + (ls.expiryMs ? lic.fmtDT(ls.expiryMs) : 'lifetime') + ')');
+        await cloudCall('/api/push', { ...who, key: r.pendingKey, libId: c.libId, token: c.token, day: lic.today(),
+          stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length }, data: zlib.gzipSync(clean).toString('base64') }); } }
+      catch (e) { log('Cloud renew: ' + e.message); }
+    }
     await syncImages(c, D);   // badli hui photos cloud par
   } catch (e) { c.error = cloudErr(e); c.errorAt = new Date().toISOString(); }
   setCloud(c);
@@ -274,6 +281,20 @@ async function pullImages(libId, token, D) {
   return hashes;
 }
 const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet }; };
+// License khatam hone par bhi: cloud par admin ki bheji nayi key le aakar khud lagao
+async function cloudRenew() {
+  if (!cloudUrl()) return false;
+  const c = readJson(META, {}).cloud || {};
+  if (!c.libId || !c.token) return false;
+  try {
+    const r = await cloudCall('/api/pull-key', { libId: c.libId, token: c.token, machine: MACHINE });
+    if (r.key && r.key !== readJson(LICENSE, {}).key) {
+      const ls = activate(r.key);
+      if (ls.ok) { log('License renewed from cloud'); cloudSync(true).catch(() => {}); return true; }
+    }
+  } catch (e) {}
+  return false;
+}
 
 /* ---------- http ---------- */
 function body(req) {
@@ -296,6 +317,7 @@ const server = http.createServer(async (req, res) => {
     if (url === '/api/quit' && req.method === 'POST') { log('ERP closed by user'); send(res, 200, { ok: true }); return setTimeout(() => process.exit(0), 300); }
     if (url === '/api/license') return send(res, 200, licenseStatus());
     if (url === '/api/activate' && req.method === 'POST') return send(res, 200, activate((await body(req)).key));
+    if (url === '/api/cloud-renew' && req.method === 'POST') { const ok = await cloudRenew(); return send(res, 200, { ok, ...licenseStatus() }); }
     // Expire hone par bhi apna data nikal sakein
     if (url === '/api/export') {
       res.writeHead(200, { 'Content-Type': 'application/json', 'Content-Disposition': `attachment; filename="library_backup_${lic.today()}.json"` });
@@ -422,6 +444,8 @@ server.on('listening', () => {
   setTimeout(autoEmail, 20000);
   setTimeout(() => cloudSync().catch(() => {}), 8000);
   setInterval(() => cloudSync().catch(() => {}), 2 * 60e3);
+  setTimeout(() => cloudRenew().catch(() => {}), 6000);               // boot par renewal check
+  setInterval(() => cloudRenew().catch(() => {}), 10 * 60e3);         // har 10 min, license khatam ho to bhi
   setInterval(autoEmail, 15 * 60e3);
 });
 server.listen(PORT, '127.0.0.1');

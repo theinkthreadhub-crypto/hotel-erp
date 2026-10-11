@@ -1,18 +1,25 @@
 package com.setupro.superadmin;
 
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
-import android.view.View;
+import android.util.Base64;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Toast;
 
-// Setu Library: owner ka phone app. Setu Pro cloud ka Online View (/view) WebView mein kholta hai.
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+
+// Setu Pro Super Admin: cloud ka /super page WebView mein. Backup save/share ke liye chhota SA bridge.
 public class MainActivity extends Activity {
     static final String HOST = "setu-erp.theinkthreadhub.workers.dev";
     static final String START = "https://" + HOST + "/super";
@@ -30,6 +37,7 @@ public class MainActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setSupportMultipleWindows(false);
         s.setUserAgentString(s.getUserAgentString() + " SetuAdminApp/1.0");
+        web.addJavascriptInterface(new Bridge(), "SA");
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
@@ -89,4 +97,25 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() { web.onPause(); super.onPause(); }
+
+    // Sirf ek kaam: backup / file ko save ya share karna (Gmail, WhatsApp, Drive)
+    class Bridge {
+        @JavascriptInterface
+        public void save(final String name, final String mime, final String b64) {
+            runOnUiThread(new Runnable() { @Override public void run() {
+                try {
+                    File dir = new File(getCacheDir(), "share"); dir.mkdirs();
+                    String safe = name == null ? "file" : name.replaceAll("[^A-Za-z0-9_.-]", "_");
+                    try (OutputStream o = new FileOutputStream(new File(dir, safe))) { o.write(Base64.decode(b64, Base64.DEFAULT)); }
+                    Uri u = Uri.parse("content://com.setupro.superadmin.share/" + safe);
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType(mime == null || mime.isEmpty() ? "application/octet-stream" : mime);
+                    i.putExtra(Intent.EXTRA_STREAM, u);
+                    i.setClipData(ClipData.newRawUri(safe, u));
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    startActivity(Intent.createChooser(i, "Save or send " + safe));
+                } catch (Exception e) { Toast.makeText(MainActivity.this, "Could not save: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+            } });
+        }
+    }
 }

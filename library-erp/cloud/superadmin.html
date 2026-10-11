@@ -41,6 +41,7 @@ input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:trans
 .modal{position:fixed;inset:0;background:#0006;display:none;align-items:flex-end;justify-content:center;z-index:10}
 .modal.open{display:flex}.sheet{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:90vh;overflow:auto;padding:16px}
 .imgs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.imgs a img{width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.lid{border-bottom:1px dotted var(--m);cursor:pointer}
 .muted{color:var(--m);font-size:13px}.err{color:var(--bad);min-height:18px;font-size:14px;margin-top:6px}
 .foot{text-align:center;color:var(--m);font-size:12px;margin-top:14px}
 @media(max-width:600px){.kpis{grid-template-columns:repeat(2,1fr)}}
@@ -62,7 +63,12 @@ async function api(op,opts){opts=opts||{};const r=await fetch(BASE+'/admin/api/'
 async function authBlob(url){const r=await fetch(url,{headers:{Authorization:auth()}});if(!r.ok)throw new Error('load '+r.status);return URL.createObjectURL(await r.blob());}
 function loadImgs(root){(root||document).querySelectorAll('img[data-img]').forEach(el=>{const u=el.dataset.img;el.removeAttribute('data-img');
   authBlob(u).then(o=>el.src=o).catch(()=>{el.style.visibility='hidden';});});}
-async function dlBackup(id){try{const o=await authBlob(BASE+'/admin/download?id='+encodeURIComponent(id));const a=document.createElement('a');a.href=o;a.download=id+'_backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(o),4000);}catch(e){toast('Backup download failed','bad');}}
+async function blobB64(blob){const u=new Uint8Array(await blob.arrayBuffer());let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);}
+async function dlBackup(id){try{const r=await fetch(BASE+'/admin/download?id='+encodeURIComponent(id),{headers:{Authorization:auth()}});if(!r.ok)throw new Error('load '+r.status);const blob=await r.blob(),name=id+'_backup.json';
+  if(window.SA&&SA.save){SA.save(name,'application/json',await blobB64(blob));toast('Backup ready — choose where to save / send','ok');}
+  else{const o=URL.createObjectURL(blob);const a=document.createElement('a');a.href=o;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(o),4000);}
+}catch(e){toast('Backup download failed','bad');}}
+function copyTxt(t){(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Copied: '+t,'ok'),()=>{try{const i=document.createElement('textarea');i.value=t;document.body.appendChild(i);i.select();document.execCommand('copy');i.remove();toast('Copied: '+t,'ok');}catch(e){toast(t,'ok');}});}
 
 const dmy=d=>d?(/^\d{10,}$/.test(d)?new Date(+d):new Date(d)).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—';
 const ago=t=>{if(!t)return 'never';const m=(Date.now()-new Date(t))/60e3;return m<1?'just now':m<60?Math.round(m)+' min ago':m<48*60?Math.round(m/60)+' h ago':Math.round(m/1440)+' d ago';};
@@ -106,7 +112,7 @@ function drawLibs(L){
     return `<div class="lib" data-s="${esc((l.id+' '+l.name+' '+l.contact).toLowerCase())}"><div class="top">
     <img class="logo"${l.img_count?` data-img="${BASE}/admin/image?id=${encodeURIComponent(l.id)}&key=logo"`:' style="visibility:hidden"'}>
     <div class="nm"><b>${esc(l.name||'(no name)')} ${l.tickets_unread?`<span class="badge">${l.tickets_unread} msg</span>`:''}</b>
-      <small>${esc(l.id)} · ${esc(l.contact||'—')} · v${esc(l.version||'?')}</small></div></div>
+      <small><b class="lid" onclick='copyTxt(${JSON.stringify(l.id)})' title="Tap to copy Library ID">${esc(l.id)}</b> · ${esc(l.contact||'—')} · v${esc(l.version||'?')}</small></div></div>
     <div class="chips">
       <span class="chip ${sh>48?'bad':sh>12?'warn':'ok'}">Backup ${ago(l.last_sync)}</span>
       <span class="chip ${d===Infinity?'ok':d<0?'bad':d<=7?'warn':''}">License ${d===Infinity?'Lifetime':d<0?'expired':d+'d left'}</span>
@@ -114,8 +120,10 @@ function drawLibs(L){
       <span class="chip">${l.receipts} receipts</span>
       <span class="chip ${pd==null?'warn':pd<0?'bad':'ok'}">${pd==null?'Payment not set':pd<0?'Payment due ('+dmy(l.paid_till)+')':'Paid till '+dmy(l.paid_till)}</span>
       <span class="chip ${l.pinSet?'ok':'bad'}">PIN ${l.pinSet?'set':'not set'}</span>
+      ${l.pendingKey?'<span class="chip warn">Renewal key waiting (library offline)</span>':''}
     </div>
-    <div class="acts"><button class="btn sm" onclick='payBox(${JSON.stringify(l.id)})'>Payment</button>
+    <div class="acts"><button class="btn sm ok" onclick='renewBox(${JSON.stringify(l.id)})'>Renew</button>
+      <button class="btn sm" onclick='payBox(${JSON.stringify(l.id)})'>Payment</button>
       <button class="btn sm g" onclick='libTickets(${JSON.stringify(l.id)})'>Tickets</button>
       <button class="btn sm g" onclick='dlBackup(${JSON.stringify(l.id)})'>Backup</button>
       <button class="btn sm g" onclick='setPin(${JSON.stringify(l.id)})'>Set PIN</button>
@@ -138,6 +146,19 @@ function payBox(id){const l=libById(id);
   <div class="acts" style="margin-top:14px"><button class="btn ok" onclick="savePay('${id}')">Save</button><button class="btn g" onclick="closeSheet()">Close</button></div>`);}
 async function savePay(id){try{await api('pay',{body:{id,paid_till:$('#pt').value,plan:$('#pl').value,amount:+$('#pa').value||0,note:$('#pn').value}});
   toast('Saved','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+function renewBox(id){const l=libById(id),d=licDays(l.lic_expiry);
+  sheet(`<h3>Renew license — ${esc(l.name||id)}</h3>
+  <p class="muted">${esc(l.id)} · License: ${d===Infinity?'Lifetime':d<0?'<b class="bad">expired</b>':'<b>'+d+' days left</b>'}${l.pendingKey?' · <b class="warn">a key is waiting to apply</b>':''}</p>
+  <label>Machine code (SetuKeygen me ye daalkar key banayein)</label>
+  <div class="row" style="gap:6px"><input id="rmc" value="${esc(l.machine||'')}" readonly><button class="btn g" onclick="copyTxt('${esc(l.machine||'')}')">Copy</button></div>
+  <label style="margin-top:8px">Activation key (SetuKeygen se banakar yahan paste karein)</label><textarea id="rk" rows="4" placeholder="LIB-…"></textarea>
+  <div class="acts" style="margin-top:12px"><button class="btn ok" onclick="sendRenew('${id}')">Send to library</button>
+  ${l.pendingKey?`<button class="btn bad" onclick="clearRenew('${id}')">Cancel waiting key</button>`:''}
+  <button class="btn g" onclick="closeSheet()">Close</button></div>
+  <p class="muted" style="margin-top:8px;font-size:13px">Library ka ERP internet milte hi khud activate ho jayega — customer ko kuch nahi karna. Key sirf usi machine par chalegi.</p>`);}
+async function sendRenew(id){const key=($('#rk').value||'').trim();if(!key){toast('Paste the activation key','bad');return;}
+  try{await api('renew',{body:{id,key}});toast('Key sent — library will activate when online','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+async function clearRenew(id){try{await api('renew',{body:{id,key:''}});toast('Waiting key cleared');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 async function setPin(id){const p=prompt('New 4–6 digit restore PIN for '+id);if(!p)return;try{await api('pin',{body:{id,pin:p}});toast('PIN set for '+id,'ok');home();}catch(e){toast(e.message,'bad');}}
 async function delLib(id,name){if(!confirm('Delete '+name+' and ALL its cloud backups, photos and tickets? This cannot be undone.'))return;try{await api('delete',{body:{id}});toast(id+' deleted');home();}catch(e){toast(e.message,'bad');}}
 

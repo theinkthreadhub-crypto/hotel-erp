@@ -2103,13 +2103,18 @@ function showActivate(){
     <div class="btns"><button class="btn g" onclick="navigator.clipboard.writeText('${LIC.machine}').then(()=>toast('Copied'))">Code copy</button>
       ${LIC.vendorPhone?`<button class="btn wa" onclick="waOpen(LIC.vendorPhone,'I need a Library ERP activation key.\\nMachine code: ${LIC.machine}')">Send on WhatsApp</button>`:''}</div>
     <label style="margin-top:16px">Paste the activation key here</label><textarea id="k_key" rows="4" style="font:12px Consolas,monospace" autofocus></textarea>
-    <div class="btns"><button class="btn ok" id="k_go">Activate (Ctrl+Enter)</button>${LIC.reason==='new'?'':'<a class="btn g" href="/api/export" download style="text-decoration:none">Download my data</a>'}</div></div>`;
+    <div class="btns"><button class="btn ok" id="k_go">Activate (Ctrl+Enter)</button><button class="btn g" onclick="cloudRenewCheck(this)">Check cloud renewal</button>${LIC.reason==='new'?'':'<a class="btn g" href="/api/export" download style="text-decoration:none">Download my data</a>'}</div>
+    <p class="muted small" style="margin-top:8px">Setu Pro aapko key bhej de to yahan "Check cloud renewal" dabayein (internet on rakhein) — ERP khud activate ho jayega.</p></div>`;
   const go_=()=>doActivate(val('k_key'));$('#k_go').onclick=go_;
   $('#k_key').onkeydown=e=>{if(e.key==='Enter'&&(e.ctrlKey||!e.shiftKey)){e.preventDefault();go_();}};
   focusEl('#k_key');
 }
 
 /* ================= BOOT ================= */
+async function cloudRenewCheck(btn){const t=btn?btn.textContent:'';if(btn){btn.disabled=true;btn.textContent='Checking…';}
+  try{const r=await api('cloud-renew',{});if(r.ok){toast('Activated from cloud ✓','ok');return boot();}toast('No new key yet. Ask Setu Pro to send the key, keep internet on, and try again.','bad');}
+  catch(e){toast(e.message,'bad');}
+  if(btn){btn.disabled=false;btn.textContent=t;}}
 async function boot(){
   try{LIC=await api('license');}
   catch(e){main.innerHTML=`<div class="act card"><h3>Cannot connect to the server</h3><p>Open Library ERP from the desktop icon (LibraryERP.exe).</p></div>`;return;}

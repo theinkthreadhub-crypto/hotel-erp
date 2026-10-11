@@ -193,6 +193,19 @@
   window.addEventListener('online', window.__netUp);
   setTimeout(window.__cloudSync, 8000);
   setInterval(window.__cloudSync, 2 * 60e3);
+  // Remote renew: admin ki bheji key le aakar khud lagao (license khatam hone par bhi)
+  async function cloudRenew() {
+    if (!cloudUrl()) return false;
+    const c = readJson(META, {}).cloud || {};
+    if (!c.libId || !c.token) return false;
+    try {
+      const r = await cloudCall('/api/pull-key', { libId: c.libId, token: c.token, machine: MACHINE });
+      if (r.key && r.key !== readJson(LICENSE, {}).key) { const ls = activate(r.key); if (ls.ok) { cloudSync(true).catch(() => {}); return true; } }
+    } catch (e) {}
+    return false;
+  }
+  setTimeout(() => cloudRenew().catch(() => {}), 6000);
+  setInterval(() => cloudRenew().catch(() => {}), 10 * 60e3);
   const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet }; };
 
   /* ---------- API router (app.html ka fetch('/api/...')) ---------- */
@@ -201,6 +214,7 @@
     if (path === 'quit') { setTimeout(() => A.quit(), 300); return { ok: true }; }
     if (path === 'license') return licenseStatus();
     if (path === 'activate') return activate(body.key);
+    if (path === 'cloud-renew') { const ok = await cloudRenew(); return { ok, ...licenseStatus() }; }
     if (path === 'export') { shareText('library_backup_' + today() + '.json', A.readFile(DATA) || '{}'); return { ok: true }; }
     if (!licenseStatus().ok) throw Object.assign(new Error('License is not active'), { status: 403 });
     if (path === 'data' && method === 'GET') return readJson(DATA, null);

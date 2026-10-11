@@ -4,7 +4,7 @@ Library ke liye simple ERP, Tally jaisa. Pura kaam keyboard se hota hai. Interne
 
 ## Features
 
-Poora ERP English mein hai. Abhi ka version: **v1.13.1** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
+Poora ERP English mein hai. Abhi ka version: **v1.14.0** — saare versions [CHANGELOG.md](CHANGELOG.md) mein.
 
 - **Gateway menu (dropdown):** **M** Masters, **T** Transactions, **R** Reports, **U** Utilities. Letter dabate hi us hisse ki list khulti hai. Item ke letter (jaise **C**, **E**) seedhe bhi kholte hain, aur `Alt`+letter kisi bhi screen se. Receipt List ab **P** hai, aur Attendance Report **W**.
 - **Sessions (N):** Saal wala session, jaise 2026-27 (01-04-2026 se 31-03-2027). Naya session khud banayein aur **Set as current** karein. Upar bar mein current session dikhta hai. Har receipt aur kharcha session ke saath save hota hai, aur naye session mein receipt no. 1 se shuru hota hai.
@@ -125,7 +125,7 @@ Cloudflare par lagane ke steps: [cloud/SETUP.md](cloud/SETUP.md). Server ka code
 Cloud ka address `config.json` ke `cloudUrl` mein daalkar Setup banayein. Har library ka ERP internet milte hi apne aap backup bhejta hai (10 minute mein ek baar, sirf jab data badla ho).
 Library ko **G → Cloud backup** mein Library ID dikhta hai, aur wahi ek **PIN** set karti hai. Naye computer par **Restore from cloud** mein Library ID + PIN daalte hi data wapas aa jata hai.
 Admin page: `https://setu-erp.theinkthreadhub.workers.dev/admin` · Phone app: `https://setu-erp.theinkthreadhub.workers.dev/view`
-Super Admin (saari libraries, payment, tickets): `https://setu-erp.theinkthreadhub.workers.dev/super` — app `SetuAdmin.apk` (code `android-superadmin/`).
+Super Admin (saari libraries, payment, tickets, **remote license renew**): `https://setu-erp.theinkthreadhub.workers.dev/super` — app `SetuAdmin.apk` (code `android-superadmin/`).
 
 ## Online View — owner ka phone app
 

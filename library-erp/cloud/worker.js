@@ -21,7 +21,8 @@ async function init(env) {
   if (!env.DB) throw new Error('D1 database is not connected (binding name must be DB)');
   for (const q of SCHEMA) await env.DB.prepare(q).run();
   try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN view TEXT').run(); } catch (e) {}  // Online View (v1.8.0)
-  for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0'])  // payments + images (v1.13.0)
+  for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0',
+    'pending_key TEXT', 'pending_at TEXT'])  // payments + images (v1.13.0), remote renew (v1.14.0)
     try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
@@ -90,7 +91,11 @@ async function push(env, b) {
       .bind(b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, +s.students || 0, +s.active || 0, +s.receipts || 0, data.length, now(), view, lib.id),
     env.DB.prepare(`DELETE FROM backups WHERE lib_id = ? AND day NOT IN (SELECT day FROM backups WHERE lib_id = ? ORDER BY day DESC LIMIT ${KEEP_DAYS})`).bind(lib.id, lib.id),
   ]);
-  return { ok: true, libId: lib.id, at: now(), pinSet: !!lib.pin_hash };
+  // Remote renew: library ne nayi key laga li (push me wahi key aayi) to pending saaf karo
+  const curKey = String(b.key || '').replace(/\s+/g, '');
+  let pendingKey = lib.pending_key || '';
+  if (pendingKey && pendingKey === curKey) { await env.DB.prepare('UPDATE libraries SET pending_key = NULL, pending_at = NULL WHERE id = ?').bind(lib.id).run(); pendingKey = ''; }
+  return { ok: true, libId: lib.id, at: now(), pinSet: !!lib.pin_hash, pendingKey: pendingKey && pendingKey !== curKey ? pendingKey : '' };
 }
 async function setPin(env, b) {
   const lib = await authLib(env, b);
@@ -122,6 +127,13 @@ async function restore(env, b) {
   const token = newToken();  // naya computer ab is library se juda
   await env.DB.prepare('UPDATE libraries SET token = ?, machine = ?, pin_fails = 0, pin_lock = 0 WHERE id = ?').bind(await sha256(token), b.machine, id).run();
   return { libId: id, token, day: bk.day, data: bk.data, name: lib.name };
+}
+// Remote renew: ERP (license khatam hone par bhi) pending key le aata hai. Token se pehchan, license check nahi.
+async function pullKey(env, b) {
+  const lib = await authLib(env, b);
+  if (!lib.pending_key) return { key: '' };
+  if (b.machine && lib.machine && String(b.machine) !== lib.machine) return { key: '' };
+  return { key: lib.pending_key };
 }
 // Online View (owner ka phone): sirf hisaab, poora data nahi
 async function viewData(env, b) {
@@ -269,7 +281,26 @@ async function adminApi(req, env, url, op) {
     const L = (await env.DB.prepare(`SELECT l.*, (SELECT COUNT(*) FROM tickets t WHERE t.lib_id=l.id AND t.status='open') AS tickets_open,
       (SELECT COUNT(*) FROM tickets t WHERE t.lib_id=l.id AND t.unread_admin=1) AS tickets_unread FROM libraries l ORDER BY seq DESC`).all()).results;
     const open = (await env.DB.prepare("SELECT COUNT(*) AS n FROM tickets WHERE unread_admin=1").first()).n;
-    return json({ libs: L.map(l => { const { token, pin_hash, view, ...o } = l; return { ...o, pinSet: !!pin_hash }; }), ticketsUnread: open, serverNow: Date.now() });
+    return json({ libs: L.map(l => { const { token, pin_hash, view, pending_key, ...o } = l; return { ...o, pinSet: !!pin_hash, pendingKey: !!pending_key }; }), ticketsUnread: open, serverNow: Date.now() });
+  }
+  if (op === 'renew' && req.method === 'POST') {
+    const lib = await env.DB.prepare('SELECT * FROM libraries WHERE id = ?').bind(String(body.id)).first();
+    if (!lib) return fail('Library not found', 404);
+    const key = String(body.key || '').replace(/\s+/g, '');
+    if (!key) {  // clear a pending key
+      await env.DB.prepare('UPDATE libraries SET pending_key = NULL, pending_at = NULL WHERE id = ?').bind(lib.id).run();
+      return json({ ok: true, cleared: true });
+    }
+    let expiry;
+    try { expiry = await verifyLicense(key, lib.machine); }   // signature + machine + not-expired check
+    catch (e) {
+      const m = /different|not for this computer/i.test(e.message) ? 'This key is for a different computer. Make it for machine code ' + lib.machine + '.'
+        : /expired/i.test(e.message) ? 'This key has already expired.'
+        : 'This key is not valid. Make sure you created it for machine code ' + lib.machine + '.';
+      return fail(m);
+    }
+    await env.DB.prepare('UPDATE libraries SET pending_key = ?, pending_at = ?, lic_expiry = ? WHERE id = ?').bind(key, now(), expiry, lib.id).run();
+    return json({ ok: true, expiry });
   }
   if (op === 'pay' && req.method === 'POST') {
     await env.DB.prepare('UPDATE libraries SET paid_till=?, plan=?, amount=?, pay_note=? WHERE id=?')
@@ -511,6 +542,7 @@ input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:trans
 .modal{position:fixed;inset:0;background:#0006;display:none;align-items:flex-end;justify-content:center;z-index:10}
 .modal.open{display:flex}.sheet{background:#fff;width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:90vh;overflow:auto;padding:16px}
 .imgs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.imgs a img{width:100%;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+.lid{border-bottom:1px dotted var(--m);cursor:pointer}
 .muted{color:var(--m);font-size:13px}.err{color:var(--bad);min-height:18px;font-size:14px;margin-top:6px}
 .foot{text-align:center;color:var(--m);font-size:12px;margin-top:14px}
 @media(max-width:600px){.kpis{grid-template-columns:repeat(2,1fr)}}
@@ -532,7 +564,12 @@ async function api(op,opts){opts=opts||{};const r=await fetch(BASE+'/admin/api/'
 async function authBlob(url){const r=await fetch(url,{headers:{Authorization:auth()}});if(!r.ok)throw new Error('load '+r.status);return URL.createObjectURL(await r.blob());}
 function loadImgs(root){(root||document).querySelectorAll('img[data-img]').forEach(el=>{const u=el.dataset.img;el.removeAttribute('data-img');
   authBlob(u).then(o=>el.src=o).catch(()=>{el.style.visibility='hidden';});});}
-async function dlBackup(id){try{const o=await authBlob(BASE+'/admin/download?id='+encodeURIComponent(id));const a=document.createElement('a');a.href=o;a.download=id+'_backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(o),4000);}catch(e){toast('Backup download failed','bad');}}
+async function blobB64(blob){const u=new Uint8Array(await blob.arrayBuffer());let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);}
+async function dlBackup(id){try{const r=await fetch(BASE+'/admin/download?id='+encodeURIComponent(id),{headers:{Authorization:auth()}});if(!r.ok)throw new Error('load '+r.status);const blob=await r.blob(),name=id+'_backup.json';
+  if(window.SA&&SA.save){SA.save(name,'application/json',await blobB64(blob));toast('Backup ready — choose where to save / send','ok');}
+  else{const o=URL.createObjectURL(blob);const a=document.createElement('a');a.href=o;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(o),4000);}
+}catch(e){toast('Backup download failed','bad');}}
+function copyTxt(t){(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Copied: '+t,'ok'),()=>{try{const i=document.createElement('textarea');i.value=t;document.body.appendChild(i);i.select();document.execCommand('copy');i.remove();toast('Copied: '+t,'ok');}catch(e){toast(t,'ok');}});}
 
 const dmy=d=>d?(/^\\d{10,}$/.test(d)?new Date(+d):new Date(d)).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}):'—';
 const ago=t=>{if(!t)return 'never';const m=(Date.now()-new Date(t))/60e3;return m<1?'just now':m<60?Math.round(m)+' min ago':m<48*60?Math.round(m/60)+' h ago':Math.round(m/1440)+' d ago';};
@@ -576,7 +613,7 @@ function drawLibs(L){
     return \`<div class="lib" data-s="\${esc((l.id+' '+l.name+' '+l.contact).toLowerCase())}"><div class="top">
     <img class="logo"\${l.img_count?\` data-img="\${BASE}/admin/image?id=\${encodeURIComponent(l.id)}&key=logo"\`:' style="visibility:hidden"'}>
     <div class="nm"><b>\${esc(l.name||'(no name)')} \${l.tickets_unread?\`<span class="badge">\${l.tickets_unread} msg</span>\`:''}</b>
-      <small>\${esc(l.id)} · \${esc(l.contact||'—')} · v\${esc(l.version||'?')}</small></div></div>
+      <small><b class="lid" onclick='copyTxt(\${JSON.stringify(l.id)})' title="Tap to copy Library ID">\${esc(l.id)}</b> · \${esc(l.contact||'—')} · v\${esc(l.version||'?')}</small></div></div>
     <div class="chips">
       <span class="chip \${sh>48?'bad':sh>12?'warn':'ok'}">Backup \${ago(l.last_sync)}</span>
       <span class="chip \${d===Infinity?'ok':d<0?'bad':d<=7?'warn':''}">License \${d===Infinity?'Lifetime':d<0?'expired':d+'d left'}</span>
@@ -584,8 +621,10 @@ function drawLibs(L){
       <span class="chip">\${l.receipts} receipts</span>
       <span class="chip \${pd==null?'warn':pd<0?'bad':'ok'}">\${pd==null?'Payment not set':pd<0?'Payment due ('+dmy(l.paid_till)+')':'Paid till '+dmy(l.paid_till)}</span>
       <span class="chip \${l.pinSet?'ok':'bad'}">PIN \${l.pinSet?'set':'not set'}</span>
+      \${l.pendingKey?'<span class="chip warn">Renewal key waiting (library offline)</span>':''}
     </div>
-    <div class="acts"><button class="btn sm" onclick='payBox(\${JSON.stringify(l.id)})'>Payment</button>
+    <div class="acts"><button class="btn sm ok" onclick='renewBox(\${JSON.stringify(l.id)})'>Renew</button>
+      <button class="btn sm" onclick='payBox(\${JSON.stringify(l.id)})'>Payment</button>
       <button class="btn sm g" onclick='libTickets(\${JSON.stringify(l.id)})'>Tickets</button>
       <button class="btn sm g" onclick='dlBackup(\${JSON.stringify(l.id)})'>Backup</button>
       <button class="btn sm g" onclick='setPin(\${JSON.stringify(l.id)})'>Set PIN</button>
@@ -608,6 +647,19 @@ function payBox(id){const l=libById(id);
   <div class="acts" style="margin-top:14px"><button class="btn ok" onclick="savePay('\${id}')">Save</button><button class="btn g" onclick="closeSheet()">Close</button></div>\`);}
 async function savePay(id){try{await api('pay',{body:{id,paid_till:$('#pt').value,plan:$('#pl').value,amount:+$('#pa').value||0,note:$('#pn').value}});
   toast('Saved','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+function renewBox(id){const l=libById(id),d=licDays(l.lic_expiry);
+  sheet(\`<h3>Renew license — \${esc(l.name||id)}</h3>
+  <p class="muted">\${esc(l.id)} · License: \${d===Infinity?'Lifetime':d<0?'<b class="bad">expired</b>':'<b>'+d+' days left</b>'}\${l.pendingKey?' · <b class="warn">a key is waiting to apply</b>':''}</p>
+  <label>Machine code (SetuKeygen me ye daalkar key banayein)</label>
+  <div class="row" style="gap:6px"><input id="rmc" value="\${esc(l.machine||'')}" readonly><button class="btn g" onclick="copyTxt('\${esc(l.machine||'')}')">Copy</button></div>
+  <label style="margin-top:8px">Activation key (SetuKeygen se banakar yahan paste karein)</label><textarea id="rk" rows="4" placeholder="LIB-…"></textarea>
+  <div class="acts" style="margin-top:12px"><button class="btn ok" onclick="sendRenew('\${id}')">Send to library</button>
+  \${l.pendingKey?\`<button class="btn bad" onclick="clearRenew('\${id}')">Cancel waiting key</button>\`:''}
+  <button class="btn g" onclick="closeSheet()">Close</button></div>
+  <p class="muted" style="margin-top:8px;font-size:13px">Library ka ERP internet milte hi khud activate ho jayega — customer ko kuch nahi karna. Key sirf usi machine par chalegi.</p>\`);}
+async function sendRenew(id){const key=($('#rk').value||'').trim();if(!key){toast('Paste the activation key','bad');return;}
+  try{await api('renew',{body:{id,key}});toast('Key sent — library will activate when online','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+async function clearRenew(id){try{await api('renew',{body:{id,key:''}});toast('Waiting key cleared');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 async function setPin(id){const p=prompt('New 4–6 digit restore PIN for '+id);if(!p)return;try{await api('pin',{body:{id,pin:p}});toast('PIN set for '+id,'ok');home();}catch(e){toast(e.message,'bad');}}
 async function delLib(id,name){if(!confirm('Delete '+name+' and ALL its cloud backups, photos and tickets? This cannot be undone.'))return;try{await api('delete',{body:{id}});toast(id+' deleted');home();}catch(e){toast(e.message,'bad');}}
 
@@ -655,7 +707,7 @@ export default {
       if (req.method !== 'POST' || !url.pathname.startsWith('/api/')) return fail('Not found', 404);
       const b = await req.json();
       const fn = { '/api/register': register, '/api/push': push, '/api/pin': setPin, '/api/restore': restore, '/api/view': viewData,
-        '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList }[url.pathname];
+        '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList, '/api/pull-key': pullKey }[url.pathname];
       if (!fn) return fail('Not found', 404);
       return json(await fn(env, b));
     } catch (e) {
