@@ -4,6 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
+| 1.19.1 | Edit fix | **Student edit ab save hota hai**: Save dabane par "ID already generated/exists" galat warning aati thi (Save button student ki id pass nahi karta tha). Excel se aaye students (bina seat) ka edit bhi ab crash nahi karta. Student delete aur fee delete waise hi hain |
 | **1.19.0** | Session total | **Dashboard me poore session (saal) ka hisaab**: total fee collected, total expenses, profit/loss, aur **month-wise table** (fee, kharcha, net). Cancelled receipt count nahi hoti |
 | 1.18.1 | — | Student page ab **installable app** — phone me "Add to Home Screen" se icon ban jata hai (apna app), offline bhi khulta hai. Message student-wording. |
 | **1.18.0** | Student app | **Student ka apna page** (link se): library aakar khud **Mark IN / Mark OUT** kare (time server se, ERP me apne aap aa jata hai). **Fee record** — kaun-kaun se month ki fee di, aur **next month** kab ki deni hai. Admission karte hi **link ban jata hai**, aur **pehli receipt** ke WhatsApp ke saath apne aap chala jata hai. Owner ke Record me link rehta hai — delete ho to **Share link** se dobara bhej do |

@@ -827,7 +827,7 @@ function scrStudent(id){
     <div><label>Fee paid till <span class="muted">(for existing students)</span></label><input id="s_valid" type="date" value="${v.validTill||''}"${s&&D.receipts.some(r=>r.sid===s.id&&!r.cancel)?' readonly title="Updated from receipts"':''}></div>
     ${s?`<div><label>Status</label><select id="s_status"><option value="active">Active</option><option value="left"${v.status==='left'?' selected':''}>Left</option></select></div>`:''}
     <div class="w2"><label>Note</label><input id="s_note" value="${esc(v.note||'')}"></div>
-  </div><div class="btns"><button class="btn" onclick="saveStudent()">Save (Ctrl+S)</button><button class="btn g" onclick="go('home')">Cancel (Esc)</button></div></div>
+  </div><div class="btns"><button class="btn" onclick="saveStudent(${id?`'${id}'`:''})">Save (Ctrl+S)</button><button class="btn g" onclick="go(${s?'\'list\'':'\'home\''})">Cancel (Esc)</button></div></div>
   <div class="card" id="feeprev"></div></div>`;
   const prev=()=>{const p=plan($('#s_plan').value),fee=num('s_fee'),join=val('s_join')||today(),vt=val('s_valid');
     const P=s&&$('#s_valid').readOnly?new Set(s.paid):new Set(monthsCovered(join,vt));
@@ -853,7 +853,7 @@ async function saveStudent(id){
   if(!v.name){toast('Enter student name','bad');return focusEl('#s_name');}
   if(v.mobile.length!==10){toast('Mobile must be 10 digits','bad');return focusEl('#s_mobile');}
   if(D.students.some(x=>x.code===v.code&&x!==s)){toast('This Student ID already exists','bad');return focusEl('#s_code');}
-  if(v.seat){const c=D.students.find(x=>x!==s&&x.status!=='left'&&x.seat.toLowerCase()===v.seat.toLowerCase()&&(x.shift||'')===(v.shift||''));
+  if(v.seat){const c=D.students.find(x=>x!==s&&x.status!=='left'&&(x.seat||'').toLowerCase()===v.seat.toLowerCase()&&(x.shift||'')===(v.shift||''));
     if(c&&!await ask(`Seat ${esc(v.seat)} (${esc(v.shift||'—')}) is already taken by <b>${esc(c.name)}</b>. Save anyway?`))return focusEl('#s_seat');}
   if(s){
     Object.assign(s,v);if(!$('#s_valid').readOnly&&vt!==(s.validTill||'')){s.paid=monthsCovered(s.join,vt);syncValid(s);}
