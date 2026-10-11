@@ -1,0 +1,8 @@
+name = "setu-erp"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "setu_erp"
+database_id = "56ea1ed9-8eda-4afc-9c18-6650f1d4900d"
