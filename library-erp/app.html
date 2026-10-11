@@ -364,7 +364,33 @@ function syncDot(){const e=$('#sync');if(!e)return;const c=CLOUD2||{};
   if(c.error){e.className='sync amber';e.innerHTML='● Saved (offline)';e.title='Working offline — saved here. Will sync to cloud when internet returns.';}
   else if(c.lastOk){e.className='sync ok';e.innerHTML='● Synced';e.title='Backed up to Setu Pro cloud: '+new Date(c.lastOk).toLocaleString('en-IN');}
   else{e.className='sync';e.innerHTML='● …';e.title='Connecting to cloud…';}}
-async function refreshSync(){try{CLOUD2=await api('cloud');syncDot();}catch(e){}}
+async function refreshSync(){try{CLOUD2=await api('cloud');syncDot();applyCloudMsg();}catch(e){}}
+// Admin se aaya message (popup) aur lock/warning dikhao
+function applyCloudMsg(){const c=CLOUD2||{};const ph=(c.vendorPhone||'6392995127').replace(/\D/g,'');
+  // Level 2 = app lock (full screen block)
+  let ov=document.getElementById('lockov');
+  if(+c.lock>=2){ if(!ov){ov=document.createElement('div');ov.id='lockov';document.body.appendChild(ov);}
+    ov.style.cssText='position:fixed;inset:0;z-index:99999;background:#0b1830;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;gap:16px';
+    ov.innerHTML='<div style="font-size:52px">🔒</div><h2 style="margin:0">App locked</h2>'+
+      '<p style="max-width:430px;opacity:.9;line-height:1.5">'+esc(c.lockMsg||'Please contact Setu Pro to continue using the app.')+'</p>'+
+      '<a href="https://wa.me/91'+ph+'?text='+encodeURIComponent('Setu Pro, meri library ka app lock ho gaya hai. Library ID: '+(c.libId||''))+'" target="_blank" style="background:#25d366;color:#fff;padding:13px 24px;border-radius:10px;text-decoration:none;font-weight:700">💬 WhatsApp Setu Pro</a>'+
+      '<a href="tel:'+ph+'" style="color:#bcd;text-decoration:none">📞 '+esc(c.vendorPhone||'6392995127')+'</a>';
+  } else if(ov){ov.remove();}
+  // Level 1 = warning banner (app chalta rahega)
+  let bn=document.getElementById('lockbn');
+  if(+c.lock===1){ if(!bn){bn=document.createElement('div');bn.id='lockbn';document.body.appendChild(bn);}
+    bn.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:9000;background:#fff0d6;color:#8a5a00;border-top:2px solid #e0a000;padding:10px 14px;font-size:14px;text-align:center';
+    bn.innerHTML='⚠ '+esc(c.lockMsg||'Subscription reminder — please contact Setu Pro.')+' &nbsp;<a href="https://wa.me/91'+ph+'" target="_blank" style="color:#1a7f37;font-weight:700;text-decoration:none">WhatsApp</a>';
+  } else if(bn){bn.remove();}
+  // Admin message popup — ek baar (noticeAt ke hisab se)
+  if(c.notice&&c.noticeAt){let seen='';try{seen=localStorage.getItem('liberp_notice_seen')||'';}catch(e){}
+    if(seen!==c.noticeAt){try{localStorage.setItem('liberp_notice_seen',c.noticeAt);}catch(e){}
+      let m=document.getElementById('noticepop');if(!m){m=document.createElement('div');m.id='noticepop';document.body.appendChild(m);}
+      m.style.cssText='position:fixed;inset:0;z-index:99998;background:#0007;display:flex;align-items:center;justify-content:center;padding:20px';
+      m.innerHTML='<div style="background:#fff;border-radius:14px;max-width:420px;width:100%;padding:20px;text-align:center"><div style="font-size:34px">📢</div><h3 style="margin:8px 0;color:#1f3a63">Message from Setu Pro</h3><p style="white-space:pre-wrap;line-height:1.5;color:#1d2433">'+esc(c.notice)+'</p><button onclick="document.getElementById(\'noticepop\').remove()" style="margin-top:10px;background:#2b4c7e;color:#fff;border:0;border-radius:10px;padding:11px 26px;font-size:15px;font-weight:600">OK</button></div>';
+    }
+  }
+}
 async function syncNow(){if(!CLOUD2||!CLOUD2.enabled)return;const e=$('#sync');if(e){e.className='sync';e.innerHTML='● Syncing…';}
   try{await api('cloud-sync',{});toast('Synced to cloud','ok');}catch(e){toast(e.message||'Sync failed','bad');}refreshSync();}
 

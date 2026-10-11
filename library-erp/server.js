@@ -250,7 +250,8 @@ async function cloudSync(force) {
       stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
       view: (() => { try { return summary(D); } catch (e) { log('summary: ' + e.message); return null; } })(),
       data: zlib.gzipSync(clean).toString('base64') });
-    Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet });
+    Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
+      notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });
     setCloud(c);
     // Remote renew: admin ne nayi activation key bheji ho to khud laga do
     if (r.pendingKey && r.pendingKey !== readJson(LICENSE, {}).key) {
@@ -291,7 +292,7 @@ async function pullImages(libId, token, D) {
   mergeImages(D, imgs);
   return hashes;
 }
-const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet }; };
+const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet, notice: c.notice || '', noticeAt: c.noticeAt || '', lock: +c.lock || 0, lockMsg: c.lockMsg || '', vendorPhone: CONFIG.vendorPhone || '' }; };
 // License khatam hone par bhi: cloud par admin ki bheji nayi key le aakar khud lagao
 async function cloudRenew() {
   if (!cloudUrl()) return false;

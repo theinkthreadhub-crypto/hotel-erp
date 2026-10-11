@@ -22,7 +22,8 @@ async function init(env) {
   for (const q of SCHEMA) await env.DB.prepare(q).run();
   try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN view TEXT').run(); } catch (e) {}  // Online View (v1.8.0)
   for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0',
-    'pending_key TEXT', 'pending_at TEXT'])  // payments + images (v1.13.0), remote renew (v1.14.0)
+    'pending_key TEXT', 'pending_at TEXT',  // payments + images (v1.13.0), remote renew (v1.14.0)
+    'notice TEXT', 'notice_at TEXT', 'lock INTEGER DEFAULT 0', 'lock_msg TEXT'])  // admin->library message + remote lock (v1.16.0)
     try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
@@ -95,7 +96,8 @@ async function push(env, b) {
   const curKey = String(b.key || '').replace(/\s+/g, '');
   let pendingKey = lib.pending_key || '';
   if (pendingKey && pendingKey === curKey) { await env.DB.prepare('UPDATE libraries SET pending_key = NULL, pending_at = NULL WHERE id = ?').bind(lib.id).run(); pendingKey = ''; }
-  return { ok: true, libId: lib.id, at: now(), pinSet: !!lib.pin_hash, pendingKey: pendingKey && pendingKey !== curKey ? pendingKey : '' };
+  return { ok: true, libId: lib.id, at: now(), pinSet: !!lib.pin_hash, pendingKey: pendingKey && pendingKey !== curKey ? pendingKey : '',
+    notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '' };
 }
 async function setPin(env, b) {
   const lib = await authLib(env, b);
@@ -305,6 +307,20 @@ async function adminApi(req, env, url, op) {
   if (op === 'pay' && req.method === 'POST') {
     await env.DB.prepare('UPDATE libraries SET paid_till=?, plan=?, amount=?, pay_note=? WHERE id=?')
       .bind(String(body.paid_till || ''), String(body.plan || ''), +body.amount || 0, String(body.note || '').slice(0, 300), String(body.id)).run();
+    return json({ ok: true });
+  }
+  // Admin -> library message (library ke app me popup). Khaali bhejo to hat jayega.
+  if (op === 'notice' && req.method === 'POST') {
+    const msg = String(body.notice || '').slice(0, 500);
+    await env.DB.prepare('UPDATE libraries SET notice=?, notice_at=? WHERE id=?')
+      .bind(msg, msg ? now() : '', String(body.id)).run();
+    return json({ ok: true });
+  }
+  // Remote lock/warning: 0 = normal, 1 = warning banner, 2 = app locked. Payment aane par admin 0 kar de.
+  if (op === 'lock' && req.method === 'POST') {
+    const lv = [0, 1, 2].includes(+body.lock) ? +body.lock : 0;
+    await env.DB.prepare('UPDATE libraries SET lock=?, lock_msg=? WHERE id=?')
+      .bind(lv, String(body.msg || '').slice(0, 300), String(body.id)).run();
     return json({ ok: true });
   }
   if (op === 'pin' && req.method === 'POST') {
@@ -649,11 +665,15 @@ function drawLibs(L){
     <div class="chips">
       <span class="chip \${l.pinSet?'ok':'bad'}">Restore PIN \${l.pinSet?'set':'not set'}</span>
       \${l.pendingKey?'<span class="chip warn">Renewal key waiting (library offline)</span>':''}
+      \${l.notice?'<span class="chip warn">✉ Message showing in app</span>':''}
+      \${+l.lock===2?'<span class="chip bad">🔒 App locked</span>':+l.lock===1?'<span class="chip warn">⚠ Warning showing</span>':''}
     </div>
     <div class="acts">
       \${l.contact?\`<a class="btn sm g" href="\${telHref(l.contact)}">📞 Call</a><a class="btn sm ok" href="\${waHref(l.contact,l.name)}" target="_blank" rel="noopener">💬 WhatsApp</a>\`:''}
       <button class="btn sm ok" onclick='renewBox(\${JSON.stringify(l.id)})'>Renew</button>
       <button class="btn sm" onclick='payBox(\${JSON.stringify(l.id)})'>Payment</button>
+      <button class="btn sm g" onclick='noticeBox(\${JSON.stringify(l.id)})'>✉ Message</button>
+      <button class="btn sm \${+l.lock?'bad':'g'}" onclick='lockBox(\${JSON.stringify(l.id)})'>\${+l.lock?'🔒 Locked':'🔒 Lock'}</button>
       <button class="btn sm g" onclick='libTickets(\${JSON.stringify(l.id)})'>Tickets</button>
       <button class="btn sm g" onclick='dlBackup(\${JSON.stringify(l.id)})'>Backup</button>
       <button class="btn sm g" onclick='setPin(\${JSON.stringify(l.id)})'>Set PIN</button>
@@ -676,6 +696,30 @@ function payBox(id){const l=libById(id);
   <div class="acts" style="margin-top:14px"><button class="btn ok" onclick="savePay('\${id}')">Save</button><button class="btn g" onclick="closeSheet()">Close</button></div>\`);}
 async function savePay(id){try{await api('pay',{body:{id,paid_till:$('#pt').value,plan:$('#pl').value,amount:+$('#pa').value||0,note:$('#pn').value}});
   toast('Saved','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+
+// Admin -> library message (app me popup dikhega)
+function noticeBox(id){const l=libById(id);
+  sheet(\`<h3>Message to \${esc(l.name||id)}</h3>
+  <p class="muted">Library ke app me popup dikhega (internet aate hi). Khaali karke "Clear" dabayein to hat jayega.</p>
+  <label>Message</label><textarea id="nm" rows="4" placeholder="Jaise: Payment due hai, kripya jama karein. — Setu Pro">\${esc(l.notice||'')}</textarea>
+  <div class="acts" style="margin-top:12px"><button class="btn ok" onclick="saveNotice('\${id}',1)">Send</button>
+  \${l.notice?\`<button class="btn bad" onclick="saveNotice('\${id}',0)">Clear</button>\`:''}
+  <button class="btn g" onclick="closeSheet()">Close</button></div>\`);}
+async function saveNotice(id,on){const msg=on?($('#nm').value||'').trim():'';if(on&&!msg){toast('Type a message','bad');return;}
+  try{await api('notice',{body:{id,notice:msg}});toast(on?'Message sent':'Message cleared','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+
+// Remote lock / warning
+function lockBox(id){const l=libById(id),lv=+l.lock||0;
+  sheet(\`<h3>Lock / Warning — \${esc(l.name||id)}</h3>
+  <p class="muted">Payment na aane par app par warning ya lock laga sakte hain. Payment aane par "Normal" karke hata dein.</p>
+  <label>Mode</label><select id="lv">
+    <option value="0"\${lv===0?' selected':''}>Normal (kuch nahi)</option>
+    <option value="1"\${lv===1?' selected':''}>⚠ Warning banner (app chalega)</option>
+    <option value="2"\${lv===2?' selected':''}>🔒 Lock app (band — sirf message dikhega)</option></select>
+  <label>Message (app me dikhega)</label><textarea id="lm" rows="3" placeholder="Jaise: Subscription due. Setu Pro se sampark karein.">\${esc(l.lock_msg||'')}</textarea>
+  <div class="acts" style="margin-top:12px"><button class="btn ok" onclick="saveLock('\${id}')">Apply</button><button class="btn g" onclick="closeSheet()">Close</button></div>
+  <p class="muted" style="font-size:12px;margin-top:8px">Lock karne par bhi library ka data safe rehta hai — Normal karte hi app wapas chalu.</p>\`);}
+async function saveLock(id){try{await api('lock',{body:{id,lock:+$('#lv').value,msg:$('#lm').value}});toast('Applied','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 function renewBox(id){const l=libById(id),d=licDays(l.lic_expiry);
   sheet(\`<h3>Renew license — \${esc(l.name||id)}</h3>
   <p class="muted">\${esc(l.id)} · License: \${d===Infinity?'Lifetime':d<0?'<b class="bad">expired</b>':'<b>'+d+' days left</b>'}\${l.pendingKey?' · <b class="warn">a key is waiting to apply</b>':''}</p>

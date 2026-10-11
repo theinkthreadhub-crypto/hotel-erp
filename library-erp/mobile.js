@@ -162,7 +162,8 @@
         const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: today(),
           stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
           view, data: A.gzip(clean) });
-        Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet });
+        Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
+          notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });
         setCloud(c);
         await syncImages(c, D);
       } catch (e) { c.error = e.message; c.errorAt = new Date().toISOString(); }
