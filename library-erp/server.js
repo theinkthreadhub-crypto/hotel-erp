@@ -253,7 +253,7 @@ async function cloudSync(force) {
       attSeen: c.attSeen || 0,
       data: zlib.gzipSync(clean).toString('base64') });
     Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
-      notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });
+      notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {} });
     // Student ne khud jo In/Out kiya (cloud se) usko attendance me merge karo
     if (Array.isArray(r.attMarks) && r.attMarks.length) {
       try {
@@ -307,7 +307,7 @@ async function cloudPoll() {
   try {
     const r = await cloudCall('/api/poll', { libId: m0.libId, token: m0.token, attSeen: m0.attSeen || 0, key: readJson(LICENSE, {}).key || '' });
     const c = readJson(META, {}).cloud || m0;
-    Object.assign(c, { notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', pollOk: Date.now() });
+    Object.assign(c, { notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {}, pollOk: Date.now() });
     // Remote renew
     if (r.pendingKey && r.pendingKey !== readJson(LICENSE, {}).key) {
       try { const ls = activate(r.pendingKey); if (ls.ok) { log('License renewed from cloud (poll)'); c.hash = ''; } } catch (e) { log('Renew: ' + e.message); }
@@ -357,7 +357,7 @@ async function pullImages(libId, token, D) {
   mergeImages(D, imgs);
   return hashes;
 }
-const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet, notice: c.notice || '', noticeAt: c.noticeAt || '', lock: +c.lock || 0, lockMsg: c.lockMsg || '', vendorPhone: CONFIG.vendorPhone || '' }; };
+const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet, notice: c.notice || '', noticeAt: c.noticeAt || '', lock: +c.lock || 0, lockMsg: c.lockMsg || '', feat: c.feat || {}, vendorPhone: CONFIG.vendorPhone || '' }; };
 // License khatam hone par bhi: cloud par admin ki bheji nayi key le aakar khud lagao
 async function cloudRenew() {
   if (!cloudUrl()) return false;

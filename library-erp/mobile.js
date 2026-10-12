@@ -164,7 +164,7 @@
           stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
           view, pupils: pup, attSeen: c.attSeen || 0, data: A.gzip(clean) });
         Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
-          notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '' });
+          notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {} });
         // Student self-attendance cloud se merge
         if (Array.isArray(r.attMarks) && r.attMarks.length) {
           try {
@@ -227,7 +227,7 @@
     try {
       const r = await cloudCall('/api/poll', { libId: m0.libId, token: m0.token, attSeen: m0.attSeen || 0, key: readJson(LICENSE, {}).key || '' });
       const c = readJson(META, {}).cloud || m0;
-      Object.assign(c, { notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', pollOk: Date.now() });
+      Object.assign(c, { notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {}, pollOk: Date.now() });
       if (r.pendingKey && r.pendingKey !== readJson(LICENSE, {}).key) { try { const ls = activate(r.pendingKey); if (ls.ok) c.hash = ''; } catch (e) {} }
       if (Array.isArray(r.attMarks) && r.attMarks.length) {
         try {
@@ -271,7 +271,7 @@
   }
   setTimeout(() => cloudRenew().catch(() => {}), 6000);
   setInterval(() => cloudRenew().catch(() => {}), 10 * 60e3);
-  const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet }; };
+  const cloudInfo = () => { const c = readJson(META, {}).cloud || {}; return { enabled: !!cloudUrl(), url: cloudUrl(), libId: c.libId || '', lastOk: c.lastOk || '', error: c.error || '', errorAt: c.errorAt || '', pinSet: !!c.pinSet, notice: c.notice || '', noticeAt: c.noticeAt || '', lock: +c.lock || 0, lockMsg: c.lockMsg || '', feat: c.feat || {}, vendorPhone: CONFIG.vendorPhone || '' }; };
 
   /* ---------- API router (app.html ka fetch('/api/...')) ---------- */
   async function handle(path, q, method, body) {

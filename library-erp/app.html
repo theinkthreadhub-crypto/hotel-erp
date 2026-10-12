@@ -228,6 +228,8 @@ html.mobile .kpis{grid-template-columns:1fr 1fr;gap:10px}
 html.mobile .kpi .v{font-size:20px}html.mobile .kpi.hero{grid-column:1/-1}html.mobile .kpi.hero .v{font-size:28px}
 html.mobile kbd,html.mobile .keys{display:none}
 html.mobile #modal{align-items:flex-end;padding:0}
+html.nowa .wa{display:none!important}
+html.nostu .stlink{display:none!important}
 html.mobile #mbox{width:100%;border-radius:18px 18px 0 0;max-height:88vh}
 html.mobile #mbox h3{border-radius:18px 18px 0 0;padding:14px 16px}
 html.mobile .rq .btn{flex:1 1 100%;padding:14px;font-size:16px}
@@ -360,13 +362,14 @@ function setSync(state){const e=$('#sync');if(!e)return;
   if(CLOUD2&&!CLOUD2.enabled){e.textContent='';e.title='';return;}
   if(state==='save'){e.className='sync amber';e.innerHTML='● Saved';e.title='Saved on this device. Syncing to cloud…';}}
 function syncDot(){const e=$('#sync');if(!e)return;const c=CLOUD2||{};
+  if(c.enabled&&!fOn('backup')){e.className='sync amber';e.innerHTML='● Cloud backup off';e.title='Cloud backup aapke plan me nahi hai';return;}
   if(!c.enabled){e.textContent='';return;}
   if(c.error){e.className='sync amber';e.innerHTML='● Saved (offline)';e.title='Working offline — saved here. Will sync to cloud when internet returns.';}
   else if(c.lastOk){e.className='sync ok';e.innerHTML='● Synced';e.title='Backed up to Setu Pro cloud: '+new Date(c.lastOk).toLocaleString('en-IN');}
   else{e.className='sync';e.innerHTML='● …';e.title='Connecting to cloud…';}}
 async function refreshSync(){try{CLOUD2=await api('cloud');syncDot();applyCloudMsg();}catch(e){}}
 // Admin se aaya message (popup) aur lock/warning dikhao
-function applyCloudMsg(){const c=CLOUD2||{};const ph=(c.vendorPhone||'6392995127').replace(/\D/g,'');
+function applyCloudMsg(){const c=CLOUD2||{};applyFeat(c);const ph=(c.vendorPhone||'6392995127').replace(/\D/g,'');
   // Level 2 = app lock (full screen block)
   let ov=document.getElementById('lockov');
   if(+c.lock>=2){ if(!ov){ov=document.createElement('div');ov.id='lockov';document.body.appendChild(ov);}
@@ -409,6 +412,7 @@ const csvCell=v=>{v=String(v??'');return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""
 const toCsv=rows=>'﻿'+rows.map(r=>r.map(csvCell).join(',')).join('\r\n');
 
 function waOpen(num,text){
+  if(!fOn('whatsapp')){toast('WhatsApp aapke plan me nahi hai — upgrade ke liye Setu Pro se sampark karein','bad');return;}
   let n=String(num||'').replace(/\D/g,'');
   if(n.length===10)n='91'+n;
   if(!n){toast('Mobile number missing','bad');return;}
@@ -540,6 +544,21 @@ const GROUPS=[
   ['U','Utilities',[['I','Bulk Import (Excel / CSV)','import'],['G','Settings & Backup','settings'],['','Help & Support','help'],['K','License / Activation','license'],['Q','Close ERP','quit']]],
 ];
 const MENU=GROUPS.flatMap(g=>g[2].map(x=>[x[0],x[1],x[2],g[1]]));
+/* ---- Plan features: Setu Pro admin se on/off (cloud se aata hai) ---- */
+const FEAT_NAMES={student:'Student app',whatsapp:'WhatsApp',online:'Online View',books:'Books',reminder:'Fee Reminder',import:'Bulk Import',backup:'Cloud backup'};
+const SCREEN_FEAT={books:'books',bookissue:'books',bookreg:'books',remind:'reminder',import:'import'};
+let FEAT={},featSig='';
+const fOn=k=>!(FEAT&&(FEAT[k]===0||FEAT[k]===false));
+const allowed=s=>{const f=SCREEN_FEAT[s];return !f||fOn(f);};
+const GV=()=>GROUPS.map(g=>[g[0],g[1],g[2].filter(m=>allowed(m[2]))]);
+function upgradeScreen(f){const ph=String((CLOUD2&&CLOUD2.vendorPhone)||(LIC&&LIC.vendorPhone)||'6392995127').replace(/\D/g,''),n=FEAT_NAMES[f]||f;
+  main.innerHTML=title(esc(n))+`<div class="card" style="text-align:center;padding:26px 18px"><div style="font-size:46px">🔒</div><h3 style="margin:8px 0">${esc(n)} aapke plan me nahi hai</h3>
+    <p class="muted">Ye feature use karne ke liye plan upgrade karein. Setu Pro se sampark karein.</p>
+    <div class="btns" style="justify-content:center"><a class="btn" href="tel:${ph}">📞 Call ${ph}</a><a class="btn upg" style="background:#25d366" href="https://wa.me/91${ph.slice(-10)}?text=${encodeURIComponent('Setu Pro, mujhe '+n+' feature chahiye. Library ID: '+((CLOUD2&&CLOUD2.libId)||''))}" target="_blank" rel="noopener">💬 Upgrade request</a></div></div>`;}
+function applyFeat(c){FEAT=(c&&c.feat)||{};const sig=JSON.stringify(FEAT);const hc=document.documentElement.classList;
+  hc.toggle('nowa',!fOn('whatsapp'));hc.toggle('nostu',!fOn('student'));
+  if(sig!==featSig){featSig=sig;try{if($('#side'))drawSide();gwDraw();}catch(e){}
+    if(D&&!allowed(cur)&&cur!=='home')go('home');else if(D&&cur==='home')try{scrHome();}catch(e){}}}
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
   heads:scrHeads,expense:scrExpense,remind:scrRemind,books:scrBooks,bookissue:scrBookIssue,bookreg:scrBookReg,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
   daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,help:scrHelp,license:scrLicense,quit:scrQuit};
@@ -549,15 +568,15 @@ function go(s,arg){
   cur=s;curArg=arg;onSave=null;nav=null;keyH=null;closeModal();$('#tip').style.display='none';
   const m=MENU.find(x=>x[2]===s);
   $('#scr').textContent=m?m[1]:'Gateway of Library';$('#libname').textContent=D.settings.name;
-  main.scrollTop=0;SCREENS[s](arg);
+  main.scrollTop=0;if(!allowed(s)){upgradeScreen(SCREEN_FEAT[s]);if(window.MOBILE)mobNav(s);return;}SCREENS[s](arg);
   if(window.MOBILE)mobNav(s);
 }
 function drawSide(){$('#side').innerHTML=`<button onclick="go('home')"><u>Esc</u>Gateway</button>`+
-  GROUPS.map(g=>`<div class="sg">${g[1]}</div>`+g[2].map(m=>`<button onclick="go('${m[2]}')">${m[0]?'<u>Alt+'+m[0]+'</u>':'<u></u>'}${m[1]}</button>`).join('')).join('')+
+  GV().map(g=>`<div class="sg">${g[1]}</div>`+g[2].map(m=>`<button onclick="go('${m[2]}')">${m[0]?'<u>Alt+'+m[0]+'</u>':'<u></u>'}${m[1]}</button>`).join('')).join('')+
   `<div class="keys"><b>Library ERP v${esc(LIC&&LIC.version||'')}</b>${LIC&&LIC.vendorPhone?`<br>Support: ${esc(LIC.vendor)} ${esc(LIC.vendorPhone)}`:''}<br><kbd>Enter</kbd> next field<br><kbd>Ctrl+S</kbd> Save / Accept<br><kbd>↑</kbd><kbd>↓</kbd> select in list<br><kbd>Esc</kbd> back</div>`;}
-function gwRows(){const R=[];GROUPS.forEach((g,gi)=>{R.push({g:gi});if(gi===gwOpen)g[2].forEach(it=>R.push({it}));});return R;}
+function gwRows(){const R=[];GV().forEach((g,gi)=>{R.push({g:gi});if(gi===gwOpen)g[2].forEach(it=>R.push({it}));});return R;}
 function gwHtml(){return gwRows().map((r,i)=>r.it?`<div class="it sub${i===gwSel?' on':''}" onclick="go('${r.it[2]}')">${r.it[0]?'<u>'+r.it[0]+'</u>':'<u></u>'}${r.it[1]}</div>`:
-  `<div class="gh${r.g===gwOpen?' open':''}${i===gwSel?' on':''}" onclick="gwToggle(${r.g})"><u>${GROUPS[r.g][0]}</u>${GROUPS[r.g][1]}<span>${r.g===gwOpen?'▾':'▸'}</span></div>`).join('');}
+  `<div class="gh${r.g===gwOpen?' open':''}${i===gwSel?' on':''}" onclick="gwToggle(${r.g})"><u>${GV()[r.g][0]}</u>${GV()[r.g][1]}<span>${r.g===gwOpen?'▾':'▸'}</span></div>`).join('');}
 function gwDraw(){const e=$('#gwmenu');if(e)e.innerHTML=gwHtml();}
 function gwToggle(gi){gwOpen=gwOpen===gi?-1:gi;gwSel=gwRows().findIndex(r=>r.g===gi)+(gwOpen===gi?1:0);gwDraw();}
 const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
@@ -568,13 +587,13 @@ const BNAV=[['home','Home'],['collect','Fee'],['att','Attendance'],['list','Stud
 function drawer(open){const d=$('#drawer');if(!d||!D)return;open=open===undefined?!d.classList.contains('open'):open;
   if(open)d.innerHTML=`<div class="dhead"><div class="dlogo">${D.settings.logo?`<img src="${D.settings.logo}" alt="">`:'📚'}</div><div><b>${esc(D.settings.name)}</b><small>Library ERP v${esc(LIC&&LIC.version||'')}${LIC&&LIC.vendorPhone?' · Support '+esc(LIC.vendorPhone):''}</small></div></div>
     <a class="${cur==='home'?'on':''}" onclick="go('home')"><i>🏠</i>Home</a>`+
-    GROUPS.map(g=>`<div class="dsec">${g[1]}</div>`+g[2].map(m=>`<a class="${cur===m[2]?'on':''}" onclick="go('${m[2]}')"><i>${ICON[m[2]]||'•'}</i>${esc(m[1])}</a>`).join('')).join('');
+    GV().map(g=>`<div class="dsec">${g[1]}</div>`+g[2].map(m=>`<a class="${cur===m[2]?'on':''}" onclick="go('${m[2]}')"><i>${ICON[m[2]]||'•'}</i>${esc(m[1])}</a>`).join('')).join('');
   d.classList.toggle('open',open);$('#dmask').classList.toggle('open',open);}
 function mobNav(s){drawer(false);const m=MENU.find(x=>x[2]===s);
   $('#scr').textContent=s==='home'?'Home':s==='record'?'Student Record':m?m[1]:'';
   $('#bnav').innerHTML=BNAV.map(([k,l])=>`<a class="${k===s||(k==='list'&&(s==='record'||s==='student'))?'on':''}" onclick="${k==='menu'?'drawer(true)':`go('${k}')`}"><i>${k==='menu'?'☰':ICON[k]}</i><span>${l}</span></a>`).join('');}
 function mobTiles(){const T=[['student','New Admission'],['collect','Fee Collect'],['att','Attendance'],['list','Students'],['due','Due List'],['expense','Expense'],
-  ['remind','Fee Reminder'],['bookissue','Book Issue'],['help','Help & Support']];
+  ['remind','Fee Reminder'],['bookissue','Book Issue'],['help','Help & Support']].filter(t=>allowed(t[0]));
   const S=D.settings;
   return `<div class="lhead">${S.logo?`<img src="${S.logo}" alt="">`:'<span>📚</span>'}<div><b>${esc(S.name)}</b><small>${esc(S.address||S.contact||'Library ERP')}</small></div></div><div class="tiles">${T.map(([k,l])=>`<a onclick="go('${k}')"><i>${ICON[k]}</i><span>${l}</span></a>`).join('')}<a onclick="drawer(true)"><i>☰</i><span>All modules</span></a></div>`;}
 // Phone par keyboard hints (Ctrl+S, Esc, Alt+X, (Y)) hata do
@@ -905,6 +924,7 @@ async function delStudent(id){
 // Har student ka apna link — parent fee+attendance+contact dekh le
 function randTok(){return (Date.now().toString(36)+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6));}
 async function shareLink(id){
+  if(!fOn('student')){toast('Student app aapke plan me nahi hai — upgrade ke liye Setu Pro se sampark karein','bad');return;}
   const s=stu(id);if(!s)return;
   if(s.status==='left'){toast('Student is marked Left','bad');return;}
   let ci;try{ci=await api('cloud');}catch(e){ci=null;}
@@ -936,7 +956,7 @@ function scrRecord(id){
   const P=new Set(s.paid||[]),cm=curMonth(),jm=(s.join||today()).slice(0,7);
   const months=mRange(jm<mAdd(cm,-23)?mAdd(cm,-23):jm,mAdd(cm,3));
   const fee=sum(ok,'fee'),ext=sum(ok,'extraAmt'),disc=sum(ok,'disc'),paid=sum(ok,'paid');
-  main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button><button class="btn sm g" onclick="shareLink('${s.id}')">🔗 Share link</button>`)+
+  main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button><button class="btn sm g stlink" onclick="shareLink('${s.id}')">🔗 Share link</button>`)+
   otherDueHtml(s)+(st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due (${esc(curSess().name)}):</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Balance ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
     <button class="btn sm wa" style="margin-left:8px" onclick="waRemind('${s.id}')">Send WhatsApp reminder</button></div>`:'')+
   `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
@@ -1103,7 +1123,7 @@ function rcptText(r){
   return L.filter(x=>x!==undefined).join('\n');
 }
 // Student ka public link (cloud on hone par)
-function studentLink(s){if(!s||!s.tok||!CLOUD2||!CLOUD2.url||!CLOUD2.libId)return '';return CLOUD2.url.replace(/\/+$/,'')+'/s/'+encodeURIComponent(CLOUD2.libId+'~'+s.tok);}
+function studentLink(s){if(!fOn('student')||!s||!s.tok||!CLOUD2||!CLOUD2.url||!CLOUD2.libId)return '';return CLOUD2.url.replace(/\/+$/,'')+'/s/'+encodeURIComponent(CLOUD2.libId+'~'+s.tok);}
 const rExtras=r=>r.extras&&r.extras.length?r.extras:r.extraAmt?[{name:r.extra||'One-time fee',amt:r.extraAmt}]:[];
 // Receipt par likha WhatsApp no. ho to us par, warna student ke record wala number
 const rcptPhone=r=>{const s=stu(r.sid)||{};return normPh(r.wa)||normPh(s.mobile);};

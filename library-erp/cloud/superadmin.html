@@ -21,6 +21,9 @@ input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:trans
 .k{background:var(--card);border-radius:12px;box-shadow:0 1px 4px #1d2b4a1a;padding:10px;text-align:center}.k b{display:block;font-size:22px}.k span{font-size:11px;color:var(--m)}
 .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
 .k.tap{cursor:pointer;border:2px solid transparent}.k.tap.on{border-color:var(--b2);background:#eaf1fb}
+.tg{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.tg:last-of-type{border-bottom:0}.tg .t{flex:1}.tg .t small{display:block;color:var(--m);font-size:12px}
+.sw{width:46px;height:26px;border-radius:20px;background:#c5ccd8;position:relative;border:0;flex:none;cursor:pointer}.sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}.sw.on{background:var(--ok)}.sw.on::after{left:23px}
+.plans{display:flex;gap:6px;margin:6px 0 10px}.plans button{flex:1;padding:9px 4px;border-radius:10px;border:1px solid var(--b2);background:#fff;color:var(--b2);font-weight:700;font-size:13px}.plans button.on{background:var(--b2);color:#fff}
 .fbar{display:flex;align-items:center;gap:8px;background:#eaf1fb;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}.fbar b{flex:1}
 .lib{background:var(--card);border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:10px}
 .lib .top{display:flex;gap:10px;align-items:flex-start}
@@ -105,6 +108,23 @@ function urgency(l){const d=licDays(l.lic_expiry),pd=l.paid_till?licDaysPay(l.pa
   if(d!==Infinity){if(d<0)u=200;else if(d<=5)u=Math.max(u,150-d);}
   if(pd!=null){if(pd<0)u=Math.max(u,120);else if(pd<=5)u=Math.max(u,100-pd);}
   if(staleH(l.last_sync)>48)u=Math.max(u,50);return u;}
+// ---- Plan / features ----
+const FEATS=[['student','Student app','Student ka khud ka In/Out + fee record, link'],['whatsapp','WhatsApp','Receipt / reminder WhatsApp se bhejna'],['online','Online View','Owner ka cloud se aaj ka hisaab'],['books','Books','Book master, issue / return'],['reminder','Fee Reminder','Is mahine ki fee due reminder'],['import','Bulk Import','Excel / CSV se students'],['backup','Cloud backup','Cloud par backup + restore']];
+const PLANS={basic:{n:'Basic ₹499',on:['backup','online','import']},standard:{n:'Standard',on:['backup','online','import','whatsapp','reminder','books']},pro:{n:'Pro',on:FEATS.map(f=>f[0])}};
+function featState(l){let f={};try{f=JSON.parse(l.feat||'{}')||{};}catch(e){}const o={};FEATS.forEach(([k])=>o[k]=(f[k]===0||f[k]==='0')?0:1);return o;}
+function planName(l){const k=l.plan_key;if(!k)return 'All features';return k==='custom'?'Custom':(PLANS[k]?PLANS[k].n:k);}
+let FSEL={},FPLAN='custom';
+function featBox(id){const l=libById(id);FSEL=featState(l);FPLAN=l.plan_key||'custom';
+  sheet(`<h3>Features — ${esc(l.name||id)}</h3><p class="muted">${esc(id)} · Plan chuno ya har feature ka switch alag se. Save karte hi library ko ~1 minute me lagu ho jata hai.</p>
+  <div class="plans" id="fplans">${Object.keys(PLANS).map(k=>`<button data-k="${k}" onclick="fPick('${k}')">${esc(PLANS[k].n)}</button>`).join('')}</div>
+  <div id="ftog"></div>
+  <div class="acts" style="margin-top:14px"><button class="btn ok" onclick="saveFeat('${id}')">Save</button><button class="btn g" onclick="closeSheet()">Close</button></div>`);fDraw();}
+function fDraw(){const t=$('#ftog');if(!t)return;
+  t.innerHTML=FEATS.map(([k,n,d])=>`<div class="tg"><div class="t"><b>${n}</b><small>${d}</small></div><button class="sw ${FSEL[k]?'on':''}" onclick="fTog('${k}')" aria-label="${n}"></button></div>`).join('');
+  document.querySelectorAll('#fplans button').forEach(b=>b.classList.toggle('on',b.dataset.k===FPLAN));}
+function fPick(k){FPLAN=k;FEATS.forEach(([f])=>FSEL[f]=PLANS[k].on.includes(f)?1:0);fDraw();}
+function fTog(k){FSEL[k]=FSEL[k]?0:1;FPLAN='custom';fDraw();}
+async function saveFeat(id){try{await api('features',{body:{id,plan_key:FPLAN,feat:FSEL}});toast('Features saved','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 let KF='all';
 function setKF(k){KF=(KF===k&&k!=='all')?'all':k;render();}
 function kfMatch(l){
@@ -157,6 +177,7 @@ function drawLibs(L){
     </div>
     <div class="chips">
       <span class="chip ${l.pinSet?'ok':'bad'}">Restore PIN ${l.pinSet?'set':'not set'}</span>
+      <span class="chip">Plan: ${esc(planName(l))}</span>${(()=>{const f=featState(l),off=FEATS.filter(x=>!f[x[0]]).map(x=>x[1]);return off.length?`<span class="chip warn">Off: ${esc(off.join(', '))}</span>`:'';})()}
       ${l.pendingKey?'<span class="chip warn">Renewal key waiting (library offline)</span>':''}
       ${l.notice?'<span class="chip warn">✉ Message showing in app</span>':''}
       ${+l.lock===2?'<span class="chip bad">🔒 App locked</span>':+l.lock===1?'<span class="chip warn">⚠ Warning showing</span>':''}
@@ -165,6 +186,7 @@ function drawLibs(L){
       ${l.contact?`<a class="btn sm g" href="${telHref(l.contact)}">📞 Call</a><a class="btn sm ok" href="${waHref(l.contact,l.name)}" target="_blank" rel="noopener">💬 WhatsApp</a>`:''}
       <button class="btn sm ok" onclick='renewBox(${JSON.stringify(l.id)})'>Renew</button>
       <button class="btn sm" onclick='payBox(${JSON.stringify(l.id)})'>Payment</button>
+      <button class="btn sm" onclick='featBox(${JSON.stringify(l.id)})'>⚙ Features</button>
       <button class="btn sm g" onclick='noticeBox(${JSON.stringify(l.id)})'>✉ Message</button>
       <button class="btn sm ${+l.lock?'bad':'g'}" onclick='lockBox(${JSON.stringify(l.id)})'>${+l.lock?'🔒 Locked':'🔒 Lock'}</button>
       <button class="btn sm g" onclick='libTickets(${JSON.stringify(l.id)})'>Tickets</button>

@@ -24,7 +24,7 @@ async function init(env) {
   for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0',
     'pending_key TEXT', 'pending_at TEXT',  // payments + images (v1.13.0), remote renew (v1.14.0)
     'notice TEXT', 'notice_at TEXT', 'lock INTEGER DEFAULT 0', 'lock_msg TEXT',  // admin->library message + remote lock (v1.16.0)
-    'pupils TEXT', 'att_pending TEXT'])  // per-student link + student self-attendance (v1.17.0 / v1.18.0)
+    'pupils TEXT', 'att_pending TEXT', 'feat TEXT', 'plan_key TEXT'])  // per-student link + student self-attendance (v1.17.0 / v1.18.0)
     try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
@@ -37,6 +37,13 @@ const enc = new TextEncoder();
 const b64urlToBytes = s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return Uint8Array.from(atob(s), c => c.charCodeAt(0)); };
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
 const sha256 = async s => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)));
+// Plan ke features (admin se on/off). Naya/khaali = sab ON. 0 = band.
+const FEAT_KEYS = ['student', 'whatsapp', 'online', 'books', 'reminder', 'import', 'backup'];
+function featOf(lib) {
+  let f = {}; try { f = JSON.parse((lib && lib.feat) || '{}') || {}; } catch (e) {}
+  const o = {}; FEAT_KEYS.forEach(k => { o[k] = (f[k] === 0 || f[k] === false || f[k] === '0') ? 0 : 1; });
+  return o;
+}
 const now = () => new Date().toISOString();
 const IST = () => new Date(Date.now() + 5.5 * 3600e3);                 // India time (server UTC se)
 const istDate = () => IST().toISOString().slice(0, 10);               // YYYY-MM-DD
@@ -89,12 +96,17 @@ async function push(env, b) {
   const day = String(b.day || now().slice(0, 10)).slice(0, 10), s = b.stats || {};
   let view = b.view && typeof b.view === 'object' ? JSON.stringify(b.view) : null;
   if (view && view.length > MAX_VIEW) view = null;
+  const FT = featOf(lib);   // plan: cloud backup band ho to backups table me kuch nahi likhte (baaki sab chalta rahe)
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO backups (lib_id, day, data, updated) VALUES (?, ?, ?, ?) ON CONFLICT(lib_id, day) DO UPDATE SET data = excluded.data, updated = excluded.updated')
+    ...(FT.backup ? [
+      env.DB.prepare('INSERT INTO backups (lib_id, day, data, updated) VALUES (?, ?, ?, ?) ON CONFLICT(lib_id, day) DO UPDATE SET data = excluded.data, updated = excluded.updated')
       .bind(lib.id, day, data, now()),
+    ] : []),
     env.DB.prepare(`UPDATE libraries SET machine = ?, name = COALESCE(NULLIF(?,''), name), contact = COALESCE(NULLIF(?,''), contact), version = ?, lic_expiry = ?, students = ?, active = ?, receipts = ?, size = ?, last_sync = ?, view = COALESCE(?, view) WHERE id = ?`)
       .bind(b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, +s.students || 0, +s.active || 0, +s.receipts || 0, data.length, now(), view, lib.id),
-    env.DB.prepare(`DELETE FROM backups WHERE lib_id = ? AND day NOT IN (SELECT day FROM backups WHERE lib_id = ? ORDER BY day DESC LIMIT ${KEEP_DAYS})`).bind(lib.id, lib.id),
+    ...(FT.backup ? [
+      env.DB.prepare(`DELETE FROM backups WHERE lib_id = ? AND day NOT IN (SELECT day FROM backups WHERE lib_id = ? ORDER BY day DESC LIMIT ${KEEP_DAYS})`).bind(lib.id, lib.id),
+    ] : []),
   ]);
   // Per-student links: sirf pupils JSON store (link me libId hota hai, isliye alag mapping ki zarurat nahi — ek hi write)
   if (Array.isArray(b.pupils)) {
@@ -120,7 +132,7 @@ async function push(env, b) {
   let pendingKey = lib.pending_key || '';
   if (pendingKey && pendingKey === curKey) { await env.DB.prepare('UPDATE libraries SET pending_key = NULL, pending_at = NULL WHERE id = ?').bind(lib.id).run(); pendingKey = ''; }
   return { ok: true, libId: lib.id, at: now(), pinSet: !!lib.pin_hash, pendingKey: pendingKey && pendingKey !== curKey ? pendingKey : '',
-    notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '', attMarks };
+    notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '', attMarks, feat: featOf(lib) };
 }
 async function setPin(env, b) {
   const lib = await authLib(env, b);
@@ -163,6 +175,7 @@ async function pullKey(env, b) {
 // Online View (owner ka phone): sirf hisaab, poora data nahi
 async function viewData(env, b) {
   const lib = await checkPin(env, b.libId, b.pin);
+  if (!featOf(lib).online) throw new Error('Online View is not included in this library\'s plan. Contact Setu Pro: 6392995127');
   let v = null; try { v = lib.view ? JSON.parse(lib.view) : null; } catch (e) {}
   return { libId: lib.id, name: lib.name, contact: lib.contact, version: lib.version, lastSync: lib.last_sync, view: v };
 }
@@ -173,8 +186,9 @@ async function studentData(env, b) {
   const i = seg.lastIndexOf('~');
   if (i < 1) throw new Error('This link is not valid.');
   const libId = seg.slice(0, i), tok = seg.slice(i + 1);
-  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending FROM libraries WHERE id=?').bind(libId).first();
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending, feat FROM libraries WHERE id=?').bind(libId).first();
   if (!lib) throw new Error('This link is not valid or has been removed.');
+  if (!featOf(lib).student) throw new Error('The student app is not available for this library right now. Please contact the library.');
   let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
   const s = P.find(x => x && x.tok === tok);
   if (!s) throw new Error('Student record not found. Please ask the library to share the link again.');
@@ -194,15 +208,16 @@ async function poll(env, b) {
   if (changed) await env.DB.prepare('UPDATE libraries SET att_pending=? WHERE id=?').bind(JSON.stringify(pend), lib.id).run();
   const curKey = String(b.key || '').replace(/\s+/g, '');
   return { ok: true, at: now(), notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '',
-    pendingKey: lib.pending_key && lib.pending_key !== curKey ? lib.pending_key : '', attMarks: Object.values(pend) };
+    pendingKey: lib.pending_key && lib.pending_key !== curKey ? lib.pending_key : '', attMarks: Object.values(pend), feat: featOf(lib) };
 }
 // Student khud In/Out kare (link se). Server time (IST). ERP agle sync me kheench lega.
 async function studentMark(env, b) {
   const seg = String(b.tok || '').trim(), act = b.act === 'out' ? 'out' : 'in';
   const i = seg.lastIndexOf('~'); if (i < 1) throw new Error('This link is not valid.');
   const libId = seg.slice(0, i), tok = seg.slice(i + 1);
-  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending FROM libraries WHERE id=?').bind(libId).first();
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending, feat FROM libraries WHERE id=?').bind(libId).first();
   if (!lib) throw new Error('This link is not valid or has been removed.');
+  if (!featOf(lib).student) throw new Error('The student app is not available for this library right now. Please contact the library.');
   let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
   const s = P.find(x => x && x.tok === tok);
   if (!s) throw new Error('Student not found.');
@@ -385,6 +400,13 @@ async function adminApi(req, env, url, op) {
     return json({ ok: true });
   }
   // Admin -> library message (library ke app me popup). Khaali bhejo to hat jayega.
+  // Plan / feature on-off. feat = { student:0|1, whatsapp:0|1, ... }  (naya library: sab ON)
+  if (op === 'features' && req.method === 'POST') {
+    const f = {}; FEAT_KEYS.forEach(k => { f[k] = (body.feat && (body.feat[k] === 0 || body.feat[k] === false)) ? 0 : 1; });
+    const pk = String(body.plan_key || 'custom').slice(0, 20);
+    await env.DB.prepare('UPDATE libraries SET feat=?, plan_key=? WHERE id=?').bind(JSON.stringify(f), pk, String(body.id)).run();
+    return json({ ok: true, feat: f });
+  }
   if (op === 'notice' && req.method === 'POST') {
     const msg = String(body.notice || '').slice(0, 500);
     await env.DB.prepare('UPDATE libraries SET notice=?, notice_at=? WHERE id=?')
@@ -620,6 +642,9 @@ input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:trans
 .k{background:var(--card);border-radius:12px;box-shadow:0 1px 4px #1d2b4a1a;padding:10px;text-align:center}.k b{display:block;font-size:22px}.k span{font-size:11px;color:var(--m)}
 .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
 .k.tap{cursor:pointer;border:2px solid transparent}.k.tap.on{border-color:var(--b2);background:#eaf1fb}
+.tg{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.tg:last-of-type{border-bottom:0}.tg .t{flex:1}.tg .t small{display:block;color:var(--m);font-size:12px}
+.sw{width:46px;height:26px;border-radius:20px;background:#c5ccd8;position:relative;border:0;flex:none;cursor:pointer}.sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}.sw.on{background:var(--ok)}.sw.on::after{left:23px}
+.plans{display:flex;gap:6px;margin:6px 0 10px}.plans button{flex:1;padding:9px 4px;border-radius:10px;border:1px solid var(--b2);background:#fff;color:var(--b2);font-weight:700;font-size:13px}.plans button.on{background:var(--b2);color:#fff}
 .fbar{display:flex;align-items:center;gap:8px;background:#eaf1fb;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}.fbar b{flex:1}
 .lib{background:var(--card);border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:10px}
 .lib .top{display:flex;gap:10px;align-items:flex-start}
@@ -704,6 +729,23 @@ function urgency(l){const d=licDays(l.lic_expiry),pd=l.paid_till?licDaysPay(l.pa
   if(d!==Infinity){if(d<0)u=200;else if(d<=5)u=Math.max(u,150-d);}
   if(pd!=null){if(pd<0)u=Math.max(u,120);else if(pd<=5)u=Math.max(u,100-pd);}
   if(staleH(l.last_sync)>48)u=Math.max(u,50);return u;}
+// ---- Plan / features ----
+const FEATS=[['student','Student app','Student ka khud ka In/Out + fee record, link'],['whatsapp','WhatsApp','Receipt / reminder WhatsApp se bhejna'],['online','Online View','Owner ka cloud se aaj ka hisaab'],['books','Books','Book master, issue / return'],['reminder','Fee Reminder','Is mahine ki fee due reminder'],['import','Bulk Import','Excel / CSV se students'],['backup','Cloud backup','Cloud par backup + restore']];
+const PLANS={basic:{n:'Basic ₹499',on:['backup','online','import']},standard:{n:'Standard',on:['backup','online','import','whatsapp','reminder','books']},pro:{n:'Pro',on:FEATS.map(f=>f[0])}};
+function featState(l){let f={};try{f=JSON.parse(l.feat||'{}')||{};}catch(e){}const o={};FEATS.forEach(([k])=>o[k]=(f[k]===0||f[k]==='0')?0:1);return o;}
+function planName(l){const k=l.plan_key;if(!k)return 'All features';return k==='custom'?'Custom':(PLANS[k]?PLANS[k].n:k);}
+let FSEL={},FPLAN='custom';
+function featBox(id){const l=libById(id);FSEL=featState(l);FPLAN=l.plan_key||'custom';
+  sheet(\`<h3>Features — \${esc(l.name||id)}</h3><p class="muted">\${esc(id)} · Plan chuno ya har feature ka switch alag se. Save karte hi library ko ~1 minute me lagu ho jata hai.</p>
+  <div class="plans" id="fplans">\${Object.keys(PLANS).map(k=>\`<button data-k="\${k}" onclick="fPick('\${k}')">\${esc(PLANS[k].n)}</button>\`).join('')}</div>
+  <div id="ftog"></div>
+  <div class="acts" style="margin-top:14px"><button class="btn ok" onclick="saveFeat('\${id}')">Save</button><button class="btn g" onclick="closeSheet()">Close</button></div>\`);fDraw();}
+function fDraw(){const t=$('#ftog');if(!t)return;
+  t.innerHTML=FEATS.map(([k,n,d])=>\`<div class="tg"><div class="t"><b>\${n}</b><small>\${d}</small></div><button class="sw \${FSEL[k]?'on':''}" onclick="fTog('\${k}')" aria-label="\${n}"></button></div>\`).join('');
+  document.querySelectorAll('#fplans button').forEach(b=>b.classList.toggle('on',b.dataset.k===FPLAN));}
+function fPick(k){FPLAN=k;FEATS.forEach(([f])=>FSEL[f]=PLANS[k].on.includes(f)?1:0);fDraw();}
+function fTog(k){FSEL[k]=FSEL[k]?0:1;FPLAN='custom';fDraw();}
+async function saveFeat(id){try{await api('features',{body:{id,plan_key:FPLAN,feat:FSEL}});toast('Features saved','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 let KF='all';
 function setKF(k){KF=(KF===k&&k!=='all')?'all':k;render();}
 function kfMatch(l){
@@ -756,6 +798,7 @@ function drawLibs(L){
     </div>
     <div class="chips">
       <span class="chip \${l.pinSet?'ok':'bad'}">Restore PIN \${l.pinSet?'set':'not set'}</span>
+      <span class="chip">Plan: \${esc(planName(l))}</span>\${(()=>{const f=featState(l),off=FEATS.filter(x=>!f[x[0]]).map(x=>x[1]);return off.length?\`<span class="chip warn">Off: \${esc(off.join(', '))}</span>\`:'';})()}
       \${l.pendingKey?'<span class="chip warn">Renewal key waiting (library offline)</span>':''}
       \${l.notice?'<span class="chip warn">✉ Message showing in app</span>':''}
       \${+l.lock===2?'<span class="chip bad">🔒 App locked</span>':+l.lock===1?'<span class="chip warn">⚠ Warning showing</span>':''}
@@ -764,6 +807,7 @@ function drawLibs(L){
       \${l.contact?\`<a class="btn sm g" href="\${telHref(l.contact)}">📞 Call</a><a class="btn sm ok" href="\${waHref(l.contact,l.name)}" target="_blank" rel="noopener">💬 WhatsApp</a>\`:''}
       <button class="btn sm ok" onclick='renewBox(\${JSON.stringify(l.id)})'>Renew</button>
       <button class="btn sm" onclick='payBox(\${JSON.stringify(l.id)})'>Payment</button>
+      <button class="btn sm" onclick='featBox(\${JSON.stringify(l.id)})'>⚙ Features</button>
       <button class="btn sm g" onclick='noticeBox(\${JSON.stringify(l.id)})'>✉ Message</button>
       <button class="btn sm \${+l.lock?'bad':'g'}" onclick='lockBox(\${JSON.stringify(l.id)})'>\${+l.lock?'🔒 Locked':'🔒 Lock'}</button>
       <button class="btn sm g" onclick='libTickets(\${JSON.stringify(l.id)})'>Tickets</button>
