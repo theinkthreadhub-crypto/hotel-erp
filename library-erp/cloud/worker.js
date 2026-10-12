@@ -179,6 +179,33 @@ async function viewData(env, b) {
   let v = null; try { v = lib.view ? JSON.parse(lib.view) : null; } catch (e) {}
   return { libId: lib.id, name: lib.name, contact: lib.contact, version: lib.version, lastSync: lib.last_sync, view: v };
 }
+// ---- Student app: library ke naam + logo se install ----
+function shortAppName(n) {
+  n = String(n || '').trim().replace(/\s+/g, ' ');
+  if (n.length <= 12) return n || 'My Library';
+  const w = n.split(' ');
+  if ((w[0] + ' ' + (w[1] || '')).trim().length <= 12) return (w[0] + ' ' + (w[1] || '')).trim();
+  return w[0].slice(0, 12);
+}
+async function sManifest(env, seg) {
+  const i = seg.lastIndexOf('~'), libId = i > 0 ? seg.slice(0, i) : '';
+  const lib = libId ? await env.DB.prepare('SELECT id, name FROM libraries WHERE id=?').bind(libId).first() : null;
+  const ic = lib ? await env.DB.prepare("SELECT substr(data,1,22) AS h FROM images WHERE lib_id=? AND key='icon512'").bind(lib.id).first() : null;
+  const name = (lib && lib.name) || 'My Library';
+  const type = ic && /image\/jpeg/.test(ic.h || '') ? 'image/jpeg' : 'image/png';
+  const icons = ic
+    ? [192, 512].map(n => ({ src: '/s-icon/' + lib.id + '.png', sizes: n + 'x' + n, type, purpose: 'any' }))
+    : [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }];
+  const m = { id: '/s/' + seg, name, short_name: shortAppName(name), description: 'Attendance and fee record — ' + name,
+    start_url: '/s/' + seg, scope: '/s/', display: 'standalone', orientation: 'portrait', background_color: '#eef1f6', theme_color: '#1f3a63', icons };
+  return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=300' } });
+}
+async function sIcon(env, libId) {
+  const row = await env.DB.prepare("SELECT data FROM images WHERE lib_id=? AND key='icon512'").bind(libId).first();
+  const m = row && /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(row.data || '');
+  if (!m) return new Response(Uint8Array.from(atob(ICON_512), c => c.charCodeAt(0)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' } });
+  return new Response(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0)), { headers: { 'Content-Type': m[1], 'Cache-Control': 'public, max-age=300' } });
+}
 // Per-student public link — token se sirf us student ka fee+attendance (Aadhaar/private kuch nahi)
 async function studentData(env, b) {
   const seg = String(b.tok || '').trim();           // link segment = "<libId>~<token>"
@@ -466,11 +493,11 @@ self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(K=>Promise.all(K.filter(k=>k!==C).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;e.respondWith(fetch(e.request).then(r=>{if(r.ok){const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));}return r;}).catch(()=>caches.match(e.request)));});`;
 // Student app (/s) ka service worker — phone pe installable + offline shell
-const S_SW = `const C='setu-stu-v1';
+const S_SW = `const C='setu-stu-v2';
 self.addEventListener('install',e=>self.skipWaiting());
 self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch',e=>{if(e.request.method!=='GET')return;const u=new URL(e.request.url);
-  if(u.pathname.indexOf('/s/')===0||u.pathname==='/icon-192.png'||u.pathname==='/icon-512.png'){
+  if(u.pathname.indexOf('/s/')===0||u.pathname.indexOf('/s-icon/')===0||u.pathname==='/icon-192.png'||u.pathname==='/icon-512.png'){
     e.respondWith(fetch(e.request).then(r=>{if(r.ok){const c=r.clone();caches.open(C).then(x=>x.put(e.request,c));}return r;}).catch(()=>caches.match(e.request)));}});`;
 // Ye page cloud/view.html se aata hai: badlav view.html mein karke `node cloud/embed.js` chalayein.
 const VIEW_HTML = `<!doctype html>
@@ -927,6 +954,7 @@ const STUDENT_HTML = `<!doctype html>
 *{box-sizing:border-box}html,body{margin:0}body{font:15px/1.45 "Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--t)}
 .wrap{max-width:460px;margin:0 auto;padding:16px;padding-top:max(16px,env(safe-area-inset-top))}
 .hd{background:var(--b);color:#fff;border-radius:16px;padding:18px;text-align:center;margin-bottom:14px}
+.hd .lg{width:54px;height:54px;border-radius:14px;background:#fff;object-fit:cover;margin:0 auto 8px;display:block}
 .hd .lib{font-size:13px;opacity:.85}.hd h1{margin:6px 0 2px;font-size:22px}.hd .sub{font-size:13px;opacity:.85}
 .card{background:var(--card);border-radius:14px;box-shadow:0 1px 4px #1d2b4a14;padding:16px;margin-bottom:12px}
 .card h3{margin:0 0 12px;font-size:13px;color:var(--m);font-weight:600;text-transform:uppercase;letter-spacing:.03em}
@@ -973,12 +1001,13 @@ function telHref(c){return 'tel:'+String(c||'').replace(/[^\\d+]/g,'');}
 const SEG=(location.pathname.split('/s/')[1]||new URLSearchParams(location.search).get('t')||'').trim();
 let DATA=null,busy=false,canInstall=null;
 // ----- PWA: phone pe "apna app" ban jaye -----
-function setManifest(nm){try{
-  const m={name:nm||'My Library App',short_name:'My App',start_url:location.pathname,scope:'/s/',display:'standalone',
-    background_color:'#eef1f6',theme_color:'#1f3a63',icons:[{src:'/icon-192.png',sizes:'192x192',type:'image/png'},{src:'/icon-512.png',sizes:'512x512',type:'image/png'}]};
-  const b=new Blob([JSON.stringify(m)],{type:'application/manifest+json'}),u=URL.createObjectURL(b);
-  let l=document.querySelector('link[rel=manifest]');if(!l){l=document.createElement('link');l.rel='manifest';document.head.appendChild(l);}l.href=u;
-}catch(e){}}
+// Install ke liye manifest cloud se aata hai: naam + icon library ka (logo upload kiya ho to)
+function setManifest(){try{const l=document.querySelector('link[rel=manifest]')||document.head.appendChild(Object.assign(document.createElement('link'),{rel:'manifest'}));l.href='/s-manifest/'+SEG;}catch(e){}}
+function libIdOf(){try{return decodeURIComponent(SEG).split('~')[0];}catch(e){return '';}}
+function shortName(n){n=String(n||'').trim().replace(/\\s+/g,' ');if(n.length<=12)return n||'My Library';const w=n.split(' '),t=(w[0]+' '+(w[1]||'')).trim();return t.length<=12?t:w[0].slice(0,12);}
+function brandPage(lib){const id=libIdOf(),set=(sel,mk)=>{let e=document.querySelector(sel);if(!e){e=mk();document.head.appendChild(e);}return e;};
+  try{set('link[rel=apple-touch-icon]',()=>Object.assign(document.createElement('link'),{rel:'apple-touch-icon'})).href='/s-icon/'+id+'.png';
+    set('meta[name=apple-mobile-web-app-title]',()=>Object.assign(document.createElement('meta'),{name:'apple-mobile-web-app-title'})).content=shortName(lib);}catch(e){}}
 function initPWA(){
   setManifest();
   if('serviceWorker' in navigator)navigator.serviceWorker.register('/s-sw.js',{scope:'/s/'}).catch(()=>{});
@@ -988,7 +1017,7 @@ function showInstall(){if(!DATA)return;const host=document.getElementById('insta
 function installHtml(){
   const ios=/iphone|ipad|ipod/i.test(navigator.userAgent),standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
   if(standalone)return '';
-  if(canInstall)return '<div class="install">📲 <div><b>Install this app</b><span style="opacity:.85">Apne phone me add karo — har baar attendance jaldi</span></div><button class="x" onclick="doInstall()">Install</button></div>';
+  if(canInstall)return '<div class="install">📲 <div><b>Install '+esc(DATA&&DATA.lib?DATA.lib:'this')+' app</b><span style="opacity:.85">Apne phone me add karo — har baar attendance jaldi</span></div><button class="x" onclick="doInstall()">Install</button></div>';
   if(ios)return '<div class="ios">📲 <b>Apne phone me app banayein:</b> niche <b>Share</b> (⬆️) dabayein → <b>Add to Home Screen</b>.</div>';
   return '';
 }
@@ -1070,7 +1099,7 @@ function render(d){
     :'<div class="done">✓ Attendance done for today</div>';
   $('app').innerHTML=
     '<div id="installbar">'+installHtml()+'</div>'+
-    '<div class="hd"><div class="lib">'+esc(d.lib||'Library')+'</div><h1>'+esc(s.name||'Student')+'</h1>'+
+    '<div class="hd"><img class="lg" src="/s-icon/'+esc(libIdOf())+'.png" alt="" onerror="this.style.display=\\'none\\'"><div class="lib">'+esc(d.lib||'Library')+'</div><h1>'+esc(s.name||'Student')+'</h1>'+
       '<div class="sub">'+(s.code?'ID '+esc(s.code):'')+(s.seat?' · Seat '+esc(s.seat):'')+'</div>'+
       '<span class="pill '+(due>0?'due':'ok')+'">'+(due>0?'Fee due '+rs(due):'All fees clear ✓')+'</span></div>'+
     '<div class="card"><h3>Attendance</h3>'+
@@ -1091,8 +1120,8 @@ function render(d){
       '<div class="row" style="justify-content:center;margin-top:8px"><b>'+esc(d.contact)+'</b></div></div>':'')+
     '<div class="foot">Updated '+(d.lastSync?new Date(d.lastSync).toLocaleString('en-IN'):'—')+'<br>Powered by Setu Pro'+(window.StudentApp?'<br><a href="#" onclick="StudentApp.reset();return false" style="color:#6b7385">Not you? Change link</a>':'')+'</div>';
   drawAtt();
-  document.title=(s.name||'Student')+' — '+(d.lib||'Library');
-  setManifest((s.name||'Student')+' — '+(d.lib||'Library'));
+  document.title=d.lib||'My Library';
+  brandPage(d.lib);
 }
 load();
 </script></body></html>
@@ -1111,6 +1140,8 @@ export default {
       if (url.pathname === '/s' || url.pathname.startsWith('/s/')) return new Response(STUDENT_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
       if (url.pathname === '/manifest.webmanifest') return new Response(JSON.stringify(MANIFEST), { headers: { 'Content-Type': 'application/manifest+json' } });
       if (url.pathname === '/sw.js') return new Response(SW_JS, { headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' } });
+      if (url.pathname.startsWith('/s-manifest/')) return await sManifest(env, decodeURIComponent(url.pathname.slice(12)));
+      if (url.pathname.startsWith('/s-icon/')) return await sIcon(env, decodeURIComponent(url.pathname.slice(8)).replace(/\.png$/i, ''));
       if (url.pathname === '/s-sw.js') return new Response(S_SW, { headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/s/' } });
       if (url.pathname === '/icon-192.png' || url.pathname === '/icon-512.png')
         return new Response(Uint8Array.from(atob(url.pathname === '/icon-192.png' ? ICON_192 : ICON_512), c => c.charCodeAt(0)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });

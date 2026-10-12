@@ -112,6 +112,7 @@ function pupils(D, now = new Date()) {
 function collectImages(D) {
   const m = {}, S = D.settings || {};
   if (S.logo) m['logo'] = S.logo;
+  if (S.logoIcon) m['icon512'] = S.logoIcon;   // student app ka home-screen icon (square)
   (D.students || []).forEach(s => {
     if (s.photo) m['stu_' + s.id] = s.photo;
     (s.docs || []).forEach((d, i) => { if (d) m['doc_' + s.id + '_' + i] = d; });
@@ -121,7 +122,7 @@ function collectImages(D) {
 // Main cloud backup chhota rakhne ke liye images hata do (local/email backup me rehti hain)
 function stripImages(D) {
   const c = JSON.parse(JSON.stringify(D));
-  if (c.settings) delete c.settings.logo;
+  if (c.settings) { delete c.settings.logo; delete c.settings.logoIcon; delete c.settings.logoIconOf; }
   (c.students || []).forEach(s => { delete s.photo; delete s.docs; });
   return c;
 }
@@ -131,6 +132,7 @@ function mergeImages(D, imgs) {
   for (const k in (imgs || {})) {
     const v = imgs[k];
     if (k === 'logo') { S.logo = v; continue; }
+    if (k === 'icon512') { S.logoIcon = v; continue; }
     let m = k.match(/^stu_(.+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) s.photo = v; continue; }
     m = k.match(/^doc_(.+)_(\d+)$/); if (m) { const s = (D.students || []).find(x => x.id === m[1]); if (s) { s.docs = s.docs || []; s.docs[+m[2]] = v; } }
   }

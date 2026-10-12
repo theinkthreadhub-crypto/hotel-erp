@@ -2122,8 +2122,17 @@ function imgCompress(f,max,cb){
 const logoBox=()=>{const L=D.settings.logo;return `${L?`<img src="${L}" alt="Logo">`:'<div class="nologo">No logo</div>'}
   <div><label class="btn sm" style="margin:0;color:#fff;display:inline-block">${L?'Change logo':'Upload logo'}<input type="file" accept="image/*" hidden onchange="logoPick(this.files[0])"></label>
   ${L?` <button class="btn sm bad" onclick="logoDel()">Remove</button>`:''}<div class="muted small" style="margin-top:4px">PNG or JPG. It is resized automatically.</div></div>`;};
-function logoPick(f){imgCompress(f,320,u=>{D.settings.logo=u;save();if($('#g_logo'))$('#g_logo').innerHTML=logoBox();toast('Logo saved','ok');});}
-async function logoDel(){if(!await ask('Remove the library logo?'))return;delete D.settings.logo;save();$('#g_logo').innerHTML=logoBox();}
+/* ---- Student app ka icon: logo ko 512x512 square (safed background, gap) banao aur cloud ko bhejo ---- */
+function makeLogoIcon(src,cb){const im=new Image();im.onload=()=>{const N=512,c=document.createElement('canvas');c.width=c.height=N;const x=c.getContext('2d');
+    x.fillStyle='#fff';x.fillRect(0,0,N,N);const pad=Math.round(N*.1),box=N-2*pad,k=Math.min(box/im.width,box/im.height),w=im.width*k,h=im.height*k;
+    x.drawImage(im,(N-w)/2,(N-h)/2,w,h);let u=c.toDataURL('image/png');if(u.length>300000)u=c.toDataURL('image/jpeg',.85);cb(u.length<=390000?u:'');};
+  im.onerror=()=>cb('');im.src=src;}
+function ensureLogoIcon(){const S=D&&D.settings;if(!S)return;
+  if(!S.logo){if(S.logoIcon){delete S.logoIcon;delete S.logoIconOf;save();}return;}
+  const sig=S.logo.length+':'+S.logo.slice(-24);if(S.logoIcon&&S.logoIconOf===sig)return;
+  makeLogoIcon(S.logo,u=>{if(!u)return;S.logoIcon=u;S.logoIconOf=sig;save();});}
+function logoPick(f){imgCompress(f,320,u=>{D.settings.logo=u;save();ensureLogoIcon();if($('#g_logo'))$('#g_logo').innerHTML=logoBox();toast('Logo saved','ok');});}
+async function logoDel(){if(!await ask('Remove the library logo?'))return;delete D.settings.logo;ensureLogoIcon();save();$('#g_logo').innerHTML=logoBox();}
 function saveSettings(quiet){
   const S=D.settings,name=val('g_name');
   if(!name){toast('Enter the library name','bad');focusEl('#g_name');return Promise.reject();}
@@ -2236,7 +2245,7 @@ async function boot(){
   D=migrate(data);if(!data)save();
   drawSide();licBar();sessBar();
   if(!LIC.lifetime&&LIC.daysLeft<=7)toast(LIC.daysLeft>=1?`License expires in ${LIC.daysLeft} days — please renew (K)`:`License expires at ${licEnd()} — please renew (K)`,'bad');
-  go('home');duePopup();refreshSync();
+  go('home');duePopup();refreshSync();ensureLogoIcon();
 }
 function duePopup(){
   let k='';try{k=localStorage.getItem('liberp_due_popup');}catch(e){}
