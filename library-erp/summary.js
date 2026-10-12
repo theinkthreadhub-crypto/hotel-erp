@@ -61,6 +61,30 @@ function summary(D, now = new Date()) {
   };
 }
 // Per-student public link ke liye data (sirf jinka link bana = s.tok). Aadhaar/private kuch nahi.
+// Student ki fee history: month -> kitna diya, kab, receipt no; aur receipts ki list
+function feeHistory(D, s) {
+  const R = (D.receipts || []).filter(r => r.sid === s.id && !r.cancel), byMonth = {};
+  let total = 0;
+  R.forEach(r => {
+    total += +r.paid || 0;
+    const ml = r.mlist || [];
+    if (!ml.length) return;
+    const per = Math.round((+r.fee || +r.paid || 0) / ml.length);
+    ml.forEach(m => { byMonth[m] = { a: per, d: r.date, no: r.no }; });
+  });
+  return { feeByMonth: byMonth, totalPaid: total,
+    rcpts: R.slice(-36).map(r => ({ no: r.no, d: r.date, paid: +r.paid || 0, bal: +r.bal || 0, mode: r.mode || '', m: (r.mlist || []).slice(0, 12) })) };
+}
+// Attendance (session ke poore din): "yymmdd|hhmm|hhmm" — chhota rakhne ke liye
+function attHistory(D, s, sess, t) {
+  const att = D.att || {}, from = sess ? sess.from : '0000-00-00', to = sess && sess.to < t ? sess.to : t, out = [];
+  Object.keys(att).sort().forEach(d => {
+    if (d < from || d > to) return;
+    const a = (att[d] || {})[s.id]; if (!a) return;
+    out.push(d.slice(2).replace(/-/g, '') + '|' + (a.in || '').replace(':', '') + '|' + (a.out || '').replace(':', ''));
+  });
+  return out;
+}
 function pupils(D, now = new Date()) {
   const t = ymd(now), cm = t.slice(0, 7), S = D.settings || {};
   const sessions = D.sessions || [], plans = D.plans || [], att = D.att || {};
@@ -78,7 +102,9 @@ function pupils(D, now = new Date()) {
       paidMonths: (s.paid || []).slice().sort().slice(-14),
       due: u.length * rate(s) + (+s.bal || 0), dueMonths: u.length, dueFrom: u[0] || '', nextDue,
       validTill: s.validTill || '',
-      todayIn: a.in || '', todayOut: a.out || '', monthPresent: monthPresent(s.id), join: s.join || '' };
+      todayIn: a.in || '', todayOut: a.out || '', monthPresent: monthPresent(s.id), join: s.join || '',
+      sessFrom: sess ? sess.from : '', sessTo: sess ? sess.to : '',
+      ...feeHistory(D, s), att: attHistory(D, s, sess, t) };
   });
 }
 // ---- Images: cloud me alag store hoti hain, isliye main backup se nikaali jaati hain ----
