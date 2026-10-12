@@ -959,7 +959,7 @@ function scrRecord(id){
     ${R.map(r=>`<tr class="${r.cancel?'cx':''}"><td>${r.no}</td><td>${dmy(r.date)} <span class="muted small">${esc(r.time||'')}</span></td><td class="small">${esc(mText(r.mlist)||'—')}</td>
       <td class="small">${esc(rExtras(r).map(x=>x.name+' '+rs(x.amt)).join(', '))}</td><td class="n">${rs(r.total)}</td><td class="n"><b>${rs(r.paid)}</b></td><td>${esc(r.mode)}</td>
       <td class="n">${r.bal?rs(r.bal):''}</td><td class="small">${esc(r.note||'')}${r.cancel?' <b>(Cancelled)</b>':''}</td>
-      <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">No receipts yet.</td></tr>'}
+      <td class="n" style="white-space:nowrap"><button class="btn sm g" onclick="printReceipt('${r.id}')">Print</button> <button class="btn sm wa" onclick="waReceipt('${r.id}')">WA</button> <button class="btn sm bad" onclick="deleteReceipt('${r.id}','record')">Delete</button></td></tr>`).join('')||'<tr><td colspan="10" class="muted">No receipts yet.</td></tr>'}
   </tbody></table></div>
   ${(()=>{const B=D.issues.filter(x=>x.sid===s.id).slice().reverse();return `<div class="card" style="padding:0"><h4 style="padding:10px 12px 0">Books (${B.filter(x=>!x.ret).length} with student) <button class="btn sm ok" onclick="go('bookissue',{sid:'${s.id}'})">Issue a book</button></h4><table><thead><tr><th>Book</th><th>Issued</th><th>Return by</th><th>Returned</th><th class="n">Fine</th><th></th></tr></thead><tbody>
     ${B.map(x=>`<tr><td><b>${esc(x.bcode)}</b> — ${esc(x.title)}</td><td>${dmy(x.date)}</td><td class="${!x.ret&&x.due<today()?'red':''}">${dmy(x.due)}</td><td>${x.ret?dmy(x.ret):'<span class="tag soon">Out</span>'}</td><td class="n">${x.fine?rs(x.fine):''}</td>
@@ -1357,13 +1357,13 @@ async function cancelReceipt(id){
   save();toast('Receipt cancelled');scrReceipts();
 }
 // Galat fee entry poori delete (cancel se alag — record hat jata hai)
-async function deleteReceipt(id){
+async function deleteReceipt(id,from){
   const r=D.receipts.find(x=>x.id===id);if(!r)return;const s=stu(r.sid);
   if(D.receipts.some((x,i)=>x.sid===r.sid&&!x.cancel&&i>D.receipts.indexOf(r))){toast("Delete this student's later receipt first",'bad');return;}
   if(!await ask(`Delete receipt #${r.no} (${esc(r.name)}, ${rs(r.paid)})?<br>This cannot be undone.`,'Delete','Cancel'))return;
   if(s&&!r.cancel){const keep=new Set();D.receipts.filter(x=>x.sid===s.id&&!x.cancel&&x!==r).forEach(x=>(x.mlist||[]).forEach(m=>keep.add(m)));
     s.paid=(s.paid||[]).filter(m=>keep.has(m)||!(r.mlist||[]).includes(m));syncValid(s);if(r.prevBal!=null)s.bal=r.prevBal;}
-  D.receipts=D.receipts.filter(x=>x.id!==id);save();toast('Receipt deleted','ok');scrReceipts();
+  const sid0=r.sid;D.receipts=D.receipts.filter(x=>x.id!==id);save();toast('Receipt deleted','ok');if(from==='record')go('record',sid0);else scrReceipts();
 }
 
 /* ================= DAY BOOK ================= */

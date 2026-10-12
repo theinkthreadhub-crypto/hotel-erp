@@ -297,6 +297,43 @@ async function cloudSync(force) {
 }
 // Har badlav ke baad jaldi sync (taba-tod edit ko ek saath bhejne ke liye 9s ka wait)
 let syncTimer = null;
+// Har ~45s: admin ka lock/message/renewal key aur students ke khud ke In/Out cloud se lo (data na badla ho tab bhi)
+let polling = false;
+async function cloudPoll() {
+  if (polling || !cloudUrl()) return;
+  const m0 = readJson(META, {}).cloud || {};
+  if (!m0.libId || !m0.token) return;
+  polling = true;
+  try {
+    const r = await cloudCall('/api/poll', { libId: m0.libId, token: m0.token, attSeen: m0.attSeen || 0, key: readJson(LICENSE, {}).key || '' });
+    const c = readJson(META, {}).cloud || m0;
+    Object.assign(c, { notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', pollOk: Date.now() });
+    // Remote renew
+    if (r.pendingKey && r.pendingKey !== readJson(LICENSE, {}).key) {
+      try { const ls = activate(r.pendingKey); if (ls.ok) { log('License renewed from cloud (poll)'); c.hash = ''; } } catch (e) { log('Renew: ' + e.message); }
+    }
+    // Student self-attendance
+    if (Array.isArray(r.attMarks) && r.attMarks.length) {
+      try {
+        const cur = JSON.parse(fs.readFileSync(DATA, 'utf8')); cur.att = cur.att || {};
+        let maxAt = c.attSeen || 0, changed = false;
+        for (const m of r.attMarks) {
+          if (!m || !m.sid || !m.date) continue;
+          const day = cur.att[m.date] || (cur.att[m.date] = {}), a = day[m.sid] || (day[m.sid] = {});
+          if (m.in && a.in !== m.in) { a.in = m.in; changed = true; }
+          if (m.out && a.out !== m.out) { a.out = m.out; changed = true; }
+          if ((m.at || 0) > maxAt) maxAt = m.at;
+        }
+        c.attSeen = maxAt; setCloud(c);
+        if (changed) saveData(cur);                       // save + cloud sync (cloud ko attSeen mil jata hai)
+      } catch (e) { log('attMarks(poll): ' + e.message); }
+    }
+    setCloud(c);
+  } catch (e) {
+    // Cloud ko hamara ID pehchaan me nahi aaya: push-sync ko force karo (wo khud dobara register karta hai)
+    if (/Cloud link is not valid/i.test(String(e.message))) { const c = readJson(META, {}).cloud || {}; c.hash = ''; setCloud(c); cloudSync(true).catch(() => {}); }
+  } finally { polling = false; }
+}
 function scheduleSync() { if (!cloudUrl()) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => cloudSync().catch(() => {}), 9000); }
 // Sirf badli / hataai gayi images cloud par bhejo (ek tick me zyada se zyada 12)
 async function syncImages(c, D) {
@@ -483,6 +520,8 @@ server.on('listening', () => {
   if (!process.env.LIBERP_NO_OPEN) openApp();
   setTimeout(autoEmail, 20000);
   setTimeout(() => cloudSync().catch(() => {}), 8000);
+  setTimeout(() => cloudPoll().catch(() => {}), 6000);
+  setInterval(() => cloudPoll().catch(() => {}), 45e3);
   setInterval(() => cloudSync().catch(() => {}), 2 * 60e3);
   setTimeout(() => cloudRenew().catch(() => {}), 6000);               // boot par renewal check
   setInterval(() => cloudRenew().catch(() => {}), 10 * 60e3);         // har 10 min, license khatam ho to bhi

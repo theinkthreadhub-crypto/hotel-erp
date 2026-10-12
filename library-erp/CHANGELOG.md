@@ -4,6 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
+| **1.20.1** | Admin fixes | **Admin se Lock / Message ab Library ERP me turant lagta hai** (ERP har ~45s me cloud se poochta hai, data na badle tab bhi). Students ka khud ka In/Out bhi ~45s me ERP ki attendance me aa jata hai. **Admin app: Delete aur Set PIN ab chalte hain** (popup ki jagah page ke andar box; Delete me Library ID type karke confirm). **Upar ke dashboard par tap** karo to us wali libraries ki list (stale backup / license ≤5d / payment due). ERP: **Student Record** me bhi galat fee **Delete** |
 | **1.20.0** | Student records | **Student app me poora record**: **fee month-wise** (kis month me kitna diya, kab, receipt no; baaki due/next) + total paid; **attendance poore saal ki** — month chips, din-din Present/Absent, In–Out time aur kitne ghante. ERP update + worker redeploy chahiye |
 | **1.19.3** | Cloud reconnect | **"Cloud link is not valid — connect again"** ab khud theek hota hai: cloud ko ERP ka Library ID/token na mile to ERP khud dobara register karke poora data bhej deta hai (naya Library ID banta hai, purane student links dobara Share karne honge) |
 | 1.19.2 | Student APK | **SetuStudent.apk (My Library)** — students ka apna Android app: library ka bheja link tap karo to app me khule, ya pehli baar paste karo; phir har baar seedha apna page (In/Out + fee). Library ko sirf ye APK students ko share karni hai. ERP version wahi |

@@ -217,11 +217,46 @@
     window.LibImages.mergeImages(D, imgs);
     return hashes;
   }
+  // Har ~45s: admin ka lock/message/renewal key aur students ke khud ke In/Out (data na badla ho tab bhi)
+  let polling = false;
+  async function cloudPoll() {
+    if (polling || !cloudUrl()) return;
+    const m0 = readJson(META, {}).cloud || {};
+    if (!m0.libId || !m0.token) return;
+    polling = true;
+    try {
+      const r = await cloudCall('/api/poll', { libId: m0.libId, token: m0.token, attSeen: m0.attSeen || 0, key: readJson(LICENSE, {}).key || '' });
+      const c = readJson(META, {}).cloud || m0;
+      Object.assign(c, { notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', pollOk: Date.now() });
+      if (r.pendingKey && r.pendingKey !== readJson(LICENSE, {}).key) { try { const ls = activate(r.pendingKey); if (ls.ok) c.hash = ''; } catch (e) {} }
+      if (Array.isArray(r.attMarks) && r.attMarks.length) {
+        try {
+          const cur = readJson(DATA, {}); cur.att = cur.att || {};
+          let maxAt = c.attSeen || 0, changed = false;
+          for (const m of r.attMarks) {
+            if (!m || !m.sid || !m.date) continue;
+            const day = cur.att[m.date] || (cur.att[m.date] = {}), a = day[m.sid] || (day[m.sid] = {});
+            if (m.in && a.in !== m.in) { a.in = m.in; changed = true; }
+            if (m.out && a.out !== m.out) { a.out = m.out; changed = true; }
+            if ((m.at || 0) > maxAt) maxAt = m.at;
+          }
+          c.attSeen = maxAt; setCloud(c);
+          if (changed) saveData(cur);
+        } catch (e) {}
+      }
+      setCloud(c);
+    } catch (e) {
+      if (/Cloud link is not valid/i.test(String(e.message))) { const c = readJson(META, {}).cloud || {}; c.hash = ''; setCloud(c); cloudSync(true).catch(() => {}); }
+    } finally { polling = false; }
+  }
+  window.__poll = () => cloudPoll().catch(() => {});
   window.__cloudSync = () => cloudSync().catch(() => {});
   // Internet aate hi backup (Android network callback + browser 'online' event)
-  window.__netUp = () => { try { const m = readJson(META, {}); if (m.cloud) { m.cloud.lastTry = 0; m.cloud.error = ''; writeJson(META, m); } } catch (e) {} setTimeout(window.__cloudSync, 800); };  // net aate hi turant
+  window.__netUp = () => { try { const m = readJson(META, {}); if (m.cloud) { m.cloud.lastTry = 0; m.cloud.error = ''; writeJson(META, m); } } catch (e) {} setTimeout(window.__cloudSync, 800); setTimeout(window.__poll, 1500); };  // net aate hi turant
   window.addEventListener('online', window.__netUp);
   setTimeout(window.__cloudSync, 8000);
+  setTimeout(window.__poll, 6000);
+  setInterval(window.__poll, 45e3);
   setInterval(window.__cloudSync, 2 * 60e3);
   // Remote renew: admin ki bheji key le aakar khud lagao (license khatam hone par bhi)
   async function cloudRenew() {

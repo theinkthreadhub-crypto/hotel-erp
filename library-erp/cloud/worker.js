@@ -184,6 +184,18 @@ async function studentData(env, b) {
   return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: { ...s } };
 }
 function attPend(lib) { try { return JSON.parse(lib.att_pending || '{}') || {}; } catch (e) { return {}; } }
+// ERP har ~45s me poochta hai: admin ka lock / message / renewal key aur students ke khud ke In/Out.
+// (Data na badla ho tab bhi chalta hai — isliye lock turant lagta hai.)
+async function poll(env, b) {
+  const lib = await authLib(env, b);
+  const pend = attPend(lib), seen = +b.attSeen || 0;
+  let changed = false;
+  if (seen) for (const k in pend) { if ((pend[k].at || 0) <= seen) { delete pend[k]; changed = true; } }
+  if (changed) await env.DB.prepare('UPDATE libraries SET att_pending=? WHERE id=?').bind(JSON.stringify(pend), lib.id).run();
+  const curKey = String(b.key || '').replace(/\s+/g, '');
+  return { ok: true, at: now(), notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '',
+    pendingKey: lib.pending_key && lib.pending_key !== curKey ? lib.pending_key : '', attMarks: Object.values(pend) };
+}
 // Student khud In/Out kare (link se). Server time (IST). ERP agle sync me kheench lega.
 async function studentMark(env, b) {
   const seg = String(b.tok || '').trim(), act = b.act === 'out' ? 'out' : 'in';
@@ -607,6 +619,8 @@ input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:trans
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
 .k{background:var(--card);border-radius:12px;box-shadow:0 1px 4px #1d2b4a1a;padding:10px;text-align:center}.k b{display:block;font-size:22px}.k span{font-size:11px;color:var(--m)}
 .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.k.tap{cursor:pointer;border:2px solid transparent}.k.tap.on{border-color:var(--b2);background:#eaf1fb}
+.fbar{display:flex;align-items:center;gap:8px;background:#eaf1fb;border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:13px}.fbar b{flex:1}
 .lib{background:var(--card);border-radius:14px;box-shadow:0 1px 4px #1d2b4a1a;padding:12px;margin-bottom:10px}
 .lib .top{display:flex;gap:10px;align-items:flex-start}
 .lib .logo{width:42px;height:42px;border-radius:10px;background:#eef3fb;object-fit:cover;flex:none}
@@ -690,6 +704,13 @@ function urgency(l){const d=licDays(l.lic_expiry),pd=l.paid_till?licDaysPay(l.pa
   if(d!==Infinity){if(d<0)u=200;else if(d<=5)u=Math.max(u,150-d);}
   if(pd!=null){if(pd<0)u=Math.max(u,120);else if(pd<=5)u=Math.max(u,100-pd);}
   if(staleH(l.last_sync)>48)u=Math.max(u,50);return u;}
+let KF='all';
+function setKF(k){KF=(KF===k&&k!=='all')?'all':k;render();}
+function kfMatch(l){
+  if(KF==='stale')return staleH(l.last_sync)>48;
+  if(KF==='lic'){const d=licDays(l.lic_expiry);return d!==Infinity&&d<=5;}
+  if(KF==='pay')return !!l.paid_till&&licDaysPay(l.paid_till)<=5;
+  return true;}
 function render(){
   const L=(DATA.libs||[]).slice().sort((a,b)=>urgency(b)-urgency(a)||(b.seq||0)-(a.seq||0));
   const stale=L.filter(l=>staleH(l.last_sync)>48).length;
@@ -697,15 +718,16 @@ function render(){
   const dueP=L.filter(l=>l.paid_till&&licDaysPay(l.paid_till)<=5).length;
   app.innerHTML=\`<header><b>🛡️ Super Admin</b><button onclick="home()">↻</button><button onclick="logout()">Exit</button></header><main>
   <div class="kpis">
-    <div class="k"><b>\${L.length}</b><span>Libraries</span></div>
-    <div class="k"><b class="\${stale?'bad':'ok'}">\${stale}</b><span>Backup stale</span></div>
-    <div class="k"><b class="\${exp5?'warn':'ok'}">\${exp5}</b><span>License ≤5d / expired</span></div>
-    <div class="k"><b class="\${dueP?'warn':'ok'}">\${dueP}</b><span>Payment due ≤5d</span></div>
+    <div class="k tap \${KF==='all'?'on':''}" onclick="setKF('all')"><b>\${L.length}</b><span>Libraries</span></div>
+    <div class="k tap \${KF==='stale'?'on':''}" onclick="setKF('stale')"><b class="\${stale?'bad':'ok'}">\${stale}</b><span>Backup stale</span></div>
+    <div class="k tap \${KF==='lic'?'on':''}" onclick="setKF('lic')"><b class="\${exp5?'warn':'ok'}">\${exp5}</b><span>License ≤5d / expired</span></div>
+    <div class="k tap \${KF==='pay'?'on':''}" onclick="setKF('pay')"><b class="\${dueP?'warn':'ok'}">\${dueP}</b><span>Payment due ≤5d</span></div>
   </div>
   <input id="q" placeholder="Search name / ID / mobile" oninput="filt(this.value)" style="margin-bottom:10px">
+  \${KF!=='all'?\`<div class="fbar"><b>Showing: \${({stale:'Backup stale (48h+)',lic:'License ≤5 days / expired',pay:'Payment due ≤5 days / overdue'})[KF]}</b><button class="btn sm g" onclick="setKF('all')">Show all</button></div>\`:''}
   <div id="list"></div></main>
   <div class="tabs"><a class="\${tab==='libs'?'on':''}" onclick="tab='libs';render()">🏢 Libraries</a><a class="\${tab==='tickets'?'on':''}" onclick="openTickets()">🎫 Tickets\${DATA.ticketsUnread?\`<span class="badge">\${DATA.ticketsUnread}</span>\`:''}</a></div>\`;
-  drawLibs(L);
+  drawLibs(L.filter(kfMatch));
 }
 const licDaysPay=d=>Math.ceil((new Date(d).getTime()+864e5-Date.now())/864e5);
 function drawLibs(L){
@@ -747,7 +769,7 @@ function drawLibs(L){
       <button class="btn sm g" onclick='libTickets(\${JSON.stringify(l.id)})'>Tickets</button>
       <button class="btn sm g" onclick='dlBackup(\${JSON.stringify(l.id)})'>Backup</button>
       <button class="btn sm g" onclick='setPin(\${JSON.stringify(l.id)})'>Set PIN</button>
-      <button class="btn sm bad" onclick='delLib(\${JSON.stringify(l.id)},\${JSON.stringify(l.name||l.id)})'>Delete</button></div></div>\`;}).join('')||'<p class="muted">No library has connected yet.</p>';
+      <button class="btn sm bad" onclick='delLib(\${JSON.stringify(l.id)},\${JSON.stringify(l.name||l.id)})'>Delete</button></div></div>\`;}).join('')||'<p class="muted">'+(KF==='all'?'No library has connected yet.':'Is filter me koi library nahi hai \\u2714')+'</p>';
   loadImgs($('#list'));
 }
 function filt(v){v=v.toLowerCase();for(const el of document.querySelectorAll('.lib'))el.style.display=el.dataset.s.includes(v)?'':'none';}
@@ -803,8 +825,22 @@ function renewBox(id){const l=libById(id),d=licDays(l.lic_expiry);
 async function sendRenew(id){const key=($('#rk').value||'').trim();if(!key){toast('Paste the activation key','bad');return;}
   try{await api('renew',{body:{id,key}});toast('Key sent — library will activate when online','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 async function clearRenew(id){try{await api('renew',{body:{id,key:''}});toast('Waiting key cleared');closeSheet();home();}catch(e){toast(e.message,'bad');}}
-async function setPin(id){const p=prompt('New 4–6 digit restore PIN for '+id);if(!p)return;try{await api('pin',{body:{id,pin:p}});toast('PIN set for '+id,'ok');home();}catch(e){toast(e.message,'bad');}}
-async function delLib(id,name){if(!confirm('Delete '+name+' and ALL its cloud backups, photos and tickets? This cannot be undone.'))return;try{await api('delete',{body:{id}});toast(id+' deleted');home();}catch(e){toast(e.message,'bad');}}
+function setPin(id){const l=libById(id);
+  sheet(\`<h3>Set restore PIN — \${esc(l.name||id)}</h3>
+  <p class="muted">\${esc(id)} · Agar library apna PIN bhool gayi ho to yahan naya 4–6 digit PIN daalein.</p>
+  <label>New PIN (4–6 digits)</label><input id="np" type="tel" inputmode="numeric" maxlength="6" placeholder="e.g. 4821" autocomplete="off">
+  <div class="acts" style="margin-top:14px"><button class="btn ok" onclick="savePin('\${id}')">Save PIN</button><button class="btn g" onclick="closeSheet()">Close</button></div>\`);
+  setTimeout(()=>{const e=$('#np');if(e)e.focus();},120);}
+async function savePin(id){const p=($('#np').value||'').trim();if(!/^\\d{4,6}$/.test(p)){toast('PIN 4 se 6 digit ka hona chahiye','bad');return;}
+  try{await api('pin',{body:{id,pin:p}});toast('PIN set: '+p,'ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+function delLib(id,name){
+  sheet(\`<h3 class="bad" style="color:var(--bad)">Delete library?</h3>
+  <p><b>\${esc(name||id)}</b> (\${esc(id)})</p>
+  <p class="muted">Iske saare cloud backups, photos aur tickets hamesha ke liye hat jayenge. <b>Wapas nahi aayega.</b> Library ke phone/computer ka apna data safe rahega, par wo cloud se alag ho jayegi.</p>
+  <label>Confirm karne ke liye Library ID type karein: <b>\${esc(id)}</b></label><input id="dc" placeholder="\${esc(id)}" autocomplete="off">
+  <div class="acts" style="margin-top:14px"><button class="btn bad" onclick="doDelLib('\${id}')">Yes, delete</button><button class="btn g" onclick="closeSheet()">Cancel</button></div>\`);}
+async function doDelLib(id){if(($('#dc').value||'').trim().toUpperCase()!==String(id).toUpperCase()){toast('Library ID sahi type karein','bad');return;}
+  try{await api('delete',{body:{id}});toast(id+' deleted','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 
 async function openTickets(id){tab='tickets';let r;try{r=await api('tickets'+(id?'?id='+encodeURIComponent(id)+'&read=1':'?read=1'));}catch(e){toast(e.message,'bad');return;}
   const T=r.tickets;DATA.ticketsUnread=0;
@@ -1037,7 +1073,7 @@ export default {
       if (req.method !== 'POST' || !url.pathname.startsWith('/api/')) return fail('Not found', 404);
       const b = await req.json();
       const fn = { '/api/register': register, '/api/push': push, '/api/pin': setPin, '/api/restore': restore, '/api/view': viewData,
-        '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList, '/api/pull-key': pullKey, '/api/student': studentData, '/api/student-mark': studentMark }[url.pathname];
+        '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList, '/api/pull-key': pullKey, '/api/student': studentData, '/api/student-mark': studentMark, '/api/poll': poll }[url.pathname];
       if (!fn) return fail('Not found', 404);
       return json(await fn(env, b));
     } catch (e) {
