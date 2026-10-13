@@ -539,14 +539,14 @@ const waRemind=(id,tid)=>{const s=stu(id);if(!s)return;s.remAt=today()+' '+nowTi
 // Gateway: 4 groups with dropdowns. Every item also has its own letter (works on Gateway and with Alt from anywhere).
 const GROUPS=[
   ['M','Masters',[['S','New Admission','student'],['L','Student List','list'],['F','Fee Master','plans'],['H','Expense Heads','heads'],['O','Books (Book Master)','books'],['N','Sessions','sessions']]],
-  ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att'],['J','Book Issue / Return','bookissue'],['Z','Fee Reminder (WhatsApp)','remind']]],
+  ['T','Transactions',[['C','Fee Collect (Receipt)','collect'],['E','Expense Entry','expense'],['A','Attendance (In / Out)','att'],['J','Book Issue / Return','bookissue'],['Z','Fee Reminder (WhatsApp)','remind'],['','Student Messages (App)','stumsg']]],
   ['R','Reports',[['B','Day Book','daybook'],['P','Receipt List / Reprint','receipts'],['D','Due List & Reminder','due'],['V','Income vs Expense','pl'],['X','Expense Report','exprep'],['W','Attendance Report (Month)','attrep'],['Y','Book Issue Register','bookreg']]],
   ['U','Utilities',[['I','Bulk Import (Excel / CSV)','import'],['G','Settings & Backup','settings'],['','Help & Support','help'],['K','License / Activation','license'],['Q','Close ERP','quit']]],
 ];
 const MENU=GROUPS.flatMap(g=>g[2].map(x=>[x[0],x[1],x[2],g[1]]));
 /* ---- Plan features: Setu Pro admin se on/off (cloud se aata hai) ---- */
 const FEAT_NAMES={student:'Student app',whatsapp:'WhatsApp',online:'Online View',books:'Books',reminder:'Fee Reminder',import:'Bulk Import',backup:'Cloud backup'};
-const SCREEN_FEAT={books:'books',bookissue:'books',bookreg:'books',remind:'reminder',import:'import'};
+const SCREEN_FEAT={stumsg:'student',books:'books',bookissue:'books',bookreg:'books',remind:'reminder',import:'import'};
 let FEAT={},featSig='';
 const fOn=k=>!(FEAT&&(FEAT[k]===0||FEAT[k]===false));
 const allowed=s=>{const f=SCREEN_FEAT[s];return !f||fOn(f);};
@@ -560,7 +560,7 @@ function applyFeat(c){FEAT=(c&&c.feat)||{};const sig=JSON.stringify(FEAT);const 
   if(sig!==featSig){featSig=sig;try{if($('#side'))drawSide();gwDraw();}catch(e){}
     if(D&&!allowed(cur)&&cur!=='home')go('home');else if(D&&cur==='home')try{scrHome();}catch(e){}}}
 const SCREENS={home:scrHome,student:scrStudent,list:scrList,plans:scrPlans,collect:scrCollect,att:scrAtt,due:scrDue,receipts:scrReceipts,
-  heads:scrHeads,expense:scrExpense,remind:scrRemind,books:scrBooks,bookissue:scrBookIssue,bookreg:scrBookReg,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
+  heads:scrHeads,expense:scrExpense,remind:scrRemind,stumsg:scrStuMsg,books:scrBooks,bookissue:scrBookIssue,bookreg:scrBookReg,sessions:scrSessions,pl:scrPL,exprep:scrExpRep,
   daybook:scrDaybook,attrep:scrAttRep,record:scrRecord,import:scrImport,settings:scrSettings,help:scrHelp,license:scrLicense,quit:scrQuit};
 let curArg=null,cur='home',gwSel=0,gwOpen=-1,onSave=null,nav=null,keyH=null;
 function go(s,arg){
@@ -582,7 +582,7 @@ function gwToggle(gi){gwOpen=gwOpen===gi?-1:gi;gwSel=gwRows().findIndex(r=>r.g==
 const title=(t,r)=>`<div class="title">${t}<span class="r">${r||''}</span></div>`;
 /* ---- phone app shell: drawer, bottom tabs, home tiles ---- */
 const ICON={home:'🏠',student:'➕',list:'👥',plans:'💳',heads:'🏷️',books:'📚',sessions:'📅',collect:'🧾',expense:'💸',att:'🕒',bookissue:'🔄',
-  daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',remind:'🔔',help:'💬',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
+  daybook:'📒',receipts:'📃',due:'⏰',pl:'📊',exprep:'📉',attrep:'🗓️',bookreg:'📖',remind:'🔔',stumsg:'📢',help:'💬',import:'📥',settings:'⚙️',license:'🔑',quit:'⏻'};
 const BNAV=[['home','Home'],['collect','Fee'],['att','Attendance'],['list','Students'],['menu','Menu']];
 function drawer(open){const d=$('#drawer');if(!d||!D)return;open=open===undefined?!d.classList.contains('open'):open;
   if(open)d.innerHTML=`<div class="dhead"><div class="dlogo">${D.settings.logo?`<img src="${D.settings.logo}" alt="">`:'📚'}</div><div><b>${esc(D.settings.name)}</b><small>Library ERP v${esc(LIC&&LIC.version||'')}${LIC&&LIC.vendorPhone?' · Support '+esc(LIC.vendorPhone):''}</small></div></div>
@@ -956,7 +956,7 @@ function scrRecord(id){
   const P=new Set(s.paid||[]),cm=curMonth(),jm=(s.join||today()).slice(0,7);
   const months=mRange(jm<mAdd(cm,-23)?mAdd(cm,-23):jm,mAdd(cm,3));
   const fee=sum(ok,'fee'),ext=sum(ok,'extraAmt'),disc=sum(ok,'disc'),paid=sum(ok,'paid');
-  main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button><button class="btn sm g stlink" onclick="shareLink('${s.id}')">🔗 Share link</button>`)+
+  main.innerHTML=title(`Student Record — ${esc(s.name)} (${esc(s.code)})`,`<button class="btn sm ok" onclick="go('collect','${s.id}')">Collect fee (F4)</button><button class="btn sm g" onclick="go('student','${s.id}')">Edit (F2)</button><button class="btn sm wa" onclick="waRemind('${s.id}')">WhatsApp (F9)</button><button class="btn sm g stlink" onclick="shareLink('${s.id}')">🔗 Share link</button><button class="btn sm g stlink" onclick="msgBox('${s.id}')">📢 Message</button>`)+
   otherDueHtml(s)+(st.k==='due'||s.bal>0?`<div class="hint" style="background:#fdecec;border-color:#f0b4b4"><b class="red">Fee due (${esc(curSess().name)}):</b> ${st.u?esc(mText(st.u)):''}${s.bal>0?` · Balance ${rs(s.bal)}`:''} — <b>${rs(dueAmt(s))}</b>
     <button class="btn sm wa" style="margin-left:8px" onclick="waRemind('${s.id}')">Send WhatsApp reminder</button></div>`:'')+
   `<div class="two"><div class="card"><h4>${esc(s.name)} ${tag(s)}</h4><table class="info">
@@ -1321,6 +1321,36 @@ function tplSave(){const t=tplById(remEdit),name=val('tp_name'),text=$('#tp_text
   Object.assign(t,{name,text});D.settings.remDay=Math.min(28,Math.max(1,parseInt(val('tp_day'),10)||10));save();toast('Template saved','ok');remTplBox(t.id);}
 function tplReset(){const d=TPL_DEF.find(x=>x.id===remEdit);Object.assign(tplById(remEdit),{name:d.name,text:d.text});save();remTplBox(remEdit);}
 async function tplDel(){const t=tplById(remEdit);D.settings.tpls=tpls().filter(x=>x.id!==t.id);remEdit='';if(remTpl===t.id)remTpl='auto';save();toast('Template deleted');remTplBox();}
+
+/* ================= STUDENT APP MESSAGES (common + personal) ================= */
+const msgDate=m=>m&&m.at?String(m.at).slice(0,10):'';
+function scrStuMsg(){
+  const C=D.settings.stuMsg||{},P=D.students.filter(s=>s.msg&&s.msg.t&&s.status!=='left');
+  main.innerHTML=title('Student Messages',`<button class="btn sm g" onclick="go('list')">Student List</button>`)+
+  `<div class="hint">Yahan likha message students ke <b>app me</b> dikhta hai (net aate hi ~10 second me). <b>Common</b> sabhi students ko, <b>Personal</b> sirf ek student ko.</div>
+  <div class="card form"><h4>📢 Common message (sabhi students)</h4>
+    <textarea id="cm_t" rows="4" maxlength="400" placeholder="Jaise: Kal library band rahegi.">${esc(C.t||'')}</textarea>
+    <div class="small muted" style="margin:4px 0">${C.t?'Last update: '+esc(msgDate(C)):'Abhi koi common message nahi'} · max 400 akshar</div>
+    <div class="btns"><button class="btn ok" onclick="cmSave()">Save & show</button>${C.t?`<button class="btn bad" onclick="cmClear()">Remove</button>`:''}</div></div>
+  <div class="card form"><h4>💌 Personal message (ek student ko)</h4>
+    <label>Student (name ya ID)</label><input id="pm_s" list="pm_l" placeholder="Name ya ID likhein, phir chunein" autocomplete="off">
+    <datalist id="pm_l">${active().map(s=>`<option value="${esc(s.code)} — ${esc(s.name)}"></option>`).join('')}</datalist>
+    <div class="btns"><button class="btn" onclick="pmOpen()">Message likhein</button></div>
+    ${P.length?`<table class="tbl" style="margin-top:10px"><tr><th>Student</th><th>Message</th><th></th></tr>${P.map(s=>`<tr><td>${esc(s.name)}<br><small class="muted">${esc(s.code)}${s.tok?'':' · link nahi bana'}</small></td><td>${esc(s.msg.t)}<br><small class="muted">${esc(msgDate(s.msg))}</small></td><td><button class="btn sm g" onclick="msgBox('${s.id}')">Edit</button></td></tr>`).join('')}</table>`:'<div class="small muted" style="margin-top:8px">Abhi koi personal message nahi</div>'}</div>`;
+}
+function cmSave(){const t=val('cm_t').trim();if(!t){toast('Message likhein','bad');return;}D.settings.stuMsg={t:t.slice(0,400),at:new Date().toISOString()};save();toast('Common message saved — students ke app me dikhega','ok');scrStuMsg();}
+async function cmClear(){if(!await ask('Common message hata dein?'))return;delete D.settings.stuMsg;save();toast('Removed');scrStuMsg();}
+function pmOpen(){const v=val('pm_s').trim().toLowerCase();if(!v){toast('Pehle student chunein','bad');return;}
+  const A=active();let s=A.find(x=>((x.code||'')+' — '+(x.name||'')).toLowerCase()===v)||A.find(x=>String(x.code||'').toLowerCase()===v);
+  if(!s){const m=A.filter(x=>(x.name||'').toLowerCase().includes(v));if(m.length===1)s=m[0];}
+  if(!s){toast('Student nahi mila — list se chunein','bad');return;}msgBox(s.id);}
+function msgBox(id){const s=stu(id);if(!s)return;
+  modal('Message — '+(s.name||''),`<p class="muted">Sirf <b>${esc(s.name)}</b> ke app me dikhega.${s.tok?'':' <b class="red">Is student ka link abhi nahi bana — pehle 🔗 Share link se link bhejein.</b>'}</p>
+    <textarea id="pm_t" rows="4" maxlength="400" placeholder="Jaise: Aapki fee baaki hai, kal tak jama karein.">${esc((s.msg&&s.msg.t)||'')}</textarea>
+    <div class="btns" style="margin-top:10px"><button class="btn ok" onclick="pmSave('${s.id}')">Save & show</button>${s.msg&&s.msg.t?`<button class="btn bad" onclick="pmClear('${s.id}')">Remove</button>`:''}<button class="btn g" onclick="closeModal()">Close</button></div>`);
+  setTimeout(()=>{const a=$('#pm_t');if(a)a.focus();},50);}
+function pmSave(id){const s=stu(id),t=val('pm_t').trim();if(!t){toast('Message likhein','bad');return;}s.msg={t:t.slice(0,400),at:new Date().toISOString()};save();closeModal();toast('Message saved — student ke app me dikhega','ok');if(cur==='stumsg')scrStuMsg();}
+function pmClear(id){const s=stu(id);delete s.msg;save();closeModal();toast('Message removed');if(cur==='stumsg')scrStuMsg();}
 
 /* ================= HELP & SUPPORT (tickets to Setu Pro) ================= */
 async function scrHelp(){

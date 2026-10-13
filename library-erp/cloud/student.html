@@ -33,6 +33,8 @@
 .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;-webkit-overflow-scrolling:touch}
 .chip{flex:none;font-size:13px;border:1px solid var(--line);background:#fff;color:var(--t);border-radius:20px;padding:6px 13px;font-weight:600}
 .chip.on{background:var(--b2);color:#fff;border-color:var(--b2)}
+.msgc{border-radius:14px;padding:13px 15px;margin-bottom:12px;font-size:15px;white-space:pre-wrap;word-break:break-word}.msgc small{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;white-space:normal}.msgc em{display:block;font-style:normal;font-size:11px;opacity:.7;margin-top:6px;white-space:normal}
+.msgc.cm{background:#e8f1ff;color:#16345f}.msgc.cm small{color:#2b4c7e}.msgc.pr{background:#fdecf4;color:#5c1740}.msgc.pr small{color:#a1306b}
 .callout{background:#fff0d6;border-radius:12px;padding:10px 13px;margin-bottom:10px;font-size:14px;color:#6a4300}.callout small{color:#8a5a00}
 .sum3{display:flex;gap:8px;margin-bottom:10px}.sum3 div{flex:1;text-align:center;background:#f3f6fb;border-radius:12px;padding:9px 4px}
 .sum3 b{display:block;font-size:19px}.sum3 small{font-size:11px;color:var(--m)}
@@ -252,6 +254,9 @@ function selCh(k){CSEL=k;const s=DATA.student,x=attMap(s)[k],d=document.getEleme
 function drawCh0(k){const bar=document.getElementById('chbar').style.width;drawCh();document.getElementById('chbar').style.width=bar;}
 function pickCh(i){const s=DATA.student,cm=ymd(new Date()).slice(0,7),m0=startDay(s).slice(0,7),months=mRng(m0<=cm?m0:cm,cm);if(i<0||i>=months.length)return;CM=months[i];CSEL='';
   const card=document.querySelector('.card.ch');const tmp=document.createElement('div');tmp.innerHTML=chCard(s);card.replaceWith(tmp.firstChild);drawCh();}
+function msgCards(d,s){
+  const f=m=>m&&m.t?m:null,c=f(d.common),p=f(s.msg),dt=m=>m.at?'<em>'+esc(dmyS(String(m.at).slice(0,10)))+'</em>':'';
+  return (p?'<div class="msgc pr"><small>💌 Aapke liye message</small>'+esc(p.t)+dt(p)+'</div>':'')+(c?'<div class="msgc cm"><small>📢 Library ki taraf se</small>'+esc(c.t)+dt(c)+'</div>':'');}
 function render(d){
   const s=d.student,due=+s.due||0;
   const paid=(s.paidMonths||[]);
@@ -263,6 +268,7 @@ function render(d){
     '<div class="hd"><img class="lg" src="/s-icon/'+esc(libIdOf())+'.png" alt="" onerror="this.style.display=\'none\'"><div class="lib">'+esc(d.lib||'Library')+'</div><h1>'+esc(s.name||'Student')+'</h1>'+
       '<div class="sub">'+(s.code?'ID '+esc(s.code):'')+(s.seat?' · Seat '+esc(s.seat):'')+'</div>'+
       '<span class="pill '+(due>0?'due':'ok')+'">'+(due>0?'Fee due '+rs(due):'All fees clear ✓')+'</span></div>'+
+    msgCards(d,s)+
     '<div class="card"><h3>Attendance</h3>'+
       '<div class="att"><div class="box in"><b>'+esc(s.todayIn||'—')+'</b><small>Today In</small></div>'+
       '<div class="box out"><b>'+esc(s.todayOut||'—')+'</b><small>Today Out</small></div>'+

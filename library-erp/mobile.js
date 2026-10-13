@@ -162,7 +162,7 @@
         const clean = (window.LibImages ? JSON.stringify(window.LibImages.stripImages(D)) : raw);   // images alag
         const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: today(),
           stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
-          view, pupils: pup, attSeen: c.attSeen || 0, data: A.gzip(clean) });
+          view, pupils: pup, attSeen: c.attSeen || 0, smsg: (S.stuMsg && S.stuMsg.t) ? { t: String(S.stuMsg.t).slice(0, 400), at: S.stuMsg.at || '' } : null, data: A.gzip(clean) });
         Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
           notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {} });
         // Student self-attendance cloud se merge

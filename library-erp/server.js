@@ -251,6 +251,7 @@ async function cloudSync(force) {
       view: (() => { try { return summary(D); } catch (e) { log('summary: ' + e.message); return null; } })(),
       pupils: (() => { try { return pupils(D); } catch (e) { log('pupils: ' + e.message); return []; } })(),
       attSeen: c.attSeen || 0,
+      smsg: (D.settings && D.settings.stuMsg && D.settings.stuMsg.t) ? { t: String(D.settings.stuMsg.t).slice(0, 400), at: D.settings.stuMsg.at || '' } : null,
       data: zlib.gzipSync(clean).toString('base64') });
     Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
       notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {} });

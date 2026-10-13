@@ -4,6 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
+| **1.25.0** | Student messages | **Owner ka message student app me**: (1) **Common** — sabhi students ko, (2) **Personal** — sirf ek student ko. ERP me menu **Student Messages (App)** aur Student Record me **📢 Message**. Student app me upar gulabi (personal) aur neela (common) card, tareekh ke saath. Hatane par app se bhi hat jata hai. **ERP update + worker redeploy chahiye** |
 | **1.24.1** | Fee record (purane ERP par bhi) | Student app ab **purane ERP data se bhi** Partial / Baaki / Cash-UPI mode / Agla payment (500 + 250 = 750) sahi dikhata hai (receipts ki list se hisaab). **Sirf worker redeploy**; ERP v1.24.0 par aur bhi pakka hisaab |
 | **1.24.0** | Fee record sahi | **Student app fee record theek**: month me **jitna asal me diya utna** dikhta hai (pehle poori fee dikhti thi — 250 diye to 500). Kam diya to **Partial** + **Baaki** us month ke saamne. Har payment ke saath **Cash/UPI/Card/Bank**. **Agla payment** = is month ki fee + pichhla baaki (jaise 500 + 250 = 750). ERP update + worker redeploy chahiye |
 | **1.23.2** | Stale In/Out fix | **"Already marked IN" galti theek**: naye din bhi kal ka IN/OUT dikh jata tha (jab ERP naya sync na kare). Ab cloud last sync ki tareekh dekhta hai — naya din ho to IN/OUT khali, naya Mark IN chalta hai. Purane ERP par bhi kaam karta hai. **Sirf worker redeploy** |

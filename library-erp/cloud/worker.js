@@ -24,7 +24,7 @@ async function init(env) {
   for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0',
     'pending_key TEXT', 'pending_at TEXT',  // payments + images (v1.13.0), remote renew (v1.14.0)
     'notice TEXT', 'notice_at TEXT', 'lock INTEGER DEFAULT 0', 'lock_msg TEXT',  // admin->library message + remote lock (v1.16.0)
-    'pupils TEXT', 'att_pending TEXT', 'feat TEXT', 'plan_key TEXT'])  // per-student link + student self-attendance (v1.17.0 / v1.18.0)
+    'pupils TEXT', 'att_pending TEXT', 'feat TEXT', 'plan_key TEXT', 'smsg TEXT'])  // per-student link + student self-attendance (v1.17.0 / v1.18.0)
     try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
@@ -120,6 +120,8 @@ async function push(env, b) {
     }
     await env.DB.prepare('UPDATE libraries SET pupils=? WHERE id=?').bind(js.length <= 1200000 ? js : '[]', lib.id).run();
   }
+  // Owner ka common message (sabhi students ko) — personal message pupils me hota hai
+  if ('smsg' in b) await env.DB.prepare('UPDATE libraries SET smsg=? WHERE id=?').bind(b.smsg && b.smsg.t ? JSON.stringify({ t: String(b.smsg.t).slice(0, 400), at: String(b.smsg.at || '').slice(0, 30) }) : null, lib.id).run();
   // Student self-attendance: ERP ne jo merge kar liya (attSeen tak) wo cloud se hata do, baaki wapas bhejo
   let attMarks = [];
   { const pend = attPend(lib); let changed = false;
@@ -213,7 +215,7 @@ async function studentData(env, b) {
   const i = seg.lastIndexOf('~');
   if (i < 1) throw new Error('This link is not valid.');
   const libId = seg.slice(0, i), tok = seg.slice(i + 1);
-  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending, feat FROM libraries WHERE id=?').bind(libId).first();
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending, feat, smsg FROM libraries WHERE id=?').bind(libId).first();
   if (!lib) throw new Error('This link is not valid or has been removed.');
   if (!featOf(lib).student) throw new Error('The student app is not available for this library right now. Please contact the library.');
   let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
@@ -223,7 +225,8 @@ async function studentData(env, b) {
   staleDay(s, lib);
   const pend = attPend(lib), k = String(s.id) + '|' + istDate(), m = pend[k];
   if (m) { if (m.in) s.todayIn = m.in; if (m.out) s.todayOut = m.out; }
-  return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: { ...s } };
+  let common = null; try { common = lib.smsg ? JSON.parse(lib.smsg) : null; } catch (e) {}
+  return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, common, student: { ...s } };
 }
 // ERP ne pupils jis din bheje, wahi 'aaj' hai; naya din ho gaya to purana In/Out aaj ka nahi
 // Purana ERP 'day' nahi bhejta: tab pupils jis sync me aaye (last_sync) wahi unka 'aaj' hai
@@ -987,6 +990,8 @@ const STUDENT_HTML = `<!doctype html>
 .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;-webkit-overflow-scrolling:touch}
 .chip{flex:none;font-size:13px;border:1px solid var(--line);background:#fff;color:var(--t);border-radius:20px;padding:6px 13px;font-weight:600}
 .chip.on{background:var(--b2);color:#fff;border-color:var(--b2)}
+.msgc{border-radius:14px;padding:13px 15px;margin-bottom:12px;font-size:15px;white-space:pre-wrap;word-break:break-word}.msgc small{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;white-space:normal}.msgc em{display:block;font-style:normal;font-size:11px;opacity:.7;margin-top:6px;white-space:normal}
+.msgc.cm{background:#e8f1ff;color:#16345f}.msgc.cm small{color:#2b4c7e}.msgc.pr{background:#fdecf4;color:#5c1740}.msgc.pr small{color:#a1306b}
 .callout{background:#fff0d6;border-radius:12px;padding:10px 13px;margin-bottom:10px;font-size:14px;color:#6a4300}.callout small{color:#8a5a00}
 .sum3{display:flex;gap:8px;margin-bottom:10px}.sum3 div{flex:1;text-align:center;background:#f3f6fb;border-radius:12px;padding:9px 4px}
 .sum3 b{display:block;font-size:19px}.sum3 small{font-size:11px;color:var(--m)}
@@ -1206,6 +1211,9 @@ function selCh(k){CSEL=k;const s=DATA.student,x=attMap(s)[k],d=document.getEleme
 function drawCh0(k){const bar=document.getElementById('chbar').style.width;drawCh();document.getElementById('chbar').style.width=bar;}
 function pickCh(i){const s=DATA.student,cm=ymd(new Date()).slice(0,7),m0=startDay(s).slice(0,7),months=mRng(m0<=cm?m0:cm,cm);if(i<0||i>=months.length)return;CM=months[i];CSEL='';
   const card=document.querySelector('.card.ch');const tmp=document.createElement('div');tmp.innerHTML=chCard(s);card.replaceWith(tmp.firstChild);drawCh();}
+function msgCards(d,s){
+  const f=m=>m&&m.t?m:null,c=f(d.common),p=f(s.msg),dt=m=>m.at?'<em>'+esc(dmyS(String(m.at).slice(0,10)))+'</em>':'';
+  return (p?'<div class="msgc pr"><small>💌 Aapke liye message</small>'+esc(p.t)+dt(p)+'</div>':'')+(c?'<div class="msgc cm"><small>📢 Library ki taraf se</small>'+esc(c.t)+dt(c)+'</div>':'');}
 function render(d){
   const s=d.student,due=+s.due||0;
   const paid=(s.paidMonths||[]);
@@ -1217,6 +1225,7 @@ function render(d){
     '<div class="hd"><img class="lg" src="/s-icon/'+esc(libIdOf())+'.png" alt="" onerror="this.style.display=\\'none\\'"><div class="lib">'+esc(d.lib||'Library')+'</div><h1>'+esc(s.name||'Student')+'</h1>'+
       '<div class="sub">'+(s.code?'ID '+esc(s.code):'')+(s.seat?' · Seat '+esc(s.seat):'')+'</div>'+
       '<span class="pill '+(due>0?'due':'ok')+'">'+(due>0?'Fee due '+rs(due):'All fees clear ✓')+'</span></div>'+
+    msgCards(d,s)+
     '<div class="card"><h3>Attendance</h3>'+
       '<div class="att"><div class="box in"><b>'+esc(s.todayIn||'—')+'</b><small>Today In</small></div>'+
       '<div class="box out"><b>'+esc(s.todayOut||'—')+'</b><small>Today Out</small></div>'+
