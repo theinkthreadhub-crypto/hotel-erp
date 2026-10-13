@@ -33,6 +33,7 @@
 .chips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;-webkit-overflow-scrolling:touch}
 .chip{flex:none;font-size:13px;border:1px solid var(--line);background:#fff;color:var(--t);border-radius:20px;padding:6px 13px;font-weight:600}
 .chip.on{background:var(--b2);color:#fff;border-color:var(--b2)}
+.callout{background:#fff0d6;border-radius:12px;padding:10px 13px;margin-bottom:10px;font-size:14px;color:#6a4300}.callout small{color:#8a5a00}
 .sum3{display:flex;gap:8px;margin-bottom:10px}.sum3 div{flex:1;text-align:center;background:#f3f6fb;border-radius:12px;padding:9px 4px}
 .sum3 b{display:block;font-size:19px}.sum3 small{font-size:11px;color:var(--m)}
 .months{display:flex;flex-wrap:wrap;gap:6px}
@@ -132,17 +133,26 @@ function mRng(a,b){const o=[];for(let m=a;m<=b&&o.length<60;m=mAdd(m,1))o.push(m
 function startDay(s){const j=s.join||'',f=s.sessFrom||'';return j&&j>f?j:(f||j||'2000-01-01');}
 // ---- Fee record: month-wise, kitna diya aur kab ----
 function feeCard(s){
-  const cm=ymd(new Date()).slice(0,7),by=s.feeByMonth||{},st=startDay(s).slice(0,7);
+  const cm=ymd(new Date()).slice(0,7),by=s.feeByMonth||{},st=startDay(s).slice(0,7),sh={};
+  (s.short||[]).forEach(z=>{sh[z.m]=(sh[z.m]||0)+z.amt;});
   const last=Object.keys(by).sort().pop();const end=last&&last>cm?last:cm;
   const months=mRng(st<=end?st:end,end);
   const rows=months.map(m=>{const x=by[m],lab=MN[+m.slice(5)-1]+' '+m.slice(0,4);
-    if(x)return '<tr><td><b>'+lab+'</b></td><td><span class="tag ok">Paid</span><br><small style="color:#6b7385">'+dmyS(x.d)+(x.no?' · #'+x.no:'')+'</small></td><td class="r"><b>'+rs(x.a)+'</b></td></tr>';
+    if(x){const part=sh[m]>0,meta=dmyS(x.d)+(x.no?' · #'+x.no:'')+(x.mode?' · '+esc(x.mode):'')+(!part&&x.p&&x.a<x.p-0.5?' · baaki baad me bhara':'');
+      return '<tr><td><b>'+lab+'</b></td><td><span class="tag '+(part?'nx':'ok')+'">'+(part?'Partial':'Paid')+'</span><br><small style="color:#6b7385">'+meta+'</small></td><td class="r"><b>'+rs(x.a)+'</b>'+(part?'<br><small style="color:#c62828;font-weight:700">Baaki '+rs(sh[m])+'</small>':'')+'</td></tr>';}
     return '<tr><td><b>'+lab+'</b></td><td><span class="tag due">Due</span></td><td class="r" style="color:#c62828"><b>'+(s.feeMonthly?rs(s.feeMonthly):'—')+'</b></td></tr>';}).reverse();
-  const nm=mAdd(end,1);let nxt='';
-  if(!by[nm]){nxt='<tr><td><b>'+MN[+nm.slice(5)-1]+' '+nm.slice(0,4)+'</b></td><td><span class="tag nx">Next</span></td><td class="r">'+(s.feeMonthly?rs(s.feeMonthly):'—')+'</td></tr>';}
+  const bal=+s.bal||0,rate=+s.feeMonthly||0,dm=+s.dueMonths||0,nm=mAdd(end,1);
+  // Agla payment: is month ki fee + pichhla baaki
+  let nxt='',call='';
+  const shList=(s.short||[]).map(z=>MN[+z.m.slice(5)-1]+' '+rs(z.amt)).join(', ');
+  if(dm>0){call='<div class="callout"><b>Abhi dena hai: '+rs(s.due||0)+'</b><br><small>'+dm+' month × '+rs(rate)+(bal>0?' + '+rs(bal)+' pichhla baaki'+(shList?' ('+shList+')':''):'')+'</small></div>';}
+  else if(!by[nm]){const tot=rate+bal;
+    nxt='<tr><td><b>'+MN[+nm.slice(5)-1]+' '+nm.slice(0,4)+'</b></td><td><span class="tag nx">Next</span></td><td class="r"><b>'+(rate?rs(tot):'—')+'</b>'+(bal>0?'<br><small style="color:#6b7385">'+rs(rate)+' + '+rs(bal)+' baaki</small>':'')+'</td></tr>';
+    if(rate)call='<div class="callout"><b>Agla payment ('+MN[+nm.slice(5)-1]+'): '+rs(tot)+'</b>'+(bal>0?'<br><small>'+rs(rate)+' is month ki fee + '+rs(bal)+' pichhla baaki'+(shList?' ('+shList+')':'')+'</small>':'')+'</div>';}
+  else if(bal>0){call='<div class="callout"><b>Pichhla baaki: '+rs(bal)+'</b>'+(shList?'<br><small>'+shList+'</small>':'')+'</div>';}
   return '<div class="card"><h3>Fee record — month wise</h3>'+
-    '<div class="sum3"><div><b>'+rs(s.totalPaid||0)+'</b><small>Total paid</small></div><div><b>'+Object.keys(by).length+'</b><small>Months paid</small></div><div><b style="color:'+((+s.due||0)>0?'#c62828':'#1e8e3e')+'">'+rs(s.due||0)+'</b><small>Due now</small></div></div>'+
-    '<table class="tbl"><thead><tr><th>Month</th><th>Status</th><th class="r">Amount</th></tr></thead><tbody>'+nxt+rows.join('')+'</tbody></table></div>';
+    '<div class="sum3"><div><b>'+rs(s.totalPaid||0)+'</b><small>Total paid</small></div><div><b>'+Object.keys(by).length+'</b><small>Months paid</small></div><div><b style="color:'+((+s.due||0)>0?'#c62828':'#1e8e3e')+'">'+rs(s.due||0)+'</b><small>Due now</small></div></div>'+call+
+    '<table class="tbl"><thead><tr><th>Month</th><th>Status</th><th class="r">Paid</th></tr></thead><tbody>'+nxt+rows.join('')+'</tbody></table></div>';
 }
 // ---- Attendance: poore saal (month chips + din-din) ----
 let AM=null;

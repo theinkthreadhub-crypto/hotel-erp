@@ -63,16 +63,23 @@ function summary(D, now = new Date()) {
 // Per-student public link ke liye data (sirf jinka link bana = s.tok). Aadhaar/private kuch nahi.
 // Student ki fee history: month -> kitna diya, kab, receipt no; aur receipts ki list
 function feeHistory(D, s) {
+  // Receipt me paid ka hisaab: pehle purana balance, phir month ki fee. Kam diya to us month ka 'baaki' (short) bana rehta hai
   const R = (D.receipts || []).filter(r => r.sid === s.id && !r.cancel), byMonth = {};
-  let total = 0;
+  let total = 0, short = [];
   R.forEach(r => {
-    total += +r.paid || 0;
+    const paid = +r.paid || 0; total += paid;
+    let rem = paid; const old = +r.oldBal || 0, toOld = Math.min(rem, old); rem -= toOld;
+    for (let x = toOld, i = 0; x > 0 && i < short.length; i++) { const d = Math.min(short[i].amt, x); short[i].amt -= d; x -= d; }
+    short = short.filter(z => z.amt > 0.5);
     const ml = r.mlist || [];
     if (!ml.length) return;
-    const per = Math.round((+r.fee || +r.paid || 0) / ml.length);
-    ml.forEach(m => { byMonth[m] = { a: per, d: r.date, no: r.no }; });
+    const eff = Math.max(0, (+r.fee || 0) - (+r.disc || 0)), pm = Math.min(rem, eff), n = ml.length;
+    ml.forEach(m => {
+      byMonth[m] = { a: Math.round(pm / n), p: Math.round(eff / n), d: r.date, no: r.no, mode: r.mode || '' };
+      const sh = (eff - pm) / n; if (sh > 0.5) short.push({ m, amt: Math.round(sh) });
+    });
   });
-  return { feeByMonth: byMonth, totalPaid: total,
+  return { feeByMonth: byMonth, totalPaid: total, short: short.map(z => ({ m: z.m, amt: Math.round(z.amt) })), bal: +s.bal || 0,
     rcpts: R.slice(-36).map(r => ({ no: r.no, d: r.date, paid: +r.paid || 0, bal: +r.bal || 0, mode: r.mode || '', m: (r.mlist || []).slice(0, 12) })) };
 }
 // Attendance (session ke poore din): "yymmdd|hhmm|hhmm" — chhota rakhne ke liye

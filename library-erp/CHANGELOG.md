@@ -4,6 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
+| **1.24.0** | Fee record sahi | **Student app fee record theek**: month me **jitna asal me diya utna** dikhta hai (pehle poori fee dikhti thi — 250 diye to 500). Kam diya to **Partial** + **Baaki** us month ke saamne. Har payment ke saath **Cash/UPI/Card/Bank**. **Agla payment** = is month ki fee + pichhla baaki (jaise 500 + 250 = 750). ERP update + worker redeploy chahiye |
 | **1.23.2** | Stale In/Out fix | **"Already marked IN" galti theek**: naye din bhi kal ka IN/OUT dikh jata tha (jab ERP naya sync na kare). Ab cloud last sync ki tareekh dekhta hai — naya din ho to IN/OUT khali, naya Mark IN chalta hai. Purane ERP par bhi kaam karta hai. **Sirf worker redeploy** |
 | **1.23.1** | Mark OUT fix | **"Mark IN first" galti theek**: IN ke baad ERP ne entry le li to cloud bhool jata tha ki IN hua hai, aur Mark OUT par galat error deta tha. Ab ERP wala IN maan leta hai. Naye din purana IN/OUT aaj ka nahi dikhta (ERP me `day` field jodi). **Sirf worker redeploy zaruri** |
 | **1.23.0** | Consistency Challenge | **Student app me habit-builder calendar**: poore mahine ke gol circles, jis din aaya us par pen jaisa ❌, jis din nahi aaya khali. **Do streak**: is mahine ki aur poore saal (session) ki (Current + Best). Roz ka naya quote, 7/15/30 aur 30/100/200 din ke badge, ‹ › se pichhle mahine, circle tap par IN–OUT time. **Sirf worker redeploy chahiye** (ERP/APK update nahi) |
