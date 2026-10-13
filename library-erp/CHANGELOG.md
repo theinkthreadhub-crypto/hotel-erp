@@ -4,6 +4,7 @@ Har naye update par version badhta hai. ERP mein version neeche side menu aur Li
 
 | Version | Naam | Kya aaya |
 |---|---|---|
+| **1.24.1** | Fee record (purane ERP par bhi) | Student app ab **purane ERP data se bhi** Partial / Baaki / Cash-UPI mode / Agla payment (500 + 250 = 750) sahi dikhata hai (receipts ki list se hisaab). **Sirf worker redeploy**; ERP v1.24.0 par aur bhi pakka hisaab |
 | **1.24.0** | Fee record sahi | **Student app fee record theek**: month me **jitna asal me diya utna** dikhta hai (pehle poori fee dikhti thi — 250 diye to 500). Kam diya to **Partial** + **Baaki** us month ke saamne. Har payment ke saath **Cash/UPI/Card/Bank**. **Agla payment** = is month ki fee + pichhla baaki (jaise 500 + 250 = 750). ERP update + worker redeploy chahiye |
 | **1.23.2** | Stale In/Out fix | **"Already marked IN" galti theek**: naye din bhi kal ka IN/OUT dikh jata tha (jab ERP naya sync na kare). Ab cloud last sync ki tareekh dekhta hai — naya din ho to IN/OUT khali, naya Mark IN chalta hai. Purane ERP par bhi kaam karta hai. **Sirf worker redeploy** |
 | **1.23.1** | Mark OUT fix | **"Mark IN first" galti theek**: IN ke baad ERP ne entry le li to cloud bhool jata tha ki IN hua hai, aur Mark OUT par galat error deta tha. Ab ERP wala IN maan leta hai. Naye din purana IN/OUT aaj ka nahi dikhta (ERP me `day` field jodi). **Sirf worker redeploy zaruri** |
