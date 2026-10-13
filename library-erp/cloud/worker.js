@@ -220,10 +220,13 @@ async function studentData(env, b) {
   const s = P.find(x => x && x.tok === tok);
   if (!s) throw new Error('Student record not found. Please ask the library to share the link again.');
   // student ne abhi khud jo In/Out kiya (abhi tak ERP me sync nahi hua) wo bhi dikhao
+  staleDay(s);
   const pend = attPend(lib), k = String(s.id) + '|' + istDate(), m = pend[k];
   if (m) { if (m.in) s.todayIn = m.in; if (m.out) s.todayOut = m.out; }
   return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: { ...s } };
 }
+// ERP ne pupils jis din bheje, wahi 'aaj' hai; naya din ho gaya to purana In/Out aaj ka nahi
+function staleDay(s) { if (s.day && s.day !== istDate()) { s.todayIn = ''; s.todayOut = ''; } }
 function attPend(lib) { try { return JSON.parse(lib.att_pending || '{}') || {}; } catch (e) { return {}; } }
 // ERP har ~45s me poochta hai: admin ka lock / message / renewal key aur students ke khud ke In/Out.
 // (Data na badla ho tab bhi chalta hai — isliye lock turant lagta hai.)
@@ -249,7 +252,11 @@ async function studentMark(env, b) {
   const s = P.find(x => x && x.tok === tok);
   if (!s) throw new Error('Student not found.');
   const pend = attPend(lib), date = istDate(), k = String(s.id) + '|' + date, t = istTime();
+  staleDay(s);
   const cur = pend[k] || { sid: s.id, date, in: '', out: '', at: 0 };
+  // ERP pending hata chuka ho (merge ho gaya) to ERP se aaya aaj ka In/Out maano
+  if (!cur.in && s.todayIn) cur.in = s.todayIn;
+  if (!cur.out && s.todayOut) cur.out = s.todayOut;
   if (act === 'in') { if (cur.in) throw new Error('Already marked IN at ' + cur.in + ' today'); cur.in = t; }
   else { if (!cur.in) throw new Error('Mark IN first.'); if (cur.out) throw new Error('Already marked OUT at ' + cur.out); cur.out = t; }
   cur.at = Date.now();
