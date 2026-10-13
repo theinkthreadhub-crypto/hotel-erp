@@ -47,6 +47,28 @@
 .msg{text-align:center;padding:50px 20px;color:var(--m)}
 .pill{display:inline-block;font-size:12px;border-radius:20px;padding:3px 11px;margin-top:8px}
 .pill.ok{background:#e3f4e5;color:var(--ok)}.pill.due{background:#fde2e2;color:var(--bad)}
+
+.ch .qt{background:linear-gradient(135deg,#fff6e0,#ffe9c2);border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:14px;color:#5a3d00}
+.ch .qt small{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#a56a00;margin-bottom:3px}
+.ch .st2{display:flex;gap:8px;margin-bottom:8px}.ch .st2>div{flex:1;border-radius:12px;padding:9px 10px;color:#fff}
+.ch .st2 .mo{background:linear-gradient(135deg,#e8590c,#f08c00)}.ch .st2 .yr{background:linear-gradient(135deg,#1f3a63,#3b6cb4)}
+.ch .st2 small{display:block;font-size:11px;opacity:.9;font-weight:600}.ch .st2 b{font-size:22px;line-height:1.2}.ch .st2 i{display:block;font-style:normal;font-size:11px;opacity:.9}
+.ch .bdg{font-size:12px;color:#9a6200;background:#fff0d6;border-radius:8px;padding:5px 9px;margin-bottom:8px;text-align:center;font-weight:600}
+.ch .nav{display:flex;align-items:center;justify-content:space-between;margin:6px 0}
+.ch .nav b{font-size:16px}.ch .nav button{border:1px solid var(--line);background:#fff;border-radius:10px;width:38px;height:34px;font-size:18px;color:var(--t)}.ch .nav button:disabled{opacity:.3}
+.ch .wd,.ch .gr{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.ch .wd span{text-align:center;font-size:10px;color:var(--m);font-weight:700}
+.ch .gr{margin-top:4px}.ch .c{position:relative;aspect-ratio:1;border:0;background:none;padding:0}
+.ch .c svg{width:100%;height:100%;display:block}
+.ch .c .n{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b4a3a;font-weight:600;pointer-events:none}
+.ch .c.fut{opacity:.35}.ch .c.today svg circle.r{stroke:#e8590c;stroke-width:2.6}.ch .c.today{animation:pu 1.8s infinite}
+.ch .c.sel svg circle.r{stroke:#1f3a63;stroke-width:2.6}
+@keyframes pu{50%{transform:scale(.93)}}
+.ch .x path{stroke-dasharray:60;stroke-dashoffset:0;animation:dr .5s ease-out}
+@keyframes dr{from{stroke-dashoffset:60}}
+.ch .det{min-height:20px;font-size:13px;color:var(--m);text-align:center;margin-top:8px}
+.ch .bar{height:9px;border-radius:6px;background:#e9edf4;overflow:hidden;margin-top:6px}.ch .bar i{display:block;height:100%;background:linear-gradient(90deg,#f08c00,#1e8e3e)}
+.ch .lg2{display:flex;gap:12px;justify-content:center;font-size:11px;color:var(--m);margin-top:8px}
 </style></head>
 <body><div class="wrap" id="app"><div class="msg">Loading…</div></div>
 <script>
@@ -149,6 +171,69 @@ function drawAtt(){
     (rows.length?'<table class="tbl"><thead><tr><th>Date</th><th>Status</th><th class="r">In – Out</th></tr></thead><tbody>'+rows.reverse().join('')+'</tbody></table>':'<div style="color:#6b7385;font-size:13px">No days in this month yet.</div>');
 }
 function pickAtt(m){AM=m;document.querySelectorAll('#achips .chip').forEach(c=>c.classList.toggle('on',c.dataset.m===m));drawAtt();}
+
+// ---- Consistency Challenge: habit-builder calendar (month + year streak) ----
+const QUOTES=["Roz thoda, par roz. Yahi jeet ka raasta hai.", "Consistency talent ko bhi haara deti hai.", "Aaj ka din skip mat karo, kal ka tum shukriya bologe.", "Small steps every day beat big plans once a month.", "Discipline woh hai jo mann na ho tab bhi karna.", "Jo roz aata hai, wahi manzil tak jata hai.", "Motivation kam hota hai, habit sath deti hai.", "Ek din ki mehnat kuch nahi, roz ki mehnat sab kuch.", "Don't break the chain. Aaj bhi cross lagao.", "Success ek din me nahi, har din ke chhote kaam me banti hai.", "Library me bitaya har ghanta tumhe aage le jata hai.", "Aaj ka pasina, kal ki muskaan.", "You don't need to be perfect. You just need to show up.", "Jeet unki, jo haar ke baad bhi agle din aate hain.", "Kal nahi, aaj shuru karo.", "Padhai ka koi shortcut nahi, bas consistency hai.", "Every day you show up, you become stronger.", "Sapne wahi poore hote hain jinke liye roz mehnat hoti hai.", "Ek aur din, ek aur cross. Tum kar rahe ho!", "Habit banane me time lagta hai, par rukna mat.", "Focus today. Results will follow.", "Jo aaj sabr se padhta hai, kal sabse aage hota hai.", "Tumhari streak tumhari kahani hai. Ise lamba karo.", "Chhote chhote din milke bada badlav banate hain.", "Mushkil din me bhi aana, wahi asli jeet hai.", "Time ko dekho mat, uska use karo.", "Progress, not perfection.", "Aaj ka effort kabhi bekaar nahi jata.", "Roz ek kadam, ek saal me hazaar kadam.", "Self-discipline sabse bada talent hai.", "Jab mann na kare, tab aana sabse zaroori hai.", "Winners are those who keep showing up.", "Padhai ek marathon hai, sprint nahi.", "Ek ek din ginte jao, manzil paas aati jayegi.", "Aaj ka goal: kal se behtar banna.", "Your future is created by what you do today.", "Rukna nahi, thakna nahi, chalte rehna hai.", "Jo roz seekhta hai, wahi roz badhta hai.", "Apne aap se wada karo, aur use nibhao.", "Streak bachao, sapne pao.", "Behtareen log bahane nahi, tareeke dhoondhte hain.", "Hard work beats talent when talent doesn't work hard.", "Aaj ki kursi, kal ki success ki sidhi.", "Ek achchi aadat poori zindagi badal deti hai.", "Small habits, big results.", "Tumse behtar tumhe koi nahi bana sakta, bas roz aao.", "Mehnat ka phal der se milta hai, par zaroor milta hai.", "Consistency is the quiet superpower.", "Aaj bhi aaye? Shabaash! Kal bhi aana.", "Haar tab hoti hai jab hum aana band kar dete hain.", "Success ka rasta lamba hai, par pehla kadam aaj hai.", "Mann ko bolo: abhi nahi to kab?", "Dedication ka koi chhutti ka din nahi hota.", "Tum jitna roz karoge, utna hi kal aasan hoga.", "Focus rakho, ek ek chapter jeeto.", "Aaj ka din aisa jiyo ki kal garv ho.", "Be stronger than your excuses.", "Pen utha, kitaab khol, aur shuru ho ja!", "Habit ban gayi to padhai bojh nahi lagegi.", "Ek streak, ek pehchaan. Ise mat todo.", "Aaj ki mehnat kal ka result likhegi.", "Great things take time. Keep going.", "Tum thak sakte ho, par haar nahi sakte.", "Roz aana hi sabse bada achievement hai.", "Dream big, start small, show up daily.", "Jis din tum aate ho, us din tum jeet jate ho.", "Waqt kam hai, kaam bada hai. Aaj hi karo.", "Seekhte raho, badhte raho.", "Har cross ek vachan hai: main roz aaunga.", "Discipline today, freedom tomorrow."];
+let CM=null,CSEL='';
+function streaks(mp,from,to){ // from,to: 'YYYY-MM-DD' inclusive. cur: aaj tak (aaj na aaya ho to kal se gino), best
+  let best=0,run=0;const a=new Date(from+'T00:00:00'),b=new Date(to+'T00:00:00');
+  for(let d=new Date(a);d<=b;d.setDate(d.getDate()+1)){if(mp[ymd(d)]){run++;if(run>best)best=run;}else run=0;}
+  let cur=0;const t=ymd(new Date());let d=new Date(b);if(!mp[ymd(d)]&&ymd(d)===t)d.setDate(d.getDate()-1);
+  for(;d>=a;d.setDate(d.getDate()-1)){if(mp[ymd(d)])cur++;else break;}
+  return {cur,best};}
+function crossSvg(n,anim){ // haath se kata hua cross: din ke hisaab se halka alag
+  const j=k=>((n*7+k*13)%5)-2,c=['#2a4fa8','#1f3a63','#3b2a8c','#2b5d3a'][n%4];
+  return '<svg class="x" viewBox="0 0 40 40" style="position:absolute;inset:0"><g fill="none" stroke="'+c+'" stroke-width="2.2" stroke-linecap="round">'+
+    '<path d="M'+(9+j(1))+' '+(9+j(2))+' L'+(31+j(3))+' '+(31+j(4))+'"'+(anim?'':' style="animation:none"')+'/>'+
+    '<path d="M'+(31+j(5))+' '+(9+j(6))+' L'+(9+j(7))+' '+(31+j(8))+'"'+(anim?'':' style="animation:none"')+'/>'+
+    '<path d="M'+(11+j(9))+' '+(20+j(10))+' L'+(29+j(11))+' '+(21+j(12))+'" stroke-width="1.4" opacity=".7"'+(anim?'':' style="animation:none"')+'/></g></svg>';}
+function badge(n,L){let r='';L.forEach(x=>{if(n>=x)r=x;});return r;}
+function chCard(s){
+  const t=ymd(new Date()),cm=t.slice(0,7),st=startDay(s),m0=st.slice(0,7);
+  const months=mRng(m0<=cm?m0:cm,cm);if(!CM||months.indexOf(CM)<0)CM=cm;
+  const mp=attMap(s),first=CM+'-01',last=CM+'-'+p2(new Date(+CM.slice(0,4),+CM.slice(5),0).getDate());
+  const from=first<st?st:first,to=last>t?t:last;
+  const yr=streaks(mp,st,t),mo=from<=to?streaks(mp,from,to):{cur:0,best:0};
+  // pichhle mahine dekh rahe ho to "current" ki jagah us mahine ka last streak nahi, sirf best dikhe
+  const isNow=CM===cm;
+  const doy=Math.floor((new Date(t+'T00:00:00')-new Date(+t.slice(0,4),0,0))/864e5);
+  const q=QUOTES[doy%QUOTES.length];
+  const mb=badge(mo.cur,[7,15,30]),yb=badge(yr.cur,[30,100,200]);
+  let bd='';if(yb)bd='🏆 '+yb+' din ka saal-streak! Shandaar!';else if(mb)bd='🔥 '+mb+' din ka streak! Aise hi chalte raho.';
+  const i=months.indexOf(CM);
+  return '<div class="card ch"><h3>Consistency Challenge</h3>'+
+    '<div class="qt"><small>Aaj ka vichar</small>“'+esc(q)+'”</div>'+
+    '<div class="st2"><div class="mo"><small>🔥 Is mahine ('+MN[+CM.slice(5)-1]+')</small><b>'+(isNow?mo.cur:mo.best)+' din</b><i>'+(isNow?'Best '+mo.best:'Best streak')+'</i></div>'+
+    '<div class="yr"><small>🏆 Poore saal</small><b>'+yr.cur+' din</b><i>Best '+yr.best+'</i></div></div>'+
+    (bd?'<div class="bdg">'+bd+'</div>':'')+
+    '<div class="nav"><button onclick="pickCh('+(i-1)+')"'+(i<=0?' disabled':'')+'>‹</button><b>'+MN[+CM.slice(5)-1]+' '+CM.slice(0,4)+'</b><button onclick="pickCh('+(i+1)+')"'+(i>=months.length-1?' disabled':'')+'>›</button></div>'+
+    '<div class="wd">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>'<span>'+x+'</span>').join('')+'</div>'+
+    '<div class="gr" id="chgrid"></div>'+
+    '<div class="det" id="chdet"></div>'+
+    '<div class="bar"><i id="chbar" style="width:0"></i></div>'+
+    '<div class="lg2"><span>❌ Aaya</span><span>⭕ Nahi aaya</span><span>🟠 Aaj</span></div></div>';
+}
+function drawCh(){
+  const g=document.getElementById('chgrid');if(!g||!DATA)return;
+  const s=DATA.student,t=ymd(new Date()),st=startDay(s),mp=attMap(s),y=+CM.slice(0,4),mo=+CM.slice(5),n=new Date(y,mo,0).getDate();
+  const off=(new Date(y,mo-1,1).getDay()+6)%7;let h='',pres=0,days=0;
+  for(let k=0;k<off;k++)h+='<span></span>';
+  for(let i=1;i<=n;i++){const k=CM+'-'+p2(i);
+    if(k<st){h+='<span></span>';continue;}
+    const fut=k>t,x=mp[k];if(!fut){days++;if(x)pres++;}
+    h+='<button class="c'+(fut?' fut':'')+(k===t?' today':'')+(k===CSEL?' sel':'')+'" onclick="selCh(\''+k+'\')">'+
+      '<svg viewBox="0 0 40 40"><circle class="r" cx="20" cy="20" r="18" fill="'+(x?'#fff4ec':'#fff')+'" stroke="#9c5a3c" stroke-width="1.4"/></svg>'+
+      (x?crossSvg(i,k===t):'')+'<span class="n"'+(x?' style="opacity:.55"':'')+'>'+i+'</span></button>';}
+  g.innerHTML=h;
+  const pct=days?Math.round(pres*100/days):0;
+  document.getElementById('chbar').style.width=pct+'%';
+  document.getElementById('chdet').innerHTML='<b style="color:#1d2433">'+pres+'/'+days+' din aaye</b> · '+pct+'% — '+(pct>=90?'Kamaal! 🌟':pct>=70?'Badhiya, aur thoda! 💪':'Chalo, aaj se behtar banate hain!');
+}
+function selCh(k){CSEL=k;const s=DATA.student,x=attMap(s)[k],d=document.getElementById('chdet');drawCh0(k);
+  const lab=dmyS(k);d.innerHTML='<b style="color:#1d2433">'+lab+'</b> — '+(x?'Present · '+esc(x.in||'—')+' – '+(x.out?esc(x.out):'inside')+(dur(x.in,x.out)?' ('+dur(x.in,x.out)+')':''):(k>ymd(new Date())?'Aane wala din':'Nahi aaye'));}
+function drawCh0(k){const bar=document.getElementById('chbar').style.width;drawCh();document.getElementById('chbar').style.width=bar;}
+function pickCh(i){const s=DATA.student,cm=ymd(new Date()).slice(0,7),m0=startDay(s).slice(0,7),months=mRng(m0<=cm?m0:cm,cm);if(i<0||i>=months.length)return;CM=months[i];CSEL='';
+  const card=document.querySelector('.card.ch');const tmp=document.createElement('div');tmp.innerHTML=chCard(s);card.replaceWith(tmp.firstChild);drawCh();}
 function render(d){
   const s=d.student,due=+s.due||0;
   const paid=(s.paidMonths||[]);
@@ -165,6 +250,7 @@ function render(d){
       '<div class="box out"><b>'+esc(s.todayOut||'—')+'</b><small>Today Out</small></div>'+
       '<div class="box"><b>'+(s.monthPresent||0)+'</b><small>Days this month</small></div></div>'+
       '<div class="markrow">'+attBtn+'</div></div>'+
+    chCard(s)+
     '<div class="card"><h3>Fee</h3>'+
       '<div class="big '+(due>0?'due':'ok')+'"><div class="amt">'+rs(due)+'</div><small>'+(due>0?(s.dueMonths||0)+' month(s) pending'+(s.dueFrom?' · from '+mon(s.dueFrom):''):'Nothing due right now')+'</small></div>'+
       '<div class="row"><span>Next payment</span><b class="'+(due>0?'bad':'')+'">'+(s.nextDue?mon(s.nextDue):'—')+'</b></div>'+
@@ -177,7 +263,7 @@ function render(d){
       '<a class="btn wa" href="'+waHref(d.contact)+'" target="_blank" rel="noopener">💬 WhatsApp</a></div>'+
       '<div class="row" style="justify-content:center;margin-top:8px"><b>'+esc(d.contact)+'</b></div></div>':'')+
     '<div class="foot">Updated '+(d.lastSync?new Date(d.lastSync).toLocaleString('en-IN'):'—')+'<br>Powered by Setu Pro'+(window.StudentApp?'<br><a href="#" onclick="StudentApp.reset();return false" style="color:#6b7385">Not you? Change link</a>':'')+'</div>';
-  drawAtt();
+  drawAtt();drawCh();
   document.title=d.lib||'My Library';
   brandPage(d.lib);
 }
