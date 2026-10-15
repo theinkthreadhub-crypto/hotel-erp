@@ -1,0 +1,20 @@
+const {chromium,devices}=require('/opt/node-tools/node_modules/playwright');const fs=require('fs');
+const L=require('/home/user/hotel-erp/library-erp/license.js');
+const MT='/tmp/claude-0/mt/';process.chdir(MT);
+const page=require(MT+'page.js');
+(async()=>{const b=await chromium.launch();const c=await b.newContext({...devices['Pixel 7'],deviceScaleFactor:2});const p=await c.newPage();
+const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.route('https://erp.local/**',r=>r.fulfill({contentType:'text/html',body:page()}));await p.exposeFunction('nodePost',async()=>[0,'']);
+const W=ms=>p.waitForTimeout(ms||600);const O='/tmp/claude-0/guide/shots/';
+const shot=async n=>{await p.screenshot({path:O+n+'.jpg',type:'jpeg',quality:84});console.log('shot',n);};
+await p.goto('https://erp.local/');await W(1500);await shot('m_activate');
+const mc=await p.evaluate(()=>LIC&&LIC.machine);const key=L.makeKey(fs.readFileSync('/home/user/hotel-erp/library-erp/private_key.pem','utf8'),mc,'1y','Saraswati Study Library');
+await p.evaluate(async k=>{LIC=await api('activate',{key:k});await boot();},key);await W();
+const demo=JSON.parse(fs.readFileSync('/tmp/claude-0/guide/srv/LibraryData/library.json','utf8'));
+await p.evaluate(d=>{D=migrate(d);save();CLOUD2={enabled:true,url:'https://x',libId:'SETU-0012',vendorPhone:'6392995127',feat:{}};drawSide&&drawSide();go('home');},demo);await W(1200);
+await p.evaluate(()=>{try{closeModal()}catch(e){}});await shot('m_home');
+await p.evaluate(()=>drawer(true));await W(500);await shot('m_drawer');await p.evaluate(()=>drawer(false));
+const ids=await p.evaluate(()=>D.students.map(s=>s.id));
+for(const [n,s,a] of [['m_collect','collect',ids[9]],['m_att','att',null],['m_due','due',null],['m_list','list',null],['m_record','record',ids[0]]]){await p.evaluate(([s,a])=>{try{closeModal()}catch(e){};go(s,a)},[s,a]);await W(900);await shot(n);}
+await p.evaluate(()=>go('settings'));await W(900);await p.evaluate(()=>{const m=document.getElementById('main');m.scrollTo(0,m.scrollHeight)});await W(400);await shot('m_settings_bottom');
+console.log('errors',errs);await b.close();})();

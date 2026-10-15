@@ -1,0 +1,14 @@
+const {chromium,devices}=require('/opt/node-tools/node_modules/playwright');const fs=require('fs'),crypto=require('crypto');
+const M='/tmp/claude-0/mt/node_modules/';
+const kp=crypto.generateKeyPairSync('ed25519');const PEM=kp.privateKey.export({type:'pkcs8',format:'pem'}),PUB=kp.publicKey.export({type:'spki',format:'der'}).toString('base64');
+let html=fs.readFileSync('/home/user/hotel-erp/library-erp/android-keygen/keygen.html','utf8');
+const inj=['js-sha512/src/sha512.js','js-sha256/build/sha256.min.js','js-sha1/src/sha1.js','pako/dist/pako.min.js'].map(f=>`<script>${fs.readFileSync(M+f,'utf8')}</script>`).join('')+`<script>${fs.readFileSync('/tmp/claude-0/mt/mock.js','utf8')}</script><script>Android.config=()=>JSON.stringify({vendorName:'Setu Pro',publicKey:'${PUB}'});</script>`;
+html=html.replace('<head>',()=>'<head>'+inj);
+(async()=>{const b=await chromium.launch();const c=await b.newContext({...devices['Pixel 7'],deviceScaleFactor:2});const p=await c.newPage();const errs=[];p.on('pageerror',e=>errs.push(e.message));
+await p.route('https://k.local/**',r=>r.fulfill({contentType:'text/html',body:html}));await p.goto('https://k.local/');await p.waitForTimeout(800);
+const O='shots/';const W=ms=>p.waitForTimeout(ms||500);
+await p.setInputFiles('#pf',{name:'private_key.pem',mimeType:'text/plain',buffer:Buffer.from(PEM)});await W();await p.fill('#p1','4242');await p.fill('#p2','4242');await p.screenshot({path:O+'k_setup.jpg',type:'jpeg',quality:86});
+await p.click('#go');await W(800);
+await p.fill('#mc','3D1EA-73DCE');await p.fill('#nm','Saraswati Study Library');await p.click('.plans button[data-p="1y"]');await W(300);await p.screenshot({path:O+'k_form.jpg',type:'jpeg',quality:86});
+await p.click('#gen');await W(1200);await p.evaluate(()=>window.scrollTo(0,400));await W(400);await p.screenshot({path:O+'k_result.jpg',type:'jpeg',quality:86});
+console.log('errors',errs.length?errs:'none');await b.close();})();

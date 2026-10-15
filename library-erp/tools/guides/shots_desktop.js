@@ -1,0 +1,42 @@
+const {chromium}=require('/opt/node-tools/node_modules/playwright');const fs=require('fs');
+const key=fs.readFileSync('srv/key.txt','utf8').trim(),U='http://127.0.0.1:5055/';
+(async()=>{const b=await chromium.launch();const c=await b.newContext({viewport:{width:1280,height:760},deviceScaleFactor:1.4});const p=await c.newPage();
+const errs=[];p.on('pageerror',e=>errs.push(e.message));
+const W=ms=>p.waitForTimeout(ms||500);
+const shot=async(n,clip)=>{await p.screenshot({path:'shots/'+n+'.jpg',type:'jpeg',quality:84,...(clip?{clip}:{})});console.log('shot',n);};
+await p.goto(U);await W(1500);await shot('d_activate');
+await fetch(U+'api/activate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key})}).then(r=>r.json()).then(j=>console.log('activate',JSON.stringify(j).slice(0,80)));
+await p.goto(U);await W(2000);
+// close any popup
+await p.evaluate(()=>{try{closeModal();}catch(e){}});
+await shot('d_home');
+await p.keyboard.press('t');await W(500);await shot('d_menu_t');await p.keyboard.press('Escape');
+const go=async(s,a,n)=>{await p.evaluate(([s,a])=>{try{closeModal();}catch(e){}go(s,a);},[s,a]);await W(900);await shot(n||'d_'+s);};
+await go('student',null,'d_admission');
+await go('list',null,'d_list');
+const ids=await p.evaluate(()=>D.students.map(s=>s.id));
+await go('collect',ids[10],'d_collect');
+await go('record',ids[0],'d_record');
+await go('att',null,'d_att');
+await go('due',null,'d_due');
+await go('remind',null,'d_remind');
+await go('daybook',null,'d_daybook');
+await go('pl',null,'d_pl');
+await go('receipts',null,'d_receipts');
+await go('expense',null,'d_expense');
+await go('plans',null,'d_plans');
+await go('attrep',null,'d_attrep');
+await go('settings',null,'d_settings');
+await p.evaluate(()=>{document.getElementById('main').scrollTo(0,99999)});await W(400);await shot('d_settings2');
+await go('books',null,'d_books');
+await go('help',null,'d_help');
+await go('license',null,'d_license');
+await go('stumsg',null,'d_stumsg');
+// receipt modal after saving a collection
+await p.evaluate(id=>{go('collect',id);},ids[11]);await W(900);
+await p.click('button:has-text("Save Receipt")');await W(1200);await shot('d_receipt_ask');
+await p.evaluate(()=>closeModal());
+// share link modal (cloud mocked)
+await p.evaluate(()=>{const o=api;api=async(path,body)=>path==='cloud'?{enabled:true,url:'https://setu-erp.theinkthreadhub.workers.dev',libId:'SETU-0012'}:path==='cloud-sync'?{}:o(path,body);});
+await p.evaluate(id=>{go('record',id);setTimeout(()=>shareLink(id),500);},ids[1]);await W(1500);await shot('d_sharelink');
+console.log('errors',errs);await b.close();})();

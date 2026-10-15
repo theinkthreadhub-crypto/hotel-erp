@@ -768,6 +768,7 @@ input:focus,select,textarea:focus{outline:2px solid var(--b2);border-color:trans
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px}
 .k{background:var(--card);border-radius:12px;box-shadow:0 1px 4px #1d2b4a1a;padding:10px;text-align:center}.k b{display:block;font-size:22px}.k span{font-size:11px;color:var(--m)}
 .ok{color:var(--ok)}.bad{color:var(--bad)}.warn{color:var(--warn)}
+.btn.ok,.btn.bad{color:#fff}   /* green/red buttons: text was same colour as background */
 .k.tap{cursor:pointer;border:2px solid transparent}.k.tap.on{border-color:var(--b2);background:#eaf1fb}
 .tg{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}.tg:last-of-type{border-bottom:0}.tg .t{flex:1}.tg .t small{display:block;color:var(--m);font-size:12px}
 .sw{width:46px;height:26px;border-radius:20px;background:#c5ccd8;position:relative;border:0;flex:none;cursor:pointer}.sw::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.15s}.sw.on{background:var(--ok)}.sw.on::after{left:23px}

@@ -20,6 +20,8 @@
 - [x] Owner → student messages (common + personal) — v1.25.0
 - [x] GitHub Actions auto-deploy of Cloudflare worker (secrets configured, run green)
 - [x] Project knowledge docs (`AGENTS.md`, `docs/*`)
+- [x] User guides (PDF): client guide (29 pages) + Setu Pro team guide (14 pages), with real screenshots (`docs/guides/`, `tools/guides/`)
+- [x] Fixed Super Admin buttons with invisible text (green/red buttons had text colour = background)
 - [x] **v1.26.0 hardening + free-plan scale** — per-student rows, delta push, packed backups, 3-min poll, atomic marks, corrupt-file recovery, save-error banner, crypto tokens + new link, Block on delete, Lifetime warning, CI smoke test, weekly D1 export, capacity test (100 libs × 100 students)
 
 ## 3. Now / Next / Later

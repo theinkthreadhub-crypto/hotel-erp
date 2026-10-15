@@ -37,6 +37,9 @@ Current version: see `package.json` (`version`). Every release adds a row to `CH
 11. **Never commit secrets:** `private_key.pem`, keystore (`*.p12`) and its password, `LibraryKeys.csv`, Cloudflare token, `ADMIN_PASSWORD`.
 12. **Do not rename the school-brand / vendor identity strings** (Setu Pro, support number). Vendor phone is `6392995127`.
 
+## 3b. Guides (PDF) for clients and the team
+`docs/guides/Library-ERP-Client-Guide.pdf` (give to libraries) and `docs/guides/Setu-Pro-Team-Guide.pdf` (internal). Regenerate: capture screenshots with `tools/guides/shots_*.js` (demo data, no real customer data), then `sh tools/guides/build_client.sh` / `build_vendor.sh` (Python + Pillow + Playwright + pypdf). Update the guides whenever a screen or workflow changes.
+
 ## 4. How to build / run / test
 ```
 cd library-erp
