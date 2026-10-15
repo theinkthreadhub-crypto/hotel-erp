@@ -69,14 +69,30 @@ Created/migrated by `init(env)` on first request of every isolate: `CREATE TABLE
 | `pending_key`, `pending_at` | TEXT | renewal key waiting for ERP to pick up |
 | `notice`, `notice_at` | TEXT | admin → library message |
 | `lock`, `lock_msg` | INTEGER/TEXT | 0 normal, 1 warning banner, 2 app lock |
-| `pupils` | TEXT(JSON array, ≤1.2 MB) | per-student cloud data (see below) |
-| `att_pending` | TEXT(JSON object) | student self-attendance not yet merged by ERP |
+| `pupils` | TEXT | **legacy (≤v1.25)** one big JSON of all students; emptied after the ERP upgrades (now `pupil_rows`) |
+| `att_pending` | TEXT | **legacy**; moved into `att_marks` on first poll |
+| `ptk` | TEXT | hash of the ERP's student-token set (v1.26): tells cloud/ERP when rows are out of sync |
 | `feat` | TEXT(JSON) | feature flags |
 | `plan_key` | TEXT | `basic`/`standard`/`pro`/`custom` (Admin presets) |
 | `smsg` | TEXT(JSON) | common student message `{t,at}` |
 
 ### `backups`
 `(lib_id, day) PRIMARY KEY`, `data` (base64 gzip of ERP JSON w/o images), `updated`. One row per library per day; only last **30** days kept (`KEEP_DAYS`). Skipped entirely when feature `backup` = 0. Max `MAX_DATA` ≈ 1.9 MB per row.
+
+### `pupil_rows` (v1.26 — one row per student link) `WITHOUT ROWID`
+`(lib_id, tok) PRIMARY KEY`, `h` (hash of data), `data` (JSON, ≈2.4 KB per student, ≤12 000 chars). Student page reads exactly one row. ERP pushes only students whose data changed; rows of tokens no longer in the ERP are deleted.
+
+### `lib_today` (v1.26) `WITHOUT ROWID`
+`lib_id` PK, `day` (ERP's date), `data` = `{ "<tok>": [in, out, monthPresentDays] }` for the whole library. Today's IN/OUT lives here (1 write per push) instead of rewriting every student row. If `day` ≠ today (IST) the IN/OUT is ignored (stale).
+
+### `att_marks` (v1.26) `WITHOUT ROWID`
+`(lib_id, sid, date) PRIMARY KEY`, `tin`, `tout`, `at` (ms). Student self-attendance until the ERP acknowledges it (`attSeen`). UPSERT with `WHERE tin=''` / `WHERE tout=''` makes double-taps and parallel requests safe (exactly one wins).
+
+### `blocked` (v1.26)
+`machine` PK, `lib_id`, `name`, `at`. Admin "Delete + Block this computer" → `/api/register` refuses that machine (message: call 6392995127).
+
+### `_meta`
+`k`/`v`. `schema` = `SCHEMA_V` — `init()` runs migrations only when it differs (saves reads on every cold start).
 
 ### `images`
 `(lib_id, key) PRIMARY KEY`, `hash`, `data` (dataURL), `updated`. Keys: `logo`, `icon512`, `stu_<id>`, `doc_<id>_<n>`. Max ≈ 400 KB each (`MAX_IMG`).
@@ -85,18 +101,18 @@ Created/migrated by `init(env)` on first request of every isolate: `CREATE TABLE
 `id` PK, `lib_id`, `lib_name`, `subject`, `status` ('open'/'closed'), `msgs` (JSON array of `{from,text,at}`), `created`, `updated`, `unread_admin`, `unread_lib`.
 
 ### JSON column shapes
-**`pupils[]`** (one element per student with a link; built by `summary.js → pupils()`):
+**`pupil_rows.data`** (one student; built by `summary.js → pupils()`):
 ```
-{ day, msg:{t,at}|null, id, tok, code, name, seat, plan, feeMonthly, paid(#months), paidMonths[],
-  due, dueMonths, dueFrom, nextDue, validTill, todayIn, todayOut, monthPresent, join,
-  sessFrom, sessTo,
+{ msg:{t,at}|null, id, tok, code, name, seat, plan, feeMonthly, paid(#months), paidMonths[],
+  due, dueMonths, dueFrom, nextDue, validTill, join, sessFrom, sessTo,
   feeByMonth:{ 'YYYY-MM': {a (paid amount), p (month fee), d (date), no (receipt), mode} },
   short:[{m,amt}],      // months with unpaid shortfall
-  bal, totalPaid, rcpts:[{no,d,paid,bal,mode,m[]}] (last 36),
-  att:['yymmdd|hhmm|hhmm', …]   // whole session; trimmed to 200/120/60/20 if row >1.2 MB
+  bal, totalPaid, rcpts:[{no,d,paid,bal,mode,m[]}] (last 12),
+  att:'<7 chars per present day>'   // up to YESTERDAY. 7 chars = day(3, base36, days since 2000-01-01) + IN(2, minutes base36) + OUT(2 or '--')
 }
 ```
-**`att_pending`**: `{ "<studentId>|<YYYY-MM-DD>": {sid,date,in,out,at(ms)} }` — entries ≤ `attSeen` are removed when ERP acknowledges; entries older than 15 days are purged.
+(Older ERPs ≤v1.25 send `att` as `['yymmdd|hhmm|hhmm']`, plus `day`, `todayIn`, `todayOut`, `monthPresent` inside the row; the cloud and student page still understand that.)
+**Cloud backup (`backups.data`) is packed** (`summary.js → packData`): `att` is replaced by `attp` (`{date: "idx.inMin.outMin,…"}`) + `attIds` + `packed:1`; ERP restore calls `unpackData`. ~22 % smaller after gzip. Restore of old unpacked backups still works.
 **`feat`**: `{student:0|1, whatsapp, online, books, reminder, import, backup}` (absent = 1).
 **`smsg`**: `{t (≤400 chars), at}`.
 

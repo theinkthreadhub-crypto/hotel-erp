@@ -16,19 +16,34 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS backups (lib_id TEXT, day TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, day))`,
 ];
 let ready = false;
+const SCHEMA_V = '4';   // badhao jab bhi naya table/column jode (init sirf tab migration chalata hai)
 async function init(env) {
   if (ready) return;
   if (!env.DB) throw new Error('D1 database is not connected (binding name must be DB)');
+  try {
+    const r = await env.DB.prepare("SELECT v FROM _meta WHERE k='schema'").first();
+    if (r && r.v === SCHEMA_V) { ready = true; return; }
+  } catch (e) { /* _meta abhi nahi bana: neeche migration chalega */ }
   for (const q of SCHEMA) await env.DB.prepare(q).run();
   try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN view TEXT').run(); } catch (e) {}  // Online View (v1.8.0)
   for (const c of ['paid_till TEXT', 'plan TEXT', 'amount INTEGER', 'pay_note TEXT', 'img_count INTEGER DEFAULT 0', 'img_size INTEGER DEFAULT 0',
     'pending_key TEXT', 'pending_at TEXT',  // payments + images (v1.13.0), remote renew (v1.14.0)
     'notice TEXT', 'notice_at TEXT', 'lock INTEGER DEFAULT 0', 'lock_msg TEXT',  // admin->library message + remote lock (v1.16.0)
-    'pupils TEXT', 'att_pending TEXT', 'feat TEXT', 'plan_key TEXT', 'smsg TEXT'])  // per-student link + student self-attendance (v1.17.0 / v1.18.0)
+    'pupils TEXT', 'att_pending TEXT', 'feat TEXT', 'plan_key TEXT', 'smsg TEXT', 'ptk TEXT'])  // legacy pupils/att_pending (ab alag tables me), feat, smsg
     try { await env.DB.prepare('ALTER TABLE libraries ADD COLUMN ' + c).run(); } catch (e) {}
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS images (lib_id TEXT, key TEXT, hash TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, key))`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tickets (id TEXT PRIMARY KEY, lib_id TEXT, lib_name TEXT, subject TEXT, status TEXT,
     msgs TEXT, created TEXT, updated TEXT, unread_admin INTEGER DEFAULT 1, unread_lib INTEGER DEFAULT 0)`).run();
+  // v1.26: har student ki alag chhoti row (student page ek hi row padhta hai; push sirf badle hue students likhta hai)
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS pupil_rows (lib_id TEXT, tok TEXT, h TEXT, data TEXT, PRIMARY KEY (lib_id, tok)) WITHOUT ROWID`).run();
+  // student ke khud ke In/Out (ERP ke khinchne tak). Ek (student, din) = ek row, UPSERT se — race nahi
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS att_marks (lib_id TEXT, sid TEXT, date TEXT, tin TEXT, tout TEXT, at INTEGER, PRIMARY KEY (lib_id, sid, date)) WITHOUT ROWID`).run();
+  // Admin ne Delete + Block kiya to us computer (machine) ka dobara register nahi hota
+  // aaj ka IN/OUT + mahine ke present din: poori library ka ek hi chhota row (har push me 1 write, har student ki row nahi)
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS lib_today (lib_id TEXT PRIMARY KEY, day TEXT, data TEXT) WITHOUT ROWID`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS blocked (machine TEXT PRIMARY KEY, lib_id TEXT, name TEXT, at TEXT)`).run();
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS _meta (k TEXT PRIMARY KEY, v TEXT)`).run();
+  await env.DB.prepare(`INSERT INTO _meta (k, v) VALUES ('schema', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`).bind(SCHEMA_V).run();
   ready = true;
 }
 
@@ -70,21 +85,52 @@ async function verifyLicense(key, machine) {
   if (Date.now() > exp) throw new Error('License has expired');
   return expiry;
 }
-async function authLib(env, b) {
-  const lib = await env.DB.prepare('SELECT * FROM libraries WHERE id = ?').bind(String(b.libId || '')).first();
+const LIB_LIGHT = 'id, name, contact, token, machine, last_sync, pin_hash, pending_key, notice, notice_at, lock, lock_msg, feat, smsg, att_pending';
+async function authLib(env, b, light) {
+  const lib = await env.DB.prepare('SELECT ' + (light ? LIB_LIGHT : '*') + ' FROM libraries WHERE id = ?').bind(String(b.libId || '')).first();
   if (!lib || lib.token !== await sha256(String(b.token || ''))) throw new Error('Cloud link is not valid — connect again');
   return lib;
+}
+const hash32 = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(36); };
+const MAX_PUPIL = 12000;   // ek student ki row ki seema (chars)
+function pupilJson(x) {
+  let js = JSON.stringify(x);
+  if (js.length > MAX_PUPIL && typeof x.att === 'string') { x = { ...x, att: x.att.slice(-7 * 150) }; js = JSON.stringify(x); }   // sirf pichhle ~150 din
+  if (js.length > MAX_PUPIL && Array.isArray(x.att)) { x = { ...x, att: x.att.slice(-150) }; js = JSON.stringify(x); }
+  return js;
+}
+// Purane ERP (v<1.26) ka att_pending JSON ek baar att_marks me le aao
+async function migrateAtt(env, lib) {
+  if (!lib.att_pending || lib.att_pending === '{}' || lib.att_pending === 'null') return;
+  let o = {}; try { o = JSON.parse(lib.att_pending) || {}; } catch (e) {}
+  const st = Object.values(o).filter(m => m && m.sid && m.date).map(m => env.DB.prepare('INSERT OR IGNORE INTO att_marks (lib_id, sid, date, tin, tout, at) VALUES (?, ?, ?, ?, ?, ?)').bind(lib.id, String(m.sid), String(m.date), m.in || '', m.out || '', +m.at || Date.now()));
+  await env.DB.batch([...st, env.DB.prepare('UPDATE libraries SET att_pending = NULL WHERE id = ?').bind(lib.id)]);
+}
+// ERP ne jo merge kar liya (attSeen tak) wo hata do; baaki (naye/badle) wapas bhejo
+async function takeMarks(env, lib, seen) {
+  if (seen) await env.DB.prepare('DELETE FROM att_marks WHERE lib_id = ? AND at <= ?').bind(lib.id, seen).run();
+  const r = await env.DB.prepare('SELECT sid, date, tin, tout, at FROM att_marks WHERE lib_id = ? ORDER BY at LIMIT 400').bind(lib.id).all();
+  return (r.results || []).map(m => ({ sid: m.sid, date: m.date, in: m.tin || '', out: m.tout || '', at: m.at }));
 }
 const newToken = () => hex(crypto.getRandomValues(new Uint8Array(24)));
 
 /* ---------- ERP API ---------- */
 async function register(env, b) {
   const expiry = await verifyLicense(b.key, b.machine);
-  const row = await env.DB.prepare('SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM libraries').first();
-  const id = 'SETU-' + String(row.n).padStart(4, '0'), token = newToken();
-  await env.DB.prepare(`INSERT INTO libraries (id, seq, token, machine, name, contact, version, lic_expiry, created, last_sync, students, active, receipts, size)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 0, 0, 0)`)
-    .bind(id, row.n, await sha256(token), b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, now()).run();
+  const bl = await env.DB.prepare('SELECT lib_id FROM blocked WHERE machine = ?').bind(String(b.machine || '')).first();
+  if (bl) throw new Error('This computer is blocked by Setu Pro. Please call 6392995127.');
+  // Ek saath kai libraries register hon to seq/ID takra sakta hai: PRIMARY KEY fail ho to dobara naya number lo
+  let id = '', token = '';
+  for (let i = 0; i < 8 && !id; i++) {
+    const row = await env.DB.prepare('SELECT COALESCE(MAX(seq), 0) + 1 AS n FROM libraries').first();
+    const nid = 'SETU-' + String(row.n).padStart(4, '0'), tk = newToken();
+    try {
+      await env.DB.prepare(`INSERT INTO libraries (id, seq, token, machine, name, contact, version, lic_expiry, created, last_sync, students, active, receipts, size)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, 0, 0, 0)`)
+        .bind(nid, row.n, await sha256(tk), b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, now()).run();
+      id = nid; token = tk;
+    } catch (e) { if (i === 7) throw e; await new Promise(r => setTimeout(r, 20 + Math.random() * 60)); }
+  }
   return { libId: id, token };
 }
 async function push(env, b) {
@@ -97,44 +143,57 @@ async function push(env, b) {
   let view = b.view && typeof b.view === 'object' ? JSON.stringify(b.view) : null;
   if (view && view.length > MAX_VIEW) view = null;
   const FT = featOf(lib);   // plan: cloud backup band ho to backups table me kuch nahi likhte (baaki sab chalta rahe)
+  const firstToday = (lib.last_sync || '').slice(0, 10) !== now().slice(0, 10);   // purane backups sirf din me ek baar saaf
   await env.DB.batch([
     ...(FT.backup ? [
       env.DB.prepare('INSERT INTO backups (lib_id, day, data, updated) VALUES (?, ?, ?, ?) ON CONFLICT(lib_id, day) DO UPDATE SET data = excluded.data, updated = excluded.updated')
       .bind(lib.id, day, data, now()),
     ] : []),
-    env.DB.prepare(`UPDATE libraries SET machine = ?, name = COALESCE(NULLIF(?,''), name), contact = COALESCE(NULLIF(?,''), contact), version = ?, lic_expiry = ?, students = ?, active = ?, receipts = ?, size = ?, last_sync = ?, view = COALESCE(?, view) WHERE id = ?`)
-      .bind(b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, +s.students || 0, +s.active || 0, +s.receipts || 0, data.length, now(), view, lib.id),
-    ...(FT.backup ? [
+    env.DB.prepare(`UPDATE libraries SET machine = ?, name = COALESCE(NULLIF(?,''), name), contact = COALESCE(NULLIF(?,''), contact), version = ?, lic_expiry = ?, students = ?, active = ?, receipts = ?, size = ?, last_sync = ?, view = COALESCE(?, view)${'smsg' in b ? ', smsg = ?' : ''} WHERE id = ?`)
+      .bind(b.machine, String(b.name || '').slice(0, 80), String(b.contact || '').slice(0, 40), String(b.version || ''), expiry, +s.students || 0, +s.active || 0, +s.receipts || 0, data.length, now(), view,
+        ...('smsg' in b ? [b.smsg && b.smsg.t ? JSON.stringify({ t: String(b.smsg.t).slice(0, 400), at: String(b.smsg.at || '').slice(0, 30) }) : null] : []), lib.id),
+    ...(FT.backup && firstToday ? [
       env.DB.prepare(`DELETE FROM backups WHERE lib_id = ? AND day NOT IN (SELECT day FROM backups WHERE lib_id = ? ORDER BY day DESC LIMIT ${KEEP_DAYS})`).bind(lib.id, lib.id),
     ] : []),
   ]);
-  // Per-student links: sirf pupils JSON store (link me libId hota hai, isliye alag mapping ki zarurat nahi — ek hi write)
+  // Per-student links: har student ki alag row. Naya ERP sirf badle hue students bhejta hai (+ saare tokens ki list);
+  // purana ERP sabhi bhejta hai — tab worker hash dekhkar sirf badle hue likhta hai.
+  let needFull = false;
   if (Array.isArray(b.pupils)) {
-    const P = b.pupils.slice(0, 2000);
-    let js = JSON.stringify(P);
-    // D1 row ~2 MB tak: bahut bada ho to attendance history chhoti karo (pichhle din rakho)
-    for (const keep of [200, 120, 60, 20]) {
-      if (js.length <= 1200000) break;
-      P.forEach(x => { if (x && Array.isArray(x.att) && x.att.length > keep) x.att = x.att.slice(-keep); });
-      js = JSON.stringify(P);
+    const P = b.pupils.filter(x => x && x.tok).slice(0, 2000);
+    const isNew = 'ptk' in b;                                  // naya ERP (v1.26+): sirf badle hue students + token-set ka hash
+    let write = P;
+    if (!isNew && P.length) {                                  // purana ERP sabhi bhejta hai: hash dekhkar sirf badle hue likho
+      const have = {}; for (const r of ((await env.DB.prepare('SELECT tok, h FROM pupil_rows WHERE lib_id = ?').bind(lib.id).all()).results || [])) have[r.tok] = r.h;
+      write = P.filter(x => have[x.tok] !== hash32(pupilJson(x)));
     }
-    await env.DB.prepare('UPDATE libraries SET pupils=? WHERE id=?').bind(js.length <= 1200000 ? js : '[]', lib.id).run();
+    const stm = write.map(x => { const js = pupilJson(x); return env.DB.prepare('INSERT INTO pupil_rows (lib_id, tok, h, data) VALUES (?, ?, ?, ?) ON CONFLICT(lib_id, tok) DO UPDATE SET h = excluded.h, data = excluded.data').bind(lib.id, String(x.tok), hash32(js), js); });
+    for (let i = 0; i < stm.length; i += 40) await env.DB.batch(stm.slice(i, i + 40));
+    if (!isNew || Array.isArray(b.pupilTokens)) {
+      const toks = (isNew ? b.pupilTokens.map(String) : P.map(x => String(x.tok))).slice(0, 2000);
+      // jo tokens ab ERP me nahi (student delete / naya link), unki rows hata do
+      await env.DB.prepare("DELETE FROM pupil_rows WHERE lib_id = ? AND tok NOT IN (SELECT value FROM json_each(?))").bind(lib.id, JSON.stringify(toks)).run();
+      if (isNew) {
+        const n = (await env.DB.prepare('SELECT COUNT(*) AS n FROM pupil_rows WHERE lib_id = ?').bind(lib.id).first()).n;
+        needFull = n !== toks.length;
+        if (!needFull && String(b.ptk) !== (lib.ptk || '')) await env.DB.prepare('UPDATE libraries SET ptk = ? WHERE id = ?').bind(String(b.ptk), lib.id).run();
+      }
+    } else if (String(b.ptk) !== (lib.ptk || '')) needFull = true;   // cloud ka token-set ERP se alag/khali: poora dobara bhejo
+    if (lib.pupils) await env.DB.prepare('UPDATE libraries SET pupils = NULL WHERE id = ?').bind(lib.id).run();   // purana bada JSON hata do
   }
-  // Owner ka common message (sabhi students ko) — personal message pupils me hota hai
-  if ('smsg' in b) await env.DB.prepare('UPDATE libraries SET smsg=? WHERE id=?').bind(b.smsg && b.smsg.t ? JSON.stringify({ t: String(b.smsg.t).slice(0, 400), at: String(b.smsg.at || '').slice(0, 30) }) : null, lib.id).run();
+  if (b.today && b.today.rows && typeof b.today.rows === 'object') {
+    await env.DB.prepare('INSERT INTO lib_today (lib_id, day, data) VALUES (?, ?, ?) ON CONFLICT(lib_id) DO UPDATE SET day = excluded.day, data = excluded.data')
+      .bind(lib.id, String(b.today.day || '').slice(0, 10), JSON.stringify(b.today.rows).slice(0, 400000)).run();
+  }
   // Student self-attendance: ERP ne jo merge kar liya (attSeen tak) wo cloud se hata do, baaki wapas bhejo
-  let attMarks = [];
-  { const pend = attPend(lib); let changed = false;
-    const seen = +b.attSeen || 0;
-    if (seen) for (const k in pend) { if ((pend[k].at || 0) <= seen) { delete pend[k]; changed = true; } }
-    if (changed) await env.DB.prepare('UPDATE libraries SET att_pending=? WHERE id=?').bind(JSON.stringify(pend), lib.id).run();
-    attMarks = Object.values(pend); }
+  await migrateAtt(env, lib);
+  const attMarks = await takeMarks(env, lib, +b.attSeen || 0);
   // Remote renew: library ne nayi key laga li (push me wahi key aayi) to pending saaf karo
   const curKey = String(b.key || '').replace(/\s+/g, '');
   let pendingKey = lib.pending_key || '';
   if (pendingKey && pendingKey === curKey) { await env.DB.prepare('UPDATE libraries SET pending_key = NULL, pending_at = NULL WHERE id = ?').bind(lib.id).run(); pendingKey = ''; }
   return { ok: true, libId: lib.id, at: now(), pinSet: !!lib.pin_hash, pendingKey: pendingKey && pendingKey !== curKey ? pendingKey : '',
-    notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '', attMarks, feat: featOf(lib) };
+    notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '', attMarks, feat: featOf(lib), needFull, sizeWarn: data.length > MAX_DATA * 0.7 };
 }
 async function setPin(env, b) {
   const lib = await authLib(env, b);
@@ -200,80 +259,97 @@ async function sManifest(env, seg) {
     : [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }, { src: '/icon-512.png', sizes: '512x512', type: 'image/png' }];
   const m = { id: '/s/' + seg, name, short_name: shortAppName(name), description: 'Attendance and fee record — ' + name,
     start_url: '/s/' + seg, scope: '/s/', display: 'standalone', orientation: 'portrait', background_color: '#eef1f6', theme_color: '#1f3a63', icons };
-  return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=300' } });
+  return new Response(JSON.stringify(m), { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=3600' } });
 }
 async function sIcon(env, libId) {
   const row = await env.DB.prepare("SELECT data FROM images WHERE lib_id=? AND key='icon512'").bind(libId).first();
   const m = row && /^data:(image\/(?:png|jpeg));base64,(.+)$/.exec(row.data || '');
-  if (!m) return new Response(Uint8Array.from(atob(ICON_512), c => c.charCodeAt(0)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' } });
-  return new Response(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0)), { headers: { 'Content-Type': m[1], 'Cache-Control': 'public, max-age=300' } });
+  if (!m) return new Response(Uint8Array.from(atob(ICON_512), c => c.charCodeAt(0)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=3600' } });
+  return new Response(Uint8Array.from(atob(m[2]), c => c.charCodeAt(0)), { headers: { 'Content-Type': m[1], 'Cache-Control': 'public, max-age=3600' } });
 }
 // Per-student public link — token se sirf us student ka fee+attendance (Aadhaar/private kuch nahi)
+const segOf = b => { const seg = String(b.tok || '').trim(), i = seg.lastIndexOf('~'); if (i < 1) throw new Error('This link is not valid.'); return [seg.slice(0, i), seg.slice(i + 1)]; };
+async function pupilOf(env, libId, tok) {
+  const r = await env.DB.prepare('SELECT data FROM pupil_rows WHERE lib_id = ? AND tok = ?').bind(libId, tok).first();
+  if (r) { try { return JSON.parse(r.data); } catch (e) {} }
+  // purana (v<1.26) bada JSON abhi tak ho to usse lo
+  const l = await env.DB.prepare('SELECT pupils FROM libraries WHERE id = ?').bind(libId).first();
+  if (l && l.pupils) { try { return (JSON.parse(l.pupils) || []).find(x => x && x.tok === tok) || null; } catch (e) {} }
+  return null;
+}
+// Student ki row + aaj ka IN/OUT (lib_today se; purane ERP ke liye row me hi hota hai)
+async function loadStudent(env, lib, tok) {
+  const s = await pupilOf(env, lib.id, tok); if (!s) return null;
+  const t = await env.DB.prepare('SELECT day, data FROM lib_today WHERE lib_id = ?').bind(lib.id).first();
+  if (t) {
+    let rows = {}; try { rows = JSON.parse(t.data) || {}; } catch (e) {}
+    const r = rows[tok], fresh = t.day === istDate();
+    s.todayIn = fresh && r ? r[0] : ''; s.todayOut = fresh && r ? r[1] : '';
+    s.monthPresent = r && String(t.day).slice(0, 7) === istDate().slice(0, 7) ? r[2] : 0;
+  } else staleDay(s, lib);
+  return s;
+}
 async function studentData(env, b) {
-  const seg = String(b.tok || '').trim();           // link segment = "<libId>~<token>"
-  if (!seg) throw new Error('No link');
-  const i = seg.lastIndexOf('~');
-  if (i < 1) throw new Error('This link is not valid.');
-  const libId = seg.slice(0, i), tok = seg.slice(i + 1);
-  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending, feat, smsg FROM libraries WHERE id=?').bind(libId).first();
+  const [libId, tok] = segOf(b);
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, feat, smsg FROM libraries WHERE id=?').bind(libId).first();
   if (!lib) throw new Error('This link is not valid or has been removed.');
   if (!featOf(lib).student) throw new Error('The student app is not available for this library right now. Please contact the library.');
-  let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
-  const s = P.find(x => x && x.tok === tok);
+  const s = await loadStudent(env, lib, tok);
   if (!s) throw new Error('Student record not found. Please ask the library to share the link again.');
   // student ne abhi khud jo In/Out kiya (abhi tak ERP me sync nahi hua) wo bhi dikhao
-  staleDay(s, lib);
-  const pend = attPend(lib), k = String(s.id) + '|' + istDate(), m = pend[k];
-  if (m) { if (m.in) s.todayIn = m.in; if (m.out) s.todayOut = m.out; }
+  const m = await env.DB.prepare('SELECT tin, tout FROM att_marks WHERE lib_id = ? AND sid = ? AND date = ?').bind(lib.id, String(s.id), istDate()).first();
+  if (m) { if (m.tin) s.todayIn = m.tin; if (m.tout) s.todayOut = m.tout; }
   let common = null; try { common = lib.smsg ? JSON.parse(lib.smsg) : null; } catch (e) {}
-  return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, common, student: { ...s } };
+  return { lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, common, student: s };
 }
-// ERP ne pupils jis din bheje, wahi 'aaj' hai; naya din ho gaya to purana In/Out aaj ka nahi
+// ERP pupils jis din bheje, wahi 'aaj' hai; naya din ho gaya to purana In/Out aaj ka nahi
 // Purana ERP 'day' nahi bhejta: tab pupils jis sync me aaye (last_sync) wahi unka 'aaj' hai
 function staleDay(s, lib) {
   let d = s.day;
   if (!d && lib && lib.last_sync) { const t = Date.parse(lib.last_sync); if (t) d = new Date(t + 19800000).toISOString().slice(0, 10); }
   if (d && d !== istDate()) { s.todayIn = ''; s.todayOut = ''; s.monthPresent = d.slice(0, 7) === istDate().slice(0, 7) ? s.monthPresent : 0; }
 }
-function attPend(lib) { try { return JSON.parse(lib.att_pending || '{}') || {}; } catch (e) { return {}; } }
-// ERP har ~45s me poochta hai: admin ka lock / message / renewal key aur students ke khud ke In/Out.
+// ERP har ~3 min me poochta hai: admin ka lock / message / renewal key aur students ke khud ke In/Out.
 // (Data na badla ho tab bhi chalta hai — isliye lock turant lagta hai.)
 async function poll(env, b) {
-  const lib = await authLib(env, b);
-  const pend = attPend(lib), seen = +b.attSeen || 0;
-  let changed = false;
-  if (seen) for (const k in pend) { if ((pend[k].at || 0) <= seen) { delete pend[k]; changed = true; } }
-  if (changed) await env.DB.prepare('UPDATE libraries SET att_pending=? WHERE id=?').bind(JSON.stringify(pend), lib.id).run();
+  const lib = await authLib(env, b, true);
+  await migrateAtt(env, lib);
+  const attMarks = await takeMarks(env, lib, +b.attSeen || 0);
   const curKey = String(b.key || '').replace(/\s+/g, '');
   return { ok: true, at: now(), notice: lib.notice || '', noticeAt: lib.notice_at || '', lock: +lib.lock || 0, lockMsg: lib.lock_msg || '',
-    pendingKey: lib.pending_key && lib.pending_key !== curKey ? lib.pending_key : '', attMarks: Object.values(pend), feat: featOf(lib) };
+    pendingKey: lib.pending_key && lib.pending_key !== curKey ? lib.pending_key : '', attMarks, feat: featOf(lib) };
 }
-// Student khud In/Out kare (link se). Server time (IST). ERP agle sync me kheench lega.
+// Student khud In/Out kare (link se). Server time (IST). ERP agle poll/sync me kheench lega.
 async function studentMark(env, b) {
-  const seg = String(b.tok || '').trim(), act = b.act === 'out' ? 'out' : 'in';
-  const i = seg.lastIndexOf('~'); if (i < 1) throw new Error('This link is not valid.');
-  const libId = seg.slice(0, i), tok = seg.slice(i + 1);
-  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, pupils, att_pending, feat FROM libraries WHERE id=?').bind(libId).first();
+  const act = b.act === 'out' ? 'out' : 'in';
+  const [libId, tok] = segOf(b);
+  const lib = await env.DB.prepare('SELECT id, name, contact, last_sync, feat FROM libraries WHERE id=?').bind(libId).first();
   if (!lib) throw new Error('This link is not valid or has been removed.');
   if (!featOf(lib).student) throw new Error('The student app is not available for this library right now. Please contact the library.');
-  let P = []; try { P = JSON.parse(lib.pupils || '[]'); } catch (e) {}
-  const s = P.find(x => x && x.tok === tok);
+  const s = await loadStudent(env, lib, tok);
   if (!s) throw new Error('Student not found.');
-  const pend = attPend(lib), date = istDate(), k = String(s.id) + '|' + date, t = istTime();
-  staleDay(s, lib);
-  const cur = pend[k] || { sid: s.id, date, in: '', out: '', at: 0 };
-  // ERP pending hata chuka ho (merge ho gaya) to ERP se aaya aaj ka In/Out maano
-  if (!cur.in && s.todayIn) cur.in = s.todayIn;
-  if (!cur.out && s.todayOut) cur.out = s.todayOut;
-  if (act === 'in') { if (cur.in) throw new Error('Already marked IN at ' + cur.in + ' today'); cur.in = t; }
-  else { if (!cur.in) throw new Error('Mark IN first.'); if (cur.out) throw new Error('Already marked OUT at ' + cur.out); cur.out = t; }
-  cur.at = Date.now();
-  pend[k] = cur;
-  // purani entries (15 din se purani) safai
-  for (const key in pend) { if (pend[key].at && Date.now() - pend[key].at > 15 * 864e5) delete pend[key]; }
-  await env.DB.prepare('UPDATE libraries SET att_pending=? WHERE id=?').bind(JSON.stringify(pend), lib.id).run();
-  if (act === 'in') s.todayIn = t; else s.todayOut = t;
-  return { ok: true, act, time: t, lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: { ...s } };
+  const date = istDate(), t = istTime(), sid = String(s.id);
+  const m = await env.DB.prepare('SELECT tin, tout FROM att_marks WHERE lib_id = ? AND sid = ? AND date = ?').bind(lib.id, sid, date).first() || { tin: '', tout: '' };
+  // ERP se aaya aaj ka In/Out bhi maano (pending ERP khinch chuka ho tab bhi)
+  const curIn = m.tin || s.todayIn || '', curOut = m.tout || s.todayOut || '';
+  let r;
+  if (act === 'in') {
+    if (curIn) throw new Error('Already marked IN at ' + curIn + ' today');
+    r = await env.DB.prepare("INSERT INTO att_marks (lib_id, sid, date, tin, tout, at) VALUES (?, ?, ?, ?, '', ?) ON CONFLICT(lib_id, sid, date) DO UPDATE SET tin = excluded.tin, at = excluded.at WHERE att_marks.tin = ''")
+      .bind(lib.id, sid, date, t, Date.now()).run();
+    if (!r.meta || !r.meta.changes) throw new Error('Already marked IN today');
+    s.todayIn = t;
+  } else {
+    if (!curIn) throw new Error('Mark IN first.');
+    if (curOut) throw new Error('Already marked OUT at ' + curOut);
+    r = await env.DB.prepare("INSERT INTO att_marks (lib_id, sid, date, tin, tout, at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(lib_id, sid, date) DO UPDATE SET tout = excluded.tout, at = excluded.at WHERE att_marks.tout = ''")
+      .bind(lib.id, sid, date, curIn, t, Date.now()).run();
+    if (!r.meta || !r.meta.changes) throw new Error('Already marked OUT today');
+    s.todayIn = curIn; s.todayOut = t;
+  }
+  // 15 din se purani entries kabhi-kabhi saaf (har ~50 mark me ek baar)
+  if (Math.random() < 0.02) await env.DB.prepare('DELETE FROM att_marks WHERE lib_id = ? AND at < ?').bind(lib.id, Date.now() - 15 * 864e5).run();
+  return { ok: true, act, time: t, lib: lib.name, contact: lib.contact, lastSync: lib.last_sync, student: s };
 }
 
 const MAX_IMG = 400000;        // ek image ~400 KB tak (base64)
@@ -399,8 +475,15 @@ async function admin(req, env, url) {
       <form method="post" action="/admin/delete" onsubmit="return confirm('Delete ${esc(l.id)} and all its cloud backups?')"><input type="hidden" name="id" value="${esc(l.id)}"><button class="b r">Delete</button></form></td></tr>`).join('') || '<tr><td colspan="11">No library has connected yet.</td></tr>'}
     </tbody></table>`);
 }
-async function delLib(env, id) {
+async function delLib(env, id, block) {
+  if (block) {
+    const l = await env.DB.prepare('SELECT machine, name FROM libraries WHERE id = ?').bind(id).first();
+    if (l && l.machine) await env.DB.prepare('INSERT INTO blocked (machine, lib_id, name, at) VALUES (?, ?, ?, ?) ON CONFLICT(machine) DO UPDATE SET lib_id = excluded.lib_id, name = excluded.name, at = excluded.at').bind(l.machine, id, l.name || '', now()).run();
+  }
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM pupil_rows WHERE lib_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM att_marks WHERE lib_id = ?').bind(id),
+    env.DB.prepare('DELETE FROM lib_today WHERE lib_id = ?').bind(id),
     env.DB.prepare('DELETE FROM backups WHERE lib_id = ?').bind(id),
     env.DB.prepare('DELETE FROM images WHERE lib_id = ?').bind(id),
     env.DB.prepare('DELETE FROM tickets WHERE lib_id = ?').bind(id),
@@ -467,7 +550,9 @@ async function adminApi(req, env, url, op) {
     await env.DB.prepare('UPDATE libraries SET pin_hash=?, pin_fails=0, pin_lock=0 WHERE id=?').bind(await sha256(String(body.id) + ':' + body.pin), String(body.id)).run();
     return json({ ok: true });
   }
-  if (op === 'delete' && req.method === 'POST') { await delLib(env, String(body.id)); return json({ ok: true }); }
+  if (op === 'blocked') return json({ blocked: (await env.DB.prepare('SELECT machine, lib_id, name, at FROM blocked ORDER BY at DESC LIMIT 100').all()).results || [] });
+  if (op === 'unblock' && req.method === 'POST') { await env.DB.prepare('DELETE FROM blocked WHERE machine = ?').bind(String(body.machine || '')).run(); return json({ ok: true }); }
+  if (op === 'delete' && req.method === 'POST') { await delLib(env, String(body.id), !!body.block); return json({ ok: true }); }
   if (op === 'images') {
     const L = (await env.DB.prepare('SELECT key, length(data) AS size, updated FROM images WHERE lib_id = ? ORDER BY key').bind(q.get('id')).all()).results;
     return json({ images: L });
@@ -810,7 +895,7 @@ function render(){
   <input id="q" placeholder="Search name / ID / mobile" oninput="filt(this.value)" style="margin-bottom:10px">
   \${KF!=='all'?\`<div class="fbar"><b>Showing: \${({stale:'Backup stale (48h+)',lic:'License ≤5 days / expired',pay:'Payment due ≤5 days / overdue'})[KF]}</b><button class="btn sm g" onclick="setKF('all')">Show all</button></div>\`:''}
   <div id="list"></div></main>
-  <div class="tabs"><a class="\${tab==='libs'?'on':''}" onclick="tab='libs';render()">🏢 Libraries</a><a class="\${tab==='tickets'?'on':''}" onclick="openTickets()">🎫 Tickets\${DATA.ticketsUnread?\`<span class="badge">\${DATA.ticketsUnread}</span>\`:''}</a></div>\`;
+  <div class="tabs"><a class="\${tab==='libs'?'on':''}" onclick="tab='libs';render()">🏢 Libraries</a><a class="\${tab==='tickets'?'on':''}" onclick="openTickets()">🎫 Tickets\${DATA.ticketsUnread?\`<span class="badge">\${DATA.ticketsUnread}</span>\`:''}</a><a onclick="blockedBox()">🚫 Blocked</a></div>\`;
   drawLibs(L.filter(kfMatch));
 }
 const licDaysPay=d=>Math.ceil((new Date(d).getTime()+864e5-Date.now())/864e5);
@@ -901,6 +986,7 @@ async function saveLock(id){try{await api('lock',{body:{id,lock:+$('#lv').value,
 function renewBox(id){const l=libById(id),d=licDays(l.lic_expiry);
   sheet(\`<h3>Renew license — \${esc(l.name||id)}</h3>
   <p class="muted">\${esc(l.id)} · License: \${d===Infinity?'Lifetime':d<0?'<b class="bad">expired</b>':'<b>'+d+' days left</b>'}\${l.pendingKey?' · <b class="warn">a key is waiting to apply</b>':''}</p>
+  \${d===Infinity?'<div class="warn" style="background:#fff0d6;border-radius:10px;padding:9px 11px;margin:6px 0"><b>⚠ Is library ke paas Lifetime key hai.</b> Nayi key bhejne par ye Lifetime hat kar nayi key ki date lagegi. Agar galti se Lifetime di thi aur ab badalni hai to hi bhejein.</div>':''}
   <label>Machine code (SetuKeygen me ye daalkar key banayein)</label>
   <div class="row" style="gap:6px"><input id="rmc" value="\${esc(l.machine||'')}" readonly><button class="btn g" onclick="copyTxt('\${esc(l.machine||'')}')">Copy</button></div>
   <label style="margin-top:8px">Activation key (SetuKeygen se banakar yahan paste karein)</label><textarea id="rk" rows="4" placeholder="LIB-…"></textarea>
@@ -923,10 +1009,14 @@ function delLib(id,name){
   sheet(\`<h3 class="bad" style="color:var(--bad)">Delete library?</h3>
   <p><b>\${esc(name||id)}</b> (\${esc(id)})</p>
   <p class="muted">Iske saare cloud backups, photos aur tickets hamesha ke liye hat jayenge. <b>Wapas nahi aayega.</b> Library ke phone/computer ka apna data safe rahega, par wo cloud se alag ho jayegi.</p>
+  <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0"><input type="checkbox" id="dbk" style="width:auto;margin-top:3px"><span><b>Is computer ko Block karein</b> — wo dobara register / cloud nahi kar payega (jaise payment na dene par). Baad me 🚫 Blocked se hata sakte hain.</span></label>
   <label>Confirm karne ke liye Library ID type karein: <b>\${esc(id)}</b></label><input id="dc" placeholder="\${esc(id)}" autocomplete="off">
   <div class="acts" style="margin-top:14px"><button class="btn bad" onclick="doDelLib('\${id}')">Yes, delete</button><button class="btn g" onclick="closeSheet()">Cancel</button></div>\`);}
+async function blockedBox(){let r;try{r=await api('blocked');}catch(e){toast(e.message,'bad');return;}
+  const L=r.blocked||[];sheet(\`<h3>🚫 Blocked computers</h3>\`+(L.length?L.map(b=>\`<div class="row" style="justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>\${esc(b.name||b.lib_id||'')}</b><br><small class="muted">\${esc(b.lib_id||'')} · \${esc(b.machine)} · \${esc((b.at||'').slice(0,10))}</small></span><button class="btn sm g" onclick='unblock(\${JSON.stringify(b.machine)})'>Unblock</button></div>\`).join(''):'<p class="muted">Koi blocked computer nahi.</p>')+\`<div class="acts" style="margin-top:12px"><button class="btn g" onclick="closeSheet()">Close</button></div>\`);}
+async function unblock(m){try{await api('unblock',{body:{machine:m}});toast('Unblocked','ok');blockedBox();}catch(e){toast(e.message,'bad');}}
 async function doDelLib(id){if(($('#dc').value||'').trim().toUpperCase()!==String(id).toUpperCase()){toast('Library ID sahi type karein','bad');return;}
-  try{await api('delete',{body:{id}});toast(id+' deleted','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+  try{await api('delete',{body:{id,block:!!($('#dbk')&&$('#dbk').checked)}});toast(id+' deleted','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 
 async function openTickets(id){tab='tickets';let r;try{r=await api('tickets'+(id?'?id='+encodeURIComponent(id)+'&read=1':'?read=1'));}catch(e){toast(e.message,'bad');return;}
   const T=r.tickets;DATA.ticketsUnread=0;
@@ -1085,7 +1175,12 @@ const tmf=x=>x&&x.length===4&&x.indexOf(':')<0?x.slice(0,2)+':'+x.slice(2):(x||'
 const dd=d=>{const a=d.split('-');return +a[2]+' '+MN[+a[1]-1];};
 const dmyS=d=>d?dd(d)+' '+d.slice(0,4):'—';
 function dur(a,b){if(!a||!b)return '';const x=a.split(':'),y=b.split(':'),m=(+y[0]*60+ +y[1])-(+x[0]*60+ +x[1]);if(!(m>0))return '';return Math.floor(m/60)+'h '+p2(m%60)+'m';}
-function attMap(s){const m={};(s.att||[]).forEach(r=>{const q=r.split('|');const k='20'+q[0].slice(0,2)+'-'+q[0].slice(2,4)+'-'+q[0].slice(4,6);m[k]={in:tmf(q[1]),out:tmf(q[2])};});
+function attMap(s){const m={};const A=s.att;
+  if(typeof A==='string'){ // compact: har din 7 akshar = din(3,b36,2000-01-01 se)+IN(2)+OUT(2 ya --), minute base36
+    const hm=x=>{if(!x||x==='--')return '';const v=parseInt(x,36);return p2(Math.floor(v/60))+':'+p2(v%60);};
+    for(let i=0;i+7<=A.length;i+=7){const d=new Date(Date.UTC(2000,0,1+parseInt(A.substr(i,3),36)));
+      m[d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate())]={in:hm(A.substr(i+3,2)),out:hm(A.substr(i+5,2))};}
+  }else{(A||[]).forEach(r=>{const q=r.split('|');const k='20'+q[0].slice(0,2)+'-'+q[0].slice(2,4)+'-'+q[0].slice(4,6);m[k]={in:tmf(q[1]),out:tmf(q[2])};});}
   if(s.todayIn)m[ymd(new Date())]={in:s.todayIn,out:s.todayOut||''};return m;}
 function mAdd(m,n){let y=+m.slice(0,4),k=+m.slice(5)-1+n;y+=Math.floor(k/12);k=((k%12)+12)%12;return y+'-'+p2(k+1);}
 function mRng(a,b){const o=[];for(let m=a;m<=b&&o.length<60;m=mAdd(m,1))o.push(m);return o;}
@@ -1262,7 +1357,7 @@ export default {
       if (url.pathname.startsWith('/admin')) return await admin(req, env, url);
       if (url.pathname === '/view' || url.pathname === '/app') return new Response(VIEW_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
       if (url.pathname === '/super') return new Response(SUPER_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
-      if (url.pathname === '/s' || url.pathname.startsWith('/s/')) return new Response(STUDENT_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' } });
+      if (url.pathname === '/s' || url.pathname.startsWith('/s/')) return new Response(STUDENT_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=600' } });   // browser cache: free-tier requests bachte hain
       if (url.pathname === '/manifest.webmanifest') return new Response(JSON.stringify(MANIFEST), { headers: { 'Content-Type': 'application/manifest+json' } });
       if (url.pathname === '/sw.js') return new Response(SW_JS, { headers: { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-cache' } });
       if (url.pathname.startsWith('/s-manifest/')) return await sManifest(env, decodeURIComponent(url.pathname.slice(12)));

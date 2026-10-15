@@ -16,6 +16,19 @@
   const pad = n => String(n).padStart(2, '0');
   const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
   const today = () => ymd(new Date());
+  const writeJsonM = (f, o) => A.writeFile(f, JSON.stringify(o));
+  // library.json kharab ho to sabse naya sahi backup wapas laao (khali library na bane)
+  function recoverData() {
+    try {
+      const t = A.readFile('library.json'); if (t == null || t === '') return;
+      const ok = x => { try { const d = JSON.parse(x); return !!(d && d.settings && Array.isArray(d.students)); } catch (e) { return false; } };
+      if (ok(t)) return;
+      A.writeFile('backups/corrupt_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json', t);
+      const L = JSON.parse(A.listFiles('backups') || '[]').filter(f => /^library_\d{4}-\d\d-\d\d\.json$/.test(f.name)).sort((a, b) => b.name.localeCompare(a.name));
+      for (const f of L) { const x = A.readFile('backups/' + f.name); if (ok(x)) { A.writeFile('library.json', x); let m = {}; try { m = JSON.parse(A.readFile('meta.json') || '{}'); } catch (e) {} m.recovered = { from: f.name, at: new Date().toISOString() }; writeJsonM('meta.json', m); return; } }
+    } catch (e) {}
+  }
+  recoverData();
   const readJson = (f, def) => { try { const t = A.readFile(f); return t == null || t === '' ? def : JSON.parse(t); } catch (e) { return def; } };
   const writeJson = (f, o) => { if (!A.writeFile(f, JSON.stringify(o))) throw new Error('Could not save on the phone (storage full?)'); };
   const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
@@ -158,12 +171,12 @@
         if (!c.libId) { const r = await cloudCall('/api/register', who); c.libId = r.libId; c.token = r.token; setCloud(c); }
         const st = D.students || [];
         let view = null; try { view = window.LibSummary ? window.LibSummary(D) : null; } catch (e) {}
-        let pup = []; try { pup = window.LibPupils ? window.LibPupils(D) : []; } catch (e) {}
-        const clean = (window.LibImages ? JSON.stringify(window.LibImages.stripImages(D)) : raw);   // images alag
+        let pd = { pupils: [], pupilTokens: null, ph: {} }; try { if (window.LibDelta) pd = window.LibDelta(D, c); } catch (e) {}
+        const clean = (window.LibImages ? JSON.stringify(window.LibImages.packData(D)) : raw);   // images alag; attendance compact
         const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: today(),
           stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
-          view, pupils: pup, attSeen: c.attSeen || 0, smsg: (S.stuMsg && S.stuMsg.t) ? { t: String(S.stuMsg.t).slice(0, 400), at: S.stuMsg.at || '' } : null, data: A.gzip(clean) });
-        Object.assign(c, { hash: h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
+          view, pupils: pd.pupils, ...(pd.pupilTokens ? { pupilTokens: pd.pupilTokens } : {}), ptk: pd.ptk, ...(pd.today ? { today: pd.today } : {}), attSeen: c.attSeen || 0, smsg: (S.stuMsg && S.stuMsg.t) ? { t: String(S.stuMsg.t).slice(0, 400), at: S.stuMsg.at || '' } : null, data: A.gzip(clean) });
+        Object.assign(c, { ph: r.needFull ? {} : pd.ph, phLib: r.needFull ? '' : c.libId, ptk: r.needFull ? '' : pd.ptk, th: r.needFull ? '' : pd.th, hash: r.needFull ? '' : h, day: today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
           notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {} });
         // Student self-attendance cloud se merge
         if (Array.isArray(r.attMarks) && r.attMarks.length) {
@@ -256,7 +269,7 @@
   window.addEventListener('online', window.__netUp);
   setTimeout(window.__cloudSync, 8000);
   setTimeout(window.__poll, 6000);
-  setInterval(window.__poll, 45e3);
+  setInterval(window.__poll, 180e3);   // 3 min: Cloudflare free plan ke liye
   setInterval(window.__cloudSync, 2 * 60e3);
   // Remote renew: admin ki bheji key le aakar khud lagao (license khatam hone par bhi)
   async function cloudRenew() {
@@ -294,7 +307,7 @@
     }
     if (path === 'cloud-restore') {
       const r = await cloudCall('/api/restore', { libId: body.libId, pin: body.pin, key: readJson(LICENSE, {}).key, machine: MACHINE });
-      const d = JSON.parse(A.gunzip(r.data));
+      const d = window.LibImages ? window.LibImages.unpackData(JSON.parse(A.gunzip(r.data))) : JSON.parse(A.gunzip(r.data));
       if (!validData(d)) throw new Error('Cloud backup is damaged');
       let imgHashes = {}; try { imgHashes = await pullImages(r.libId, r.token, d); } catch (e) {}
       safetyCopy(); saveData(d);
@@ -313,7 +326,7 @@
       return await cloudCall('/api/tickets', { libId: cc.libId, token: cc.token });
     }
     if (path === 'restore') { if (!validData(body)) throw new Error('Invalid data'); safetyCopy(); saveData(body); return { ok: true }; }
-    if (path === 'info') return { dataDir: 'Phone (app storage)', backupDir: 'Phone (app storage) / backups', ...readJson(META, {}) };
+    if (path === 'info') { const m = readJson(META, {}); const out = { dataDir: 'Phone (app storage)', backupDir: 'Phone (app storage) / backups', ...m }; if (m.recovered) { delete m.recovered; writeJsonM(META, m); } return out; }
     if (path === 'email-backup') {  // phone par: Gmail / WhatsApp / Drive mein share
       const d = /^\d{4}-\d\d-\d\d$/.test(body.date || '') ? body.date : today();
       const txt = d === today() ? A.readFile(DATA) : A.readFile(BK + 'library_' + d + '.json');

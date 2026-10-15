@@ -8,7 +8,7 @@ const zlib = require('zlib');
 const nodeCrypto = require('crypto');
 const { execFile, exec } = require('child_process');
 const lic = require('./license');
-const { summary, pupils, collectImages, stripImages, mergeImages } = require('./summary');
+const { summary, pupils, collectImages, stripImages, mergeImages, packData, unpackData, pupilsDelta } = require('./summary');
 
 let PORT = +process.env.LIBERP_PORT || 5055;
 const FIRST_PORT = PORT;
@@ -245,15 +245,16 @@ async function cloudSync(force) {
   try {
     if (!c.libId) { const r = await cloudCall('/api/register', who); c.libId = r.libId; c.token = r.token; setCloud(c); }
     const st = D.students || [];
-    const clean = Buffer.from(JSON.stringify(stripImages(D)), 'utf8');   // images alag jaati hain
+    const clean = Buffer.from(JSON.stringify(packData(D)), 'utf8');   // images alag; attendance compact (cloud backup chhota)
+    let pd = { pupils: [], pupilTokens: null, ph: {} }; try { pd = pupilsDelta(D, c); } catch (e) { log('pupils: ' + e.message); }
     const r = await cloudCall('/api/push', { ...who, libId: c.libId, token: c.token, day: lic.today(),
       stats: { students: st.length, active: st.filter(x => x.status !== 'left').length, receipts: (D.receipts || []).filter(x => !x.cancel).length },
       view: (() => { try { return summary(D); } catch (e) { log('summary: ' + e.message); return null; } })(),
-      pupils: (() => { try { return pupils(D); } catch (e) { log('pupils: ' + e.message); return []; } })(),
+      pupils: pd.pupils, ...(pd.pupilTokens ? { pupilTokens: pd.pupilTokens } : {}), ptk: pd.ptk, ...(pd.today ? { today: pd.today } : {}),
       attSeen: c.attSeen || 0,
       smsg: (D.settings && D.settings.stuMsg && D.settings.stuMsg.t) ? { t: String(D.settings.stuMsg.t).slice(0, 400), at: D.settings.stuMsg.at || '' } : null,
       data: zlib.gzipSync(clean).toString('base64') });
-    Object.assign(c, { hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
+    Object.assign(c, { ph: r.needFull ? {} : pd.ph, phLib: r.needFull ? '' : c.libId, ptk: r.needFull ? '' : pd.ptk, th: r.needFull ? '' : pd.th, hash: r.needFull ? '' : hash, day: lic.today(), lastOk: new Date().toISOString(), error: '', pinSet: r.pinSet,
       notice: r.notice || '', noticeAt: r.noticeAt || '', lock: +r.lock || 0, lockMsg: r.lockMsg || '', feat: r.feat || c.feat || {} });
     // Student ne khud jo In/Out kiya (cloud se) usko attendance me merge karo
     if (Array.isArray(r.attMarks) && r.attMarks.length) {
@@ -422,7 +423,7 @@ const server = http.createServer(async (req, res) => {
       const b = await body(req);
       let r; try { r = await cloudCall('/api/restore', { libId: b.libId, pin: b.pin, key: readJson(LICENSE, {}).key, machine: MACHINE }); }
       catch (e) { throw new Error(cloudErr(e)); }
-      const d = JSON.parse(zlib.gunzipSync(Buffer.from(r.data, 'base64')).toString('utf8'));
+      const d = unpackData(JSON.parse(zlib.gunzipSync(Buffer.from(r.data, 'base64')).toString('utf8')));
       if (!d || !d.settings || !Array.isArray(d.students)) throw new Error('Cloud backup is damaged');
       if (fs.existsSync(DATA)) fs.copyFileSync(DATA, path.join(BACKUP_DIR, 'before-restore_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json'));
       let imgHashes = {}; try { imgHashes = await pullImages(r.libId, r.token, d); } catch (e) { log('pullImages: ' + e.message); }  // photos wapas
@@ -451,7 +452,7 @@ const server = http.createServer(async (req, res) => {
       if (fs.existsSync(DATA)) fs.copyFileSync(DATA, path.join(BACKUP_DIR, 'before-restore_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.json'));
       saveData(d); return send(res, 200, { ok: true });
     }
-    if (url === '/api/info') return send(res, 200, { dataDir: DATA_DIR, backupDir: BACKUP_DIR, ...readJson(META, {}) });
+    if (url === '/api/info') { const m = readJson(META, {}); const out = { dataDir: DATA_DIR, backupDir: BACKUP_DIR, ...m }; if (m.recovered) { delete m.recovered; writeJson(META, m); } return send(res, 200, out); }
     if (url === '/api/email-backup' && req.method === 'POST') { const b = await body(req); await emailBackup(isDate(b.date) ? b.date : null); return send(res, 200, { ok: true, ...readJson(META, {}) }); }
     if (url === '/api/backups') return send(res, 200, { list: listBackups(), drive: detectDrive() });
     if (url === '/api/backup-file') {
@@ -509,6 +510,22 @@ function nextPort() {
   if (PORT >= FIRST_PORT + 20) return pause('No free port found (' + FIRST_PORT + '-' + PORT + ').');
   PORT++; server.listen(PORT, '127.0.0.1');
 }
+// library.json kharab (aadhi likhi / hath se badli) ho to ERP khali library na bana de: sabse naya sahi backup wapas laao
+function recoverData() {
+  if (!fs.existsSync(DATA)) return;
+  const ok = f => { try { const d = JSON.parse(fs.readFileSync(f, 'utf8')); return !!(d && d.settings && Array.isArray(d.students)); } catch (e) { return false; } };
+  if (ok(DATA)) return;
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  try { fs.copyFileSync(DATA, path.join(BACKUP_DIR, 'corrupt_' + ts + '.json')); } catch (e) {}
+  const L = fs.readdirSync(BACKUP_DIR).filter(x => /^library_\d{4}-\d\d-\d\d\.json$/.test(x)).sort().reverse();
+  for (const f of L) if (ok(path.join(BACKUP_DIR, f))) {
+    fs.copyFileSync(path.join(BACKUP_DIR, f), DATA);
+    const m = readJson(META, {}); m.recovered = { from: f, at: new Date().toISOString() }; writeJson(META, m);
+    log('Data file was damaged — recovered from backup ' + f); return;
+  }
+  log('Data file is damaged and no valid backup was found');
+}
+try { recoverData(); } catch (e) { console.error('recover: ' + e.message); }
 server.on('listening', () => {
   log('Start v' + VERSION + ': port ' + PORT + ', machine ' + MACHINE);
   console.log('==============================================');
@@ -522,7 +539,7 @@ server.on('listening', () => {
   setTimeout(autoEmail, 20000);
   setTimeout(() => cloudSync().catch(() => {}), 8000);
   setTimeout(() => cloudPoll().catch(() => {}), 6000);
-  setInterval(() => cloudPoll().catch(() => {}), 45e3);
+  setInterval(() => cloudPoll().catch(() => {}), 180e3);   // 3 min: Cloudflare free plan (100k requests/din) ke liye
   setInterval(() => cloudSync().catch(() => {}), 2 * 60e3);
   setTimeout(() => cloudRenew().catch(() => {}), 6000);               // boot par renewal check
   setInterval(() => cloudRenew().catch(() => {}), 10 * 60e3);         // har 10 min, license khatam ho to bhi

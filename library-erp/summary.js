@@ -80,17 +80,63 @@ function feeHistory(D, s) {
     });
   });
   return { feeByMonth: byMonth, totalPaid: total, short: short.map(z => ({ m: z.m, amt: Math.round(z.amt) })), bal: +s.bal || 0,
-    rcpts: R.slice(-36).map(r => ({ no: r.no, d: r.date, paid: +r.paid || 0, bal: +r.bal || 0, mode: r.mode || '', m: (r.mlist || []).slice(0, 12) })) };
+    rcpts: R.slice(-12).map(r => ({ no: r.no, d: r.date, paid: +r.paid || 0, bal: +r.bal || 0, mode: r.mode || '', m: (r.mlist || []).slice(0, 12) })) };
 }
-// Attendance (session ke poore din): "yymmdd|hhmm|hhmm" — chhota rakhne ke liye
+// Attendance (session ke poore din): har din 7 akshar = din(3, base36, 2000-01-01 se) + IN(2, minute base36) + OUT(2 ya '--')
+const b36 = (n, w) => Math.max(0, Math.round(n)).toString(36).padStart(w, '0');
+const minOf = t => { const q = String(t || '').split(':'); return q.length === 2 && q[0] !== '' ? (+q[0]) * 60 + (+q[1]) : -1; };
+const dayNo = d => Math.round((Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) - Date.UTC(2000, 0, 1)) / 864e5);
 function attHistory(D, s, sess, t) {
-  const att = D.att || {}, from = sess ? sess.from : '0000-00-00', to = sess && sess.to < t ? sess.to : t, out = [];
+  // sirf kal tak: aaj ka IN/OUT alag ('today' blob) jata hai, taaki roz har student ki row dobara na likhni pade
+  const att = D.att || {}, y = addDays(t, -1), from = sess ? sess.from : '0000-00-00', to = sess && sess.to < y ? sess.to : y;
+  let out = '';
   Object.keys(att).sort().forEach(d => {
     if (d < from || d > to) return;
     const a = (att[d] || {})[s.id]; if (!a) return;
-    out.push(d.slice(2).replace(/-/g, '') + '|' + (a.in || '').replace(':', '') + '|' + (a.out || '').replace(':', ''));
+    const i = minOf(a.in), o = minOf(a.out);
+    out += b36(dayNo(d), 3) + (i < 0 ? '--' : b36(i, 2)) + (o < 0 ? '--' : b36(o, 2));
   });
   return out;
+}
+// ---- Cloud backup chhota rakhne ke liye: attendance ko compact karo (restore par wapas khulti hai) ----
+function packData(D) {
+  const c = stripImages(D), ids = [], ix = Object.create(null);
+  const id = i => { if (!(i in ix)) { ix[i] = ids.length; ids.push(i); } return ix[i].toString(36); };
+  (c.students || []).forEach(s => id(s.id));
+  const mm = t => { const m = minOf(t); return m < 0 ? '' : m.toString(36); };
+  const attp = {};
+  for (const d in (c.att || {})) attp[d] = Object.entries(c.att[d] || {}).map(([sid, a]) => id(sid) + '.' + mm(a && a.in) + '.' + mm(a && a.out)).join(',');
+  c.attp = attp; c.attIds = ids; delete c.att; c.packed = 1;
+  return c;
+}
+function unpackData(d) {
+  if (!d || !d.packed) return d;
+  const hm = x => { if (x === '') return ''; const m = parseInt(x, 36); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+  const att = {};
+  for (const day in (d.attp || {})) {
+    const row = {};
+    String(d.attp[day]).split(',').filter(Boolean).forEach(e => { const q = e.split('.'); const sid = (d.attIds || [])[parseInt(q[0], 36)]; if (sid === undefined) return; const a = {}; const i = hm(q[1] || ''), o = hm(q[2] || ''); if (i) a.in = i; if (o) a.out = o; row[sid] = a; });
+    att[day] = row;
+  }
+  d.att = att; delete d.attp; delete d.attIds; delete d.packed;
+  return d;
+}
+// ---- Cloud par har push me sirf badle hue students bhejo ----
+const hashStr = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } return h.toString(36); };
+// Aaj ka IN/OUT + is mahine ke present din: sabhi students ka ek chhota blob (cloud par ek hi row)
+function todayBlob(D, now = new Date()) {
+  const t = ymd(now), cm = t.slice(0, 7), att = D.att || {}, today = att[t] || {}, cnt = {};
+  for (const d in att) if (d.slice(0, 7) === cm) for (const id in att[d]) cnt[id] = (cnt[id] || 0) + 1;
+  const rows = {};
+  (D.students || []).forEach(s => { if (s.status === 'left' || !s.tok) return; const a = today[s.id] || {}; rows[s.tok] = [a.in || '', a.out || '', cnt[s.id] || 0]; });
+  return { day: t, rows };
+}
+function pupilsDelta(D, c, now) {
+  const P = pupils(D, now), full = !c.ph || c.phLib !== c.libId, ph = {}, changed = [];
+  P.forEach(p => { const h = hashStr(JSON.stringify(p)); ph[p.tok] = h; if (full || c.ph[p.tok] !== h) changed.push(p); });
+  const tokens = P.map(p => p.tok), ptk = hashStr(tokens.slice().sort().join(','));
+  const tb = todayBlob(D, now), th = hashStr(JSON.stringify(tb));
+  return { pupils: changed, ptk, pupilTokens: full || c.ptk !== ptk ? tokens : null, today: full || c.th !== th ? tb : null, ph, th };
 }
 function pupils(D, now = new Date()) {
   const t = ymd(now), cm = t.slice(0, 7), S = D.settings || {};
@@ -99,17 +145,15 @@ function pupils(D, now = new Date()) {
   const plan = id => plans.find(p => p.id === id);
   const rate = s => { const p = plan(s.planId); if (!p) return 0; return +p.days > 31 ? Math.round(+s.fee * 30 / p.days) : +s.fee; };
   const unpaid = s => { if (!sess) return []; const P = new Set(s.paid || []), a = sess.from.slice(0, 7), b = sess.to.slice(0, 7), jm = (s.join || t).slice(0, 7); const st = a > jm ? a : jm, en = b < cm ? b : cm; return st > en ? [] : mRange(st, en).filter(m => !P.has(m)); };
-  const monthPresent = id => { let n = 0; for (const d in att) if (d.slice(0, 7) === cm && att[d][id]) n++; return n; };
-  const today = att[t] || {};
   return (D.students || []).filter(s => s.status !== 'left' && s.tok).map(s => {
-    const u = unpaid(s), a = today[s.id] || {}, P = new Set(s.paid || []);
+    const u = unpaid(s), P = new Set(s.paid || []);
     const nextDue = mRange((s.join || t).slice(0, 7), mAdd(cm, 6)).find(m => !P.has(m)) || '';
-    return { day: t, msg: s.msg && s.msg.t ? { t: String(s.msg.t).slice(0, 400), at: s.msg.at || '' } : null, id: s.id, tok: s.tok, code: s.code || '', name: s.name || '', seat: s.seat || '',
+    return { msg: s.msg && s.msg.t ? { t: String(s.msg.t).slice(0, 400), at: s.msg.at || '' } : null, id: s.id, tok: s.tok, code: s.code || '', name: s.name || '', seat: s.seat || '',
       plan: (plan(s.planId) || {}).name || '', feeMonthly: rate(s), paid: (s.paid || []).length,
       paidMonths: (s.paid || []).slice().sort().slice(-14),
       due: u.length * rate(s) + (+s.bal || 0), dueMonths: u.length, dueFrom: u[0] || '', nextDue,
       validTill: s.validTill || '',
-      todayIn: a.in || '', todayOut: a.out || '', monthPresent: monthPresent(s.id), join: s.join || '',
+      join: s.join || '',
       sessFrom: sess ? sess.from : '', sessTo: sess ? sess.to : '',
       ...feeHistory(D, s), att: attHistory(D, s, sess, t) };
   });
@@ -145,5 +189,5 @@ function mergeImages(D, imgs) {
   }
   return D;
 }
-module.exports = { summary, pupils, collectImages, stripImages, mergeImages };
-if (typeof window !== 'undefined') window.LibImages = { collectImages, stripImages, mergeImages }, window.LibPupils = pupils;
+module.exports = { summary, pupils, collectImages, stripImages, mergeImages, packData, unpackData, pupilsDelta, todayBlob };
+if (typeof window !== 'undefined') window.LibImages = { collectImages, stripImages, mergeImages, packData, unpackData }, window.LibPupils = pupils, window.LibDelta = pupilsDelta;

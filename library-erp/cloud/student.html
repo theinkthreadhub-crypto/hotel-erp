@@ -128,7 +128,12 @@ const tmf=x=>x&&x.length===4&&x.indexOf(':')<0?x.slice(0,2)+':'+x.slice(2):(x||'
 const dd=d=>{const a=d.split('-');return +a[2]+' '+MN[+a[1]-1];};
 const dmyS=d=>d?dd(d)+' '+d.slice(0,4):'—';
 function dur(a,b){if(!a||!b)return '';const x=a.split(':'),y=b.split(':'),m=(+y[0]*60+ +y[1])-(+x[0]*60+ +x[1]);if(!(m>0))return '';return Math.floor(m/60)+'h '+p2(m%60)+'m';}
-function attMap(s){const m={};(s.att||[]).forEach(r=>{const q=r.split('|');const k='20'+q[0].slice(0,2)+'-'+q[0].slice(2,4)+'-'+q[0].slice(4,6);m[k]={in:tmf(q[1]),out:tmf(q[2])};});
+function attMap(s){const m={};const A=s.att;
+  if(typeof A==='string'){ // compact: har din 7 akshar = din(3,b36,2000-01-01 se)+IN(2)+OUT(2 ya --), minute base36
+    const hm=x=>{if(!x||x==='--')return '';const v=parseInt(x,36);return p2(Math.floor(v/60))+':'+p2(v%60);};
+    for(let i=0;i+7<=A.length;i+=7){const d=new Date(Date.UTC(2000,0,1+parseInt(A.substr(i,3),36)));
+      m[d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate())]={in:hm(A.substr(i+3,2)),out:hm(A.substr(i+5,2))};}
+  }else{(A||[]).forEach(r=>{const q=r.split('|');const k='20'+q[0].slice(0,2)+'-'+q[0].slice(2,4)+'-'+q[0].slice(4,6);m[k]={in:tmf(q[1]),out:tmf(q[2])};});}
   if(s.todayIn)m[ymd(new Date())]={in:s.todayIn,out:s.todayOut||''};return m;}
 function mAdd(m,n){let y=+m.slice(0,4),k=+m.slice(5)-1+n;y+=Math.floor(k/12);k=((k%12)+12)%12;return y+'-'+p2(k+1);}
 function mRng(a,b){const o=[];for(let m=a;m<=b&&o.length<60;m=mAdd(m,1))o.push(m);return o;}

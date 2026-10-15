@@ -5,7 +5,7 @@ name: Setu Cloud Worker deploy
 on:
   push:
     branches: [liberp]
-    paths: ['library-erp/cloud/**', '.github/workflows/library-erp-worker.yml']
+    paths: ['library-erp/cloud/**', 'library-erp/summary.js', 'library-erp/license.js', 'library-erp/tools/**', '.github/workflows/library-erp-worker.yml']
   workflow_dispatch:
 
 concurrency:
@@ -27,6 +27,9 @@ jobs:
         run: node embed.js
       - name: Syntax check
         run: node --check worker.js
+      - name: Smoke test (local D1, no real keys/data)
+        run: node smoke.js
+        timeout-minutes: 10
       - name: Deploy to Cloudflare
         run: npx --yes wrangler@3 deploy
         env:

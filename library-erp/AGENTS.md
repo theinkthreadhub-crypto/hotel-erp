@@ -1,7 +1,7 @@
 # AGENTS.md — Library ERP (Setu Pro)
 
 Read this first. It tells an AI agent (or new developer) how this project works, where things live, and what not to break.
-Deeper docs: `docs/WORKFLOW.md`, `docs/DB_STRUCTURE.md`, `docs/DB_CRASH_RISKS.md`, `docs/PRD.md`, `docs/PRT.md`, `CHANGELOG.md`.
+Deeper docs: `docs/WORKFLOW.md`, `docs/DB_STRUCTURE.md`, `docs/DB_CRASH_RISKS.md`, `docs/CAPACITY.md` (free-plan maths), `docs/PRD.md`, `docs/PRT.md`, `CHANGELOG.md`.
 
 ## 1. What this is
 **Setu Pro Library ERP** — a SaaS-style product sold by vendor **Setu Pro** (partners Ankit Sharma, Surya Tiwari; support **6392995127**; setuproindia@gmail.com; www.setupro.in) to Indian libraries / self-study rooms.
@@ -33,7 +33,7 @@ Current version: see `package.json` (`version`). Every release adds a row to `CH
 7. **Student-facing page must never expose private data**: Aadhaar number, other students, receipts of others. Per-student data comes only from `pupils()` entries.
 8. **Time:** cloud uses IST (`istDate()`/`istTime()`, UTC+5:30). ERP uses local machine date. Student page uses the phone's date for calendar/streak display only; attendance times are always set by the cloud server.
 9. **Feature flags** (`FEAT_KEYS`: student, whatsapp, online, books, reminder, import, backup; absent/1 = ON, 0 = OFF). Cloud enforces student/online/backup; ERP only hides menus for the rest (tamper-light).
-10. **Free-tier discipline:** Cloudflare free plan. Minimise D1 writes (one `UPDATE pupils` per push, debounce 9 s), keep rows < 2 MB, keep Worker CPU small (10 ms/request free tier). See `docs/DB_CRASH_RISKS.md`.
+10. **Free-tier discipline (goal: 100 libraries × 100 students on the free plan):** every change to `cloud/worker.js` or the ERP↔cloud payload must keep the numbers in `docs/CAPACITY.md` true. Re-run `node cloud/smoke.js --load` and compare rows written/read per call. Rules: ERP poll ≥ 3 min; push only **changed** students (`pupilsDelta`); today's IN/OUT goes in `lib_today`, not in student rows; no big JSON parse per student request; `WITHOUT ROWID` for composite-key tables; cache headers on static pages.
 11. **Never commit secrets:** `private_key.pem`, keystore (`*.p12`) and its password, `LibraryKeys.csv`, Cloudflare token, `ADMIN_PASSWORD`.
 12. **Do not rename the school-brand / vendor identity strings** (Setu Pro, support number). Vendor phone is `6392995127`.
 
@@ -44,6 +44,9 @@ npm install
 npm start                      # desktop server, http://localhost:<port> (see config.json)
 node cloud/embed.js            # regenerate cloud/worker.js
 node --check cloud/worker.js   # syntax check
+node cloud/smoke.js            # 38 functional checks on a local worker+D1 (CI runs this before every deploy)
+node cloud/smoke.js --load     # 100 libraries x 100 students; prints D1 rows written/read per endpoint
+node tools/gen-data.js 100 12  # realistic test library JSON (size tests)
 npm run build                  # pkg → dist/LibraryERP.exe (+ patch-gui.js, keygen exe)
 npm run setup                  # makensis → dist/LibraryERP-Setup.exe
 sh android-erp/build-apk.sh    # needs AAPT2, DX, ANDROID_JAR, KEYSTORE, KSPASS env (no Android Studio)

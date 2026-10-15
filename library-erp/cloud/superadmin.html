@@ -147,7 +147,7 @@ function render(){
   <input id="q" placeholder="Search name / ID / mobile" oninput="filt(this.value)" style="margin-bottom:10px">
   ${KF!=='all'?`<div class="fbar"><b>Showing: ${({stale:'Backup stale (48h+)',lic:'License ≤5 days / expired',pay:'Payment due ≤5 days / overdue'})[KF]}</b><button class="btn sm g" onclick="setKF('all')">Show all</button></div>`:''}
   <div id="list"></div></main>
-  <div class="tabs"><a class="${tab==='libs'?'on':''}" onclick="tab='libs';render()">🏢 Libraries</a><a class="${tab==='tickets'?'on':''}" onclick="openTickets()">🎫 Tickets${DATA.ticketsUnread?`<span class="badge">${DATA.ticketsUnread}</span>`:''}</a></div>`;
+  <div class="tabs"><a class="${tab==='libs'?'on':''}" onclick="tab='libs';render()">🏢 Libraries</a><a class="${tab==='tickets'?'on':''}" onclick="openTickets()">🎫 Tickets${DATA.ticketsUnread?`<span class="badge">${DATA.ticketsUnread}</span>`:''}</a><a onclick="blockedBox()">🚫 Blocked</a></div>`;
   drawLibs(L.filter(kfMatch));
 }
 const licDaysPay=d=>Math.ceil((new Date(d).getTime()+864e5-Date.now())/864e5);
@@ -238,6 +238,7 @@ async function saveLock(id){try{await api('lock',{body:{id,lock:+$('#lv').value,
 function renewBox(id){const l=libById(id),d=licDays(l.lic_expiry);
   sheet(`<h3>Renew license — ${esc(l.name||id)}</h3>
   <p class="muted">${esc(l.id)} · License: ${d===Infinity?'Lifetime':d<0?'<b class="bad">expired</b>':'<b>'+d+' days left</b>'}${l.pendingKey?' · <b class="warn">a key is waiting to apply</b>':''}</p>
+  ${d===Infinity?'<div class="warn" style="background:#fff0d6;border-radius:10px;padding:9px 11px;margin:6px 0"><b>⚠ Is library ke paas Lifetime key hai.</b> Nayi key bhejne par ye Lifetime hat kar nayi key ki date lagegi. Agar galti se Lifetime di thi aur ab badalni hai to hi bhejein.</div>':''}
   <label>Machine code (SetuKeygen me ye daalkar key banayein)</label>
   <div class="row" style="gap:6px"><input id="rmc" value="${esc(l.machine||'')}" readonly><button class="btn g" onclick="copyTxt('${esc(l.machine||'')}')">Copy</button></div>
   <label style="margin-top:8px">Activation key (SetuKeygen se banakar yahan paste karein)</label><textarea id="rk" rows="4" placeholder="LIB-…"></textarea>
@@ -260,10 +261,14 @@ function delLib(id,name){
   sheet(`<h3 class="bad" style="color:var(--bad)">Delete library?</h3>
   <p><b>${esc(name||id)}</b> (${esc(id)})</p>
   <p class="muted">Iske saare cloud backups, photos aur tickets hamesha ke liye hat jayenge. <b>Wapas nahi aayega.</b> Library ke phone/computer ka apna data safe rahega, par wo cloud se alag ho jayegi.</p>
+  <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0"><input type="checkbox" id="dbk" style="width:auto;margin-top:3px"><span><b>Is computer ko Block karein</b> — wo dobara register / cloud nahi kar payega (jaise payment na dene par). Baad me 🚫 Blocked se hata sakte hain.</span></label>
   <label>Confirm karne ke liye Library ID type karein: <b>${esc(id)}</b></label><input id="dc" placeholder="${esc(id)}" autocomplete="off">
   <div class="acts" style="margin-top:14px"><button class="btn bad" onclick="doDelLib('${id}')">Yes, delete</button><button class="btn g" onclick="closeSheet()">Cancel</button></div>`);}
+async function blockedBox(){let r;try{r=await api('blocked');}catch(e){toast(e.message,'bad');return;}
+  const L=r.blocked||[];sheet(`<h3>🚫 Blocked computers</h3>`+(L.length?L.map(b=>`<div class="row" style="justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>${esc(b.name||b.lib_id||'')}</b><br><small class="muted">${esc(b.lib_id||'')} · ${esc(b.machine)} · ${esc((b.at||'').slice(0,10))}</small></span><button class="btn sm g" onclick='unblock(${JSON.stringify(b.machine)})'>Unblock</button></div>`).join(''):'<p class="muted">Koi blocked computer nahi.</p>')+`<div class="acts" style="margin-top:12px"><button class="btn g" onclick="closeSheet()">Close</button></div>`);}
+async function unblock(m){try{await api('unblock',{body:{machine:m}});toast('Unblocked','ok');blockedBox();}catch(e){toast(e.message,'bad');}}
 async function doDelLib(id){if(($('#dc').value||'').trim().toUpperCase()!==String(id).toUpperCase()){toast('Library ID sahi type karein','bad');return;}
-  try{await api('delete',{body:{id}});toast(id+' deleted','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
+  try{await api('delete',{body:{id,block:!!($('#dbk')&&$('#dbk').checked)}});toast(id+' deleted','ok');closeSheet();home();}catch(e){toast(e.message,'bad');}}
 
 async function openTickets(id){tab='tickets';let r;try{r=await api('tickets'+(id?'?id='+encodeURIComponent(id)+'&read=1':'?read=1'));}catch(e){toast(e.message,'bad');return;}
   const T=r.tickets;DATA.ticketsUnread=0;

@@ -1,42 +1,42 @@
 # DB / Data Crash Possibilities & Mitigations
 
 Severity: 🔴 data loss or outage · 🟠 feature breaks / wrong data · 🟡 degrades. "Status" = what exists today.
-Items marked **TODO** are not yet implemented.
+Items marked **TODO** are not yet implemented. **✅ FIXED v1.26.0** = fixed and covered by `cloud/smoke.js` or the ERP tests.
 
 ## A. ERP local file (`library.json`)
 | # | Risk | Sev | Why it can happen | Status / Mitigation |
 |---|---|---|---|---|
 | A1 | Power cut / crash while saving | 🔴 | Writing a big JSON | **Mitigated**: atomic write (tmp + rename). Old file stays intact. |
-| A2 | Disk full / antivirus blocks `LibraryData` | 🔴 | Writes fail | Daily copies in `backups/` (60 days). **TODO**: show a visible error banner when `saveData` throws. |
+| A2 | Disk full / antivirus blocks `LibraryData` | 🔴 | Writes fail | Daily copies in `backups/` (60 days). ✅ **FIXED v1.26.0**: red banner "Data save NAHI hua" stays until the next save succeeds. |
 | A3 | Owner deletes `LibraryData` or reinstalls Windows | 🔴 | Local-only data | Cloud backup (30 days) + PIN restore; optional Drive folder copy. Teach owners to set the Cloud PIN. |
 | A4 | Two ERP instances / PC + phone editing the same library | 🟠 | Each has its own `library.json`; last push overwrites cloud backup; no merge | **Not supported.** Document: one primary device per library. Phone/PC can restore from cloud only. |
 | A5 | JSON grows huge (photos/docs, many years) | 🟡 | Single-file DB, whole-file rewrite each save | Photos/docs stripped from cloud backup; cloud row limit 1.9 MB (see B1). Plan: archive old sessions. |
 | A6 | Schema change breaks old data | 🟠 | New code assumes new fields | Rule: tolerant reads, `seed()` defaults, never rename fields. |
-| A7 | Corrupt `library.json` (manual edit) | 🔴 | Invalid JSON → ERP won't start | Restore newest file from `backups/` or from cloud. **TODO**: auto-fallback to latest valid backup on parse error. |
+| A7 | Corrupt `library.json` (manual edit) | 🔴 | Invalid JSON → ERP would show an empty library | ✅ **FIXED v1.26.0**: at startup (PC and phone) a damaged file is copied to `backups/corrupt_<time>.json` and the newest valid backup is restored; ERP shows a notice once. Tested. |
 | A8 | Clock set backwards / wrong date | 🟠 | `license.lastSeen` check blocks ERP (>36 h back); receipts/attendance get wrong dates | Intentional anti-cheat; show clear message. Wrong *future* date can wrongly expire a key. |
 | A9 | Machine id changes (Windows reinstall, new PC) | 🟠 | Key is bound to machine id | Vendor issues a new key. Keep `LibraryKeys.csv` records. |
 
 ## B. Cloud D1 / Worker
 | # | Risk | Sev | Why | Status / Mitigation |
 |---|---|---|---|---|
-| B1 | Backup row > ~1.9 MB (`MAX_DATA`) | 🟠 | D1 row limit ~2 MB; large library (many receipts/attendance) | Push returns "Backup is too large". Photos/docs already excluded. **TODO**: split backup by section, or compress harder, or warn owner/admin early (alert at 70 %). |
-| B2 | `pupils` JSON > 1.2 MB | 🟠 | 2000 students × attendance history | Auto-trim `att` (200→120→60→20 days); if still too big stores `[]` → **all student links show "not found"**. Mitigation: cap, monitor `students` count per library; TODO: split pupils per student row for libraries > ~1000 students. |
-| B3 | Free-tier D1 write quota (100 k rows written/day) | 🔴 | Every push writes ~4–6 rows; 45 s polls write only when marks pending | Debounced 9 s; one `UPDATE pupils` per push. ~500–1000 active libraries on free tier. **Upgrade to Workers Paid before ~300 libraries.** Monitor in Cloudflare dashboard. |
-| B4 | Free-tier request/CPU limits (100 k req/day, ~10 ms CPU) | 🔴 | 45 s poll × libraries + student page loads + pushes | Poll is cheap (1 read + conditional write). CPU risk: `JSON.parse/stringify` of big `pupils` on each `/api/student` and `/api/student-mark`. **TODO**: cache parsed pupils or store per-student rows. |
-| B5 | Cold-start `init()` runs CREATE + 14 failing ALTERs | 🟡 | Each new isolate repeats migrations | Harmless but wastes reads/latency. **TODO**: gate migrations by a `schema_version` row. |
-| B6 | Lost update on `att_pending` | 🟠 | `studentMark` and `poll`/`push` do read-modify-write without a transaction; a mark arriving between read and write of a clear can be lost | Narrow window (ms). Mitigated by `at` timestamps + ERP `attSeen`; a lost mark = student must re-mark. **TODO**: use D1 batch/`UPDATE … WHERE` conditional or per-mark rows. |
+| B1 | Backup row > ~1.9 MB (`MAX_DATA`) | 🟠 | D1 row limit ~2 MB; large library | ✅ **Mitigated v1.26.0**: attendance packed (−22 %: 100 students ≈ 100 KB/day, so ~1.9 MB ≈ 1500+ students); push reply carries `sizeWarn` at 70 %. Still TODO: split very large backups. |
+| B2 | `pupils` JSON > 1.2 MB | 🟠 | one big blob | ✅ **FIXED v1.26.0**: per-student rows (`pupil_rows`, ≈2.4 KB each, 12 KB cap); no blob limit anymore. |
+| B3 | Free-tier D1 write quota (100 k rows written/day) | 🔴 | many pushes/marks | ✅ **Measured v1.26.0**: 7 rows/push, ≈66 k/day for 100 libs × 100 students (see `docs/CAPACITY.md`). Delta push + `lib_today` + `WITHOUT ROWID` cut writes. Move to Workers Paid past ~100 libs. |
+| B4 | Free-tier request/CPU limits (100 k req/day, ~10 ms CPU) | 🔴 | polls + student loads + pushes | ✅ **FIXED v1.26.0**: poll 45 s → 3 min, browser cache for student page/icons, single-row reads (no big JSON parse). ≈78 k requests/day for 100 libs. Tightest limit — watch it. |
+| B5 | Cold-start `init()` runs CREATE + 14 failing ALTERs | 🟡 | Each new isolate repeats migrations | ✅ **FIXED v1.26.0**: `_meta.schema = SCHEMA_V` gate (1 read when up to date). |
+| B6 | Lost update on `att_pending` | 🟠 | read-modify-write of one JSON | ✅ **FIXED v1.26.0**: `att_marks` rows with atomic UPSERT; 20 parallel IN requests → exactly one wins (tested). |
 | B7 | Stale `pupils` after offline ERP | 🟠 | Cloud only knows data as of `last_sync` | `staleDay()` hides previous-day IN/OUT; student app shows "Updated <time>". |
-| B8 | Admin deletes library by mistake | 🔴 | `delLib` removes libraries/backups/images/tickets | Type-to-confirm Library ID in Admin. No undo. **TODO**: soft-delete / 7-day trash + "Block" flag. |
+| B8 | Admin deletes library by mistake | 🔴 | `delLib` removes all rows | Type-to-confirm Library ID. ✅ **v1.26.0**: optional **Block this computer** (+ 🚫 Blocked list / Unblock). No undo — download the backup first. |
 | B9 | ERP re-registers → new Library ID | 🟠 | Cloud link invalid (deleted or DB reset) | Auto-relink (≤1/5 min). Old student links and Online View ID stop working; re-share links. Old backups remain under old ID (orphaned). |
 | B10 | D1 database id / binding wrong after redeploy | 🔴 | Worker without `DB` binding → every call fails ("D1 database is not connected") | `wrangler.toml` pins `database_id`; CI deploy shows bindings. Never recreate the DB without migrating data. |
-| B11 | Bad worker deploy | 🔴 | Syntax/logic error goes live for all libraries | CI runs `embed.js` + `node --check`. **TODO**: staged tests in CI (local wrangler smoke test), `wrangler rollback` runbook (`npx wrangler rollback` restores previous version). |
+| B11 | Bad worker deploy | 🔴 | Error goes live for all libraries | ✅ **FIXED v1.26.0**: CI runs `embed.js`, `node --check` and the 38-check **smoke test** (local D1) before `wrangler deploy`. Rollback runbook: `npx wrangler rollback` (previous version). |
 | B12 | D1 outage / Cloudflare incident | 🟡 | External | ERP is offline-first; sync retries. Student app shows cached copy. |
-| B13 | No D1 export schedule | 🔴 | If the D1 DB is lost, all cloud backups are gone | **TODO**: weekly `wrangler d1 export setu_erp` to R2/GitHub artifact. Time Travel (D1 point-in-time restore) is available for 30 days — know the dashboard path. |
+| B13 | No D1 export schedule | 🔴 | If the D1 DB is lost, all cloud backups are gone | ✅ **v1.26.0**: weekly GitHub Action exports D1 to an artifact (60 days). **Needs the Cloudflare token to have D1 permission.** D1 Time Travel (30 days) also exists in the dashboard. |
 
 ## C. Security / abuse
 | # | Risk | Sev | Notes / Mitigation |
 |---|---|---|---|
-| C1 | Student link is a bearer token | 🟠 | Anyone with the link sees that student's fee/attendance and can mark IN/OUT. Token = time + `Math.random` (≈60 bits). **TODO**: crypto-random token, "regenerate link" button, optional location/QR check for marking. |
+| C1 | Student link is a bearer token | 🟠 | Anyone with the link sees that student's fee/attendance and can mark IN/OUT. ✅ **v1.26.0**: crypto-random token (96 bits) + **♻ New link** button (old link dies at once). Still TODO: optional location/QR check. |
 | C2 | Single shared `ADMIN_PASSWORD` | 🟠 | Basic auth; password stored in browser if "remember". Rotate in Cloudflare secrets; consider per-user admin later. |
 | C3 | Online View PIN brute force | 🟡 | Locked 1 h after 5 wrong PINs. 4–6 digits. |
 | C4 | Cloud token leakage from `meta.json` | 🟠 | Token authorises push for that library. Protect PC; relink resets it. |
@@ -54,7 +54,7 @@ Items marked **TODO** are not yet implemented.
 | D5 | Old ERP + new cloud | 🟠 | Always keep new fields optional (see AGENTS.md rule 4). |
 | D6 | server.js vs mobile.js drift | 🟠 | Duplicate sync code; test both after any sync change. |
 
-## E. Recommended next hardening (priority order)
+## E. Recommended next hardening (priority order) — items 1 (partly), 3, 5, 6, 7 done in v1.26.0
 1. Weekly automatic D1 export + documented restore drill (B13).
 2. Backup keystore, private key, `LibraryKeys.csv` off-machine (C5, C6).
 3. Corrupt-file auto-fallback in ERP (A7) and visible save-error banner (A2).

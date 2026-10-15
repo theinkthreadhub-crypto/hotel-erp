@@ -18,11 +18,16 @@ Legend: **ERP** = PC exe or phone APK. **Cloud** = Cloudflare Worker + D1. **Adm
 ## 3. Cloud sync
 ```
 saveData ─► scheduleSync (debounce ~9 s PC / 7 s phone)
-         ─► POST /api/push { key, machine, libId, token, day, stats, view, pupils, smsg, attSeen, data(gzip b64) }
+         ─► POST /api/push { key, machine, libId, token, day, stats, view, smsg, attSeen,
+                             pupils (ONLY changed students), ptk, pupilTokens (only if the token set changed),
+                             today (only if changed), data (packed backup, gzip b64) }
 Cloud push():  verify license key → authLib(token hash) → write backups row (if feature backup)
-               → UPDATE libraries (stats, view, last_sync) → UPDATE pupils → UPDATE smsg (if key present)
-               → clear att_pending ≤ attSeen → reply { pinSet, notice, lock, lockMsg, pendingKey, attMarks[], feat }
-Every ~45 s:  POST /api/poll → notice / lock / pendingKey / attMarks / feat (works even when data unchanged)
+               → UPDATE libraries (stats, view, last_sync, smsg) → upsert changed pupil_rows → (tokens changed?) delete removed rows,
+               count rows → needFull? → upsert lib_today → clear att_marks ≤ attSeen
+               → reply { pinSet, notice, lock, lockMsg, pendingKey, attMarks[], feat, needFull, sizeWarn }
+               needFull=true → ERP forgets its hashes and next push sends everything (self-healing).
+Every ~3 min: POST /api/poll → notice / lock / pendingKey / attMarks / feat (works even when data unchanged).
+              (3 min keeps 100 libraries inside the Cloudflare free 100 k requests/day — see docs/CAPACITY.md)
 Images:       /api/image-keys (diff by hash) → /api/image for new/changed (logo, icon512, stu_*, doc_*)
 First time:   /api/register → libId + token (stored in meta.json). If cloud says "Cloud link is not valid"
               the ERP auto re-registers (max once / 5 min) and gets a NEW Library ID (old student links die).

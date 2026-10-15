@@ -348,11 +348,16 @@ async function api(p,body){
   const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j;
 }
 let saving=Promise.resolve();
+// Save fail ho to laal patti tab tak rahe jab tak agla save na ho jaye (disk full / antivirus / permission)
+function saveBanner(msg){let b=document.getElementById('savebn');
+  if(!msg){if(b)b.remove();return;}
+  if(!b){b=document.createElement('div');b.id='savebn';b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;background:#c62828;color:#fff;padding:10px 14px;font-weight:600;text-align:center;font-size:14px';document.body.appendChild(b);}
+  b.textContent='⚠ Data save NAHI hua ('+msg+'). Disk full / permission check karein. Kaam jaari rakhne se pehle Setu Pro (6392995127) ko batayein.';}
 function save(){
   const snap=JSON.stringify(D);
   saving=saving.then(()=>fetch('/api/data',{method:'POST',headers:{'Content-Type':'application/json'},body:snap}))
-    .then(r=>{if(!r.ok)return r.json().then(j=>{throw new Error(j.error);});})
-    .catch(e=>toast('Could not save data: '+e.message,'bad'))
+    .then(r=>{if(!r.ok)return r.json().then(j=>{throw new Error(j.error);});saveBanner('');})
+    .catch(e=>{toast('Could not save data: '+e.message,'bad');saveBanner(e.message||'unknown error');})
     .then(()=>{setSync('save');setTimeout(syncDot,1200);});
   return saving;
 }
@@ -922,7 +927,7 @@ async function delStudent(id){
   save();toast('Deleted','ok');scrList();
 }
 // Har student ka apna link — parent fee+attendance+contact dekh le
-function randTok(){return (Date.now().toString(36)+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6));}
+function randTok(){try{const a=new Uint8Array(12);crypto.getRandomValues(a);return Array.from(a,x=>x.toString(36).padStart(2,'0').slice(-2)).join('')+Date.now().toString(36);}catch(e){return (Date.now().toString(36)+Math.random().toString(36).slice(2,10)+Math.random().toString(36).slice(2,6));}}
 async function shareLink(id){
   if(!fOn('student')){toast('Student app aapke plan me nahi hai — upgrade ke liye Setu Pro se sampark karein','bad');return;}
   const s=stu(id);if(!s)return;
@@ -938,8 +943,13 @@ async function shareLink(id){
     <input value="${esc(url)}" readonly onclick="this.select()">
     <div class="btns" style="margin-top:12px"><button class="btn wa" onclick='waOpen(${JSON.stringify(s.mobile)},${JSON.stringify(msg)})'>WhatsApp to parent</button>
     <button class="btn g" onclick='navigator.clipboard.writeText(${JSON.stringify(url)}).then(()=>toast("Link copied","ok"))'>Copy link</button>
-    <button class="btn g" onclick="closeModal()">Close</button></div>`);
+    <button class="btn g" onclick="regenLink('${s.id}')">♻ New link</button>
+    <button class="btn g" onclick="closeModal()">Close</button></div>
+    <p class="small muted" style="margin-top:8px">Link kisi aur ke paas chala gaya ho to <b>New link</b> dabayein — purana link turant band ho jata hai.</p>`);
 }
+async function regenLink(id){const s=stu(id);if(!s)return;
+  if(!await ask('Naya link banayein? Purana link band ho jayega — student ko naya link bhejna hoga.'))return;
+  s.tok=randTok();save();toast('Naya link ban gaya','ok');shareLink(id);}
 function exportStudents(){
   const rows=[['ID','Name','Father','Mobile','Address','Seat','Shift','Plan','Fee','Join','Paid Till','Balance','Status']]
     .concat(D.students.map(s=>[s.code,s.name,s.father,s.mobile,s.address,s.seat,s.shift,(plan(s.planId)||{}).name,s.fee,s.join,s.validTill,s.bal||0,s.status]));
@@ -2273,6 +2283,7 @@ async function boot(){
   if(!LIC.ok)return showActivate();
   let data=null;try{data=await api('data');}catch(e){toast(e.message,'bad');return;}
   D=migrate(data);if(!data)save();
+  try{const inf=await api('info');if(inf&&inf.recovered)toast('Data file kharab mili thi — '+String(inf.recovered.from||'').slice(8,18)+' ke backup se wapas laya gaya. Pichhle kuch kaam dobara check karein.','bad');}catch(e){}
   drawSide();licBar();sessBar();
   if(!LIC.lifetime&&LIC.daysLeft<=7)toast(LIC.daysLeft>=1?`License expires in ${LIC.daysLeft} days — please renew (K)`:`License expires at ${licEnd()} — please renew (K)`,'bad');
   go('home');duePopup();refreshSync();ensureLogoIcon();

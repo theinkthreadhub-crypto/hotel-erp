@@ -2,7 +2,7 @@
 
 > "PRT" ko yahan **Project Roadmap & Tracker** maana gaya hai (kya ban chuka, kya pending, aage kya). Agar aapka matlab kuch aur tha (jaise Project Report / Test plan), bata dein — isi file ko usi hisaab se badal denge.
 
-**Current:** v1.25.0 (ERP exe + APK) · worker auto-deploy via GitHub Actions (`liberp`).
+**Current:** v1.26.0 (ERP exe + APK) · worker auto-deploy via GitHub Actions (`liberp`).
 
 ## 1. Release timeline (from CHANGELOG)
 | Phase | Versions | Theme |
@@ -20,6 +20,7 @@
 - [x] Owner → student messages (common + personal) — v1.25.0
 - [x] GitHub Actions auto-deploy of Cloudflare worker (secrets configured, run green)
 - [x] Project knowledge docs (`AGENTS.md`, `docs/*`)
+- [x] **v1.26.0 hardening + free-plan scale** — per-student rows, delta push, packed backups, 3-min poll, atomic marks, corrupt-file recovery, save-error banner, crypto tokens + new link, Block on delete, Lifetime warning, CI smoke test, weekly D1 export, capacity test (100 libs × 100 students)
 
 ## 3. Now / Next / Later
 ### Now (this week)
@@ -28,11 +29,8 @@
 - [ ] Back up **private key, Android keystore + password, LibraryKeys.csv** outside the sandbox (risk C5/C6).
 ### Next (1–4 weeks)
 - [ ] Decide plan matrix → align Admin presets (Basic/Standard/Pro) + optional student limit / free trial.
-- [ ] Weekly D1 export + restore drill (B13).
-- [ ] Corrupt-file auto-fallback + visible save-error banner in ERP (A7, A2).
-- [ ] Soft-delete + "Block" for libraries; Lifetime warning/"remove Lifetime" in Renew box.
-- [ ] Crypto-random student tokens + "regenerate link".
-- [ ] CI: add worker smoke test (local wrangler) before deploy; document `wrangler rollback`.
+- [ ] Add D1 permission to the Cloudflare token, run the weekly export once, and do a restore drill (B13).
+- [ ] Optional: 7-day trash (soft delete) for libraries; "remove Lifetime" button.
 ### Later
 - [ ] Location/QR check for student IN/OUT.
 - [ ] Per-student rows in D1 (scale beyond ~500 libraries / large libraries).
