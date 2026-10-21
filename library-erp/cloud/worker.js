@@ -16,7 +16,7 @@ const SCHEMA = [
   `CREATE TABLE IF NOT EXISTS backups (lib_id TEXT, day TEXT, data TEXT, updated TEXT, PRIMARY KEY (lib_id, day))`,
 ];
 let ready = false;
-const SCHEMA_V = '4';   // badhao jab bhi naya table/column jode (init sirf tab migration chalata hai)
+const SCHEMA_V = '5';   // badhao jab bhi naya table/column jode (init sirf tab migration chalata hai)
 async function init(env) {
   if (ready) return;
   if (!env.DB) throw new Error('D1 database is not connected (binding name must be DB)');
@@ -42,6 +42,8 @@ async function init(env) {
   // aaj ka IN/OUT + mahine ke present din: poori library ka ek hi chhota row (har push me 1 write, har student ki row nahi)
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS lib_today (lib_id TEXT PRIMARY KEY, day TEXT, data TEXT) WITHOUT ROWID`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS blocked (machine TEXT PRIMARY KEY, lib_id TEXT, name TEXT, at TEXT)`).run();
+  // Admin password andaza lagane walon ko rokna: ek IP se 10 galat try par 15 minute ka lock
+  await env.DB.prepare(`CREATE TABLE IF NOT EXISTS admin_fail (ip TEXT PRIMARY KEY, n INTEGER, first INTEGER, until INTEGER) WITHOUT ROWID`).run();
   await env.DB.prepare(`CREATE TABLE IF NOT EXISTS _meta (k TEXT PRIMARY KEY, v TEXT)`).run();
   await env.DB.prepare(`INSERT INTO _meta (k, v) VALUES ('schema', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v`).bind(SCHEMA_V).run();
   ready = true;
@@ -160,7 +162,7 @@ async function push(env, b) {
   // purana ERP sabhi bhejta hai — tab worker hash dekhkar sirf badle hue likhta hai.
   let needFull = false;
   if (Array.isArray(b.pupils)) {
-    const P = b.pupils.filter(x => x && x.tok).slice(0, 2000);
+    const P = b.pupils.filter(x => x && typeof x === 'object' && x.tok && String(x.tok).length <= 80 && pupilJson(x).length <= 40000).slice(0, 2000);   // bahut bade / ulte-seedhe rows chhod do
     const isNew = 'ptk' in b;                                  // naya ERP (v1.26+): sirf badle hue students + token-set ka hash
     let write = P;
     if (!isNew && P.length) {                                  // purana ERP sabhi bhejta hai: hash dekhkar sirf badle hue likho
@@ -181,9 +183,10 @@ async function push(env, b) {
     } else if (String(b.ptk) !== (lib.ptk || '')) needFull = true;   // cloud ka token-set ERP se alag/khali: poora dobara bhejo
     if (lib.pupils) await env.DB.prepare('UPDATE libraries SET pupils = NULL WHERE id = ?').bind(lib.id).run();   // purana bada JSON hata do
   }
-  if (b.today && b.today.rows && typeof b.today.rows === 'object') {
-    await env.DB.prepare('INSERT INTO lib_today (lib_id, day, data) VALUES (?, ?, ?) ON CONFLICT(lib_id) DO UPDATE SET day = excluded.day, data = excluded.data')
-      .bind(lib.id, String(b.today.day || '').slice(0, 10), JSON.stringify(b.today.rows).slice(0, 400000)).run();
+  if (b.today && b.today.rows && typeof b.today.rows === 'object' && !Array.isArray(b.today.rows)) {
+    const tj = JSON.stringify(b.today.rows);
+    if (tj.length <= 400000) await env.DB.prepare('INSERT INTO lib_today (lib_id, day, data) VALUES (?, ?, ?) ON CONFLICT(lib_id) DO UPDATE SET day = excluded.day, data = excluded.data')
+      .bind(lib.id, String(b.today.day || '').slice(0, 10), tj).run();
   }
   // Student self-attendance: ERP ne jo merge kar liya (attSeen tak) wo cloud se hata do, baaki wapas bhejo
   await migrateAtt(env, lib);
@@ -418,12 +421,25 @@ function adminAuth(req, env) {
   if (m) { const [, p] = atob(m[1]).split(/:(.*)/s); if (p === env.ADMIN_PASSWORD) return null; }
   return 'login';
 }
+async function adminGate(req, env) {
+  const ip = (req.headers.get('CF-Connecting-IP') || 'local').slice(0, 64), t = Date.now();
+  const row = await env.DB.prepare('SELECT n, first, until FROM admin_fail WHERE ip = ?').bind(ip).first();
+  if (row && row.until > t) return 'locked:' + Math.ceil((row.until - t) / 60000);   // lock me sahi password bhi nahi chalta
+  const a = adminAuth(req, env);
+  if (!a) { if (row) await env.DB.prepare('DELETE FROM admin_fail WHERE ip = ?').bind(ip).run(); return null; }
+  if (a !== 'login' || !req.headers.get('Authorization')) return a;   // password set nahi / sirf page khola: galti nahi ginte
+  const fresh = row && t - row.first < 15 * 60e3, n = (fresh ? row.n : 0) + 1;
+  await env.DB.prepare('INSERT INTO admin_fail (ip, n, first, until) VALUES (?, ?, ?, ?) ON CONFLICT(ip) DO UPDATE SET n = excluded.n, first = excluded.first, until = excluded.until')
+    .bind(ip, n, fresh ? row.first : t, n >= 10 ? t + 15 * 60e3 : 0).run();
+  return 'login';
+}
 async function gunzipB64(b64) {
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
   return new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
 async function admin(req, env, url) {
-  const a = adminAuth(req, env);
+  const a = await adminGate(req, env);
+  if (a && a.startsWith('locked:')) return new Response('Too many wrong passwords. Try again in ' + a.slice(7) + ' minute(s).', { status: 429, headers: { 'Retry-After': '900' } });
   if (a === 'login') return new Response('Login required', { status: 401, headers: { 'WWW-Authenticate': 'Basic realm="Setu Pro Admin"' } });
   if (a) return new Response(a, { status: 500 });
   const p = url.pathname;
@@ -492,7 +508,8 @@ async function delLib(env, id, block) {
 }
 // Super Admin app ke liye JSON API (Basic auth; /super page aur APK isse baat karte hain)
 async function adminApi(req, env, url, op) {
-  const body = req.method === 'POST' ? await req.json().catch(() => ({})) : {};
+  let body = {};
+  if (req.method === 'POST') { const t = await req.text(); body = t.length > 2e5 ? {} : (() => { try { return JSON.parse(t) || {}; } catch (e) { return {}; } })(); }
   const q = url.searchParams;
   if (op === 'libs') {
     const L = (await env.DB.prepare(`SELECT l.*, (SELECT COUNT(*) FROM tickets t WHERE t.lib_id=l.id AND t.status='open') AS tickets_open,
@@ -1367,7 +1384,14 @@ export default {
       if (url.pathname === '/icon-192.png' || url.pathname === '/icon-512.png')
         return new Response(Uint8Array.from(atob(url.pathname === '/icon-192.png' ? ICON_192 : ICON_512), c => c.charCodeAt(0)), { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' } });
       if (req.method !== 'POST' || !url.pathname.startsWith('/api/')) return fail('Not found', 404);
-      const b = await req.json();
+      // body ki seema: bahut bada body worker ki memory kha sakta hai (free plan 128 MB)
+      const lim = url.pathname === '/api/push' ? 8e6 : url.pathname === '/api/image' ? 1.2e6 : url.pathname === '/api/restore' ? 2e5 : 2e5;
+      const cl = +req.headers.get('content-length') || 0;
+      if (cl > lim) return fail('Request too large', 413);
+      const txt = await req.text();
+      if (txt.length > lim) return fail('Request too large', 413);
+      let b; try { b = JSON.parse(txt); } catch (e) { return fail('Bad request', 400); }
+      if (!b || typeof b !== 'object' || Array.isArray(b)) return fail('Bad request', 400);
       const fn = { '/api/register': register, '/api/push': push, '/api/pin': setPin, '/api/restore': restore, '/api/view': viewData,
         '/api/image': imagePush, '/api/image-keys': imageKeys, '/api/image-get': imageGet, '/api/ticket': ticketPost, '/api/tickets': ticketList, '/api/pull-key': pullKey, '/api/student': studentData, '/api/student-mark': studentMark, '/api/poll': poll }[url.pathname];
       if (!fn) return fail('Not found', 404);

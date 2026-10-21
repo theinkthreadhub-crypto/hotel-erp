@@ -146,6 +146,9 @@
         if (status >= 400) return rej(new Error(j.error || 'Cloud error ' + status));
         res(j);
       };
+      // Bridge kabhi jawab na de (atka hua WiFi / native error) to sync hamesha ke liye na atke: 70 s me haar maan lo
+      const to = setTimeout(() => { if (cbs[id]) { delete cbs[id]; rej(new Error('No internet — the ERP will try again automatically.')); } }, 70e3);
+      const done = cbs[id]; cbs[id] = (st, tx) => { clearTimeout(to); done(st, tx); };
       A.httpPost(id, url, JSON.stringify(body));
     });
   }
