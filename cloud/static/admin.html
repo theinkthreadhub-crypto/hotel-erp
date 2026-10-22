@@ -58,7 +58,7 @@
 <body>
 <div id="login" class="card">
   <h1>Setu Pro Super Admin</h1>
-  <p class="muted">Aghanya Devanya Enterprises — sirf vendor ke liye</p>
+  <p class="muted">Aghanya Devanya Enterprises — vendor access only</p>
   <form id="lf"><input id="key" type="password" placeholder="Admin Key" autocomplete="off" required><button style="width:100%">Kholein</button></form>
   <p id="lerr" class="err"></p>
 </div>
@@ -88,7 +88,7 @@ function toast(t){ const e = $('#toast'); e.textContent = t; e.style.display = '
 
 async function api(path, body){
   const r = await fetch(path, {method: 'POST', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
-  if(r.status === 401) throw new Error('Admin Key galat hai');
+  if(r.status === 401) throw new Error('Invalid Admin Key');
   const j = await r.json().catch(() => ({}));
   if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
@@ -96,7 +96,7 @@ async function api(path, body){
 const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ alert(e.message); } };
 
 // ---------------- navigation ----------------
-const VIEWS = {dash: 'Dashboard', hotels: 'Hotels', add: '+ Naya Hotel', audit: 'Audit Log'};
+const VIEWS = {dash: 'Dashboard', hotels: 'Hotels', add: '+ New Hotel', audit: 'Audit Log'};
 function nav(){
   $('#nav').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${VIEW === k ? 'on' : ''}" onclick="show('${k}')">${v}</button>`).join('');
 }
@@ -116,15 +116,15 @@ async function drawDash(){
   const soon = HOTELS.filter(h => ['active', 'trial'].includes(state(h)) && h.paid_until - Date.now() < 7 * 864e5).sort((a, b) => a.paid_until - b.paid_until);
   $('#main').innerHTML = `
     <div class="stats">${[['Total Hotels', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')],
-      ['Naye (30 din)', HOTELS.filter(h => h.created > month).length], ['Payment (30 din)', rs(st.paid30.s / 100)], ['MRR (andaaza)', rs(mrr)]]
+      ['New (30 days)', HOTELS.filter(h => h.created > month).length], ['Payments (30 days)', rs(st.paid30.s / 100)], ['MRR (estimate)', rs(mrr)]]
       .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('')}</div>
     <div class="two">
-      <div class="card"><h2>7 din mein khatam hone wale</h2>
-        <table><tr><th>Hotel</th><th>Status</th><th>Kab tak</th><th>Mobile</th></tr>
-        ${soon.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')"><td><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td><td>${esc(h.phone)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Koi nahi</td></tr>'}</table>
+      <div class="card"><h2>Expiring within 7 days</h2>
+        <table><tr><th>Hotel</th><th>Status</th><th>Valid until</th><th>Mobile</th></tr>
+        ${soon.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')"><td><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td><td>${esc(h.phone)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">None</td></tr>'}</table>
       </div>
-      <div class="card"><h2>Haal ke payment</h2>
-        <table>${st.recent.map(p => `<tr><td>${esc(p.name || p.code)}<div class="muted">${esc(p.plan)} · ${dt(p.at)}</div></td><td class="r">${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</td></tr>`).join('') || '<tr><td class="muted">Abhi koi nahi</td></tr>'}</table>
+      <div class="card"><h2>Recent payments</h2>
+        <table>${st.recent.map(p => `<tr><td>${esc(p.name || p.code)}<div class="muted">${esc(p.plan)} · ${dt(p.at)}</div></td><td class="r">${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</td></tr>`).join('') || '<tr><td class="muted">None yet</td></tr>'}</table>
       </div>
     </div>`;
 }
@@ -147,15 +147,15 @@ function rows(){
     <td>${esc((META.templates[h.btype] || {}).label || h.btype || '-')}<div class="muted">${esc((META.tiers[h.tier] || {}).label || '-')}</div></td>
     <td>${esc(h.owner)}<div class="muted">${esc(h.phone)}</div></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td>
     <td>${(h.domains || []).map(d => `<div>${esc(d.host)} ${d.status !== 'active' ? pill('pending') : ''}</div>`).join('') || '<span class="muted">-</span>'}</td><td>${d8(h.created)}</td></tr>`).join('')
-    || '<tr><td colspan="8" class="muted">Koi hotel nahi</td></tr>';
+    || '<tr><td colspan="8" class="muted">No hotels</td></tr>';
 }
 
 // ---------------- add hotel (onboarding) ----------------
 function drawAdd(){
   const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
   const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
-  $('#main').innerHTML = `<div class="card"><h2>Naya Hotel Banayein</h2>
-    <p class="muted">Customer → Business Type → Plan → Features → Login. Hotel pehli baar Hotel Code + yahi password se login karega; uske baad apna data khud banega.</p>
+  $('#main').innerHTML = `<div class="card"><h2>Create New Hotel</h2>
+    <p class="muted">Customer → Business Type → Plan → Features → Login. The hotel signs in the first time with the Hotel Code and this password, then builds its own data.</p>
     <form id="af"><div class="grid">
       <div><label>Hotel / Restaurant naam *</label><input name="name" required></div>
       <div><label>Owner naam *</label><input name="owner" required></div>
@@ -163,10 +163,10 @@ function drawAdd(){
       <div><label>Email</label><input name="email" type="email"></div>
       <div><label>Business Type (Template)</label><select name="businessType" id="a_type">${tpl}</select></div>
       <div><label>Plan</label><select name="tier" id="a_tier">${tiers}</select></div>
-      <div><label>Kitne din</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
-      <div><label>Payment</label><select name="paid"><option value="">Free trial</option><option value="1">Paid (cash / UPI le liya)</option></select></div>
-      <div><label>Owner ka pehla password (6+ akshar) *</label><input name="password" required minlength="6"></div>
-    </div><div class="row" style="margin-top:12px"><button>Hotel Banayein</button><span id="ares"></span></div></form></div>`;
+      <div><label>Days</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
+      <div><label>Payment</label><select name="paid"><option value="">Free trial</option><option value="1">Paid (cash / UPI received)</option></select></div>
+      <div><label>Owner initial password (6+ characters) *</label><input name="password" required minlength="6"></div>
+    </div><div class="row" style="margin-top:12px"><button>Create Hotel</button><span id="ares"></span></div></form></div>`;
   $('#a_type').onchange = () => $('#a_tier').value = META.templates[$('#a_type').value].tier;
   $('#a_type').onchange();
   $('#af').onsubmit = run(async e => {
@@ -174,21 +174,21 @@ function drawAdd(){
     const f = Object.fromEntries(new FormData(e.target));
     f.paid = !!f.paid;
     const j = await api('/api/admin/create', f);
-    $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel ban gaya: ${esc(f.name)}</h2>
-      <p>Owner ko ye bhejein (WhatsApp):</p>
+    $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
+      <p>Send this to the owner (WhatsApp):</p>
       <div class="card" style="background:var(--soft)">Link: <code>${esc(location.origin)}/hotel_erp.html</code><br>Hotel Code: <b>${esc(j.code)}</b><br>Password: jo aapne set kiya<br>
-        Counter PC Sync Key: <code>${esc(j.syncKey)}</code> <span class="muted">(dobara nahi dikhegi)</span></div>
-      <div class="row"><button onclick="openHotel('${esc(j.code)}')">Hotel kholein</button><button class="g" onclick="show('add')">Aur hotel</button></div></div>`;
+        Counter PC Sync Key: <code>${esc(j.syncKey)}</code> <span class="muted">(will not be shown again)</span></div>
+      <div class="row"><button onclick="openHotel('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Add Another</button></div></div>`;
   });
 }
 
 // ---------------- audit ----------------
 async function drawAudit(code){
   const j = await api('/api/admin/audit', {code: code || ''});
-  const html = `<table><tr><th>Kab</th><th>Kya</th><th>Hotel</th><th>Detail</th><th>Kisne</th></tr>
-    ${j.rows.map(r => `<tr><td>${dt(r.at)}</td><td><b>${esc(r.action)}</b></td><td><code>${esc(r.code)}</code></td><td>${esc(r.detail)}</td><td class="muted">${esc(r.actor)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Kuch nahi</td></tr>'}</table>`;
+  const html = `<table><tr><th>When</th><th>Action</th><th>Hotel</th><th>Detail</th><th>By</th></tr>
+    ${j.rows.map(r => `<tr><td>${dt(r.at)}</td><td><b>${esc(r.action)}</b></td><td><code>${esc(r.code)}</code></td><td>${esc(r.detail)}</td><td class="muted">${esc(r.actor)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing yet</td></tr>'}</table>`;
   if(code) return html;
-  $('#main').innerHTML = `<div class="card"><h2>Super Admin Audit Log</h2><p class="muted">Har badlav, support access aur naya hotel yahan likha jata hai.</p><div style="overflow-x:auto">${html}</div></div>`;
+  $('#main').innerHTML = `<div class="card"><h2>Super Admin Audit Log</h2><p class="muted">Every change, support session and new hotel is recorded here.</p><div style="overflow-x:auto">${html}</div></div>`;
 }
 
 // ---------------- one hotel ----------------
@@ -201,7 +201,7 @@ const openHotel = run(async code => {
 function closeHotel(){ $('#drawer').style.display = 'none'; CUR = null; if(VIEW !== 'add') show(VIEW); }
 const update = run(async (u, msg) => {
   CUR = await api('/api/admin/hotel', {code: CUR.code, update: u});
-  toast(msg || 'Save ho gaya — hotel ke devices par kuch second mein lag jayega');
+  toast(msg || 'Saved — applies to the hotel devices within seconds');
   drawHotel();
 });
 
@@ -210,7 +210,7 @@ function drawHotel(){
   const h = CUR;
   $('#panel').innerHTML = `<div class="row"><div><h2 style="margin:0">${esc(h.name)} <code>${esc(h.code)}</code></h2>
       <span class="muted">${esc((META.templates[h.businessType] || {}).label || '')} · ${esc(h.tierLabel)} · ${pill(state(h))}</span></div>
-      <button class="g" style="margin-left:auto" onclick="closeHotel()">Band karein</button></div>
+      <button class="g" style="margin-left:auto" onclick="closeHotel()">Close</button></div>
     <div class="tabs">${Object.entries(TABS).map(([k, v]) => `<button class="${TAB === k ? 'on' : ''}" onclick="TAB='${k}';drawHotel()">${v}</button>`).join('')}</div>
     <div id="tab"></div>`;
   ({overview: tabOverview, features: tabFeatures, billing: tabBilling, rules: tabRules, domains: tabDomains, support: tabSupport, log: tabLog})[TAB]();
@@ -230,13 +230,13 @@ function tabOverview(){
     <p>Status: ${pill(state(h))} · Paid till: <b>${h.lifetime ? 'Lifetime' : d8(h.paidUntil)}</b> · Auto-pay: <b>${esc(h.autoPay || '-')}</b> · Data version: ${h.version} (${dt(h.savedAt)})</p>
     <div class="row">
       <input id="x_days" type="number" min="1" value="30" style="width:90px"> din
-      <input id="x_amt" type="number" min="0" placeholder="₹ liya (optional)" style="width:160px">
-      <button onclick="if(confirm('Din jodein? Hotel ko nayi license key apne aap mil jayegi.')) update({days:+x_days.value, amount:+x_amt.value||0}, 'Din jod diye')">+ Din Jodein</button>
-      ${h.status === 'suspended' ? `<button class="g" onclick="update({status:'active'})">Chalu karein</button>` : `<button class="bad" onclick="if(confirm('Suspend? Cloud par save band ho jayega.')) update({status:'suspended'})">Suspend</button>`}
+      <input id="x_amt" type="number" min="0" placeholder="₹ received (optional)" style="width:160px">
+      <button onclick="if(confirm('Add days? The hotel will receive a new license key automatically.')) update({days:+x_days.value, amount:+x_amt.value||0}, 'Days added')">+ Add Days</button>
+      ${h.status === 'suspended' ? `<button class="g" onclick="update({status:'active'})">Activate</button>` : `<button class="bad" onclick="if(confirm('Suspend this hotel? Cloud saving will stop.')) update({status:'suspended'})">Suspend</button>`}
       <button class="g" onclick="if(confirm('Lifetime ${h.lifetime ? 'hatayein' : 'dein'}?')) update({lifetime:${!h.lifetime}})">${h.lifetime ? 'Lifetime hatayein' : 'Lifetime dein'}</button>
     </div>
     <h3>Payments</h3>
-    <table><tr><th>Date</th><th>Plan</th><th>Din</th><th>Amount</th></tr>${h.payments.map(p => `<tr><td>${dt(p.at)}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? rs(p.amount / 100) : '-'}</td></tr>`).join('')}</table>`;
+    <table><tr><th>Date</th><th>Plan</th><th>Days</th><th>Amount</th></tr>${h.payments.map(p => `<tr><td>${dt(p.at)}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? rs(p.amount / 100) : '-'}</td></tr>`).join('')}</table>`;
 }
 
 function tabFeatures(){
@@ -246,14 +246,14 @@ function tabFeatures(){
   const inTier = k => META.tiers[c.tier].features.includes(k);
   $('#tab').innerHTML = `
     <div class="row"><label style="margin:0">Plan</label><select id="f_tier">${tiers}</select>
-      <button onclick="update({tier:f_tier.value}, 'Plan badal gaya')">Plan Save</button>
+      <button onclick="update({tier:f_tier.value}, 'Plan changed')">Plan Save</button>
       <span class="muted" style="margin-left:12px">Template:</span><select id="f_tpl">${tpl}</select>
-      <button class="g" onclick="if(confirm('Template lagayein? Features, bill template aur rules us template ke default ho jayenge.')) update({applyTemplate:f_tpl.value}, 'Template lag gaya')">Template Lagayein</button></div>
+      <button class="g" onclick="if(confirm('Apply this template? Features, bill template and rules will be reset to the template defaults.')) update({applyTemplate:f_tpl.value}, 'Template applied')">Apply Template</button></div>
     <h3>Feature Manager</h3>
-    <p class="muted">"Plan ke hisaab se" = plan badalne par apne aap badlega. ON / OFF = sirf is hotel ke liye zabardasti. Band module ka data server bhi save nahi karta.</p>
+    <p class="muted">"Per plan" follows the plan automatically. ON / OFF overrides it for this hotel only. The server does not save data for disabled modules.</p>
     <div class="grid">${Object.entries(META.features).map(([k, label]) => `<div class="feat">
       <span>${CUR.features[k] ? '✅' : '⛔'}</span><span>${esc(label)}</span>
-      <select data-f="${k}"><option value="">Plan ke hisaab se (${inTier(k) ? 'ON' : 'OFF'})</option><option value="1" ${ov[k] === true ? 'selected' : ''}>ON</option><option value="0" ${ov[k] === false ? 'selected' : ''}>OFF</option></select></div>`).join('')}</div>
+      <select data-f="${k}"><option value="">Per plan (${inTier(k) ? 'ON' : 'OFF'})</option><option value="1" ${ov[k] === true ? 'selected' : ''}>ON</option><option value="0" ${ov[k] === false ? 'selected' : ''}>OFF</option></select></div>`).join('')}</div>
     <div class="row" style="margin-top:12px"><button onclick="saveFeatures()">Features Save</button></div>`;
 }
 function saveFeatures(){
@@ -271,13 +271,13 @@ function tabBilling(){
       <div><label><input type="checkbox" id="b_showLogo" ${b.showLogo ? 'checked' : ''}> Logo dikhayein (A6 / print box)</label>
         <label><input type="checkbox" id="b_table" ${b.showTable ? 'checked' : ''}> Table No dikhayein</label>
         <label><input type="checkbox" id="b_cust" ${b.showCustomer ? 'checked' : ''}> Customer naam dikhayein</label></div>
-      <div><label>Header line (naam ke neeche)</label><input id="b_head" value="${esc(b.headerNote)}" maxlength="100" placeholder="Pure Veg · Since 1998"></div>
-      <div style="grid-column:1/-1"><label>Footer (khaali = hotel ki apni setting)</label><input id="b_foot" value="${esc(b.footer)}" maxlength="200" style="width:100%"></div>
+      <div><label>Header line (below the name)</label><input id="b_head" value="${esc(b.headerNote)}" maxlength="100" placeholder="Pure Veg · Since 1998"></div>
+      <div style="grid-column:1/-1"><label>Footer (blank = hotel setting)</label><input id="b_foot" value="${esc(b.footer)}" maxlength="200" style="width:100%"></div>
     </div>
     <h3>Custom Fields (bill par, max 6)</h3>
     <div id="b_fields"></div>
     <div class="row" style="margin-top:8px"><button class="g" onclick="addField()">+ Field</button><button onclick="saveBilling()">Billing Template Save</button></div>
-    <p class="muted">Purane bill nahi badalte — naya template sirf naye bills par lagta hai.</p>
+    <p class="muted">Existing bills are not changed; the new template applies to new bills only.</p>
   </div><div><label>Preview</label><div id="b_prev"></div></div></div>`;
   FIELDS = (b.fields || []).map(f => ({...f}));
   drawFields();
@@ -287,9 +287,9 @@ function tabBilling(){
 let FIELDS = [];
 function drawFields(){
   $('#b_fields').innerHTML = FIELDS.map((f, i) => `<div class="row" style="margin-bottom:6px">
-    <input value="${esc(f.label)}" maxlength="30" placeholder="jaise Vehicle No / Room No" oninput="FIELDS[${i}].label=this.value">
+    <input value="${esc(f.label)}" maxlength="30" placeholder="e.g. Vehicle No / Room No" oninput="FIELDS[${i}].label=this.value">
     <label style="margin:0"><input type="checkbox" ${f.required ? 'checked' : ''} onchange="FIELDS[${i}].required=this.checked"> Zaroori</label>
-    <button class="g" onclick="FIELDS.splice(${i},1);drawFields()">Hatayein</button></div>`).join('') || '<p class="muted">Koi custom field nahi</p>';
+    <button class="g" onclick="FIELDS.splice(${i},1);drawFields()">Remove</button></div>`).join('') || '<p class="muted">No custom fields</p>';
   preview();
 }
 function addField(){ if(FIELDS.length < 6){ FIELDS.push({label: '', required: false}); drawFields(); } }
@@ -307,46 +307,46 @@ function preview(){
     <table style="width:100%"><tr><td>Paneer Tikka</td><td class="r">1</td><td class="r">240.00</td></tr><tr><td>Butter Naan</td><td class="r">4</td><td class="r">200.00</td></tr></table><hr>
     <table style="width:100%"><tr><td>Sub Total</td><td class="r">440.00</td></tr><tr><td>CGST @2.5%</td><td class="r">11.00</td></tr><tr><td>SGST @2.5%</td><td class="r">11.00</td></tr><tr><td><b>TOTAL</b></td><td class="r"><b>₹462.00</b></td></tr></table><hr>
     <div class="c">${esc(b.footer || 'Thank you! Visit again')}</div><div class="c" style="font-size:10px">Powered by Aghanya Devanya Enterprises</div></div>
-    <p class="muted" style="font-size:11px">${b.paper === 'A6' ? 'A6 print box se' : b.paper + ' mm thermal'} · logo thermal "Seedha Print" mein nahi chhapta</p>`;
+    <p class="muted" style="font-size:11px">${b.paper === 'A6' ? 'A6 via print dialog' : b.paper + ' mm thermal'} · the logo does not print in thermal "Direct print" mode</p>`;
 }
-function saveBilling(){ update({billing: billingForm()}, 'Billing template save — naye bills par lagega'); }
+function saveBilling(){ update({billing: billingForm()}, 'Billing template saved — applies to new bills'); }
 
 function tabRules(){
   const r = CUR.config.rules;
   $('#tab').innerHTML = `<div class="grid">
-      <div><label>Cashier max discount % (zyada par Manager PIN)</label><input id="r_disc" type="number" min="0" max="100" value="${r.maxDiscPct ?? ''}" placeholder="khaali = hotel ki apni setting"></div>
-      <div><label>Is ₹ se bade bill par customer mobile zaroori</label><input id="r_phone" type="number" min="0" value="${r.phoneAbove ?? ''}" placeholder="khaali = band"></div>
+      <div><label>Cashier max discount % (above this needs Manager PIN)</label><input id="r_disc" type="number" min="0" max="100" value="${r.maxDiscPct ?? ''}" placeholder="blank = hotel setting"></div>
+      <div><label>Customer mobile required for bills above ₹</label><input id="r_phone" type="number" min="0" value="${r.phoneAbove ?? ''}" placeholder="blank = off"></div>
     </div><div class="row" style="margin-top:12px"><button onclick="update({rules:{maxDiscPct:r_disc.value,phoneAbove:r_phone.value}}, 'Rules save')">Rules Save</button></div>
-    <p class="muted">Rules hotel ke har device par lagte hain; cashier inhe Settings se nahi badal sakta.</p>`;
+    <p class="muted">Rules apply to every device of the hotel; cashiers cannot change them in Settings.</p>`;
 }
 
 function tabDomains(){
   const h = CUR;
   $('#tab').innerHTML = `
     <table><tr><th>Domain</th><th>Type</th><th>Status</th><th></th></tr>
-    ${(h.domains || []).map(d => `<tr><td><b>${esc(d.host)}</b>${d.status === 'active' ? ` <a href="https://${esc(d.host)}/hotel_erp.html" target="_blank" rel="noopener">kholein</a>` : ''}</td><td>${d.kind === 'sub' ? 'Subdomain' : 'Custom'}</td><td>${pill(d.status)}</td>
-      <td class="row">${d.kind === 'custom' ? `<button class="g" onclick="checkDomain('${esc(d.host)}')">Status check</button>` : ''}<button class="bad" onclick="removeDomain('${esc(d.host)}')">Hatayein</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">Koi domain nahi — hotel abhi Hotel Code se login karta hai</td></tr>'}</table>
+    ${(h.domains || []).map(d => `<tr><td><b>${esc(d.host)}</b>${d.status === 'active' ? ` <a href="https://${esc(d.host)}/hotel_erp.html" target="_blank" rel="noopener">open</a>` : ''}</td><td>${d.kind === 'sub' ? 'Subdomain' : 'Custom'}</td><td>${pill(d.status)}</td>
+      <td class="row">${d.kind === 'custom' ? `<button class="g" onclick="checkDomain('${esc(d.host)}')">Check Status</button>` : ''}<button class="bad" onclick="removeDomain('${esc(d.host)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">No domains — the hotel signs in with its Hotel Code</td></tr>'}</table>
     <div id="dns"></div>
     <h3>Subdomain ${META.baseDomain ? `(<code>xxx.${esc(META.baseDomain)}</code>)` : ''}</h3>
-    ${META.baseDomain ? `<div class="row"><input id="d_slug" placeholder="royal" style="width:180px"><span>.${esc(META.baseDomain)}</span><button onclick="addDomain('sub', d_slug.value)">Jodein</button></div>`
-      : '<p class="muted">wrangler.toml mein BASE_DOMAIN (aapka domain, Cloudflare par) set karein.</p>'}
-    <h3>Hotel ka apna domain</h3>
-    ${META.customDomains ? `<div class="row"><input id="d_host" placeholder="erp.hotelroyal.com" style="width:260px"><button onclick="addDomain('custom', d_host.value)">Jodein</button></div>
-      <p class="muted">Agar hotel ki website pehle se hai to <code>erp.</code> jaisa subdomain dein — main website mat badlein.</p>`
-      : '<p class="muted">Cloudflare for SaaS chahiye: secrets CF_API_TOKEN + CF_ZONE_ID aur var SAAS_CNAME_TARGET.</p>'}`;
+    ${META.baseDomain ? `<div class="row"><input id="d_slug" placeholder="royal" style="width:180px"><span>.${esc(META.baseDomain)}</span><button onclick="addDomain('sub', d_slug.value)">Add</button></div>`
+      : '<p class="muted">Set BASE_DOMAIN (your Cloudflare domain) in wrangler.toml.</p>'}
+    <h3>Hotel custom domain</h3>
+    ${META.customDomains ? `<div class="row"><input id="d_host" placeholder="erp.hotelroyal.com" style="width:260px"><button onclick="addDomain('custom', d_host.value)">Add</button></div>
+      <p class="muted">If the hotel already has a website, use a subdomain such as <code>erp.</code> — do not replace the main site.</p>`
+      : '<p class="muted">Requires Cloudflare for SaaS: secrets CF_API_TOKEN + CF_ZONE_ID and var SAAS_CNAME_TARGET.</p>'}`;
 }
 function dnsTable(j){
   if(!j.records || !j.records.length) return '';
-  return `<div class="card" style="background:var(--soft);margin-top:10px"><b>Hotel ke domain provider mein ye DNS records daalein:</b>
+  return `<div class="card" style="background:var(--soft);margin-top:10px"><b>Add these DNS records at the hotel domain provider:</b>
     <table><tr><th>Type</th><th>Name</th><th>Value</th></tr>${j.records.map(r => `<tr><td>${esc(r.type)}</td><td><code>${esc(r.name)}</code></td><td><code>${esc(r.value)}</code></td></tr>`).join('')}</table>
-    <p class="muted">Verify + HTTPS ready hone ke baad hi domain chalu hota hai (${esc(j.cf || 'pending')} / ssl ${esc(j.ssl || 'pending')}).</p></div>`;
+    <p class="muted">The domain goes live once verification and HTTPS are ready (${esc(j.cf || 'pending')} / ssl ${esc(j.ssl || 'pending')}).</p></div>`;
 }
 const addDomain = run(async (kind, value) => {
   const j = await api('/api/admin/domain/add', {code: CUR.code, kind, value});
   CUR = await api('/api/admin/hotel', {code: CUR.code});
   tabDomains();
   $('#dns').innerHTML = dnsTable(j);
-  toast(j.status === 'active' ? 'Domain chalu: ' + j.host : 'DNS records daalne ke baad Status check karein');
+  toast(j.status === 'active' ? 'Domain live: ' + j.host : 'Add the DNS records, then check the status');
 });
 const checkDomain = run(async host => {
   const j = await api('/api/admin/domain/check', {code: CUR.code, host});
@@ -355,24 +355,24 @@ const checkDomain = run(async host => {
   $('#dns').innerHTML = dnsTable(j);
 });
 const removeDomain = run(async host => {
-  if(!confirm(host + ' hatayein? Us link se Setu khulna band ho jayega.')) return;
+  if(!confirm('Remove ' + host + '? Setu will no longer open from that address.')) return;
   await api('/api/admin/domain/remove', {code: CUR.code, host});
   CUR = await api('/api/admin/hotel', {code: CUR.code});
   tabDomains();
 });
 
 function tabSupport(){
-  $('#tab').innerHTML = `<p>Support Access se aap hotel ka Setu <b>sirf dekh</b> sakte hain (kuch save nahi hota). Link thodi der mein khud band ho jata hai, aur hotel ko apni Settings mein dikhta hai ki support ne kab dekha.</p>
+  $('#tab').innerHTML = `<p>Support Access gives you <b>read-only</b> access to the hotel Setu (nothing is saved). The link expires automatically, and the hotel can see in Settings when support viewed it.</p>
     <div class="grid"><div><label>Kitni der</label><select id="s_min"><option value="30">30 minute</option><option value="60" selected>1 ghanta</option><option value="120">2 ghante</option></select></div>
-      <div style="grid-column:span 2"><label>Kyun (hotel ko dikhega)</label><input id="s_why" maxlength="120" placeholder="jaise: GST report ki problem dekhni hai" style="width:100%"></div></div>
-    <div class="row" style="margin-top:10px"><button onclick="supportOpen()">Support Link Banayein</button></div><div id="s_out"></div>
+      <div style="grid-column:span 2"><label>Reason (visible to the hotel)</label><input id="s_why" maxlength="120" placeholder="e.g. checking a GST report issue" style="width:100%"></div></div>
+    <div class="row" style="margin-top:10px"><button onclick="supportOpen()">Create Support Link</button></div><div id="s_out"></div>
     <h3>Pichhla Support Access</h3>
-    ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Kabhi nahi</p>'}`;
+    ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Never</p>'}`;
 }
 const supportOpen = run(async () => {
-  if(!$('#s_why').value.trim()) return alert('Kaaran likhein — hotel ko dikhega');
+  if(!$('#s_why').value.trim()) return alert('Please enter a reason (visible to the hotel)');
   const j = await api('/api/admin/support', {code: CUR.code, minutes: +$('#s_min').value, reason: $('#s_why').value});
-  $('#s_out').innerHTML = `<p class="ok">Link bana (${j.minutes} min): <a href="${esc(j.url)}" target="_blank" rel="noopener">Hotel ka Setu kholein</a></p>`;
+  $('#s_out').innerHTML = `<p class="ok">Link created (${j.minutes} min): <a href="${esc(j.url)}" target="_blank" rel="noopener">Open the hotel Setu</a></p>`;
 });
 
 const tabLog = run(async () => { $('#tab').innerHTML = '<div style="overflow-x:auto">' + await drawAudit(CUR.code) + '</div>'; });

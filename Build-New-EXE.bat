@@ -17,12 +17,12 @@ if exist "dist\Aghanya-Devanya-Hotel-ERP.exe" (
     copy /Y "dist\Aghanya-Devanya-Hotel-ERP.exe" "Aghanya-Devanya-Hotel-ERP.exe" >nul
     echo.
     echo ======================================================================
-    echo    SUCCESS: Nayi .EXE file successfully tayyar ho gayi hai!
+    echo    SUCCESS: The new .EXE file has been built.
     echo    Path: "%~dp0Aghanya-Devanya-Hotel-ERP.exe"
     echo ======================================================================
 ) else (
     echo.
-    echo [ERROR] Build fail ho gaya. Kripya check karein.
+    echo [ERROR] Build failed. Please check the output above.
 )
 
 echo.

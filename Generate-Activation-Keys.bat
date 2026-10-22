@@ -6,12 +6,12 @@ echo ===================================================================
 echo     SETU LICENSE KEY GENERATOR - Aghanya Devanya Enterprises
 echo ===================================================================
 echo.
-echo Client se uska Install ID lein (Setu ki Sign Up / License screen par likha hota hai).
+echo Ask the client for their Install ID (shown on the Setu Sign Up / License screen).
 echo Plans: 1m 2m 3m 6m 1y life demo1h demo24h
 echo.
 if not exist "setu-license-private.pem" (
-  echo [ERROR] setu-license-private.pem is folder mein nahi hai.
-  echo Ye file sirf vendor ke paas rehti hai. Uske bina key nahi ban sakti.
+  echo [ERROR] setu-license-private.pem was not found in this folder.
+  echo This file is kept by the vendor only. Keys cannot be generated without it.
   goto end
 )
 python keygen.py

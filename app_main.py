@@ -117,7 +117,7 @@ def list_printers():
 
 def print_raw(printer, data):
     if os.name != 'nt':
-        raise OSError('Direct printing sirf Windows par')
+        raise OSError('Direct printing is supported on Windows only')
     ctypes, wintypes, ws = _winspool()
 
     class DOC_INFO_1(ctypes.Structure):
@@ -125,11 +125,11 @@ def print_raw(printer, data):
 
     h = wintypes.HANDLE()
     if not ws.OpenPrinterW(printer, ctypes.byref(h), None):
-        raise OSError(f'Printer "{printer}" nahi mila')
+        raise OSError(f'Printer "{printer}" not found')
     try:
         doc = DOC_INFO_1('Setu Receipt', None, 'RAW')
         if not ws.StartDocPrinterW(h, 1, ctypes.byref(doc)):
-            raise OSError('Printer ne job nahi li')
+            raise OSError('The printer did not accept the job')
         try:
             ws.StartPagePrinter(h)
             buf = ctypes.create_string_buffer(data, len(data))
@@ -137,7 +137,7 @@ def print_raw(printer, data):
             ok = ws.WritePrinter(h, buf, len(data), ctypes.byref(written))
             ws.EndPagePrinter(h)
             if not ok or written.value != len(data):
-                raise OSError('Printer ko data nahi gaya')
+                raise OSError('Could not send data to the printer')
         finally:
             ws.EndDocPrinter(h)
     finally:
@@ -433,21 +433,21 @@ class CloudSync:
         key = (key or '').strip() or self.cfg.get('key', '')
         if enabled:
             if not (url.startswith('https://') or url.startswith(('http://127.0.0.1:', 'http://localhost:'))):
-                raise ValueError('Cloud URL https:// se shuru hona chahiye')
+                raise ValueError('The cloud URL must start with https://')
             if not hotel:
-                raise ValueError('Hotel Code daalein')
+                raise ValueError('Please enter the Hotel Code')
             if not key:
-                raise ValueError('Cloud Sync Key daalein')
+                raise ValueError('Please enter the Cloud Sync Key')
             try:
                 code, _ = self._request('GET', '/api/version', url=url, key=key, hotel=hotel)
             except Exception as e:
-                raise ValueError('Cloud se connection nahi hua: ' + str(e))
+                raise ValueError('Could not connect to the cloud: ' + str(e))
             if code == 401:
-                raise ValueError('Cloud Sync Key galat hai')
+                raise ValueError('Invalid Cloud Sync Key')
             if code == 404:
-                raise ValueError('Ye Hotel Code cloud par nahi mila')
+                raise ValueError('Hotel Code not found on the cloud')
             if code != 200:
-                raise ValueError(f'Cloud se sahi jawab nahi mila (HTTP {code})')
+                raise ValueError(f'Unexpected response from the cloud (HTTP {code})')
         if url != self.cfg.get('url') or hotel != self.cfg.get('hotel'):
             # A different cloud starts from scratch: nothing is "already synced" there
             self.state = {}
@@ -495,7 +495,7 @@ class CloudSync:
     def _tick(self):
         code, text = self._request('GET', '/api/version')
         if code != 200:
-            raise OSError('Cloud Sync Key galat hai' if code == 401 else f'Cloud HTTP {code}')
+            raise OSError('Invalid Cloud Sync Key' if code == 401 else f'Cloud HTTP {code}')
         cv = json.loads(text)['version']
         st_cv, st_lv = self.state.get('cv', -1), self.state.get('lv', -1)
         if cv == st_cv and self.store.version == st_lv:
@@ -529,9 +529,9 @@ class CloudSync:
             if code == 409:
                 raise CloudBusy()
             if code == 402:
-                raise OSError('Setu Cloud subscription khatam — online renew karein (billing yahan chalti rahegi)')
+                raise OSError('Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
             if code != 200:
-                raise OSError(f'Cloud save nahi hua (HTTP {code})')
+                raise OSError(f'Cloud save failed (HTTP {code})')
             cv = json.loads(text)['version']
         with self.store.lock:
             if self.store.version == lv:
@@ -751,8 +751,8 @@ def main():
     already = setu_running(port)
     if not already:
         if port_busy(port):
-            msg = (f'Port {port} par koi doosra program chal raha hai, isliye Setu start nahi ho saka.\n'
-                   f'Us program ko band karke Setu dobara kholein.')
+            msg = (f'Another program is using port {port}, so Setu could not start.\n'
+                   f'Close that program and start Setu again.')
             print(msg)
             if not server_only:
                 try:
@@ -767,13 +767,13 @@ def main():
 
     if server_only:
         if already:
-            print(f'Setu pehle se chal raha hai: {url}')
+            print(f'Setu is already running: {url}')
             return
-        print('Setu LAN server chalu hai.')
-        print(f'  Is PC par:      {url}')
+        print('Setu LAN server is running.')
+        print(f'  This PC:        {url}')
         for ip in lan_ips():
             print(f'  Phone/Tablet:   http://{ip}:{port}/hotel_erp.html')
-        print('Band karne ke liye Ctrl+C dabayein.')
+        print('Press Ctrl+C to stop.')
         try:
             while True:
                 time.sleep(3600)

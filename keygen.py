@@ -67,7 +67,7 @@ def install_hash(install_id):
 
 def load_private_key():
     if not os.path.exists(PRIVATE_KEY_FILE):
-        sys.exit('Private key nahi mili. Pehle chalayein: python keygen.py init')
+        sys.exit('Private key not found. Run first: python keygen.py init')
     with open(PRIVATE_KEY_FILE, 'rb') as f:
         return serialization.load_pem_private_key(f.read(), password=None)
 
@@ -116,13 +116,13 @@ def log_key(install_id, plan, hotel, key):
 
 def cmd_init():
     if os.path.exists(PRIVATE_KEY_FILE):
-        sys.exit('Private key pehle se hai. Ise dobara mat banayein, warna purani saari keys bekaar ho jayengi.')
+        sys.exit('A private key already exists. Do not create a new one, or all previously issued keys will stop working.')
     priv = ec.generate_private_key(ec.SECP256R1())
     with open(PRIVATE_KEY_FILE, 'wb') as f:
         f.write(priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
-    print('Private key bani:', PRIVATE_KEY_FILE)
-    print('Is file ka backup pen-drive / Google Drive par rakhein. Kisi ko na dein. GitHub par kabhi na daalein.')
-    print('\nhotel_erp.html mein LIC_PUBKEY ye rakhein:\n' + public_key_b64(priv))
+    print('Private key created:', PRIVATE_KEY_FILE)
+    print('Back up this file to a pen drive / Google Drive. Never share it and never upload it to GitHub.')
+    print('\nSet LIC_PUBKEY in hotel_erp.html to:\n' + public_key_b64(priv))
 
 
 def main():
@@ -138,20 +138,20 @@ def main():
     print('=' * 64)
     print('   SETU LICENSE KEY GENERATOR — Aghanya Devanya Enterprises')
     print('=' * 64)
-    install_id = args[0] if args else input('Client ka Install ID (jaise SETU-7F3K-92QD): ').strip()
+    install_id = args[0] if args else input('Client Install ID (e.g. SETU-7F3K-92QD): ').strip()
     if len(clean_install_id(install_id)) < 8:
-        sys.exit('Galat Install ID')
+        sys.exit('Invalid Install ID')
     print('Plans: ' + ', '.join(f'{k} = {v[2]}' for k, v in PLANS.items()))
     plan = args[1] if len(args) > 1 else (input('Plan (Default 1m): ').strip().lower() or '1m')
     if plan not in PLANS:
-        sys.exit('Galat plan')
-    hotel = args[2] if len(args) > 2 else input('Hotel ka naam (optional): ').strip()
+        sys.exit('Invalid plan')
+    hotel = args[2] if len(args) > 2 else input('Hotel name (optional): ').strip()
 
     key = make_key(install_id, plan)
     log_key(install_id, plan, hotel, key)
     print('\n' + '*' * 64)
     print(f'  {PLANS[plan][2]} — {hotel or install_id}')
-    print('  Ye poori key client ko WhatsApp par bhejein (copy-paste):\n')
+    print('  Send this complete key to the client (copy-paste):\n')
     print(key)
     print('*' * 64)
     print('Record saved:', ISSUED_CSV)

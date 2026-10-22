@@ -156,7 +156,7 @@ function b32encode(bytes){
 }
 
 async function makeLicenseKey(env, installId, days){
-  if(!env.LICENSE_PRIVATE_KEY) throw new Error('LICENSE_PRIVATE_KEY secret set nahi hai');
+  if(!env.LICENSE_PRIVATE_KEY) throw new Error('LICENSE_PRIVATE_KEY secret is not set');
   const clean = String(installId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if(clean.length < 8) throw new Error('install id missing');
   days = Math.max(1, Math.min(65535, Math.round(days)));
@@ -176,7 +176,7 @@ async function makeLicenseKey(env, installId, days){
 
 // ---------- Razorpay / Cloudflare APIs ----------
 async function razorpay(env, method, path, body){
-  if(!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) throw new Error('Online payment abhi set nahi hai');
+  if(!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) throw new Error('Online payment is not configured yet');
   const r = await fetch('https://api.razorpay.com/v1' + path, {
     method,
     headers: { 'Authorization': 'Basic ' + btoa(env.RAZORPAY_KEY_ID + ':' + env.RAZORPAY_KEY_SECRET), 'Content-Type': 'application/json' },
@@ -189,7 +189,7 @@ async function razorpay(env, method, path, body){
 
 // Cloudflare for SaaS (custom hostnames) - needs CF_API_TOKEN + CF_ZONE_ID
 async function cfApi(env, method, path, body){
-  if(!env.CF_API_TOKEN || !env.CF_ZONE_ID) throw new Error('Custom domain ke liye CF_API_TOKEN aur CF_ZONE_ID set karein');
+  if(!env.CF_API_TOKEN || !env.CF_ZONE_ID) throw new Error('Set CF_API_TOKEN and CF_ZONE_ID to use custom domains');
   const r = await fetch(`https://api.cloudflare.com/client/v4/zones/${env.CF_ZONE_ID}${path}`, {
     method, headers: { 'Authorization': 'Bearer ' + env.CF_API_TOKEN, 'Content-Type': 'application/json' },
     body: body ? JSON.stringify(body) : undefined
@@ -200,7 +200,7 @@ async function cfApi(env, method, path, body){
 }
 
 function domainInstructions(env, ch){
-  const out = [{ type: 'CNAME', name: ch.hostname, value: env.SAAS_CNAME_TARGET || '(SAAS_CNAME_TARGET set karein)' }];
+  const out = [{ type: 'CNAME', name: ch.hostname, value: env.SAAS_CNAME_TARGET || '(set SAAS_CNAME_TARGET)' }];
   const ov = ch.ownership_verification;
   if(ov && ov.name) out.push({ type: (ov.type || 'txt').toUpperCase(), name: ov.name, value: ov.value });
   ((ch.ssl && ch.ssl.validation_records) || []).forEach(v => { if(v.txt_name) out.push({ type: 'TXT', name: v.txt_name, value: v.txt_value }); });
@@ -301,7 +301,7 @@ export class SetuRegistry extends DurableObject {
     }
     if(path === '/domain/put'){
       const old = one('SELECT code FROM domain WHERE host = ?', body.host);
-      if(old && old.code !== body.code) return json(409, { error: 'Ye domain kisi doosre hotel se juda hai' });
+      if(old && old.code !== body.code) return json(409, { error: 'This domain is already linked to another hotel' });
       this.sql.exec('INSERT OR REPLACE INTO domain (host, code, kind, status, cf_id, info, created) VALUES (?, ?, ?, ?, ?, ?, ?)',
         body.host, body.code, body.kind, body.status, body.cf_id || '', JSON.stringify(body.info || {}), body.created || Date.now());
       return json(200, { ok: true });
@@ -550,7 +550,7 @@ export class SetuHotel extends DurableObject {
   async adminUpdate(b){
     const a = this.account, c = a.config;
     const notes = [];
-    if(b.days){ await this.credit('manual-' + Date.now(), 'manual', +b.days, +b.amount ? Math.round(+b.amount * 100) : 0); notes.push(`+${b.days} din`); }
+    if(b.days){ await this.credit('manual-' + Date.now(), 'manual', +b.days, +b.amount ? Math.round(+b.amount * 100) : 0); notes.push(`+${b.days} days`); }
     if(['active', 'suspended'].includes(b.status)){ a.status = b.status; notes.push('status ' + b.status); }
     if(b.lifetime !== undefined){ a.lifetime = !!b.lifetime; notes.push('lifetime ' + a.lifetime); }
     if(b.applyTemplate && TEMPLATES[b.applyTemplate]){
@@ -637,7 +637,7 @@ export class SetuHotel extends DurableObject {
     if(method === 'GET' && path === '/api/billing') return json(200, this.billingInfo());
     if(role === 'support') return json(403, { error: 'read only' });   // support can only look
     if(method === 'GET' && path === '/api/printers') return json(200, { printers: [], default: '', cloud: true });
-    if(method === 'POST' && path === '/api/print') return json(501, { error: 'Cloud se seedha print nahi hota — Main Counter PC se print karein' });
+    if(method === 'POST' && path === '/api/print') return json(501, { error: 'Direct printing is not available from the cloud. Please print from the Main Counter PC.' });
 
     if(method === 'POST' && path === '/api/db'){
       if(text.length > MAX_BODY) return json(413, { error: 'too large' });
@@ -747,10 +747,10 @@ function signupInput(b){
     phone: String(b.phone || '').replace(/\D/g, '').slice(-10), email: str(b.email, 100),
     password: String(b.password || ''), businessType: TEMPLATES[b.businessType] ? b.businessType : 'restaurant'
   };
-  if(out.name.length < 2 || !out.owner) return { error: 'Hotel aur owner ka naam bharein' };
-  if(out.phone.length !== 10) return { error: '10 digit mobile number daalein' };
-  if(out.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) return { error: 'Email sahi nahi hai' };
-  if(out.password.length < 6 || isWeak(out.password)) return { error: 'Password kam se kam 6 akshar ka aur mushkil ho' };
+  if(out.name.length < 2 || !out.owner) return { error: 'Please enter the hotel and owner names' };
+  if(out.phone.length !== 10) return { error: 'Please enter a 10-digit mobile number' };
+  if(out.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) return { error: 'Invalid email address' };
+  if(out.password.length < 6 || isWeak(out.password)) return { error: 'Password must be at least 6 characters and not too simple' };
   return out;
 }
 
@@ -759,8 +759,8 @@ async function createHotel(env, input, opts){
   const tier = opts.tier || (TEMPLATES[input.businessType] || TEMPLATES.restaurant).tier;
   const r = await regCall(env, '/reserve', { name: input.name, owner: input.owner, phone: input.phone, email: input.email, paidUntil,
     ip: opts.ip, admin: opts.admin, status: opts.status, tier, btype: input.businessType });
-  if(r.status === 429) return json(429, { error: 'Is network se bahut sign up ho gaye, 1 ghante baad try karein' });
-  if(!r.ok) return json(500, { error: 'Hotel nahi bana, dobara try karein' });
+  if(r.status === 429) return json(429, { error: 'Too many sign-ups from this network. Please try again in an hour.' });
+  if(!r.ok) return json(500, { error: 'Could not create the hotel. Please try again.' });
   const { code } = await r.json();
   const h = await hotelStub(env, code).fetch('https://hotel/internal/create', { method: 'POST', body: JSON.stringify({
     code, name: input.name, owner: input.owner, phone: input.phone, email: input.email, businessType: input.businessType, tier,
@@ -768,7 +768,7 @@ async function createHotel(env, input, opts){
     status: opts.status, plan: opts.plan }) });
   if(!h.ok){
     await regCall(env, '/release', { code });
-    return json(500, { error: 'Hotel nahi bana, dobara try karein' });
+    return json(500, { error: 'Could not create the hotel. Please try again.' });
   }
   return json(200, { code, trialDays: opts.days, ...(await h.json()) });
 }
@@ -780,7 +780,7 @@ async function signup(request, env){
   if(input.error) return json(400, input);
   const installId = String(b.installId || '').toUpperCase();
   if(!/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(installId)) return json(400, { error: 'install id' });
-  if(!env.LICENSE_PRIVATE_KEY) return json(503, { error: 'Sign Up abhi band hai (vendor setup baaki)' });
+  if(!env.LICENSE_PRIVATE_KEY) return json(503, { error: 'Sign-up is not available yet (vendor setup pending)' });
   return createHotel(env, input, { days: +env.TRIAL_DAYS || 14, installId, ip: request.headers.get('CF-Connecting-IP') || 'unknown',
     tier: TIERS[env.TRIAL_TIER] ? env.TRIAL_TIER : 'premium' });
 }
@@ -840,7 +840,7 @@ async function admin(request, env, path){
       status: body.paid ? 'active' : 'trial', plan: body.paid ? 'manual' : 'trial' });
     if(res.ok){
       const j = await res.clone().json();
-      await log('Hotel banaya', j.code, `${input.name} · ${input.businessType} · ${days} din${body.paid ? ' (paid)' : ''}`);
+      await log('Hotel created', j.code, `${input.name} · ${input.businessType} · ${days} days${body.paid ? ' (paid)' : ''}`);
     }
     return res;
   }
@@ -867,9 +867,9 @@ async function admin(request, env, path){
   // ----- Domain Manager -----
   if(path === '/api/admin/domain/add'){
     if(body.kind === 'sub'){
-      if(!env.BASE_DOMAIN) return json(400, { error: 'Subdomain ke liye BASE_DOMAIN set karein (wrangler.toml)' });
+      if(!env.BASE_DOMAIN) return json(400, { error: 'Set BASE_DOMAIN in wrangler.toml to use subdomains' });
       const slug = String(body.value || '').trim().toLowerCase();
-      if(!/^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$/.test(slug) || ['www', 'app', 'admin', 'api', 'mail'].includes(slug)) return json(400, { error: 'Slug sirf a-z, 0-9, - (2-30 akshar)' });
+      if(!/^[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$/.test(slug) || ['www', 'app', 'admin', 'api', 'mail'].includes(slug)) return json(400, { error: 'Slug may contain only a-z, 0-9 and - (2-30 characters)' });
       const host = slug + '.' + env.BASE_DOMAIN;
       const r = await regCall(env, '/domain/put', { host, code, kind: 'sub', status: 'active' });
       if(!r.ok) return r;
@@ -877,10 +877,10 @@ async function admin(request, env, path){
       return json(200, { host, status: 'active', records: [] });
     }
     const host = normHost(body.value);
-    if(!validHost(host)) return json(400, { error: 'Domain sahi nahi hai (jaise erp.hotelroyal.com)' });
-    if(env.BASE_DOMAIN && (host === env.BASE_DOMAIN || host.endsWith('.' + env.BASE_DOMAIN))) return json(400, { error: 'Apne base domain ke liye Subdomain option use karein' });
+    if(!validHost(host)) return json(400, { error: 'Invalid domain (e.g. erp.hotelroyal.com)' });
+    if(env.BASE_DOMAIN && (host === env.BASE_DOMAIN || host.endsWith('.' + env.BASE_DOMAIN))) return json(400, { error: 'Use the Subdomain option for your base domain' });
     const exists = (await regJson(env, '/domain/get', { host })).domain;
-    if(exists && exists.code !== code) return json(409, { error: 'Ye domain kisi doosre hotel se juda hai' });
+    if(exists && exists.code !== code) return json(409, { error: 'This domain is already linked to another hotel' });
     let ch;
     try{ ch = await cfApi(env, 'POST', '/custom_hostnames', { hostname: host, ssl: { method: 'txt', type: 'dv' } }); }
     catch(e){ return json(502, { error: e.message }); }
