@@ -132,6 +132,7 @@ Saari dates `YYYY-MM-DD` string mein hoti hain aur time `HH:MM` mein. Paisa ₹ 
 | `gstScheme` | string | `regular` | `regular` / `composition` (Bill of Supply, GST 0) / `none` |
 | `fssai` | string | `""` | FSSAI number (bill par) |
 | `maxDiscPct` | number | `10` | Cashier ki discount limit %; zyada par Manager PIN |
+| `caName`, `caWa` | string | `""` | CA / Lawyer ka naam aur WhatsApp (Monthly Report) |
 | `printMode` | string | `dialog` | `dialog` (print box) / `direct` (thermal, bina popup) |
 | `billPrinter`, `kotPrinter` | string | `""` | Windows printer ke naam |
 | `catPrinters` | object | `{}` | `{ "Chinese": "Printer naam" }` — section-wise KOT |
@@ -342,6 +343,10 @@ Key = doosre outlet ka `outletCode`. Value = us outlet ki summary file:
 ```
 
 Isme pichhle 90 din ke totals hote hain. **Customer ka naam ya number nahi jaata.** Is outlet ki apni summary live banti hai, save nahi hoti.
+
+## 16-CA. `monthlySent{}` — CA ko Monthly Report kab bheji
+
+Key = month `YYYY-MM` → `{date, time, to}`. Na ho to dashboard 1–10 tarikh ko yaad dilata hai.
 
 ## 16a. `audit[]` — Kisne Kya Kiya (Chori Check)
 

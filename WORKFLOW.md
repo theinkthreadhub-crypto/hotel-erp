@@ -187,6 +187,13 @@ flowchart TD
 2. Bank mein payout aaye → **+ Payment Aaya** → amount + UTR.
 3. **Farak** dikhe to Zomato/Swiggy partner app ki payout statement se milaayein.
 
+### 5.1c-2 Monthly Report → CA / Lawyer (J)
+1. Ek baar Settings (G) mein **CA / Lawyer ka naam aur WhatsApp number** daalein.
+2. Mahine ki 1–10 tarikh ko dashboard par yaad dilaya jata hai. **Monthly Report (J)** → mahina chunein.
+3. **"CA / Lawyer ko WhatsApp"** → poora hisaab (sale, GST rate-wise, payment mode, channel, kharcha) CA ke WhatsApp par khulta hai — Send dabayein.
+4. **GST Bill Register (Excel)** aur **Print / PDF** CA ko file ke roop mein bhejein (WhatsApp mein file khud attach karni hoti hai).
+5. Bhejne ki date screen par dikhti hai aur Audit Log mein bhi jaati hai.
+
 ### 5.1d Reports & Tally (F)
 - Aaj / Kal / 7 Din / Is Mahine → Summary, Item-wise, Category, Hourly, Payment Mode, Channel, **GST Summary**, Discounts, Cancelled, Kharcha, Top Customers.
 - Har report **Excel (CSV)** mein. CA ke liye **Tally XML Export** (Tally mein pehle ledgers banayein: Sales, CGST, SGST, Round Off, Cash, UPI, Card, Credit Sales, Customer Wallet, Zomato, Swiggy).
@@ -253,6 +260,7 @@ flowchart LR
 | W | WhatsApp Report | H | Table Reservations |
 | F | Reports & Tally | X | Token Display |
 | U | Suppliers & Udhaar | Y | Zomato/Swiggy Settlement |
+| J | Monthly Report → CA | | |
 | V | Audit Log (Chori Check) | K | License |
 | G | Settings & Backup | | |
 

@@ -323,6 +323,11 @@ body.kitchen-mode .kcard ul{font-size:19px}
 .att-grid td.A{background:#fee2e2;color:#991b1b}
 .att-grid td.W{background:#ede9fe;color:#5b21b6}
 .att-grid .tdy{box-shadow:inset 0 0 0 2px var(--primary)}
+.a4rep{width:190mm;padding:8mm;font:12px Arial,sans-serif;color:#000}
+.a4rep h2{margin:0 0 4px;font-size:18px}.a4rep h3{margin:12px 0 4px;font-size:13px}
+.a4rep table{width:100%;border-collapse:collapse;margin-bottom:6px}
+.a4rep th,.a4rep td{border:1px solid #999;padding:3px 6px;font-size:11px;text-align:left;position:static;background:none}
+.a4rep .n{text-align:right}
 .qrbox{display:inline-block;text-align:center}
 .qrbox svg{display:block;margin:0 auto;width:150px;height:150px}
 .qrsheet{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm;padding:8mm;width:190mm;font:14px Arial,sans-serif;color:#000}
@@ -774,6 +779,7 @@ function ensureGrowth(s){
   if(!s.outlets || typeof s.outlets !== 'object') s.outlets = {};
   if(!Array.isArray(s.reservations)) s.reservations = [];
   if(!Array.isArray(s.audit)) s.audit = [];
+  if(!s.monthlySent || typeof s.monthlySent !== 'object') s.monthlySent = {};
   if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
   if(!s.seq) s.seq = { bill: 0, kot: 0 };
   if(!s.seq.token) s.seq.token = 0;
@@ -2457,6 +2463,7 @@ const MENU = [
   ['U','Suppliers & Udhaar','suppliers','Accounts'],
   ['Y','Zomato/Swiggy Settlement','settlement','Accounts'],
   ['V','Audit Log (Chori Check)','audit','Accounts'],
+  ['J','Monthly Report → CA / Lawyer','monthly','Accounts'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -2487,11 +2494,12 @@ const SCREENS = {
   reports: scrReports,
   suppliers: scrSuppliers,
   settlement: scrSettlement,
-  audit: scrAudit
+  audit: scrAudit,
+  monthly: scrMonthly
 };
 
 let kdsTimer = null;
-const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit'];
+const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly'];
 const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens'];
 
 function go(s, approved){
@@ -2745,6 +2753,15 @@ function scrGateway(){
           <p style="margin:2px 0 0;font-size:13px">${Object.entries(auditSummary(today()).by).map(([k, v]) => `${esc(k)}: ${v.n}`).join(' · ')}</p>
         </div>
         <button class="btn bad" onclick="audType='alerts';go('audit')">Audit Log Dekhein</button>
+      </div>` : ''}
+
+    ${on('alerts') && isManager() && +today().slice(8) <= 10 && D.bills.some(b => b.date.startsWith(prevMonth(today().slice(0, 7)))) && !(D.monthlySent || {})[prevMonth(today().slice(0, 7))] ? `
+      <div class="card" style="border-left:5px solid #16a34a;background:#f0fdf4;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <div>
+          <b style="color:#15803d">${monthLabel(prevMonth(today().slice(0, 7)))} ki Monthly Report abhi CA / Lawyer ko nahi bheji</b>
+          <p style="margin:2px 0 0;font-size:13px">Ek click mein poora hisaab WhatsApp par chala jayega.</p>
+        </div>
+        <button class="btn wa" onclick="mrMonth=prevMonth(today().slice(0,7));go('monthly')">Monthly Report Bhejein</button>
       </div>` : ''}
 
     <!-- Quick Action Launchpad Tiles -->
@@ -6088,6 +6105,169 @@ function tallyExport(){
   toast(`${Object.keys(groups).length} Sales vouchers Tally XML mein export hue`);
 }
 
+/* ================= MONTHLY REPORT FOR CA / LAWYER ================= */
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const monthLabel = m => `${MONTH_NAMES[+m.slice(5, 7) - 1]} ${m.slice(0, 4)}`;
+const prevMonth = m => { const d = new Date(+m.slice(0, 4), +m.slice(5, 7) - 2, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); };
+// In the first 10 days of a month the report is usually for the month that just ended
+let mrMonth = +today().slice(8) <= 10 ? prevMonth(today().slice(0, 7)) : today().slice(0, 7);
+
+function monthData(m){
+  const all = D.bills.filter(b => b.date.startsWith(m));
+  const bs = all.filter(b => !b.cancelled), canc = all.filter(b => b.cancelled);
+  const tx = D.txns.filter(t => t.date.startsWith(m));
+  const group = (arr, keyFn, valFn) => { const o = {}; arr.forEach(x => { const k = keyFn(x); o[k] = (o[k] || 0) + valFn(x); }); return o; };
+  const gst = {};
+  bs.forEach(b => {
+    const g = +b.gstRate || 0, x = gst[g] || (gst[g] = {n: 0, taxable: 0, tax: 0, total: 0});
+    x.n++; x.taxable += b.taxable; x.tax += b.tax; x.total += b.total;
+  });
+  const exp = tx.filter(t => t.type === 'Expense' && !NON_EXPENSE_HEADS.includes(t.head));
+  const pur = tx.filter(t => t.type === 'Purchase');
+  const rec = tx.filter(t => t.type === 'Receipt' && !NON_INCOME_HEADS.includes(t.head));
+  const days = {};
+  bs.forEach(b => { const x = days[b.date] || (days[b.date] = {n: 0, taxable: 0, tax: 0, total: 0}); x.n++; x.taxable += b.taxable; x.tax += b.tax; x.total += b.total; });
+  const st = D.settings;
+  const zom = sum(bs.filter(b => b.channel === 'Zomato'), 'total'), swg = sum(bs.filter(b => b.channel === 'Swiggy'), 'total');
+  const sales = sum(bs, 'total');
+  return {
+    m, all, bs, canc, gst, days,
+    sales, bills: bs.length, sub: sum(bs, 'sub'), disc: sum(bs, 'disc'), taxable: sum(bs, 'taxable'), tax: sum(bs, 'tax'), round: sum(bs, 'round'),
+    avg: bs.length ? sales / bs.length : 0,
+    modes: group(bs, b => b.mode, b => b.total),
+    channels: group(bs, b => b.channel || 'Dine-In', b => b.total),
+    zom, swg, zomComm: zom * (+st.zomatoComm || 0) / 100, swgComm: swg * (+st.swiggyComm || 0) / 100,
+    expBy: group(exp, t => t.head || 'Other', t => +t.amount || 0), expT: sum(exp, 'amount'),
+    purT: sum(pur, 'amount'), recT: sum(rec, 'amount'),
+    salary: sum(exp.filter(t => t.head === 'Staff Salary / Wages'), 'amount'),
+    cancT: sum(canc, 'total'),
+    net: sales + sum(rec, 'amount') - sum(exp, 'amount') - sum(pur, 'amount')
+  };
+}
+
+function monthText(m){
+  const x = monthData(m), st = D.settings, R = n => '₹' + r2(n).toLocaleString('en-IN');
+  let t = `*${st.name} — Monthly Sales Report*\n*${monthLabel(m)}*` +
+    (st.gstin && st.gstScheme !== 'none' ? `\nGSTIN: ${st.gstin}` : '') + (st.fssai ? `\nFSSAI: ${st.fssai}` : '') +
+    `\nGST Type: ${({composition: 'Composition', none: 'Unregistered'})[st.gstScheme] || 'Regular'}` +
+    `\n\n*SALES*\nBills: ${x.bills}${x.canc.length ? ` (Cancelled: ${x.canc.length}, ${R(x.cancT)})` : ''}` +
+    `\nGross (items): ${R(x.sub)}\nDiscount: ${R(x.disc)}\nTaxable Value: ${R(x.taxable)}` +
+    Object.keys(x.gst).sort((a, b) => a - b).map(g => +g ? `\nGST ${g}%: Taxable ${R(x.gst[g].taxable)} · CGST ${R(x.gst[g].tax / 2)} · SGST ${R(x.gst[g].tax / 2)}` : `\nNon-GST / 0%: ${R(x.gst[g].taxable)}`).join('') +
+    `\nTotal Tax: ${R(x.tax)}\nRound Off: ${R(x.round)}\n*Total Sales: ${R(x.sales)}*\nAverage Bill: ${R(x.avg)}` +
+    `\n\n*PAYMENT MODE*` + Object.entries(x.modes).map(([k, v]) => `\n${k}: ${R(v)}`).join('') +
+    `\n\n*CHANNEL*` + Object.entries(x.channels).map(([k, v]) => `\n${k}: ${R(v)}`).join('') +
+    (x.zom || x.swg ? `\nZomato commission (approx ${st.zomatoComm || 0}%): ${R(x.zomComm)}\nSwiggy commission (approx ${st.swiggyComm || 0}%): ${R(x.swgComm)}` : '') +
+    `\n\n*KHARCHA*\nPurchases: ${R(x.purT)}\nExpenses: ${R(x.expT)}` +
+    Object.entries(x.expBy).sort((a, b) => b[1] - a[1]).map(([k, v]) => `\n   ${k}: ${R(v)}`).join('') +
+    (x.recT ? `\nOther Income: ${R(x.recT)}` : '') +
+    `\n\n*Net (approx): ${R(x.net)}*` +
+    `\n\nBill-wise GST register (Excel) alag file mein bhej rahe hain.\n-- Setu POS (Aghanya Devanya Enterprises)`;
+  return t;
+}
+
+function scrMonthly(){
+  const x = monthData(mrMonth), st = D.settings, sent = (D.monthlySent || {})[mrMonth];
+  const card = (l, v, c) => `<div class="kpi-card"><div class="kpi-header"><span class="kpi-title">${l}</span></div><div class="kpi-val ${c || ''}">${v}</div></div>`;
+  const table = (head, rows) => `<table><thead><tr>${head.map((h, i) => `<th class="${i ? 'n' : ''}">${h}</th>`).join('')}</tr></thead><tbody>${rows.map(r => `<tr>${r.map((c, i) => `<td class="${i ? 'n' : ''}">${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${head.length}" class="muted">Kuch nahi</td></tr>`}</tbody></table>`;
+  main.innerHTML = `
+  <div class="title">
+    <span>Monthly Report — CA / Lawyer ke liye</span>
+    <span class="r">Mahina: <input type="month" value="${mrMonth}" onchange="mrMonth=this.value;scrMonthly()"></span>
+  </div>
+
+  <div class="card" style="border-left:4px solid #16a34a;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+    <div>
+      <b style="font-size:15px">${monthLabel(mrMonth)} — ${esc(st.caName || 'CA / Lawyer')}</b>
+      <div class="muted" style="font-size:12px">${st.caWa ? 'WhatsApp: ' + esc(st.caWa) : '<span class="red">CA / Lawyer ka WhatsApp number Settings (G) mein daalein</span>'}
+        ${sent ? ` · <span class="green">Bheja: ${dmy(sent.date)} ${esc(sent.time || '')}</span>` : ' · <span class="red">Abhi nahi bheja</span>'}</div>
+    </div>
+    <div class="btns" style="margin:0">
+      <button class="btn wa" onclick="sendMonthly('ca')">CA / Lawyer ko WhatsApp</button>
+      <button class="btn wa" onclick="sendMonthly('owner')">Owner ko WhatsApp</button>
+    </div>
+  </div>
+
+  <div class="kpi-grid">
+    ${card('Total Sales', money(x.sales), 'green')}
+    ${card('Bills', x.bills + (x.canc.length ? ` <span class="red" style="font-size:13px">(${x.canc.length} cancel)</span>` : ''))}
+    ${card('Taxable Value', money(x.taxable))}
+    ${card('GST (CGST + SGST)', money(x.tax))}
+    ${card('Kharcha + Kharid', money(x.expT + x.purT), 'red')}
+    ${card('Net (approx)', money(x.net), x.net >= 0 ? 'green' : 'red')}
+  </div>
+
+  <div class="dash-columns">
+    <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px"><b>GST Summary</b></div>
+      ${table(['GST %', 'Bills', 'Taxable', 'CGST', 'SGST', 'Total'], Object.keys(x.gst).sort((a, b) => a - b).map(g => [g + '%', x.gst[g].n, money(x.gst[g].taxable), money(x.gst[g].tax / 2), money(x.gst[g].tax / 2), money(x.gst[g].total)]))}</div>
+    <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px"><b>Payment Mode</b></div>
+      ${table(['Mode', 'Amount'], Object.entries(x.modes).map(([k, v]) => [esc(k), money(v)]))}</div>
+    <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px"><b>Channel</b></div>
+      ${table(['Channel', 'Amount'], Object.entries(x.channels).map(([k, v]) => [esc(k), money(v)]))}</div>
+    <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px"><b>Kharcha (Head-wise)</b></div>
+      ${table(['Head', 'Amount'], [['Purchases (Kharid)', money(x.purT)]].concat(Object.entries(x.expBy).sort((a, b) => b[1] - a[1]).map(([k, v]) => [esc(k), money(v)])))}</div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:auto"><div style="padding:10px 14px"><b>Din-wise Sale</b></div>
+    ${table(['Date', 'Bills', 'Taxable', 'GST', 'Total'], Object.keys(x.days).sort().map(d => [dmy(d), x.days[d].n, money(x.days[d].taxable), money(x.days[d].tax), money(x.days[d].total)]))}</div>
+
+  <div class="card">
+    <h3 style="margin-top:0">CA ke liye Files</h3>
+    <div class="btns" style="margin:0">
+      <button class="btn" onclick="monthlyRegisterCSV()">GST Bill Register (Excel)</button>
+      <button class="btn g" onclick="monthlyDaysCSV()">Din-wise Sale (Excel)</button>
+      <button class="btn g" onclick="printMonthly()">Print / PDF Report</button>
+    </div>
+    <p class="muted" style="font-size:12px;margin-bottom:0">WhatsApp button se poora hisaab <b>message</b> mein seedha CA ke WhatsApp par khulta hai — bas Send dabayein. Excel/PDF file WhatsApp mein khud attach karni hoti hai (WhatsApp link se file nahi jaati). Print box mein "Save as PDF" chunein to PDF ban jayegi.</p>
+  </div>`;
+}
+
+function sendMonthly(to){
+  const st = D.settings, txt = monthText(mrMonth);
+  if(to === 'ca'){
+    if(!st.caWa){ toast('Pehle Settings (G) mein CA / Lawyer ka WhatsApp number daalein'); return; }
+    waOpen(st.caWa, txt);
+  } else waOwner(txt);
+  if(!D.monthlySent) D.monthlySent = {};
+  if(to === 'ca'){
+    D.monthlySent[mrMonth] = {date: today(), time: nowTime(), to: st.caWa};
+    audit('Monthly Report Bheja', `${monthLabel(mrMonth)} → ${st.caName || 'CA'} (${st.caWa})`);
+  }
+  save();
+  scrMonthly();
+}
+
+function monthlyRegisterCSV(){
+  const rows = D.bills.filter(b => b.date.startsWith(mrMonth)).sort((a, b) => a.no - b.no);
+  if(!rows.length){ toast('Is mahine koi bill nahi'); return; }
+  downloadCSV([['Date', 'Bill No', 'Type', 'Customer', 'Mobile', 'Channel', 'Payment Mode', 'Gross', 'Discount', 'Taxable', 'GST %', 'CGST', 'SGST', 'Round Off', 'Total', 'Status']]
+    .concat(rows.map(b => [dmy(b.date), b.no, billTitle(b), b.cust || '', b.phone || '', b.channel || 'Dine-In', b.mode, r2(b.sub), r2(b.disc), r2(b.taxable), +b.gstRate || 0, r2(b.tax / 2), r2(b.tax - r2(b.tax / 2)), r2(b.round), r2(b.total), b.cancelled ? 'CANCELLED' : 'OK'])),
+    `${(D.settings.name || 'setu').replace(/[^\w]+/g, '-')}-GST-register-${mrMonth}.csv`);
+}
+
+function monthlyDaysCSV(){
+  const x = monthData(mrMonth);
+  downloadCSV([['Date', 'Bills', 'Taxable', 'GST', 'Total']].concat(Object.keys(x.days).sort().map(d => [dmy(d), x.days[d].n, r2(x.days[d].taxable), r2(x.days[d].tax), r2(x.days[d].total)])),
+    `${(D.settings.name || 'setu').replace(/[^\w]+/g, '-')}-daywise-${mrMonth}.csv`);
+}
+
+function printMonthly(){
+  const x = monthData(mrMonth), st = D.settings;
+  const tbl = (head, rows) => `<table><tr>${head.map((h, i) => `<th class="${i ? 'n' : ''}">${h}</th>`).join('')}</tr>${rows.map(r => `<tr>${r.map((c, i) => `<td class="${i ? 'n' : ''}">${c}</td>`).join('')}</tr>`).join('')}</table>`;
+  $('#print').style.removeProperty('--pw');
+  $('#print').innerHTML = `<div class="a4rep">
+    <h2>${esc(st.name)} — Monthly Sales Report</h2>
+    <div>${monthLabel(mrMonth)}${st.gstin ? ' · GSTIN: ' + esc(st.gstin) : ''}${st.fssai ? ' · FSSAI: ' + esc(st.fssai) : ''}</div>
+    <h3>Summary</h3>
+    ${tbl(['Item', 'Amount'], [['Bills', x.bills], ['Cancelled bills', `${x.canc.length} (${money(x.cancT)})`], ['Gross (items)', money(x.sub)], ['Discount', money(x.disc)], ['Taxable Value', money(x.taxable)], ['GST', money(x.tax)], ['Round Off', money(x.round)], ['Total Sales', money(x.sales)], ['Purchases', money(x.purT)], ['Expenses', money(x.expT)], ['Net (approx)', money(x.net)]])}
+    <h3>GST Summary</h3>
+    ${tbl(['GST %', 'Bills', 'Taxable', 'CGST', 'SGST', 'Total'], Object.keys(x.gst).sort((a, b) => a - b).map(g => [g + '%', x.gst[g].n, money(x.gst[g].taxable), money(x.gst[g].tax / 2), money(x.gst[g].tax / 2), money(x.gst[g].total)]))}
+    <h3>Payment Mode</h3>${tbl(['Mode', 'Amount'], Object.entries(x.modes).map(([k, v]) => [esc(k), money(v)]))}
+    <h3>Din-wise Sale</h3>${tbl(['Date', 'Bills', 'Taxable', 'GST', 'Total'], Object.keys(x.days).sort().map(d => [dmy(d), x.days[d].n, money(x.days[d].taxable), money(x.days[d].tax), money(x.days[d].total)]))}
+    <p style="font-size:10px;margin-top:10px">Generated by Setu POS on ${dmy(today())} · Powered by Aghanya Devanya Enterprises</p>
+  </div>`;
+  setTimeout(() => window.print(), 80);
+}
+
 /* ================= AUDIT LOG SCREEN ================= */
 let audFrom = today(), audTo = today(), audType = 'alerts';
 
@@ -6159,6 +6339,8 @@ function scrSettings(){
       </select></div>
       ${f('fssai','FSSAI License / Registration No. (bill par zaroori)')}
       ${f('owner','Owner WhatsApp Number (for Daily Reports)','tel')}
+      ${f('caName','CA / Lawyer ka Naam')}
+      ${f('caWa','CA / Lawyer WhatsApp Number (Monthly Report)','tel')}
       ${f('footer','Bill Footer Greeting')}
       ${['bill','kot'].map(k => `<div><label>${k==='bill'?'Customer Bill':'Kitchen KOT'} Paper Size</label><select id="st_${k}Paper"><option value="A6" ${(s[k+'Paper']||'A6')==='A6'?'selected':''}>A6 (105 × 148 mm)</option><option value="thermal" ${s[k+'Paper']==='thermal'?'selected':''}>Thermal Roll</option></select></div>`).join('')}
       <div><label>Thermal Roll Size</label><select id="st_width"><option value="80" ${s.width!=58?'selected':''}>80 mm Thermal</option><option value="58" ${s.width==58?'selected':''}>58 mm Thermal</option></select></div>
@@ -6489,7 +6671,7 @@ async function activateSettingsKey(){
 }
 
 function saveSettings(){
-  ['name','address','phone','gstin','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme'].forEach(k => {
+  ['name','address','phone','gstin','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = $('#st_'+k).value.trim();
   });
   ['ptsPer100','ptValue','minRedeem','kotLate','maxDiscPct'].forEach(k => {
