@@ -1,5 +1,5 @@
 // Setu - Restaurant & Hotel POS - Service Worker
-const CACHE_NAME = 'setu-pos-v14';
+const CACHE_NAME = 'setu-pos-v15';
 const ASSETS = [
   './',
   './hotel_erp.html',
@@ -32,7 +32,22 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   // Live database calls must always reach the main counter, never a cache
-  if (new URL(event.request.url).pathname.startsWith('/api/')) return;
+  const url = new URL(event.request.url);
+  if (url.pathname.startsWith('/api/')) return;
+  // The app page itself: always try the network first so an updated Setu shows at once;
+  // the cached copy is only used when offline
+  if (event.request.mode === 'navigate' || url.pathname.endsWith('.html')) {
+    event.respondWith(
+      fetch(event.request).then(networkResponse => {
+        if (networkResponse && networkResponse.status === 200) {
+          const copy = networkResponse.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
+        }
+        return networkResponse;
+      }).catch(() => caches.match(event.request).then(r => r || caches.match('./hotel_erp.html')))
+    );
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then(cachedResponse => {
       if (cachedResponse) {
