@@ -737,6 +737,7 @@ const GROWTH_DEFAULTS = {
   autoKot: false,
   drawerKick: false,
   gstScheme: 'regular',
+  gstInclusive: false,
   fssai: ''
 };
 
@@ -2587,6 +2588,12 @@ const billTitle = b => ({composition: 'BILL OF SUPPLY', none: 'BILL'})[b.scheme]
 function calc(items, disc, rate){
   const sub = sum(items || [], i => i.price * i.qty);
   disc = Math.min(+disc || 0, sub);
+  // Menu rates that already include GST: the customer pays the menu price and the
+  // tax is worked out backwards from it (₹80 incl. 5% = ₹76.19 + ₹3.81)
+  if(D.settings.gstInclusive && +rate){
+    const gross = sub - disc, taxable = r2(gross / (1 + rate / 100)), tax = r2(gross - taxable), total = Math.round(gross);
+    return {sub: r2(sub), disc: r2(disc), taxable, tax, round: r2(total - gross), total, incl: true};
+  }
   const taxable = sub - disc, tax = r2(taxable * (+rate || 0)/100), raw = taxable + tax, total = Math.round(raw);
   return {sub: r2(sub), disc: r2(disc), taxable: r2(taxable), tax, round: r2(total - raw), total};
 }
@@ -3611,10 +3618,11 @@ function drawCart(){
 function drawTotals(){
   const t = calc(B.cart, billDisc(), gstRate()), g = gstRate(), lr = Math.min(redeemRs(), t.disc);
   $('#tot').innerHTML = `
-    <div><span>Sub Total (${sum(B.cart,'qty')} items)</span><b>${money(t.sub)}</b></div>
+    <div><span>Sub Total (${sum(B.cart,'qty')} items)${t.incl ? ' <small class="muted">GST samet</small>' : ''}</span><b>${money(t.sub)}</b></div>
     ${t.disc - lr > 0 ? `<div><span>Discount</span><b>− ${money(t.disc - lr)}</b></div>` : ''}
     ${lr ? `<div><span>Loyalty (${B.redeem} pts)</span><b>− ${money(lr)}</b></div>` : ''}
-    ${g ? `<div><span>CGST ${g/2}% + SGST ${g/2}%</span><b>${money(t.tax)}</b></div>` : ''}
+    ${g && t.incl ? `<div class="muted"><span>Isme shamil: Taxable ${money(t.taxable)} + GST ${g}% ${money(t.tax)}</span><b></b></div>` : ''}
+    ${g && !t.incl ? `<div><span>CGST ${g/2}% + SGST ${g/2}%</span><b>${money(t.tax)}</b></div>` : ''}
     ${t.round ? `<div><span>Round Off</span><b>${t.round > 0 ? '+' : ''}${t.round}</b></div>` : ''}
     <div class="big"><span>TOTAL BILL AMOUNT</span><span>${money(t.total)}</span></div>`;
 }
@@ -3914,10 +3922,11 @@ function escBill(b){
   Object.entries(b.extra || {}).forEach(([k, v]) => e.line(k + ': ' + v));
   if(b.by) e.line('Cashier: ' + b.by);
   e.hr().items(b.items).hr();
-  e.lr('Sub Total', b.sub.toFixed(2));
+  e.lr(b.incl ? 'Sub Total (GST incl.)' : 'Sub Total', b.sub.toFixed(2));
   if(b.disc - (b.loyaltyDisc || 0) > 0) e.lr('Discount', '-' + (b.disc - (b.loyaltyDisc || 0)).toFixed(2));
   if(b.loyaltyDisc) e.lr(`Loyalty (${b.ptsUsed} pts)`, '-' + b.loyaltyDisc.toFixed(2));
-  if(g){ e.lr(`CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`SGST @${g / 2}%`, (b.tax / 2).toFixed(2)); }
+  if(g && b.incl){ e.line('GST shamil hai:'); e.lr('  Taxable Value', b.taxable.toFixed(2)); e.lr(`  CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`  SGST @${g / 2}%`, (b.tax - r2(b.tax / 2)).toFixed(2)); }
+  else if(g){ e.lr(`CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`SGST @${g / 2}%`, (b.tax / 2).toFixed(2)); }
   if(b.round) e.lr('Round Off', b.round.toFixed(2));
   e.hr().size('tall').bold(true).lr('TOTAL', 'Rs.' + b.total.toFixed(2)).size(false).bold(false);
   e.line('Paid by: ' + b.mode);
@@ -4010,10 +4019,11 @@ function billHTML(b){
   ${b.table && billCfg().showTable !== false ? `<div>Table/Ref: <b>${esc(b.table)}</b></div>` : ''}${b.cust && billCfg().showCustomer !== false ? `<div>Customer: ${esc(b.cust)}</div>` : ''}${extraHTML(b)}<hr>
   <table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>
   ${b.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${i.price}</td><td class="r">${r2(i.price*i.qty)}</td></tr>`).join('')}</table><hr>
-  <table><tr><td>Sub Total</td><td class="r">${b.sub.toFixed(2)}</td></tr>
+  <table><tr><td>Sub Total${b.incl ? ' (GST incl.)' : ''}</td><td class="r">${b.sub.toFixed(2)}</td></tr>
   ${b.disc - (b.loyaltyDisc || 0) > 0 ? `<tr><td>Discount</td><td class="r">-${(b.disc - (b.loyaltyDisc || 0)).toFixed(2)}</td></tr>` : ''}
   ${b.loyaltyDisc ? `<tr><td>Loyalty (${b.ptsUsed} pts)</td><td class="r">-${b.loyaltyDisc.toFixed(2)}</td></tr>` : ''}
-  ${g ? `<tr><td>CGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr><tr><td>SGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr>` : ''}
+  ${g && b.incl ? `<tr><td colspan="2"><i>GST shamil hai:</i></td></tr><tr><td>&nbsp; Taxable Value</td><td class="r">${b.taxable.toFixed(2)}</td></tr><tr><td>&nbsp; CGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr><tr><td>&nbsp; SGST @${g/2}%</td><td class="r">${(b.tax - r2(b.tax/2)).toFixed(2)}</td></tr>` : ''}
+  ${g && !b.incl ? `<tr><td>CGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr><tr><td>SGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr>` : ''}
   ${b.round ? `<tr><td>Round Off</td><td class="r">${b.round.toFixed(2)}</td></tr>` : ''}</table><hr>
   <table><tr class="big"><td>TOTAL</td><td class="r">₹${b.total.toFixed(2)}</td></tr></table>
   <div>Paid by: ${b.mode}</div>${ptsLine(b)}<hr>${billQR(b)}<div class="c">${esc(D.settings.footer)}</div>
@@ -4114,7 +4124,7 @@ function billText(b){
   const s = D.settings;
   return `*${s.name}*\nBill No: #${b.no} (${b.channel || 'Dine-In'}) | ${dmy(b.date)} ${b.time}${b.table ? `\nTable/Ref: ${b.table}` : ''}${b.cust ? `\nCustomer: ${b.cust}` : ''}\n--------------------\n` +
   b.items.map(i => `${i.name} × ${i.qty} = ₹${r2(i.price*i.qty)}`).join('\n') +
-  `\n--------------------\nSub Total: ₹${b.sub}${b.disc - (b.loyaltyDisc || 0) > 0 ? `\nDiscount: -₹${r2(b.disc - (b.loyaltyDisc || 0))}` : ''}${b.loyaltyDisc ? `\nLoyalty (${b.ptsUsed} pts): -₹${b.loyaltyDisc}` : ''}${b.tax ? `\nGST (${b.gstRate}%): ₹${b.tax}` : ''}\n*TOTAL: ₹${b.total}*\nPaid by: ${b.mode}` +
+  `\n--------------------\nSub Total: ₹${b.sub}${b.disc - (b.loyaltyDisc || 0) > 0 ? `\nDiscount: -₹${r2(b.disc - (b.loyaltyDisc || 0))}` : ''}${b.loyaltyDisc ? `\nLoyalty (${b.ptsUsed} pts): -₹${b.loyaltyDisc}` : ''}${b.tax ? (b.incl ? `\n(GST ${b.gstRate}% shamil: Taxable ₹${b.taxable} + GST ₹${b.tax})` : `\nGST (${b.gstRate}%): ₹${b.tax}`) : ''}\n*TOTAL: ₹${b.total}*\nPaid by: ${b.mode}` +
   (b.ptsEarned || b.ptsUsed ? `\n\nLoyalty points earned: ${b.ptsEarned}${b.ptsUsed ? ` | used: ${b.ptsUsed}` : ''}\nTotal points: *${ptsBalAt(b)}* (= ₹${r2(ptsBalAt(b) * (+s.ptValue || 0))})` : '') +
   (s.upi && b.mode === 'Credit' ? `\n\nUPI se pay karein: ${s.upi}` : '') +
   (s.review ? `\n\nKhana kaisa laga? Google par rating dein:\n${s.review}` : '') +
@@ -4632,6 +4642,7 @@ function scrMenu(){
   </div>
   <div class="btns" style="margin:0 0 14px">
     <button class="btn ok" onclick="bulkMenu()">+ Menu Items Add Karein (Ek Saath)</button>
+    <button class="btn" onclick="importMenu()">Menu Import (Excel / Paste)</button>
     <button class="btn g" onclick="editMenu()">Single Item + Recipe</button>
   </div>
   <div class="card" style="padding:0;overflow:auto">
@@ -4726,6 +4737,76 @@ function saveBulkMenu(){
   closeModal();
   scrMenu();
   toast(`${rows.length} menu items save ho gaye`);
+}
+
+/* Menu import: paste lines like "Category, Dish, Price" / Excel (CSV), or a printed
+   menu where category headings sit on their own line and dishes carry a ₹ price */
+function parseMenuText(txt){
+  const out = [];
+  let cat = 'General';
+  String(txt || '').replace(/\r/g, '').split('\n').forEach(raw => {
+    const line = raw.trim();
+    if(!line) return;
+    const cells = line.split(/\t|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').trim()).filter(c => c !== '');
+    const priceIdx = cells.findIndex((c, i) => i > 0 && /^₹?\s*\d+(\.\d+)?$/.test(c.replace(/^Rs\.?\s*/i, '')));
+    if(priceIdx > 0){
+      const price = +cells[priceIdx].replace(/[^\d.]/g, '');
+      const before = cells.slice(0, priceIdx).filter(c => !/^\d+\.?$/.test(c));   // drop serial numbers
+      if(!before.length) return;
+      const name = before[before.length - 1], c = before.length > 1 ? before[0] : cat;
+      if(/^(dish|item|name|व्यंजन|थाली|क्र\.?)$/i.test(name)) return;   // header rows
+      out.push({cat: c, name, price});
+      return;
+    }
+    // A line without a price is a category heading (skip notes, addresses, table headers)
+    if(!/₹|\d/.test(line) && line.length <= 40 && !/[:।]/.test(line) && !line.startsWith('-') && !/\t/.test(raw)) cat = line;
+  });
+  return out;
+}
+
+function importMenu(){
+  modal('Menu Import — Excel / Paste', `
+    <p class="muted" style="margin:0 0 8px;font-size:12px">Excel / CSV file chunein, ya menu yahan paste karein. Har line: <b>Category, Dish, Price</b> — ya chhapa hua menu jaisa (heading ki line category ban jaati hai, ₹ wali line dish).</p>
+    <div class="btns" style="margin:0 0 8px"><label class="btn g sm" style="margin:0;cursor:pointer">Excel (CSV) File Chunein<input type="file" accept=".csv,.txt" style="display:none" onchange="readMenuFile(this.files[0])"></label></div>
+    <textarea id="mi_txt" rows="10" placeholder="Roti, Tandoori Roti, 7&#10;Dal, Dal Fry, 70&#10;Thali, Special Thali, 120" oninput="previewMenuImport()"></textarea>
+    <div id="mi_prev" class="muted" style="font-size:12px;margin-top:6px"></div>
+    <div class="btns">
+      <button class="btn ok" onclick="doMenuImport()">Menu mein Jodein</button>
+      <button class="btn g" onclick="closeModal()">Cancel</button>
+    </div>`);
+}
+
+function readMenuFile(f){
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { $('#mi_txt').value = String(r.result).replace(/^﻿/, ''); previewMenuImport(); };
+  r.readAsText(f);
+}
+
+function previewMenuImport(){
+  const items = parseMenuText($('#mi_txt').value);
+  const cats = [...new Set(items.map(i => i.cat))];
+  const dup = items.filter(i => D.menu.some(m => m.name.toLowerCase() === i.name.toLowerCase())).length;
+  $('#mi_prev').innerHTML = items.length
+    ? `<b class="green">${items.length} dishes</b> · ${cats.length} categories (${cats.map(esc).join(', ')})${dup ? ` · <span class="red">${dup} pehle se menu mein (unka rate update hoga)</span>` : ''}`
+    : 'Abhi koi dish nahi mili';
+}
+
+function doMenuImport(){
+  const items = parseMenuText($('#mi_txt').value);
+  if(!items.length){ toast('Koi dish nahi mili. Format: Category, Dish, Price'); return; }
+  let added = 0, updated = 0;
+  items.forEach(i => {
+    const old = D.menu.find(m => m.name.toLowerCase() === i.name.toLowerCase());
+    if(old){
+      if(+old.price !== i.price){ audit('Menu Rate Change', `${old.name}: ₹${old.price} → ₹${i.price} (import)`, r2(i.price - old.price), old.id); old.price = i.price; updated++; }
+      old.cat = i.cat;
+    } else { D.menu.push({id: uid(), name: i.name, cat: i.cat, price: i.price, recipe: []}); added++; }
+  });
+  save();
+  closeModal();
+  scrMenu();
+  toast(`${added} nayi dishes judi${updated ? `, ${updated} ka rate update hua` : ''}`);
 }
 
 function ingRow(sid, qty){
@@ -6337,6 +6418,10 @@ function scrSettings(){
         <option value="composition" ${s.gstScheme==='composition'?'selected':''}>Composition (Bill of Supply, GST nahi lagega)</option>
         <option value="none" ${s.gstScheme==='none'?'selected':''}>GST Registered Nahi (Simple Bill)</option>
       </select></div>
+      <div><label>Menu Rate mein GST</label><select id="st_gstInclusive">
+        <option value="0" ${s.gstInclusive ? '' : 'selected'}>Alag se judega (rate + GST)</option>
+        <option value="1" ${s.gstInclusive ? 'selected' : ''}>Shamil hai (₹80 mein hi GST, bill par dikhega)</option>
+      </select></div>
       ${f('fssai','FSSAI License / Registration No. (bill par zaroori)')}
       ${f('owner','Owner WhatsApp Number (for Daily Reports)','tel')}
       ${f('caName','CA / Lawyer ka Naam')}
@@ -6679,6 +6764,7 @@ function saveSettings(){
   });
   if($('#st_loyalty')) D.settings.loyalty = $('#st_loyalty').value === '1';
   if($('#st_tokenOn')) D.settings.tokenOn = $('#st_tokenOn').value === '1';
+  if($('#st_gstInclusive')) D.settings.gstInclusive = $('#st_gstInclusive').value === '1';
   D.settings.gst = +$('#st_gst').value || 0;
   D.settings.width = +$('#st_width').value;
   D.settings.billPaper = $('#st_billPaper').value;

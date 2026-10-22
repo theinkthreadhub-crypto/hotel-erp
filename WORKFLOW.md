@@ -72,10 +72,12 @@ flowchart TD
 | Zomato/Swiggy commission % | Report mein net kamai |
 | Admin PIN, Cashier PIN | Owner aur purana common cashier login |
 | GST Type (Regular / Composition / Registered nahi), FSSAI No. | Bill ka title (Tax Invoice / Bill of Supply) aur FSSAI number bill par |
+| Menu Rate mein GST: Shamil hai | Menu ka ₹80 hi customer dega; bill par dikhega ki usme kitna GST tha (₹76.19 + ₹3.81) |
 | Cashier max discount % | Isse zyada discount par Manager PIN lagega |
 | Printer Setup | Thermal printer par bina popup print, Tandoor/Chinese/Bar ke alag KOT printer, auto KOT, cash drawer |
 
 ### 2.3 Menu (M)
+0. Poora menu pehle se Excel (CSV) mein ho ya kaagaz se type kiya ho: **"Menu Import (Excel / Paste)"** → file chunein ya paste karein (har line `Category, Dish, Price`, ya chhapa hua menu jaisa) → **Menu mein Jodein**.
 1. **"+ Menu Items Add Karein (Ek Saath)"** dabayein.
 2. Naam → Tab → Category → Tab → Price → **Enter** (nayi line aati hai, category wahi rehti hai).
 3. Saari dishes likh kar ek baar **Save All**.

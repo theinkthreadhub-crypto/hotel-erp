@@ -131,6 +131,7 @@ Saari dates `YYYY-MM-DD` string mein hoti hain aur time `HH:MM` mein. Paisa ₹ 
 | `installId` | string | `SETU-XXXX-XXXX` (random) | License key isi se bandhi hoti hai |
 | `gstScheme` | string | `regular` | `regular` / `composition` (Bill of Supply, GST 0) / `none` |
 | `fssai` | string | `""` | FSSAI number (bill par) |
+| `gstInclusive` | boolean | `false` | `true` = menu rate mein GST shamil; bill par Taxable + GST ulta nikal kar dikhta hai |
 | `maxDiscPct` | number | `10` | Cashier ki discount limit %; zyada par Manager PIN |
 | `caName`, `caWa` | string | `""` | CA / Lawyer ka naam aur WhatsApp (Monthly Report) |
 | `printMode` | string | `dialog` | `dialog` (print box) / `direct` (thermal, bina popup) |
@@ -214,6 +215,7 @@ Stock badalta hai: bill save par minus, bill cancel par plus, purchase par plus,
 | `cancelledBy` | string | Kis Manager ne cancel approve kiya |
 | `by` | string | Kis staff ne bill banaya |
 | `scheme` | string | Bill ke waqt ka GST type (`regular` / `composition` / `none`) |
+| `incl` | boolean | `true` = rate mein GST shamil tha (taxable = total ÷ 1.05) |
 | `prints` | number | Customer copy kitni baar print hui (2+ = DUPLICATE COPY) |
 
 **Hisaab:** `calc(items, disc, gst)` se: `taxable = sub − disc`, `tax = taxable × gst%`, `total = round(taxable + tax)`.
