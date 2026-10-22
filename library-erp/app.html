@@ -1574,6 +1574,7 @@ function impPreview(){
   const hdr=rows[0].map(norm),map={};
   Object.entries(ICOLS).forEach(([k,al])=>{const i=hdr.findIndex(h=>al.includes(h));if(i>=0)map[k]=i;});
   if(map.name===undefined){toast('The first row must have headings — at least "Name"','bad');return;}
+  if(rows.length>5001){toast('Too many rows ('+(rows.length-1)+'). Import max 5,000 students at a time — split the file.','bad');return;}
   const codes=new Set(D.students.map(s=>s.code));let next=+nextCode();
   impRows=rows.slice(1).map((r,ix)=>{
     const g=k=>map[k]===undefined?'':String(r[map[k]]??'').trim(),x={line:ix+2,err:[],warn:[]};
