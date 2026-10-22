@@ -3859,7 +3859,7 @@ const printCols = () => (+D.settings.width === 58 ? 32 : 48);
 const asciiSafe = t => String(t ?? '').replace(/₹/g, 'Rs.').replace(/[×✕]/g, 'x').replace(/[–—]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"').replace(/[^\x20-\x7E\n]/g, '?');
 
 class EscPos {
-  constructor(){ this.b = [0x1b, 0x40]; this.cols = printCols(); }
+  constructor(){ this.b = [0x1b, 0x40]; this.cols = printCols(); this.cur = 'Rs.'; }
   raw(...a){ this.b.push(...a); return this; }
   text(t){ for(const ch of asciiSafe(t)) this.b.push(ch.charCodeAt(0)); return this; }
   line(t = ''){ return this.text(t).raw(0x0a); }
@@ -3898,6 +3898,115 @@ class EscPos {
   bytes(){ return new Uint8Array(this.b); }
 }
 
+// Graphic receipts: the receipt is drawn on a canvas (any language, ₹ sign) and sent as an
+// ESC/POS raster image (GS v 0). 58 mm = 384 dots, 80 mm = 576 dots. Same API as EscPos.
+class RasterPos {
+  constructor(){
+    this.cols = printCols();
+    this.W = this.cols === 32 ? 384 : 576;
+    this.ops = []; this.y = 4; this.big = false; this.tall = false; this.b = false; this.al = 'left'; this.kick = false;
+    this.cur = '₹';
+    this.cv = document.createElement('canvas');
+    this.cx = this.cv.getContext('2d');
+  }
+  font(){
+    const base = this.W === 384 ? 21 : 25;
+    const px = Math.round(this.big ? base * 1.55 : this.tall ? base * 1.3 : base);
+    return {px, css: `${this.b ? 'bold ' : ''}${px}px "Nirmala UI", "Mangal", "Segoe UI", Arial, sans-serif`};
+  }
+  measure(t){ this.cx.font = this.font().css; return this.cx.measureText(String(t)).width; }
+  push(parts){ const f = this.font(), h = Math.round(f.px * 1.32); this.ops.push({y: this.y, css: f.css, parts}); this.y += h; return this; }
+  raw(){ return this; }
+  text(t){ return this.line(t); }
+  line(t = ''){
+    t = String(t ?? '');
+    if(!t){ this.y += Math.round(this.font().px * 0.6); return this; }
+    const x = this.al === 'center' ? this.W / 2 : this.al === 'right' ? this.W : 0;
+    this.wrapPx(t, this.W).forEach(l => this.push([{t: l, x, align: this.al}]));
+    return this;
+  }
+  align(a){ this.al = a; return this; }
+  bold(on){ this.b = !!on; return this; }
+  size(big){ this.big = big === true; this.tall = big === 'tall'; return this; }
+  center(t, big){ this.align('center'); if(big) this.size(true).bold(true); this.line(t); if(big) this.size(false).bold(false); return this.align('left'); }
+  hr(){ this.ops.push({y: this.y, rule: true}); this.y += 12; return this; }
+  lr(l, r){
+    r = String(r ?? '');
+    const lines = this.wrapPx(String(l ?? ''), this.W - this.measure(r) - 14);
+    this.push([{t: lines[0], x: 0, align: 'left'}, {t: r, x: this.W, align: 'right'}]);
+    lines.slice(1).forEach(t => this.push([{t, x: 0, align: 'left'}]));
+    return this;
+  }
+  wrap(t, w){ return this.wrapPx(String(t ?? ''), this.W * w / this.cols); }
+  wrapPx(t, maxW){
+    const out = [];
+    let cur = '';
+    t.split(/\s+/).filter(Boolean).forEach(word => {
+      while(this.measure(word) > maxW && word.length > 1){
+        let n = word.length;
+        while(n > 1 && this.measure(word.slice(0, n)) > maxW) n--;
+        if(cur){ out.push(cur); cur = ''; }
+        out.push(word.slice(0, n)); word = word.slice(n);
+      }
+      const next = cur ? cur + ' ' + word : word;
+      if(this.measure(next) <= maxW) cur = next;
+      else { out.push(cur); cur = word; }
+    });
+    out.push(cur);
+    return out;
+  }
+  items(list){
+    const wide = this.cols >= 42, gap = 10;
+    this.b = true;
+    const aW = this.measure('00000.00') + gap, qW = this.measure('Qty') + gap, rW = wide ? this.measure('0000.00') + gap : 0;
+    const nW = this.W - aW - qW - rW - 4;
+    const cols = (name, q, r, a) => [{t: name, x: 0, align: 'left'}, {t: q, x: nW + qW, align: 'right'}].concat(wide ? [{t: r, x: nW + qW + rW, align: 'right'}] : []).concat([{t: a, x: this.W, align: 'right'}]);
+    this.push(cols('Item', 'Qty', 'Rate', 'Amt'));
+    this.b = false;
+    list.forEach(i => {
+      const parts = this.wrapPx(String(i.name), nW);
+      this.push(cols(parts[0], String(i.qty), String(i.price), r2(i.price * i.qty).toFixed(2)));
+      parts.slice(1).forEach(t => this.push([{t, x: 0, align: 'left'}]));
+    });
+    return this;
+  }
+  drawer(){ this.kick = true; return this; }
+  cut(){ this.y += 8; return this; }
+  bytes(){
+    const W = this.W, H = Math.ceil(this.y + 4), cx = this.cx;
+    this.cv.width = W; this.cv.height = H;
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
+    cx.fillStyle = '#000'; cx.textBaseline = 'top';
+    this.ops.forEach(op => {
+      if(op.rule){ for(let x = 0; x < W; x += 8) cx.fillRect(x, op.y + 5, 5, 2); return; }
+      cx.font = op.css;
+      op.parts.forEach(p => { cx.textAlign = p.align; cx.fillText(p.t, p.x, op.y + 2); });
+    });
+    const px = cx.getImageData(0, 0, W, H).data, bw = W / 8, out = [0x1b, 0x40];
+    // Send in bands so small printer buffers are not overrun
+    for(let y0 = 0; y0 < H; y0 += 200){
+      const h = Math.min(200, H - y0);
+      out.push(0x1d, 0x76, 0x30, 0x00, bw & 255, bw >> 8, h & 255, h >> 8);
+      for(let y = y0; y < y0 + h; y++){
+        for(let xb = 0; xb < bw; xb++){
+          let byte = 0;
+          for(let bit = 0; bit < 8; bit++){
+            const i = (y * W + xb * 8 + bit) * 4;
+            if(px[i] * 0.3 + px[i + 1] * 0.59 + px[i + 2] * 0.11 < 150) byte |= 0x80 >> bit;
+          }
+          out.push(byte);
+        }
+      }
+    }
+    out.push(0x0a, 0x0a, 0x0a, 0x1d, 0x56, 0x42, 0x00);
+    if(this.kick) out.push(0x1b, 0x70, 0x00, 0x19, 0xfa);
+    return new Uint8Array(out);
+  }
+}
+
+// Graphic mode by default: prints Hindi / any script and the ₹ sign
+const newPos = () => D.settings.printGraphic === false ? new EscPos() : new RasterPos();
+
 function escHead(e){
   const st = D.settings;
   e.center(st.name || 'Restaurant', true);
@@ -3910,7 +4019,7 @@ function escHead(e){
 }
 
 function escBill(b){
-  const e = escHead(new EscPos()), g = b.gstRate;
+  const e = escHead(newPos()), g = b.gstRate;
   e.bold(true).center(billTitle(b) + (b.cancelled ? ' (CANCELLED)' : '') + (b.channel && b.channel !== 'Dine-In' ? ' [' + b.channel.toUpperCase() + ']' : '')).bold(false);
   if((b.prints || 0) > 1) e.bold(true).center('** DUPLICATE COPY **').bold(false);
   if(b.scheme === 'composition') e.center('Composition taxable person, not eligible to collect tax on supplies');
@@ -3928,7 +4037,7 @@ function escBill(b){
   if(g && b.incl){ e.line('GST included:'); e.lr('  Taxable Value', b.taxable.toFixed(2)); e.lr(`  CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`  SGST @${g / 2}%`, (b.tax - r2(b.tax / 2)).toFixed(2)); }
   else if(g){ e.lr(`CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`SGST @${g / 2}%`, (b.tax / 2).toFixed(2)); }
   if(b.round) e.lr('Round Off', b.round.toFixed(2));
-  e.hr().size('tall').bold(true).lr('TOTAL', 'Rs.' + b.total.toFixed(2)).size(false).bold(false);
+  e.hr().size('tall').bold(true).lr('TOTAL', e.cur + b.total.toFixed(2)).size(false).bold(false);
   e.line('Paid by: ' + b.mode);
   if(b.ptsEarned || b.ptsUsed) e.line(`Points earned: ${b.ptsEarned}${b.ptsUsed ? ' | used: ' + b.ptsUsed : ''} | Balance: ${ptsBalAt(b)}`);
   e.hr();
@@ -3941,7 +4050,7 @@ function escBill(b){
 }
 
 function escKot(k, printerLabel){
-  const e = new EscPos();
+  const e = newPos();
   e.center('*** KITCHEN ORDER (KOT) ***', false).hr();
   e.size(true).bold(true).line(k.table || 'Counter').size(false).bold(false);
   e.lr('KOT No: ' + k.kot, dmy(k.date || today()) + ' ' + (k.time || nowTime()));
@@ -3956,13 +4065,13 @@ function escKot(k, printerLabel){
 }
 
 function escKaccha(k){
-  const t = calc(k.cart, k.disc, gstRate()), e = escHead(new EscPos());
+  const t = calc(k.cart, k.disc, gstRate()), e = escHead(newPos());
   e.bold(true).center('*** ESTIMATE (RUNNING ORDER) ***').bold(false).center('(Not a Tax Invoice)');
   e.lr('Table: ' + k.table, dmy(today()) + ' ' + (k.updatedAt || nowTime()));
   if(k.cust) e.line('Customer: ' + k.cust);
   e.hr().items(k.cart).hr().lr('Sub Total', t.sub.toFixed(2));
   if(t.disc) e.lr('Discount', '-' + t.disc.toFixed(2));
-  e.size('tall').bold(true).lr('TOTAL', 'Rs.' + t.total.toFixed(2)).size(false).bold(false);
+  e.size('tall').bold(true).lr('TOTAL', e.cur + t.total.toFixed(2)).size(false).bold(false);
   return e.cut().bytes();
 }
 
@@ -3995,8 +4104,8 @@ async function directKot(k){
 
 async function testPrint(which){
   const p = which === 'kot' ? D.settings.kotPrinter : D.settings.billPrinter;
-  const e = new EscPos();
-  e.center('SETU TEST PRINT', true).hr().line('Printer: ' + p).line('Width: ' + e.cols + ' chars').line('1234567890'.repeat(5).slice(0, e.cols)).hr().center('If this prints clearly, the setup is correct');
+  const e = newPos();
+  e.center('SETU TEST PRINT', true).hr().line('Printer: ' + p).line(`Paper: ${D.settings.width || 80} mm · ${e instanceof RasterPos ? 'Graphic' : 'Text'} mode`).line('1234567890'.repeat(5).slice(0, e.cols)).lr('Hindi: दाल फ्राई', e.cur + '70.00').hr().center('If this prints clearly, the setup is correct');
   if(await sendToPrinter(p, e.cut().bytes())) toast('Test print sent to ' + p);
 }
 
@@ -6621,6 +6730,8 @@ async function drawPrintCard(){
       </select></div>
       <div><label>Customer Bill Printer</label><select id="pr_bill">${opt(st.billPrinter || def)}</select></div>
       <div><label>Kitchen KOT Printer (main)</label><select id="pr_kot">${opt(st.kotPrinter || st.billPrinter || def)}</select></div>
+      <div><label>Paper Width</label><select id="pr_width"><option value="58" ${+st.width === 58 ? 'selected' : ''}>58 mm thermal</option><option value="80" ${+st.width !== 58 ? 'selected' : ''}>80 mm thermal</option></select></div>
+      <div><label>Thermal Print Style</label><select id="pr_graphic"><option value="1" ${st.printGraphic !== false ? 'selected' : ''}>Graphic — Hindi & ₹ supported (recommended)</option><option value="0" ${st.printGraphic === false ? 'selected' : ''}>Text — fastest, English only</option></select></div>
       <div><label>Auto-print KOT</label><select id="pr_auto"><option value="1" ${st.autoKot ? 'selected' : ''}>Yes (when an order is saved)</option><option value="0" ${st.autoKot ? '' : 'selected'}>No</option></select></div>
       <div><label>Open cash drawer on cash bills</label><select id="pr_drawer"><option value="1" ${st.drawerKick ? 'selected' : ''}>Yes</option><option value="0" ${st.drawerKick ? '' : 'selected'}>No</option></select></div>
     </div>
@@ -6631,7 +6742,7 @@ async function drawPrintCard(){
       <button class="btn g" onclick="savePrintSettings(true);testPrint('bill')">Bill Printer Test</button>
       <button class="btn g" onclick="savePrintSettings(true);testPrint('kot')">KOT Printer Test</button>
     </div>
-    <p class="muted" style="font-size:12px;margin-bottom:0">"Direct print" works only with <b>thermal receipt printers (ESC/POS, 58/80 mm)</b>. Use "With print dialog" for inkjet / laser printers. Hindi dish names may print as "?" on thermal printers — use English names. KOTs from phones / Captain App also print from this PC.</p>`;
+    <p class="muted" style="font-size:12px;margin-bottom:0">"Direct print" works only with <b>thermal receipt printers (ESC/POS, 58/80 mm)</b>. Use "With print dialog" for inkjet / laser printers. Graphic style prints Hindi names and the ₹ sign; Text style is English only. KOTs from phones / Captain App also print from this PC.</p>`;
 }
 
 function savePrintSettings(silent){
@@ -6641,6 +6752,9 @@ function savePrintSettings(silent){
   st.kotPrinter = $('#pr_kot').value;
   st.autoKot = $('#pr_auto').value === '1';
   st.drawerKick = $('#pr_drawer').value === '1';
+  st.width = +$('#pr_width').value;
+  st.printGraphic = $('#pr_graphic').value === '1';
+  if(st.width === 58){ st.billPaper = 'thermal'; st.kotPaper = 'thermal'; }
   const cats = [...new Set(D.menu.map(m => m.cat))];
   st.catPrinters = {};
   document.querySelectorAll('#print-card [data-cat]').forEach(sel => { if(sel.value) st.catPrinters[cats[+sel.dataset.cat]] = sel.value; });

@@ -1,5 +1,5 @@
 // Setu - Restaurant & Hotel POS - Service Worker
-const CACHE_NAME = 'setu-pos-v13';
+const CACHE_NAME = 'setu-pos-v14';
 const ASSETS = [
   './',
   './hotel_erp.html',
