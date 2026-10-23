@@ -1,6 +1,6 @@
 name: Setu Cloud check
 
-# Read-only: is the Cloudflare login set, and what is live on setu-cloud? Deploys nothing.
+# Read-only: is the Cloudflare login set, and what is live on setu-cloud (Hotel Setu Cloud)? Deploys nothing.
 on:
   push:
     paths: ['.github/workflows/setu-cloud-check.yml']
