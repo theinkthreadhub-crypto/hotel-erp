@@ -21,6 +21,9 @@ const KEEP_BACKUPS = 30;              // end-of-day snapshots kept per hotel
 const TOKEN_DAYS = 180;               // phone login stays valid this long without use
 const FAIL_LIMIT = 5;                 // wrong PINs per IP ...
 const FAIL_WINDOW = 15 * 60 * 1000;   // ... inside this window locks that IP for the window
+// Super Admin key guessing: per IP and for everyone together
+const ADMIN_IP_LIMIT = 5, ADMIN_IP_WINDOW = 15 * 60 * 1000;
+const ADMIN_ALL_LIMIT = 20, ADMIN_ALL_WINDOW = 60 * 60 * 1000;
 const GLOBAL_FAIL_LIMIT = 40;         // wrong PINs from everyone per window locks the hotel's login
 const SIGNUP_LIMIT = 5;               // new hotels per IP per hour
 const GRACE_DAYS = 3;                 // saving keeps working this long after the paid period
@@ -230,6 +233,19 @@ export class SetuRegistry extends DurableObject {
     const path = new URL(request.url).pathname;
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
     const one = (q, ...a) => this.sql.exec(q, ...a).toArray()[0];
+
+    if(path === '/adminguard'){
+      const now = Date.now(), kIp = 'admin:' + (body.ip || 'unknown'), kAll = 'admin:*';
+      const get = (k, win) => { const h = one('SELECT n, at FROM hit WHERE k = ?', k); return h && now - h.at < win ? h : { n: 0, at: now }; };
+      const ipHit = get(kIp, ADMIN_IP_WINDOW), allHit = get(kAll, ADMIN_ALL_WINDOW);
+      if(body.fail){
+        [[kIp, ipHit], [kAll, allHit]].forEach(([k, h]) => this.sql.exec('INSERT OR REPLACE INTO hit (k, n, at) VALUES (?, ?, ?)', k, h.n + 1, h.at));
+        return json(200, { ok: true });
+      }
+      if(body.ok){ this.sql.exec('DELETE FROM hit WHERE k = ?', kIp); return json(200, { ok: true }); }
+      const until = ipHit.n >= ADMIN_IP_LIMIT ? ipHit.at + ADMIN_IP_WINDOW : allHit.n >= ADMIN_ALL_LIMIT ? allHit.at + ADMIN_ALL_WINDOW : 0;
+      return json(200, { locked: !!until, minutes: until ? Math.ceil((until - now) / 60000) : 0 });
+    }
 
     if(path === '/reserve'){
       const now = Date.now();
@@ -859,11 +875,16 @@ const validHost = h => /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-
 
 async function admin(request, env, path){
   const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+  const ip = request.headers.get('CF-Connecting-IP') || '';
+  // A short Admin Key is only safe with a lock after a few wrong tries
+  const guard = await regJson(env, '/adminguard', { ip });
+  if(guard.locked) return json(429, { error: `Too many wrong Admin Keys. Super Admin is locked for ${guard.minutes} more minutes.` });
   if(!env.ADMIN_KEY || !sameText(request.headers.get('X-Setu-Admin'), env.ADMIN_KEY)){
+    await regCall(env, '/adminguard', { ip, fail: true });
     await new Promise(r => setTimeout(r, 1000));   // slow down guessing
     return json(401, { error: 'admin key' });
   }
-  const ip = request.headers.get('CF-Connecting-IP') || '';
+  if(guard.minutes === 0) await regCall(env, '/adminguard', { ip, ok: true });
   const log = (action, code, detail) => regCall(env, '/audit/add', { actor: 'admin ' + ip, action, code, detail }).catch(() => {});
   const validCode = c => /^[A-Z0-9]{4,12}$/.test(c || '');
   const hotelCall = (code, p, b) => hotelStub(env, code).fetch('https://hotel' + p, { method: 'POST', body: JSON.stringify(b || {}) });
