@@ -331,6 +331,13 @@ body.kitchen-mode .kcard ul{font-size:19px}
 .a4rep table{width:100%;border-collapse:collapse;margin-bottom:6px}
 .a4rep th,.a4rep td{border:1px solid #999;padding:3px 6px;font-size:11px;text-align:left;position:static;background:none}
 .a4rep .n{text-align:right}
+.a4rep .a4h{display:flex;justify-content:space-between;gap:12px;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:8px}
+.a4rep tr.tot td{font-weight:700;border-top:2px solid #000}
+.a4rep .a4f{margin-top:10px;font-size:10px;color:#444;text-align:center}
+.prstat{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100000;display:none;align-items:center;gap:10px;padding:12px 20px;border-radius:12px;background:#111827;color:#fff;font-weight:700;font-size:15px;box-shadow:0 10px 30px rgba(0,0,0,.3);max-width:92vw}
+.prstat.ok{background:#15803d}.prstat.err{background:#b91c1c}
+.prstat .spin{width:18px;height:18px;flex:none;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:prspin .8s linear infinite}
+@keyframes prspin{to{transform:rotate(360deg)}}
 .qrbox{display:inline-block;text-align:center}
 .qrbox svg{display:block;margin:0 auto;width:150px;height:150px}
 .qrsheet{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm;padding:8mm;width:190mm;font:14px Arial,sans-serif;color:#000}
@@ -4085,17 +4092,33 @@ function escKaccha(k){
   return e.cut().bytes();
 }
 
+// Small "Printing…" card so staff can see a print is on its way, and when it fails
+function printStatus(state, msg){
+  let e = $('#prstat');
+  if(!e){ e = document.createElement('div'); e.id = 'prstat'; document.body.appendChild(e); }
+  clearTimeout(printStatus.t);
+  e.className = 'prstat ' + state;
+  e.innerHTML = (state === 'busy' ? '<span class="spin"></span>' : state === 'ok' ? '✔ ' : '✖ ') + esc(msg);
+  e.style.display = 'flex';
+  printStatus.t = setTimeout(() => e.style.display = 'none', state === 'busy' ? 30000 : state === 'ok' ? 2500 : 7000);
+}
+
+let printJobs = 0;
 async function sendToPrinter(printer, bytes){
-  if(!printer){ toast('Please select a printer under Settings (G) → Printer Setup'); return false; }
+  if(!printer){ printStatus('err', 'No printer selected — Settings (G) → Printer Setup'); return false; }
   let bin = '';
   bytes.forEach(x => bin += String.fromCharCode(x));
+  printJobs++;
+  printStatus('busy', `Printing on ${printer}…`);
+  let err = '';
   try{
     const r = await srvFetch('/api/print', {method: 'POST', body: JSON.stringify({printer, data: btoa(bin)})});
-    if(r.ok) return true;
-    const j = await r.json().catch(() => ({}));
-    toast('Print failed: ' + (j.error || r.status));
-  }catch(e){ toast('Print failed: no connection to the Main Counter'); }
-  return false;
+    if(!r.ok){ const j = await r.json().catch(() => ({})); err = 'Print failed: ' + (j.error || r.status); }
+  }catch(e){ err = 'Print failed: no connection to the Main Counter'; }
+  printJobs--;
+  if(err) printStatus('err', err);
+  else if(!printJobs) printStatus('ok', 'Printed');
+  return !err;
 }
 
 // Split KOT items by kitchen section (category → printer); everything else goes to the main KOT printer
@@ -4207,7 +4230,8 @@ function printDoc(parts){
   let pg = $('#pgsz');
   if(!pg){ pg = document.createElement('style'); pg.id = 'pgsz'; document.head.appendChild(pg); }
   pg.textContent = hPx ? `@page thermal{size:${+D.settings.width === 58 ? 58 : 80}mm ${Math.ceil(hPx * 25.4 / 96) + 8}mm;margin:0}` : '';
-  setTimeout(() => window.print(), 60);
+  printStatus('busy', 'Preparing print…');
+  setTimeout(() => { window.print(); printStatus('ok', 'Print sent'); }, 60);
 }
 function printBill(id, what){
   const b = getBill(id);
@@ -6184,10 +6208,17 @@ function rptData(){
   };
   const catOf = id => (D.menu.find(m => m.id === id) || {}).cat || 'Other';
   return {
+    daily: () => periodRows(bs, b => b.date, d => dmy(d), 'Date'),
+    monthly: () => periodRows(bs, b => b.date.slice(0, 7), m => monthLabel(m), 'Month'),
+    bills: () => {
+      const list = bs.slice().sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')) || a.no - b.no);
+      return {head: ['Bill', 'Date', 'Time', 'Table', 'Payment', 'Total'], rows: list.map(b => ['#' + b.no, dmy(b.date), b.time || '', b.table || '', b.mode || '', money(b.total)]),
+        total: ['TOTAL', list.length + ' bills', '', '', '', money(sum(list, 'total'))]};
+    },
     summary: () => {
       const tx = D.txns.filter(t => t.date >= rptFrom && t.date <= rptTo);
       const sales = sum(bs, 'total');
-      return {head: ['Cheez', 'Value'], rows: [
+      return {head: ['Item', 'Value'], rows: [
         ['Bills', bs.length], ['Total Sales', money(sales)], ['Average Bill', money(bs.length ? sales / bs.length : 0)],
         ['Sub Total (items)', money(sum(bs, 'sub'))], ['Discount (incl. loyalty)', money(sum(bs, 'disc'))], ['GST', money(sum(bs, 'tax'))],
         ['Cancelled Bills', rptBills(true).filter(b => b.cancelled).length],
@@ -6228,7 +6259,17 @@ function rptData(){
   };
 }
 
-const RPT_TABS = [['summary','Summary'],['items','Item-wise'],['category','Category-wise'],['hourly','Hourly'],['payment','Payment Mode'],['channel','Channel'],['gst','GST Summary'],['discount','Discounts'],['cancelled','Cancelled'],['expenses','Expenses'],['customers','Top Customers']];
+// Sales grouped by day or month, with a total line
+function periodRows(bs, keyFn, labelFn, label){
+  const m = {};
+  bs.forEach(b => { const k = keyFn(b), x = m[k] || (m[k] = {n: 0, taxable: 0, tax: 0, disc: 0, total: 0}); x.n++; x.taxable += +b.taxable || 0; x.tax += +b.tax || 0; x.disc += +b.disc || 0; x.total += +b.total || 0; });
+  const keys = Object.keys(m).sort(), t = k => keys.reduce((a, d) => a + m[d][k], 0);
+  return {head: [label, 'Bills', 'Discount', 'Taxable', 'GST', 'Total'],
+    rows: keys.map(k => [labelFn(k), m[k].n, money(m[k].disc), money(m[k].taxable), money(m[k].tax), money(m[k].total)]),
+    total: keys.length ? ['TOTAL', t('n'), money(t('disc')), money(t('taxable')), money(t('tax')), money(t('total'))] : null};
+}
+
+const RPT_TABS = [['summary','Summary'],['daily','Day-wise'],['monthly','Month-wise'],['bills','Bill-wise'],['items','Item-wise'],['category','Category-wise'],['hourly','Hourly'],['payment','Payment Mode'],['channel','Channel'],['gst','GST Summary'],['discount','Discounts'],['cancelled','Cancelled'],['expenses','Expenses'],['customers','Top Customers']];
 
 function scrReports(){
   const r = rptData()[rptTab]();
@@ -6245,6 +6286,8 @@ function scrReports(){
     <button class="cat" onclick="rptFrom=rptTo=addDays(today(),-1);scrReports()">Yesterday</button>
     <button class="cat" onclick="rptFrom=addDays(today(),-6);rptTo=today();scrReports()">Last 7 Days</button>
     <button class="cat" onclick="rptFrom=today().slice(0,8)+'01';rptTo=today();scrReports()">This Month</button>
+    <button class="cat" onclick="rptTo=addDays(today().slice(0,8)+'01',-1);rptFrom=rptTo.slice(0,8)+'01';scrReports()">Last Month</button>
+    <button class="cat" onclick="rptFrom=today().slice(0,5)+'01-01';rptTo=today();scrReports()">This Year</button>
   </div>
   <div class="cats" style="margin-bottom:12px">
     ${RPT_TABS.map(([k, l]) => `<button class="cat ${rptTab === k ? 'on' : ''}" onclick="rptTab='${k}';scrReports()">${l}</button>`).join('')}
@@ -6252,19 +6295,40 @@ function scrReports(){
   <div class="card" style="padding:0;overflow:auto">
     <table>
       <thead><tr>${r.head.map((h, i) => `<th class="${i ? 'n' : ''}">${h}</th>`).join('')}</tr></thead>
-      <tbody>${r.rows.map(row => `<tr>${row.map((c, i) => `<td class="${i ? 'n' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${r.head.length}" class="muted" style="text-align:center;padding:18px">No data for this date range</td></tr>`}</tbody>
+      <tbody>${r.rows.map(row => `<tr>${row.map((c, i) => `<td class="${i ? 'n' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${r.head.length}" class="muted" style="text-align:center;padding:18px">No data for this date range</td></tr>`}
+      ${r.total ? `<tr style="font-weight:800;background:#f1f5f9">${r.total.map((c, i) => `<td class="${i ? 'n' : ''}">${esc(c)}</td>`).join('')}</tr>` : ''}</tbody>
     </table>
   </div>
   <div class="btns">
-    <button class="btn g" onclick="rptCSV()">Ye Report Excel (CSV)</button>
+    <button class="btn ok" onclick="printReport()">Print / Save PDF</button>
+    <button class="btn g" onclick="rptCSV()">Export to Excel (CSV)</button>
     <button class="btn" onclick="tallyExport()">Tally XML Export (Sales)</button>
   </div>
   <p class="muted">Tally XML: one sales voucher per day and payment mode. Create these ledgers in Tally first: Sales, CGST, SGST, Round Off, Cash, UPI, Card, Credit Sales, Customer Wallet, Zomato, Swiggy. Import: Gateway of Tally → Import Data → Vouchers.</p>`;
 }
 
+// A4 report for printing or "Save as PDF" in the print window
+function printReport(){
+  const r = rptData()[rptTab](), st = D.settings, label = (RPT_TABS.find(t => t[0] === rptTab) || [0, 'Sales'])[1];
+  const cell = (c, i) => `<td class="${i ? 'n' : ''}">${esc(c)}</td>`;
+  $('#print').style.removeProperty('--pw');
+  $('#print').innerHTML = `<div class="a4rep">
+    <div class="a4h">
+      <div><h2>${esc(st.name || 'Hotel')}</h2>${st.address ? `<div>${esc(st.address)}</div>` : ''}${st.phone ? `<div>Ph: ${esc(st.phone)}</div>` : ''}${st.gstin ? `<div>GSTIN: ${esc(st.gstin)}</div>` : ''}</div>
+      <div style="text-align:right"><h2>${esc(label)} Report</h2><div><b>${dmy(rptFrom)}</b> to <b>${dmy(rptTo)}</b></div><div>Printed: ${dmy(today())} ${nowTime()}</div></div>
+    </div>
+    <table><tr>${r.head.map((h, i) => `<th class="${i ? 'n' : ''}">${esc(h)}</th>`).join('')}</tr>
+      ${r.rows.map(row => `<tr>${row.map(cell).join('')}</tr>`).join('') || `<tr><td colspan="${r.head.length}">No data for this date range</td></tr>`}
+      ${r.total ? `<tr class="tot">${r.total.map(cell).join('')}</tr>` : ''}</table>
+    <div class="a4f">Generated by Setu · Powered by Aghanya Devanya Enterprises</div>
+  </div>`;
+  printStatus('busy', 'Opening print window… to save a PDF choose "Save as PDF" / "Microsoft Print to PDF"');
+  setTimeout(() => { window.print(); printStatus('ok', 'Report sent'); }, 80);
+}
+
 function rptCSV(){
   const r = rptData()[rptTab]();
-  downloadCSV([r.head].concat(r.rows.map(row => row.map(c => String(c).replace(/₹/g, '').replace(/,/g, '')))), `report-${rptTab}-${rptFrom}-to-${rptTo}.csv`);
+  downloadCSV([r.head].concat(r.rows, r.total ? [r.total] : []).map(row => row.map(c => String(c).replace(/₹/g, '').replace(/,/g, ''))), `report-${rptTab}-${rptFrom}-to-${rptTo}.csv`);
 }
 
 const TALLY_LEDGER = {Cash: 'Cash', UPI: 'UPI', Card: 'Card', Credit: 'Credit Sales', Wallet: 'Customer Wallet', 'Zomato Pay': 'Zomato', 'Swiggy Pay': 'Swiggy'};
