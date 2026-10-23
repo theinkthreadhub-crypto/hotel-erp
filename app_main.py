@@ -37,8 +37,9 @@ def get_base_dir():
     # If running as PyInstaller bundled executable
     if getattr(sys, 'frozen', False):
         exe_dir = os.path.dirname(sys.executable)
-        # If user has hotel_erp.html placed right next to .exe, prioritize it
-        if os.path.exists(os.path.join(exe_dir, 'hotel_erp.html')):
+        # The page built into the EXE always wins: an old hotel_erp.html lying next to a new
+        # EXE used to bring the old version back. Testers can opt in with use-local-html.txt.
+        if os.path.exists(os.path.join(exe_dir, 'use-local-html.txt')) and os.path.exists(os.path.join(exe_dir, 'hotel_erp.html')):
             return exe_dir
         if hasattr(sys, '_MEIPASS'):
             return sys._MEIPASS
@@ -797,6 +798,11 @@ def main():
         text_select=True,
         zoomable=True
     )
+
+    # Drop the window's cached pages so an updated EXE never shows the previous version.
+    # Logins and settings (Local Storage) and the database (setu-db.json) are not touched.
+    for sub in ('Service Worker', 'Cache', 'Code Cache'):
+        shutil.rmtree(os.path.join(data_dir, 'EBWebView', 'Default', sub), ignore_errors=True)
 
     webview.start(
         private_mode=False,
