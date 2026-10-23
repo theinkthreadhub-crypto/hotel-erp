@@ -64,7 +64,9 @@
 <div id="login" class="card">
   <h1>Setu Pro Super Admin</h1>
   <p class="muted">Aghanya Devanya Enterprises — vendor access only</p>
-  <form id="lf"><input id="key" type="password" placeholder="Admin Key" autocomplete="off" required><button style="width:100%">Open</button></form>
+  <form id="lf"><input id="key" type="password" placeholder="Admin Key" autocomplete="off" required>
+    <label style="display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:13px"><input id="remember" type="checkbox" style="width:auto;margin:0"> Remember on this device (only your own phone)</label>
+    <button style="width:100%">Open</button></form>
   <p id="lerr" class="err"></p>
 </div>
 
@@ -81,7 +83,8 @@
 
 <script>
 let KEY = '', META = null, HOTELS = [], VIEW = 'dash', CUR = null, TAB = 'overview';
-try{ KEY = sessionStorage.getItem('setu_admin') || ''; }catch(e){}
+// Remembered only on a device the vendor ticked (e.g. the Setu Admin phone app)
+try{ KEY = sessionStorage.getItem('setu_admin') || localStorage.getItem('setu_admin') || ''; }catch(e){}
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const d8 = ms => ms ? new Date(ms).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '-';
@@ -426,11 +429,11 @@ const supportOpen = run(async () => {
 const tabLog = run(async () => { $('#tab').innerHTML = '<div style="overflow-x:auto">' + await drawAudit(CUR.code) + '</div>'; });
 
 // ---------------- start ----------------
-function logout(){ try{ sessionStorage.removeItem('setu_admin'); }catch(e){} location.reload(); }
+function logout(){ try{ sessionStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin'); }catch(e){} location.reload(); }
 async function openPanel(){
   try{
     META = await api('/api/admin/meta');
-    try{ sessionStorage.setItem('setu_admin', KEY); }catch(e){}
+    try{ sessionStorage.setItem('setu_admin', KEY); if($('#remember') && $('#remember').checked) localStorage.setItem('setu_admin', KEY); }catch(e){}
     $('#login').hidden = true;
     $('#app').hidden = false;
     show('dash');
