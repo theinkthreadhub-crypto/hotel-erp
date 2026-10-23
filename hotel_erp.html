@@ -220,6 +220,8 @@ tfoot td{font-weight:700;background:var(--surface);border-top:2px solid var(--bo
 .modes{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
 .modes button{flex:1;min-width:75px;padding:8px;border:1.5px solid var(--border);background:#fff;color:var(--text);border-radius:6px;font-size:12px;font-weight:600}
 .modes button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.modes button.split{border-color:#7c3aed;color:#7c3aed}.modes button.split.on{background:#7c3aed;color:#fff}
+.split-box{border:2px solid #7c3aed;border-radius:10px;padding:10px 12px;margin-top:8px;background:#faf5ff}
 
 /* Online Orders Grid */
 .online-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
@@ -675,6 +677,18 @@ const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const sum = (a,f) => a.reduce((s,x) => s + (+(typeof f === 'function' ? f(x) : x[f]) || 0), 0);
 const $ = s => document.querySelector(s);
 const MODES = ['Cash','UPI','Card','Credit','Wallet','Zomato Pay','Swiggy Pay'];
+// One bill paid in parts (e.g. ₹100 Cash + ₹100 UPI): mode 'Split' + pays [{mode, amt}].
+// Anything that adds money by payment mode must go through payParts() / paidBy().
+const SPLIT_MODES = ['Cash', 'UPI', 'Card', 'Credit'];
+const payParts = b => b.mode === 'Split' && Array.isArray(b.pays) && b.pays.length ? b.pays : [{mode: b.mode || 'Cash', amt: +b.total || 0}];
+const paidBy = (b, m) => payParts(b).reduce((a, p) => a + (p.mode === m ? +p.amt || 0 : 0), 0);
+const modeText = b => b.mode === 'Split' && Array.isArray(b.pays) ? b.pays.map(p => `${p.mode} ${(+p.amt || 0).toFixed(2)}`).join(' + ') : (b.mode || '');
+// Same mode twice is one part; zero rows are dropped
+function cleanPays(list){
+  const by = {};
+  (list || []).forEach(p => { const a = Math.round((+p.amt || 0) * 100) / 100; if(a > 0 && SPLIT_MODES.includes(p.mode)) by[p.mode] = Math.round(((by[p.mode] || 0) + a) * 100) / 100; });
+  return Object.entries(by).map(([mode, amt]) => ({mode, amt}));
+}
 // Money movements that are not income / expense (they only move cash or settle earlier sales/purchases)
 const NON_INCOME_HEADS = ['Customer Wallet Topup','Zomato Settlement','Swiggy Settlement'];
 const NON_EXPENSE_HEADS = ['Supplier Payment'];
@@ -2639,7 +2653,7 @@ function calc(items, disc, rate){
 
 function summary(d){
   const bills = D.bills.filter(b => b.date === d && !b.cancelled), tx = D.txns.filter(t => t.date === d);
-  const by = {}; MODES.forEach(m => by[m] = sum(bills.filter(b => b.mode === m), 'total'));
+  const by = {}; MODES.forEach(m => by[m] = r2(bills.reduce((a, b) => a + paidBy(b, m), 0)));
   const recAll = tx.filter(t => t.type === 'Receipt'), expAll = tx.filter(t => t.type === 'Expense'), pur = tx.filter(t => t.type === 'Purchase');
   const rec = recAll.filter(t => !NON_INCOME_HEADS.includes(t.head)), exp = expAll.filter(t => !NON_EXPENSE_HEADS.includes(t.head));
   const isCash = t => t.mode === 'Cash';
@@ -3490,8 +3504,10 @@ function scrBill(){
 
       <label style="margin-top:10px">Payment Mode</label>
       <div class="modes">
-        ${MODES.map(m => `<button class="${B.mode===m?'on':''}" onclick="B.mode='${m}';scrBillModes()">${m==='Credit'?'Credit (Pay Later)':m}</button>`).join('')}
+        ${MODES.map(m => `<button data-m="${m}" class="${B.mode===m?'on':''}" onclick="setPayMode('${m}')">${m==='Credit'?'Credit (Pay Later)':m}</button>`).join('')}
+        <button data-m="Split" class="split ${B.mode==='Split'?'on':''}" onclick="setPayMode('Split')" title="Ek bill, do ya zyada tarah se payment (jaise Cash + UPI)">Split (2+ modes)</button>
       </div>
+      <div id="split-box"></div>
 
       <!-- Action Buttons: Clean Typography Without Icons -->
       <div class="btns" style="display:flex;flex-direction:column;gap:8px;margin-top:14px">
@@ -3602,7 +3618,57 @@ function setBillingChannel(ch){
 }
 
 function scrBillModes(){
-  document.querySelectorAll('.modes button').forEach((b,i) => b.classList.toggle('on', MODES[i] === B.mode));
+  document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('on', b.dataset.m === B.mode));
+  drawSplit();
+}
+const billTotalNow = () => calc(B.cart, billDisc(), gstRate()).total;
+function setPayMode(m){
+  B.mode = m;
+  if(m === 'Split' && !(B.pays && B.pays.length)) B.pays = [{mode: 'Cash', amt: billTotalNow()}, {mode: 'UPI', amt: 0}];
+  scrBillModes();
+  if(m === 'Split') setTimeout(() => { const f = document.querySelector('#split-box input'); if(f){ f.focus(); f.select(); } }, 0);
+}
+// Split Payment box under the payment modes (billing screen)
+function drawSplit(){
+  const el = $('#split-box');
+  if(!el) return;
+  if(B.mode !== 'Split'){ el.innerHTML = ''; return; }
+  B.pays = B.pays && B.pays.length ? B.pays : [{mode: 'Cash', amt: billTotalNow()}];
+  el.innerHTML = `<div class="split-box">
+    <div style="font-weight:700;margin-bottom:6px">Split Payment — Total <span id="split-tot">${money(billTotalNow())}</span></div>
+    ${B.pays.map((p, i) => `<div style="display:flex;gap:8px;margin-bottom:6px">
+      <select style="flex:1" onchange="setSplit(${i}, 'mode', this.value)">${SPLIT_MODES.map(m => `<option ${m === p.mode ? 'selected' : ''}>${m === 'Credit' ? 'Credit' : m}</option>`).join('')}</select>
+      <input type="number" min="0" step="any" value="${+p.amt || ''}" style="width:110px;text-align:right" oninput="setSplit(${i}, 'amt', this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();splitAdd();}">
+      <button class="btn g sm" style="margin:0" onclick="splitDel(${i})" title="Hatayein">✕</button></div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><button class="btn g sm" style="margin:0" onclick="splitAdd()">+ Mode jodein</button><b id="split-left"></b></div></div>`;
+  drawSplitLeft();
+}
+function drawSplitLeft(){
+  const el = $('#split-left');
+  if(!el || B.mode !== 'Split') return;
+  const tot = billTotalNow(), left = r2(tot - (B.pays || []).reduce((a, p) => a + (+p.amt || 0), 0));
+  if($('#split-tot')) $('#split-tot').textContent = money(tot);
+  el.textContent = left === 0 ? 'Baaki: ₹0.00 ✔' : left > 0 ? `Baaki: ${money(left)}` : `Zyada: ${money(-left)}`;
+  el.style.color = left === 0 ? '#16a34a' : '#dc2626';
+}
+function setSplit(i, k, v){
+  if(!B.pays || !B.pays[i]) return;
+  B.pays[i][k] = k === 'amt' ? Math.max(0, +v || 0) : v;
+  drawSplitLeft();
+}
+function splitAdd(){
+  const left = r2(billTotalNow() - (B.pays || []).reduce((a, p) => a + (+p.amt || 0), 0));
+  const used = (B.pays || []).map(p => p.mode), next = SPLIT_MODES.find(m => !used.includes(m)) || 'Cash';
+  if(left <= 0 && B.pays.length >= 2) return toast('Poora bill ho gaya. Kisi line ki rakam kam karke naya mode jodein.');
+  B.pays.push({mode: next, amt: Math.max(0, left)});
+  drawSplit();
+  const ins = document.querySelectorAll('#split-box input');
+  if(ins.length){ ins[ins.length - 1].focus(); ins[ins.length - 1].select(); }
+}
+function splitDel(i){
+  B.pays.splice(i, 1);
+  if(!B.pays.length){ B.mode = 'Cash'; B.pays = []; return scrBillModes(); }
+  drawSplit();
 }
 
 function filtered(){
@@ -3684,6 +3750,7 @@ function drawCart(){
 
 function drawTotals(){
   syncDisc();
+  setTimeout(drawSplitLeft, 0);
   const t = calc(B.cart, billDisc(), gstRate()), g = gstRate(), lr = Math.min(redeemRs(), t.disc);
   $('#tot').innerHTML = `
     <div><span>Sub Total (${sum(B.cart,'qty')} items)${t.incl ? ' <small class="muted">incl. GST</small>' : ''}</span><b>${money(t.sub)}</b></div>
@@ -3726,6 +3793,7 @@ function kacchaToB(k){
     note: k.note || '',
     disc: k.disc || 0,
     mode: k.mode || 'Cash',
+    pays: Array.isArray(k.pays) ? k.pays.map(p => ({...p})) : [],
     cart: k.cart.map(c => ({...c})),
     redeem: k.redeem || 0,
     sent: {...(k.sent || {})},
@@ -3767,6 +3835,7 @@ function saveKacchaBill(silent = false, noRender = false){
     extra: {...(B.extra || {})},
     disc: B.disc || 0,
     mode: B.mode || 'Cash',
+    ...(B.mode === 'Split' ? {pays: (B.pays || []).map(p => ({...p}))} : {}),
     cart: B.cart.map(c => ({...c})),
     redeem: B.redeem || 0,
     sent: {...B.sent},
@@ -3840,6 +3909,13 @@ function finalizePakkaBill(approvedDisc){
     const wb = walletBal(B.phone);
     if(wb < t.total){ toast(`Insufficient wallet balance (${money(wb)}). Top up under Customers (R).`); return; }
   }
+  let pays = null;
+  if(B.mode === 'Split'){
+    pays = cleanPays(B.pays);
+    const got = r2(pays.reduce((a, p) => a + p.amt, 0));
+    if(pays.length < 2){ toast('Split mein kam se kam 2 mode mein rakam bharein (ya ek hi mode chunein)'); return; }
+    if(got !== r2(t.total)){ toast(`Split ka jod ${money(got)} hai, bill ${money(t.total)} ka hai. Rakam theek karein.`); drawSplitLeft(); return; }
+  }
   // Bill template fields and rules from the Setu Cloud plan
   const extra = {};
   for(const f of billFields()){
@@ -3870,6 +3946,7 @@ function finalizePakkaBill(approvedDisc){
     note: B.note.trim(),
     ...(Object.keys(extra).length ? {extra} : {}),
     mode: B.mode,
+    ...(pays ? {pays} : {}),
     gstRate: gstRate(),
     scheme: D.settings.gstScheme || 'regular',
     items: B.cart.map(c => ({...c})),
@@ -4114,14 +4191,15 @@ function escBill(b){
   else if(g){ e.lr(`CGST @${g / 2}%`, (b.tax / 2).toFixed(2)); e.lr(`SGST @${g / 2}%`, (b.tax / 2).toFixed(2)); }
   if(b.round) e.lr('Round Off', b.round.toFixed(2));
   e.hr().size('tall').bold(true).lr('TOTAL', e.cur + b.total.toFixed(2)).size(false).bold(false);
-  e.line('Paid by: ' + b.mode);
+  if(b.mode === 'Split') payParts(b).forEach(p => e.lr('Paid: ' + p.mode, (+p.amt).toFixed(2)));
+  else e.line('Paid by: ' + b.mode);
   if(b.ptsEarned || b.ptsUsed) e.line(`Points earned: ${b.ptsEarned}${b.ptsUsed ? ' | used: ' + b.ptsUsed : ''} | Balance: ${ptsBalAt(b)}`);
   e.hr();
-  if(D.settings.upi && ['Cash', 'UPI', 'Credit'].includes(b.mode)) e.center('UPI: ' + D.settings.upi);
+  if(D.settings.upi && ['Cash', 'UPI', 'Credit', 'Split'].includes(b.mode)) e.center('UPI: ' + D.settings.upi);
   if(D.settings.review) e.center('Please rate us on Google - thank you!');
   e.wrap(D.settings.footer || '', e.cols).forEach(l => e.center(l));
   e.center('Powered by Aghanya Devanya Enterprises');
-  if(D.settings.drawerKick && b.mode === 'Cash' && (b.prints || 0) <= 1) e.drawer();
+  if(D.settings.drawerKick && paidBy(b, 'Cash') > 0 && (b.prints || 0) <= 1) e.drawer();
   return e.cut().bytes();
 }
 
@@ -4227,7 +4305,7 @@ function billHTML(b){
   ${g && !b.incl ? `<tr><td>CGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr><tr><td>SGST @${g/2}%</td><td class="r">${(b.tax/2).toFixed(2)}</td></tr>` : ''}
   ${b.round ? `<tr><td>Round Off</td><td class="r">${b.round.toFixed(2)}</td></tr>` : ''}</table><hr>
   <table><tr class="big"><td>TOTAL</td><td class="r">₹${b.total.toFixed(2)}</td></tr></table>
-  <div>Paid by: ${b.mode}</div>${ptsLine(b)}<hr>${billQR(b)}<div class="c">${esc(D.settings.footer)}</div>
+  ${b.mode === 'Split' ? `<table>${payParts(b).map(p => `<tr><td>Paid: ${esc(p.mode)}</td><td class="r">${(+p.amt).toFixed(2)}</td></tr>`).join('')}</table>` : `<div>Paid by: ${b.mode}</div>`}${ptsLine(b)}<hr>${billQR(b)}<div class="c">${esc(D.settings.footer)}</div>
   <div class="c" style="font-size:10px;margin-top:4px;color:#555">Powered by Aghanya Devanya Enterprises</div></div>`;
 }
 
@@ -4238,7 +4316,9 @@ function ptsLine(b){
 
 function billQR(b){
   const s = D.settings, q = [];
-  if(s.upi && !b.cancelled && ['Cash','UPI','Credit'].includes(b.mode)) q.push(`<div>${qrSvg(upiLink(b.total))}Scan & Pay ₹${b.total}</div>`);
+  // Split: the QR asks only for the UPI / pay-later part
+  const qa = b.mode === 'Split' ? r2(paidBy(b, 'UPI') + paidBy(b, 'Credit')) : b.total;
+  if(s.upi && !b.cancelled && qa > 0 && ['Cash','UPI','Credit','Split'].includes(b.mode)) q.push(`<div>${qrSvg(upiLink(qa))}Scan & Pay ₹${qa}</div>`);
   if(s.review) q.push(`<div>${qrSvg(s.review)}Rate us on Google</div>`);
   return q.length ? `<div class="qr">${q.join('')}</div><hr>` : '';
 }
@@ -4333,7 +4413,7 @@ function billText(b){
   const s = D.settings;
   return `*${s.name}*\nBill No: #${b.no} (${b.channel || 'Dine-In'}) | ${dmy(b.date)} ${b.time}${b.table ? `\nTable/Ref: ${b.table}` : ''}${b.cust ? `\nCustomer: ${b.cust}` : ''}\n--------------------\n` +
   b.items.map(i => `${i.name} × ${i.qty} = ₹${r2(i.price*i.qty)}`).join('\n') +
-  `\n--------------------\nSub Total: ₹${b.sub}${b.disc - (b.loyaltyDisc || 0) > 0 ? `\nDiscount: -₹${r2(b.disc - (b.loyaltyDisc || 0))}` : ''}${b.loyaltyDisc ? `\nLoyalty (${b.ptsUsed} pts): -₹${b.loyaltyDisc}` : ''}${b.tax ? (b.incl ? `\n(Includes GST ${b.gstRate}%: Taxable ₹${b.taxable} + GST ₹${b.tax})` : `\nGST (${b.gstRate}%): ₹${b.tax}`) : ''}\n*TOTAL: ₹${b.total}*\nPaid by: ${b.mode}` +
+  `\n--------------------\nSub Total: ₹${b.sub}${b.disc - (b.loyaltyDisc || 0) > 0 ? `\nDiscount: -₹${r2(b.disc - (b.loyaltyDisc || 0))}` : ''}${b.loyaltyDisc ? `\nLoyalty (${b.ptsUsed} pts): -₹${b.loyaltyDisc}` : ''}${b.tax ? (b.incl ? `\n(Includes GST ${b.gstRate}%: Taxable ₹${b.taxable} + GST ₹${b.tax})` : `\nGST (${b.gstRate}%): ₹${b.tax}`) : ''}\n*TOTAL: ₹${b.total}*\nPaid by: ${modeText(b)}` +
   (b.ptsEarned || b.ptsUsed ? `\n\nLoyalty points earned: ${b.ptsEarned}${b.ptsUsed ? ` | used: ${b.ptsUsed}` : ''}\nTotal points: *${ptsBalAt(b)}* (= ₹${r2(ptsBalAt(b) * (+s.ptValue || 0))})` : '') +
   (s.upi && b.mode === 'Credit' ? `\n\nPay by UPI: ${s.upi}` : '') +
   (s.review ? `\n\nEnjoyed your meal? Please rate us on Google:\n${s.review}` : '') +
@@ -4383,7 +4463,7 @@ function scrBills(){
             <td>${esc(b.table)}</td>
             <td>${esc(b.cust)} ${b.phone ? `<span class="muted">(${esc(b.phone)})</span>` : ''}</td>
             <td>${b.items.map(i => esc(i.name) + ' × ' + i.qty).join(', ')}</td>
-            <td><span class="status-pill" style="display:inline-block;padding:2px 8px;font-size:11px">${b.mode}</span></td>
+            <td><span class="status-pill" style="display:inline-block;padding:2px 8px;font-size:11px">${esc(modeText(b))}</span></td>
             <td class="n font-bold">${money(b.total)}</td>
             <td style="white-space:nowrap">
               <button class="btn sm g" onclick="printBill('${b.id}','bill')">Bill</button>
@@ -4409,12 +4489,15 @@ function scrBills(){
 function editBill(id){
   const b = getBill(id);
   if(!b || b.cancelled) return;
+  EBP = [];
+  setTimeout(() => ebSplitDraw(id), 0);
   modal(`Edit Bill #${b.no} — ${money(b.total)}`, `
     <div class="grid">
-      <div><label>Payment Mode</label><select id="eb_mode">${MODES.map(m => `<option ${m === b.mode ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+      <div><label>Payment Mode</label><select id="eb_mode" onchange="ebSplitDraw('${b.id}')">${[...MODES, 'Split'].map(m => `<option ${m === b.mode ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
       <div><label>Customer Name</label><input id="eb_cust" value="${esc(b.cust || '')}"></div>
       <div><label>Mobile</label><input id="eb_phone" value="${esc(b.phone || '')}" inputmode="tel"></div>
     </div>
+    <div id="eb_split"></div>
     <p class="muted" style="font-size:12px;margin:8px 0 0">Wrong items or amount? Use <b>Cancel &amp; Re-make</b>: this bill is cancelled and its items open in the Billing Desk to correct and finalize again.</p>
     <div class="btns">
       <button class="btn ok" onclick="saveBillEdit('${b.id}')">Save Changes</button>
@@ -4422,15 +4505,40 @@ function editBill(id){
       <button class="btn g" onclick="closeModal()">Close</button>
     </div>`);
 }
+// Split rows inside Edit Bill (same rules as at billing time)
+let EBP = [];
+function ebSplitDraw(id){
+  const b = getBill(id), el = $('#eb_split');
+  if(!b || !el) return;
+  if($('#eb_mode').value !== 'Split'){ el.innerHTML = ''; return; }
+  if(!EBP.length) EBP = b.mode === 'Split' && b.pays ? b.pays.map(p => ({...p})) : [{mode: SPLIT_MODES.includes(b.mode) ? b.mode : 'Cash', amt: b.total}, {mode: b.mode === 'UPI' ? 'Cash' : 'UPI', amt: 0}];
+  const left = r2(b.total - EBP.reduce((a, p) => a + (+p.amt || 0), 0));
+  el.innerHTML = `<div class="split-box"><div style="font-weight:700;margin-bottom:6px">Split Payment — Total ${money(b.total)}</div>
+    ${EBP.map((p, i) => `<div style="display:flex;gap:8px;margin-bottom:6px"><select style="flex:1" onchange="EBP[${i}].mode=this.value">${SPLIT_MODES.map(m => `<option ${m === p.mode ? 'selected' : ''}>${m}</option>`).join('')}</select>
+      <input type="number" min="0" step="any" value="${+p.amt || ''}" style="width:110px;text-align:right" onchange="EBP[${i}].amt=Math.max(0,+this.value||0);ebSplitDraw('${b.id}')">
+      <button class="btn g sm" style="margin:0" onclick="EBP.splice(${i},1);ebSplitDraw('${b.id}')">✕</button></div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center"><button class="btn g sm" style="margin:0" onclick="EBP.push({mode:'Card',amt:Math.max(0,${left})});ebSplitDraw('${b.id}')">+ Mode jodein</button>
+      <b style="color:${left === 0 ? '#16a34a' : '#dc2626'}">${left === 0 ? 'Baaki: ₹0.00 ✔' : left > 0 ? 'Baaki: ' + money(left) : 'Zyada: ' + money(-left)}</b></div></div>`;
+}
 function saveBillEdit(id){
   const b = getBill(id);
   if(!b || b.cancelled) return;
   const mode = $('#eb_mode').value, cust = $('#eb_cust').value.trim(), phone = $('#eb_phone').value.trim();
   if(mode === 'Wallet' && b.mode !== 'Wallet'){ toast('Wallet payments must be taken at billing time'); return; }
-  const changes = [mode !== b.mode && `mode ${b.mode} → ${mode}`, cust !== (b.cust || '') && `customer → ${cust || '—'}`, phone !== (b.phone || '') && `mobile → ${phone || '—'}`].filter(Boolean);
+  if(b.mode === 'Wallet' && mode !== 'Wallet'){ toast('Wallet se kata bill baad mein badal nahi sakte'); return; }
+  let pays = null;
+  if(mode === 'Split'){
+    pays = cleanPays(EBP);
+    const got = r2(pays.reduce((a, p) => a + p.amt, 0));
+    if(pays.length < 2){ toast('Split mein kam se kam 2 mode mein rakam bharein'); return; }
+    if(got !== r2(b.total)){ toast(`Split ka jod ${money(got)} hai, bill ${money(b.total)} ka hai`); return; }
+  }
+  const was = modeText(b), now = pays ? modeText({mode, pays}) : mode;
+  const changes = [now !== was && `mode ${was} → ${now}`, cust !== (b.cust || '') && `customer → ${cust || '—'}`, phone !== (b.phone || '') && `mobile → ${phone || '—'}`].filter(Boolean);
   if(!changes.length){ closeModal(); return; }
   withManager(`Edit bill #${b.no}`, by => {
     Object.assign(b, {mode, cust, phone, editedBy: by, editedAt: Date.now()});
+    if(pays) b.pays = pays; else delete b.pays;
     audit('Bill Edit', `Bill #${b.no} · ${changes.join(' · ')}`, b.total, b.id, by);
     save();
     closeModal();
@@ -4450,7 +4558,7 @@ function remakeBill(id){
     save();
     closeModal();
     B = newB(b.table || '', b.channel || 'Dine-In');
-    Object.assign(B, {cart: b.items.map(i => ({...i})), cust: b.cust || '', phone: b.phone || '', disc: +b.disc || 0, mode: b.mode || 'Cash'});
+    Object.assign(B, {cart: b.items.map(i => ({...i})), cust: b.cust || '', phone: b.phone || '', disc: +b.disc || 0, mode: b.mode || 'Cash', pays: (b.pays || []).map(p => ({...p}))});
     go('bill');
     toast(`Bill #${b.no} cancelled — correct the items and press Final Bill`);
   });
@@ -4595,7 +4703,7 @@ function daybookData(from, to){
   D.bills.filter(b => inRange(b.date)).forEach(b => e.push({
     date: b.date, time: b.time || '', type: 'Sales (' + (b.channel || 'Dine-In') + ')',
     part: `Bill #${b.no}${b.table ? ' · ' + b.table : ''}${b.cust ? ' · ' + b.cust : ''}${b.cancelled ? ' (CANCELLED)' : ''}`,
-    mode: b.mode || '', in: b.cancelled ? 0 : b.total, out: 0, x: b.cancelled
+    mode: modeText(b), in: b.cancelled ? 0 : b.total, out: 0, x: b.cancelled
   }));
   D.txns.filter(t => inRange(t.date)).forEach(t => e.push({
     date: t.date, time: t.time || '', type: t.type === 'Receipt' ? 'Receipt' : t.type === 'Expense' ? 'Payment' : 'Purchase',
@@ -6400,7 +6508,7 @@ function rptData(){
     monthly: () => periodRows(bs, b => b.date.slice(0, 7), m => monthLabel(m), 'Month'),
     bills: () => {
       const list = bs.slice().sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')) || a.no - b.no);
-      return {head: ['Bill', 'Date', 'Time', 'Table', 'Payment', 'Total'], rows: list.map(b => ['#' + b.no, dmy(b.date), b.time || '', b.table || '', b.mode || '', money(b.total)]),
+      return {head: ['Bill', 'Date', 'Time', 'Table', 'Payment', 'Total'], rows: list.map(b => ['#' + b.no, dmy(b.date), b.time || '', b.table || '', modeText(b), money(b.total)]),
         total: ['TOTAL', list.length + ' bills', '', '', '', money(sum(list, 'total'))]};
     },
     summary: () => {
@@ -6422,7 +6530,7 @@ function rptData(){
       bs.forEach(b => { const h = (b.time || '00').slice(0, 2); const x = m[h] || (m[h] = {n: 0, a: 0}); x.n++; x.a += b.total; });
       return {head: ['Hour', 'Bills', 'Sales'], rows: Object.keys(m).sort().map(h => [`${h}:00 – ${h}:59`, m[h].n, money(m[h].a)])};
     },
-    payment: () => ({head: ['Payment Mode', 'Bills', 'Amount'], rows: group(b => [[b.mode, 1, b.total]]).map(x => [x.k, x.n, money(x.a)])}),
+    payment: () => ({head: ['Payment Mode', 'Bills', 'Amount'], rows: group(b => payParts(b).map(p => [p.mode, 1, +p.amt || 0])).map(x => [x.k, x.n, money(x.a)])}),
     channel: () => ({head: ['Channel', 'Bills', 'Amount'], rows: group(b => [[b.channel || 'Dine-In', 1, b.total]]).map(x => [x.k, x.n, money(x.a)])}),
     gst: () => {
       const m = {};
@@ -6527,11 +6635,12 @@ function tallyExport(){
   const x = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const amt = n => r2(n).toFixed(2);
   const groups = {};
-  bs.forEach(b => {
-    const k = b.date + '|' + b.mode;
-    const g = groups[k] || (groups[k] = {date: b.date, mode: b.mode, n: 0, taxable: 0, tax: 0, round: 0, total: 0});
-    g.n++; g.taxable += b.taxable; g.tax += b.tax; g.round += b.round; g.total += b.total;
-  });
+  bs.forEach(b => payParts(b).forEach(p => {
+    // A split bill goes into each mode's voucher in proportion to what was paid that way
+    const f = b.total ? (+p.amt || 0) / b.total : 1, k = b.date + '|' + p.mode;
+    const g = groups[k] || (groups[k] = {date: b.date, mode: p.mode, n: 0, taxable: 0, tax: 0, round: 0, total: 0});
+    g.n++; g.taxable += b.taxable * f; g.tax += b.tax * f; g.round += b.round * f; g.total += +p.amt || 0;
+  }));
   const entry = (ledger, amount, debit) => `
         <ALLLEDGERENTRIES.LIST>
           <LEDGERNAME>${x(ledger)}</LEDGERNAME>
@@ -6593,7 +6702,7 @@ function monthData(m){
     m, all, bs, canc, gst, days,
     sales, bills: bs.length, sub: sum(bs, 'sub'), disc: sum(bs, 'disc'), taxable: sum(bs, 'taxable'), tax: sum(bs, 'tax'), round: sum(bs, 'round'),
     avg: bs.length ? sales / bs.length : 0,
-    modes: group(bs, b => b.mode, b => b.total),
+    modes: bs.reduce((o, b) => { payParts(b).forEach(p => o[p.mode] = (o[p.mode] || 0) + (+p.amt || 0)); return o; }, {}),
     channels: group(bs, b => b.channel || 'Dine-In', b => b.total),
     zom, swg, zomComm: zom * (+st.zomatoComm || 0) / 100, swgComm: swg * (+st.swiggyComm || 0) / 100,
     expBy: group(exp, t => t.head || 'Other', t => +t.amount || 0), expT: sum(exp, 'amount'),
@@ -6699,7 +6808,7 @@ function monthlyRegisterCSV(){
   const rows = D.bills.filter(b => b.date.startsWith(mrMonth)).sort((a, b) => a.no - b.no);
   if(!rows.length){ toast('No bills this month'); return; }
   downloadCSV([['Date', 'Bill No', 'Type', 'Customer', 'Mobile', 'Channel', 'Payment Mode', 'Gross', 'Discount', 'Taxable', 'GST %', 'CGST', 'SGST', 'Round Off', 'Total', 'Status']]
-    .concat(rows.map(b => [dmy(b.date), b.no, billTitle(b), b.cust || '', b.phone || '', b.channel || 'Dine-In', b.mode, r2(b.sub), r2(b.disc), r2(b.taxable), +b.gstRate || 0, r2(b.tax / 2), r2(b.tax - r2(b.tax / 2)), r2(b.round), r2(b.total), b.cancelled ? 'CANCELLED' : 'OK'])),
+    .concat(rows.map(b => [dmy(b.date), b.no, billTitle(b), b.cust || '', b.phone || '', b.channel || 'Dine-In', modeText(b), r2(b.sub), r2(b.disc), r2(b.taxable), +b.gstRate || 0, r2(b.tax / 2), r2(b.tax - r2(b.tax / 2)), r2(b.round), r2(b.total), b.cancelled ? 'CANCELLED' : 'OK'])),
     `${(D.settings.name || 'setu').replace(/[^\w]+/g, '-')}-GST-register-${mrMonth}.csv`);
 }
 

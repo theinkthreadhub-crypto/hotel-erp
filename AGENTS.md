@@ -95,6 +95,8 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Stock:** each menu item `recipe` holds `[{sid, qty}]`. `applyStock(bill.used, ±1)` runs on bill save and on bill cancel.
 - **Money that is not income/expense:** `NON_INCOME_HEADS` (wallet top-ups, Zomato/Swiggy settlements) and
   `NON_EXPENSE_HEADS` (supplier payments) move cash but are excluded from margin in `summary()`, so sales/purchases are not counted twice.
+- **Split payment:** `bill.mode = 'Split'` + `bill.pays = [{mode, amt}]` (Cash / UPI / Card / Credit, sum = total). Anything that adds
+  money by mode must use `payParts(b)` / `paidBy(b, mode)` (summary, reports, Tally) and `modeText(b)` for display; Wallet is never split.
 - **Wallet:** balance = top-up receipts (`txn.phone`) − bills with `mode: 'Wallet'` (`walletBal()`).
 - **Tokens:** `nextToken()` restarts daily (`seq.tokenDate`); only Takeaway bills / parcel QR orders get one when `settings.tokenOn`.
 - **Captain app:** `captainSend()` merges the waiter's items into the table's kaccha bill via `kacchaToB()` + `saveKacchaBill(true, true)`.
