@@ -110,7 +110,7 @@ const str = (v, n) => String(v ?? '').trim().slice(0, n);
 
 function cleanBilling(b = {}){
   const out = {
-    paper: ['58', '80', 'A6'].includes(String(b.paper)) ? String(b.paper) : '80',
+    paper: ['58', '80', 'A6'].includes(String(b.paper)) ? String(b.paper) : '58',
     showLogo: !!b.showLogo,
     logoUrl: /^https:\/\/[^\s"'<>]{4,300}$/.test(b.logoUrl || '') ? b.logoUrl : '',
     showTable: b.showTable !== false,
@@ -378,7 +378,8 @@ export class SetuHotel extends DurableObject {
     const addKey = k => { d.subscription.cloudKeys = [...new Set([...(d.subscription.cloudKeys || []), k])]; changed = true; };
     // Keys bought before the first upload, and the first license of a hotel the Super Admin created
     (a.pendingKeys || []).forEach(k => { if(!keys.includes(k)) addKey(k); });
-    if(a.initialDays && !a.initialIssued && d.settings && d.settings.installId){
+    // Without the signing key (vendor issues keys by hand) the counter PC keeps its own licence
+    if(this.env.LICENSE_PRIVATE_KEY && a.initialDays && !a.initialIssued && d.settings && d.settings.installId){
       const k = await makeLicenseKey(this.env, d.settings.installId, a.initialDays);
       a.initialKey = k;
       addKey(k);
@@ -462,7 +463,7 @@ export class SetuHotel extends DurableObject {
     const a = this.account;
     let installId = '';
     try{ installId = ((JSON.parse(this.data()) || {}).settings || {}).installId || ''; }catch(e){}
-    const key = installId ? await makeLicenseKey(this.env, installId, days) : '';
+    const key = installId && this.env.LICENSE_PRIVATE_KEY ? await makeLicenseKey(this.env, installId, days) : '';
     if(counted()) return false;   // the webhook and the checkout can race
     a.paidUntil = Math.max(Date.now(), a.paidUntil || 0) + days * DAY;
     a.plan = planId;
