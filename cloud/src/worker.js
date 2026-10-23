@@ -421,7 +421,10 @@ export class SetuHotel extends DurableObject {
         this.kvSet('account', a);
       }
     });
-    if(this.meta.day !== day) this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now }).catch(() => {}));
+    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000){
+      this.seenPushed = now;
+      this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now }).catch(() => {}));
+    }
     this.meta = meta;
     this.raw = raw;
   }
@@ -452,8 +455,21 @@ export class SetuHotel extends DurableObject {
       plans: Object.entries(p).map(([id, x]) => ({ id, tier: x.tier || '', tierLabel: (TIERS[x.tier] || {}).label || '', label: x.label || id, price: x.price || 0, days: x.days || 30 })),
       payments: this.sql.exec('SELECT id, plan, days, amount, at FROM payment ORDER BY at DESC LIMIT 24').toArray(),
       features: view.features, version: this.meta.version, savedAt: this.meta.savedAt,
-      supportLog: (a.supportLog || []).slice(0, 10)
+      supportLog: (a.supportLog || []).slice(0, 10), gstin: a.gstin || '',
+      counter: this.counterInfo(),
+      backups: this.sql.exec(`SELECT DISTINCT slot FROM chunk WHERE slot LIKE 'bk:%' ORDER BY slot DESC`).toArray().map(r => r.slot.slice(3)).slice(0, 7)
     };
+  }
+
+  // Read-only summary of the hotel's own data for the Super Admin
+  counterInfo(){
+    let d;
+    try{ d = JSON.parse(this.data()) || {}; }catch(e){ d = {}; }
+    const st = d.settings || {}, sub = d.subscription || {}, bills = Array.isArray(d.bills) ? d.bills : [];
+    const last = bills.reduce((m, b) => (b && b.date && b.date > m ? b.date : m), '');
+    return { installId: st.installId || '', licenceUntil: sub.validUntil || '', lifetime: !!sub.isLifetime, plan: sub.planName || '',
+      hotelGstin: st.gstin || '', bills: bills.length, menu: Array.isArray(d.menu) ? d.menu.length : 0, lastBill: last,
+      keysWaiting: (sub.cloudKeys || []).filter(k => !(sub.usedKeys || []).includes(String(k).toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 128))).length };
   }
 
   // One paid cycle: extend the cloud and put a signed license key into the hotel's data
@@ -570,7 +586,27 @@ export class SetuHotel extends DurableObject {
     if(b.rules){ cfg.rules = cleanRules(b.rules); notes.push('rules'); }
     if(b.profile){
       ['name', 'owner', 'phone', 'email'].forEach(k => { if(b.profile[k] !== undefined) a[k] = str(b.profile[k], 100); });
+      if(b.profile.gstin !== undefined){
+        const g = String(b.profile.gstin || '').toUpperCase().replace(/\s/g, '');
+        if(g && !/^[0-9]{2}[A-Z0-9]{13}$/.test(g)) throw new Error('GSTIN must be 15 characters (e.g. 09ABCDE1234F1Z5)');
+        a.gstin = g;
+      }
       notes.push('profile');
+    }
+    // Activation key made with Keygen: the counter PC picks it up on its next sync and activates itself
+    if(b.pushKey){
+      const k = String(b.pushKey).toUpperCase().replace(/\s/g, '');
+      if(!/^SETU-[A-Z2-7]{8}(-[A-Z2-7]{1,8}){14,}$/.test(k)) throw new Error('This is not a Setu activation key');
+      if(this.meta.version){
+        const d = JSON.parse(this.data());
+        d.subscription = d.subscription && typeof d.subscription === 'object' ? d.subscription : {};
+        d.subscription.cloudKeys = [...new Set([...(d.subscription.cloudKeys || []), k])];
+        await this.prepare(d);
+        this.commit(d);
+      } else {
+        a.pendingKeys = [...new Set([...(a.pendingKeys || []), k])];
+      }
+      notes.push('activation key sent');
     }
     if(b.overrides || b.billing || b.rules || b.tier || b.applyTemplate || b.businessType) cfg.ver = (cfg.ver || 1) + 1;
     // Lost keys: a new Counter PC Sync Key (shown once) and / or a new owner first-login password

@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Setu Pro Super Admin</title>
+<link rel="manifest" href="admin.webmanifest">
+<meta name="theme-color" content="#0ea5e9">
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icon-192.png">
 <style>
   :root{ --bg:#f1f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --pri:#0ea5e9; --pri-ink:#fff; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; --soft:#f8fafc; }
   @media (prefers-color-scheme: dark){ :root{ --bg:#0b1220; --card:#111a2e; --ink:#e2e8f0; --muted:#94a3b8; --line:#1e293b; --soft:#0f172a; } }
@@ -37,6 +41,7 @@
   .pill{ padding:2px 8px; border-radius:99px; font-size:12px; font-weight:700; white-space:nowrap }
   .p-active{ background:#dcfce7; color:#166534 } .p-trial{ background:#e0f2fe; color:#075985 }
   .p-expired{ background:#fee2e2; color:#991b1b } .p-suspended{ background:#e2e8f0; color:#334155 } .p-pending{ background:#fef3c7; color:#92400e }
+  .h-ok{ background:#dcfce7; color:#166534 } .h-warn{ background:#fef3c7; color:#92400e } .h-bad{ background:#fee2e2; color:#991b1b }
   .muted{ color:var(--muted) } .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
   .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin:12px 0; overflow-x:auto }
   .tabs button{ background:transparent; color:var(--muted); border-radius:8px 8px 0 0; white-space:nowrap }
@@ -59,7 +64,7 @@
 <div id="login" class="card">
   <h1>Setu Pro Super Admin</h1>
   <p class="muted">Aghanya Devanya Enterprises — vendor access only</p>
-  <form id="lf"><input id="key" type="password" placeholder="Admin Key" autocomplete="off" required><button style="width:100%">Kholein</button></form>
+  <form id="lf"><input id="key" type="password" placeholder="Admin Key" autocomplete="off" required><button style="width:100%">Open</button></form>
   <p id="lerr" class="err"></p>
 </div>
 
@@ -84,6 +89,13 @@ const dt = ms => ms ? new Date(ms).toLocaleString('en-IN', {day:'2-digit', month
 const rs = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
 const state = h => h.status === 'suspended' ? 'suspended' : ((h.paid_until ?? h.paidUntil) < Date.now() && !h.lifetime ? 'expired' : h.status);
 const pill = s => `<span class="pill p-${esc(s)}">${esc(s)}</span>`;
+const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+// Backup health = when the hotel's data last reached the cloud
+const health = ms => !ms ? '<span class="pill h-bad">No backup yet</span>'
+  : Date.now() - ms < 26 * 36e5 ? `<span class="pill h-ok">OK · ${ago(ms)}</span>`
+  : Date.now() - ms < 72 * 36e5 ? `<span class="pill h-warn">${ago(ms)}</span>`
+  : `<span class="pill h-bad">${ago(ms)}</span>`;
+const backupIssue = h => state(h) !== 'suspended' && (!h.seen || Date.now() - h.seen > 48 * 36e5);
 function toast(t){ const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2600); }
 
 async function api(path, body){
@@ -123,6 +135,9 @@ async function drawDash(){
         <table><tr><th>Hotel</th><th>Status</th><th>Valid until</th><th>Mobile</th></tr>
         ${soon.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')"><td><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td><td>${esc(h.phone)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">None</td></tr>'}</table>
       </div>
+      <div class="card"><h2>Backup issues</h2><p class="muted" style="margin-top:-6px">No data from the counter PC for 2+ days</p>
+        <table>${HOTELS.filter(backupIssue).map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')"><td><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></td><td>${health(h.seen)}</td><td>${esc(h.phone)}</td></tr>`).join('') || '<tr><td class="ok">All hotels are backing up</td></tr>'}</table>
+      </div>
       <div class="card"><h2>Recent payments</h2>
         <table>${st.recent.map(p => `<tr><td>${esc(p.name || p.code)}<div class="muted">${esc(p.plan)} · ${dt(p.at)}</div></td><td class="r">${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</td></tr>`).join('') || '<tr><td class="muted">None yet</td></tr>'}</table>
       </div>
@@ -133,9 +148,9 @@ async function drawDash(){
 async function drawHotels(){
   await loadHotels();
   $('#main').innerHTML = `
-    <div class="row" style="margin-bottom:10px"><input id="q" placeholder="Search naam / code / mobile / domain" style="flex:1;min-width:220px">
-      <select id="fs"><option value="">Sab status</option><option>active</option><option>trial</option><option>expired</option><option>suspended</option></select></div>
-    <div class="wrap"><table><thead><tr><th>Hotel</th><th>Code</th><th>Type / Plan</th><th>Owner</th><th>Status</th><th>Paid Till</th><th>Domain</th><th>Joined</th></tr></thead><tbody id="rows"></tbody></table></div>`;
+    <div class="row" style="margin-bottom:10px"><input id="q" placeholder="Search name / code / mobile / domain" style="flex:1;min-width:220px">
+      <select id="fs"><option value="">All statuses</option><option>active</option><option>trial</option><option>expired</option><option>suspended</option></select></div>
+    <div class="wrap"><table><thead><tr><th>Hotel</th><th>Code</th><th>Type / Plan</th><th>Owner</th><th>Status</th><th>Backup</th><th>Paid Till</th><th>Domain</th><th>Joined</th></tr></thead><tbody id="rows"></tbody></table></div>`;
   $('#q').oninput = $('#fs').onchange = rows;
   rows();
 }
@@ -145,9 +160,9 @@ function rows(){
   $('#rows').innerHTML = list.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')">
     <td><b>${esc(h.name)}</b><div class="muted">${esc(h.email || '')}</div></td><td><code>${esc(h.code)}</code></td>
     <td>${esc((META.templates[h.btype] || {}).label || h.btype || '-')}<div class="muted">${esc((META.tiers[h.tier] || {}).label || '-')}</div></td>
-    <td>${esc(h.owner)}<div class="muted">${esc(h.phone)}</div></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td>
+    <td>${esc(h.owner)}<div class="muted">${esc(h.phone)}</div></td><td>${pill(state(h))}</td><td>${health(h.seen)}</td><td>${d8(h.paid_until)}</td>
     <td>${(h.domains || []).map(d => `<div>${esc(d.host)} ${d.status !== 'active' ? pill('pending') : ''}</div>`).join('') || '<span class="muted">-</span>'}</td><td>${d8(h.created)}</td></tr>`).join('')
-    || '<tr><td colspan="8" class="muted">No hotels</td></tr>';
+    || '<tr><td colspan="9" class="muted">No hotels</td></tr>';
 }
 
 // ---------------- add hotel (onboarding) ----------------
@@ -157,10 +172,11 @@ function drawAdd(){
   $('#main').innerHTML = `<div class="card"><h2>Create New Hotel</h2>
     <p class="muted">Customer → Business Type → Plan → Features → Login. The hotel signs in the first time with the Hotel Code and this password, then builds its own data.</p>
     <form id="af"><div class="grid">
-      <div><label>Hotel / Restaurant naam *</label><input name="name" required></div>
-      <div><label>Owner naam *</label><input name="owner" required></div>
+      <div><label>Hotel / Restaurant name *</label><input name="name" required></div>
+      <div><label>Owner name *</label><input name="owner" required></div>
       <div><label>Mobile (10 digit) *</label><input name="phone" required pattern="[0-9]{10}" inputmode="numeric"></div>
       <div><label>Email</label><input name="email" type="email"></div>
+      <div><label>GSTIN (optional)</label><input name="gstin" maxlength="15" style="text-transform:uppercase"></div>
       <div><label>Business Type (Template)</label><select name="businessType" id="a_type">${tpl}</select></div>
       <div><label>Plan</label><select name="tier" id="a_tier">${tiers}</select></div>
       <div><label>Days</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
@@ -173,10 +189,12 @@ function drawAdd(){
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
     f.paid = !!f.paid;
+    const gstin = (f.gstin || '').trim(); delete f.gstin;
     const j = await api('/api/admin/create', f);
+    if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
     $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
       <p>Send this to the owner (WhatsApp):</p>
-      <div class="card" style="background:var(--soft)">Link: <code>${esc(location.origin)}/hotel_erp.html</code><br>Hotel Code: <b>${esc(j.code)}</b><br>Password: jo aapne set kiya<br>
+      <div class="card" style="background:var(--soft)">Link: <code>${esc(location.origin)}/hotel_erp.html</code><br>Hotel Code: <b>${esc(j.code)}</b><br>Password: the one you set<br>
         Counter PC Sync Key: <code>${esc(j.syncKey)}</code> <span class="muted">(will not be shown again)</span></div>
       <div class="row"><button onclick="openHotel('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Add Another</button></div></div>`;
   });
@@ -217,23 +235,37 @@ function drawHotel(){
 }
 
 function tabOverview(){
-  const h = CUR;
+  const h = CUR, c = h.counter || {};
   $('#tab').innerHTML = `
     <div class="grid">
-      <div><label>Hotel naam</label><input id="p_name" value="${esc(h.name)}"></div>
+      <div><label>Hotel name</label><input id="p_name" value="${esc(h.name)}"></div>
       <div><label>Owner</label><input id="p_owner" value="${esc(h.owner)}"></div>
       <div><label>Mobile</label><input id="p_phone" value="${esc(h.phone)}"></div>
       <div><label>Email</label><input id="p_email" value="${esc(h.email)}"></div>
+      <div><label>GSTIN (optional)</label><input id="p_gst" maxlength="15" style="text-transform:uppercase" value="${esc(h.gstin || '')}" placeholder="${esc(c.hotelGstin || '')}"></div>
     </div>
-    <div class="row" style="margin-top:8px"><button class="g" onclick="update({profile:{name:p_name.value,owner:p_owner.value,phone:p_phone.value,email:p_email.value}})">Profile Save</button></div>
-    <h3>Subscription</h3>
+    <div class="row" style="margin-top:8px"><button class="g" onclick="update({profile:{name:p_name.value,owner:p_owner.value,phone:p_phone.value,email:p_email.value,gstin:p_gst.value}})">Save Profile</button></div>
+    <h3>Counter PC &amp; Backup</h3>
+    <div class="grid">
+      <div class="stat"><span class="muted">Last data received</span><b style="font-size:15px">${health(h.savedAt)}</b><span class="muted">${h.savedAt ? dt(h.savedAt) : 'Counter PC not connected yet'}</span></div>
+      <div class="stat"><span class="muted">Daily cloud backups</span><b>${h.backups.length}</b><span class="muted">${h.backups[0] ? 'Latest: ' + esc(h.backups[0]) : 'Starts from the 2nd day'}</span></div>
+      <div class="stat"><span class="muted">Bills on cloud</span><b>${c.bills}</b><span class="muted">${c.lastBill ? 'Last bill: ' + esc(c.lastBill) : 'No bills yet'} · ${c.menu} menu items</span></div>
+      <div class="stat"><span class="muted">Counter licence</span><b style="font-size:15px">${c.lifetime ? 'Lifetime' : c.licenceUntil ? d8(Date.parse(c.licenceUntil)) : '-'}</b><span class="muted">${esc(c.plan || '')}${c.licenceUntil && !c.lifetime && Date.parse(c.licenceUntil) < Date.now() ? ' · <b class="err">EXPIRED</b>' : ''}</span></div>
+    </div>
+    <h3>Send Activation Key (online)</h3>
+    <p class="muted" style="margin-top:-4px">1. Copy the Install ID → 2. make a key in Setu Keygen (PC or phone) → 3. paste it here. The counter PC activates itself on its next sync (internet needed there).</p>
+    <div class="row">Install ID: <code style="font-size:14px">${esc(c.installId || 'not connected yet')}</code>${c.installId ? `<button class="g" onclick="navigator.clipboard.writeText('${esc(c.installId)}').then(() => toast('Install ID copied'))">Copy</button>` : ''}
+      ${c.keysWaiting ? `<span class="pill h-warn">${c.keysWaiting} key waiting for the counter PC</span>` : ''}</div>
+    <div class="row" style="margin-top:8px"><textarea id="x_key" rows="3" style="flex:1;min-width:260px;font-family:ui-monospace,Consolas,monospace" placeholder="SETU-XXXXXXXX-XXXXXXXX-..."></textarea>
+      <button onclick="if(x_key.value.trim()) update({pushKey:x_key.value.trim()}, 'Key sent — the counter PC activates on its next sync')">Send Key</button></div>
+    <h3>Cloud Subscription</h3>
     <p>Status: ${pill(state(h))} · Paid till: <b>${h.lifetime ? 'Lifetime' : d8(h.paidUntil)}</b> · Auto-pay: <b>${esc(h.autoPay || '-')}</b> · Data version: ${h.version} (${dt(h.savedAt)})</p>
     <div class="row">
-      <input id="x_days" type="number" min="1" value="30" style="width:90px"> din
+      <input id="x_days" type="number" min="1" value="30" style="width:90px"> days
       <input id="x_amt" type="number" min="0" placeholder="₹ received (optional)" style="width:160px">
       <button onclick="if(confirm('Add days? The hotel will receive a new license key automatically.')) update({days:+x_days.value, amount:+x_amt.value||0}, 'Days added')">+ Add Days</button>
       ${h.status === 'suspended' ? `<button class="g" onclick="update({status:'active'})">Activate</button>` : `<button class="bad" onclick="if(confirm('Suspend this hotel? Cloud saving will stop.')) update({status:'suspended'})">Suspend</button>`}
-      <button class="g" onclick="if(confirm('Lifetime ${h.lifetime ? 'hatayein' : 'dein'}?')) update({lifetime:${!h.lifetime}})">${h.lifetime ? 'Lifetime hatayein' : 'Lifetime dein'}</button>
+      <button class="g" onclick="if(confirm('${h.lifetime ? 'Remove lifetime' : 'Give lifetime'}?')) update({lifetime:${!h.lifetime}})">${h.lifetime ? 'Remove Lifetime' : 'Give Lifetime'}</button>
     </div>
     <h3>Payments</h3>
     <table><tr><th>Date</th><th>Plan</th><th>Days</th><th>Amount</th></tr>${h.payments.map(p => `<tr><td>${dt(p.at)}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? rs(p.amount / 100) : '-'}</td></tr>`).join('')}</table>`;
