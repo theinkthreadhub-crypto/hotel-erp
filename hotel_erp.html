@@ -276,7 +276,10 @@ pre.wa{background:#f0fdf4;border:1px solid #bbf7d0;padding:14px;border-radius:8p
 @media (max-width:960px){.bill{grid-template-columns:1fr}.dash-columns{grid-template-columns:1fr}#side{display:none}}
 
 /* Thermal & A6 Receipt */
-.rcpt{width:var(--pw,72mm);font:12px/1.35 "Courier New",monospace;color:#000;padding:2mm 0}
+.rcpt{width:var(--pw,70mm);font:12px/1.35 "Courier New",monospace;color:#000;padding:2mm 0;box-sizing:border-box}
+.rcpt *{color:#000!important}
+.rcpt.w58{font-size:11px;padding:2mm 1mm}.rcpt.w58 td,.rcpt.w58 th{font-size:11px}.rcpt.w58 .h{font-size:14px}.rcpt.w58 .big{font-size:14px}
+.rcpt.w58 td:first-child{word-break:break-word}.rcpt.w58 td.r,.rcpt.w58 th.r{padding-left:4px;white-space:nowrap}.rcpt.w58 table{width:100%}.rcpt.w58 .qr svg{width:20mm;height:20mm}
 .rcpt .c{text-align:center}.rcpt .h{font-size:15px;font-weight:700}
 .rcpt hr{border:0;border-top:1px dashed #000;margin:4px 0}
 .rcpt table{background:none}.rcpt td,.rcpt th{padding:1px 0;border:0;font-size:12px;background:none!important}
@@ -681,9 +684,9 @@ function seed(){
       adminPin: '1234',
       cashierPin: '1111',
       footer: 'Thank you for dining with us! Visit again.',
-      width: 80,
-      billPaper: 'A6',
-      kotPaper: 'A6',
+      width: 58,
+      billPaper: 'thermal',
+      kotPaper: 'thermal',
       tables: ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8', 'Parcel'],
       zomatoEnabled: false,
       swiggyEnabled: false,
@@ -3903,14 +3906,15 @@ class EscPos {
 class RasterPos {
   constructor(){
     this.cols = printCols();
-    this.W = this.cols === 32 ? 384 : 576;
+    this.CW = this.cols === 32 ? 384 : 576;  // printer dots per line
+    this.W = this.CW - 12;                   // drawable width, 6-dot margin each side
     this.ops = []; this.y = 4; this.big = false; this.tall = false; this.b = false; this.al = 'left'; this.kick = false;
     this.cur = '₹';
     this.cv = document.createElement('canvas');
     this.cx = this.cv.getContext('2d');
   }
   font(){
-    const base = this.W === 384 ? 21 : 25;
+    const base = this.CW === 384 ? 21 : 25;
     const px = Math.round(this.big ? base * 1.55 : this.tall ? base * 1.3 : base);
     return {px, css: `${this.b ? 'bold ' : ''}${px}px "Nirmala UI", "Mangal", "Segoe UI", Arial, sans-serif`};
   }
@@ -3973,12 +3977,13 @@ class RasterPos {
   drawer(){ this.kick = true; return this; }
   cut(){ this.y += 8; return this; }
   bytes(){
-    const W = this.W, H = Math.ceil(this.y + 4), cx = this.cx;
+    const W = this.CW, H = Math.ceil(this.y + 4), cx = this.cx;
     this.cv.width = W; this.cv.height = H;
     cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H);
     cx.fillStyle = '#000'; cx.textBaseline = 'top';
+    cx.translate(6, 0);
     this.ops.forEach(op => {
-      if(op.rule){ for(let x = 0; x < W; x += 8) cx.fillRect(x, op.y + 5, 5, 2); return; }
+      if(op.rule){ for(let x = 0; x < this.W; x += 8) cx.fillRect(x, op.y + 5, 5, 2); return; }
       cx.font = op.css;
       op.parts.forEach(p => { cx.textAlign = p.align; cx.fillText(p.t, p.x, op.y + 2); });
     });
@@ -4157,7 +4162,7 @@ function kacchaHTML(k){
     ${head()}
     <hr>
     <div class="c"><b>*** ESTIMATE (RUNNING ORDER) ***</b></div>
-    <div class="c" style="font-size:11px;color:#444">(Running Order Slip - Not a Tax Invoice)</div>
+    <div class="c" style="font-size:11px">(Not a Tax Invoice)</div>
     <hr>
     <div>Table: <b>${esc(k.table)}</b> &nbsp; ${dmy(today())} ${k.updatedAt || nowTime()}</div>
     ${k.cust ? `<div>Customer: ${esc(k.cust)}</div>` : ''}
@@ -4185,11 +4190,12 @@ function kotHTML(b){
   ${b.note ? `<div class="big">Note: ${esc(b.note)}</div><hr>` : ''}<div class="c">Chef Copy</div></div>`;
 }
 
-const paper = k => (D.settings[k+'Paper'] || 'A6') === 'A6' ? ' a6' : '';
+const paper = k => +D.settings.width !== 58 && (D.settings[k+'Paper'] || 'A6') === 'A6' ? ' a6' : '';
 function printDoc(parts){
   const p = $('#print');
-  p.style.setProperty('--pw', (D.settings.width == 58 ? '50mm' : '72mm'));
+  p.style.setProperty('--pw', (D.settings.width == 58 ? '46mm' : '70mm'));
   p.innerHTML = parts.join('<div class="cut"></div>');
+  if(+D.settings.width === 58) p.querySelectorAll('.rcpt').forEach(r => r.classList.add('w58'));
   setTimeout(() => window.print(), 60);
 }
 function printBill(id, what){
