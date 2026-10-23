@@ -52,7 +52,9 @@ jobs:
           "$BT/apksigner" sign --ks $B/key.p12 --ks-pass "pass:$KSPASS" --out SetuHotelAdmin.apk $B/aligned.apk
           "$BT/apksigner" verify SetuHotelAdmin.apk
           rm -f $B/key.p12
+      # Optional copy; the release below is the real download (private repos run out of artifact storage)
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: SetuHotelAdmin
           path: android-admin/SetuHotelAdmin.apk

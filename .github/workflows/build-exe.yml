@@ -46,7 +46,9 @@ jobs:
           copy dist\Aghanya-Devanya-Hotel-ERP.exe Setu-POS-Setup\
           for %%f in (Install-Aghanya-Devanya-ERP-Setup.bat hotel_erp.html manifest.json sw.js icon-192.png icon-512.png logo.png favicon.ico) do copy %%f Setu-POS-Setup\
 
+      # Optional copy; the release below is the real download (private repos run out of artifact storage)
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Setu-POS-Setup
           path: Setu-POS-Setup
@@ -61,7 +63,9 @@ jobs:
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=1.0.${{ github.run_number }}" installer\setu-setup.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      # Optional copy; the release below is the real download (private repos run out of artifact storage)
       - uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: Setu-POS-Installer
           path: Output/Setu-POS-Setup.exe
