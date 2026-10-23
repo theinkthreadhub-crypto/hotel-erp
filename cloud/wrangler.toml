@@ -3,6 +3,8 @@
 name = "setu-cloud"
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
+# Like Library ERP: settings added in the Cloudflare dashboard survive a deploy from GitHub
+keep_vars = true
 
 # App files + vendor admin page. "npm run assets" copies an allow-list into ./public.
 [assets]
