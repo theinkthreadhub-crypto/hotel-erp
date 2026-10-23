@@ -434,7 +434,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
         <div class="login-field">
           <label>Personal Password / PIN *</label>
-          <input id="signup_password" type="password" required placeholder="Security Password / PIN" autocomplete="new-password">
+          <input id="signup_password" type="password" required minlength="6" placeholder="6+ characters, not 123456" autocomplete="new-password">
         </div>
         <div class="login-field">
           <label>Confirm Password *</label>
@@ -1754,8 +1754,9 @@ async function handleSignUpSubmit(e){
     return;
   }
 
-  if(pass.length < 4){
-    showErr('Password must be at least 4 characters.');
+  // Same rule as Settings → Owner Password and Hotel Setu Cloud: the owner also logs in from the phone with it
+  if(pass.length < 6 || WEAK_PASS.includes(pass.toLowerCase()) || /^(.)\1+$/.test(pass)){
+    showErr('Password kam se kam 6 akshar ka ho aur aasaan na ho (1234, 123456, 111111 nahi chalega). Ye phone app par bhi chalta hai.');
     $('#signup_password')?.focus();
     return;
   }
