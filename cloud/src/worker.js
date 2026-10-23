@@ -631,6 +631,15 @@ export class SetuHotel extends DurableObject {
       const pw = String(b.ownerPassword);
       if(pw.length < 6 || isWeak(pw)) throw new Error('weak password');
       a.ownerHash = await sha256(pw);
+      // Owner forgot the password: put the new one into the hotel's data, so it works on the
+      // phone app now and on the counter PC after its next sync (also the Manager PIN there)
+      if(this.meta.version){
+        const d = JSON.parse(this.data());
+        d.auth = { ...(d.auth && typeof d.auth === 'object' ? d.auth : {}), password: pw };
+        d.settings = { ...(d.settings || {}), adminPin: pw };
+        await this.prepare(d);
+        this.commit(d);
+      }
       notes.push('owner password reset');
     }
     this.saveAccount();

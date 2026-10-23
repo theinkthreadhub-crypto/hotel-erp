@@ -6595,6 +6595,15 @@ function scrSettings(){
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
+  <div class="card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Owner Password</h3>
+    <p class="muted" style="margin-top:-4px">Used to sign in on this PC, as the Manager PIN, and on the owner's phone app (Setu Cloud). Forgot it? Your vendor can set a new one.</p>
+    <div class="grid">
+      <div><label>Current password</label><input id="op_cur" type="password" autocomplete="off"></div>
+      <div><label>New password (6+ characters)</label><input id="op_new" type="password" autocomplete="off"></div>
+      <div><label>Confirm new password</label><input id="op_cf" type="password" autocomplete="off"></div>
+    </div>
+    <div class="btns"><button class="btn ok" onclick="changeOwnerPass()">Change Password</button></div>
+  </div>
   
   <div class="card">
     <h3 style="margin-top:0">Restaurant Details (Printed on Bills)</h3>
@@ -6870,6 +6879,24 @@ async function drawNetCard(){
 
 // Setu Cloud (cloud/ folder, Cloudflare Worker): the main counter PC syncs its database there,
 // so the owner and staff can open Setu from anywhere with their PIN.
+const ownerAppText = (link, code) => `Setu owner app\n\nOpen in Chrome: ${link}\nHotel Code: ${code}\nPassword: your Setu owner password\n\nThen Chrome menu (⋮) → Install app.\n— Aghanya Devanya Enterprises`;
+
+// Same rule as Setu Cloud: guessable passwords are refused on the internet
+const WEAK_PASS = ['1234', '1111', '0000', '4321', '9999', '123456', '111111', '000000', 'demo', 'admin', 'password'];
+function changeOwnerPass(){
+  const cur = $('#op_cur').value, nw = $('#op_new').value.trim(), cf = $('#op_cf').value.trim();
+  if(cur !== String((D.auth || {}).password || '') && cur !== String(D.settings.adminPin || '')) return toast('Current password is wrong');
+  if(nw.length < 6) return toast('New password: at least 6 characters');
+  if(WEAK_PASS.includes(nw.toLowerCase()) || /^(.)\1+$/.test(nw)) return toast('Too simple — please choose a harder password');
+  if(nw !== cf) return toast('The new passwords do not match');
+  D.auth = {...(D.auth || {}), password: nw};
+  D.settings.adminPin = nw;
+  audit('Owner Password Changed', 'from Settings');
+  save();
+  ['#op_cur', '#op_new', '#op_cf'].forEach(id => $(id).value = '');
+  toast('Password changed — use it on this PC and on the phone app');
+}
+
 async function drawCloudCard(){
   const el = $('#cloud-card');
   if(!el) return;
@@ -6912,10 +6939,13 @@ async function drawCloudCard(){
       ${c.configured ? '<button class="btn bad" onclick="saveCloud(false)">Turn Off Cloud Sync</button>' : ''}
       <button class="btn g" onclick="drawCloudCard()">Status Refresh</button>
     </div>
-    ${c.configured && link ? `<div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin-top:8px">
-      <div class="qrbox">${qrSvg(link)}<small>Scan with an owner / staff phone</small></div>
-      <div style="font-size:13px;line-height:1.7">Open from anywhere (4G / home Wi-Fi):<br><code style="font-size:13px;font-weight:700">${esc(link)}</code><br>
-        ${hotelLine}Sign in: Hotel Code + Manager / Cashier / Staff PIN.<br>${pinNote}<br>
+    ${c.configured && link ? `<h4 style="margin:14px 0 6px">Owner Mobile App</h4>
+    <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+      <div class="qrbox">${qrSvg(link)}<small>Scan with the owner's phone</small></div>
+      <div style="font-size:13px;line-height:1.7">1. Scan the QR (or open the link) in <b>Chrome</b> on the phone:<br><code style="font-size:13px;font-weight:700">${esc(link)}</code><br>
+        2. ${hotelLine.replace('<br>', '')} + the <b>owner password</b> (set it below under Owner Password).<br>
+        3. Chrome menu (⋮) → <b>Install app</b> — Setu then opens like an app.<br>${pinNote}<br>
+        <button class="btn wa sm" onclick="waOpen(D.settings.phone, ownerAppText('${esc(link)}', '${esc(c.hotel || '')}'))">Send to owner on WhatsApp</button>
         <span class="muted">Keep this PC on and online. Billing continues here even without internet and syncs when the connection returns.</span></div>
     </div>` : ''}`;
 }

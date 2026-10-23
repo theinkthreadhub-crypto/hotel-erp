@@ -248,6 +248,10 @@ function tabOverview(){
       <div><label>GSTIN (optional)</label><input id="p_gst" maxlength="15" style="text-transform:uppercase" value="${esc(h.gstin || '')}" placeholder="${esc(c.hotelGstin || '')}"></div>
     </div>
     <div class="row" style="margin-top:8px"><button class="g" onclick="update({profile:{name:p_name.value,owner:p_owner.value,phone:p_phone.value,email:p_email.value,gstin:p_gst.value}})">Save Profile</button></div>
+    <h3>Owner Password</h3>
+    <p class="muted" style="margin-top:-4px">Owner forgot the password? Set a new one: it works on the phone app at once and on the counter PC after its next sync (it is also the Manager PIN there).</p>
+    <div class="row"><input id="o_pw2" placeholder="New owner password (6+ characters)" maxlength="40" style="min-width:240px">
+      <button onclick="ownerPw2()">Set Owner Password</button></div>
     <h3>Counter PC &amp; Backup</h3>
     <div class="grid">
       <div class="stat"><span class="muted">Last data received</span><b style="font-size:15px">${health(h.savedAt)}</b><span class="muted">${h.savedAt ? dt(h.savedAt) : 'Counter PC not connected yet'}</span></div>
@@ -404,7 +408,7 @@ function tabSupport(){
     <h3>Previous Support Access</h3>
     ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Never</p>'}
     <h3>Lost keys</h3>
-    <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Setu Cloud Sync). Owner password: used for the owner's first login before the counter PC has synced; after that the owner signs in with the Setu password / Manager PIN.</p>
+    <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Setu Cloud Sync). Owner password: works on the phone app at once and on the counter PC after its next sync.</p>
     <div class="row"><button onclick="newSyncKey()">New Counter PC Sync Key</button>
       <input id="o_pw" placeholder="New owner password (6+ characters)" maxlength="40"><button onclick="ownerPw()">Reset Owner Password</button></div>
     <div id="k_out"></div>`;
@@ -413,6 +417,14 @@ const newSyncKey = run(async () => {
   if(!confirm('Create a new Sync Key? The counter PC must be updated with it.')) return;
   const j = await api('/api/admin/hotel', {code: CUR.code, update: {newSyncKey: true}});
   $('#k_out').innerHTML = `<p>Hotel Code: <b>${esc(CUR.code)}</b><br>New Sync Key (shown only now): <b style="font-family:monospace">${esc(j.syncKey || '')}</b></p>`;
+});
+const ownerPw2 = run(async () => {
+  const pw = $('#o_pw2').value.trim();
+  if(!pw) return;
+  if(!confirm('Set this as the new owner password for ' + CUR.name + '?')) return;
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: {ownerPassword: pw}});
+  toast('Owner password set — tell the owner: ' + pw);
+  drawHotel();
 });
 const ownerPw = run(async () => {
   const pw = $('#o_pw').value.trim();
