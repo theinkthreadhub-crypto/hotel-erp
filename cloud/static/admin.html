@@ -151,17 +151,17 @@ async function drawDash(){
 async function drawHotels(){
   await loadHotels();
   $('#main').innerHTML = `
-    <div class="row" style="margin-bottom:10px"><input id="q" placeholder="Search name / code / mobile / domain" style="flex:1;min-width:220px">
+    <div class="row" style="margin-bottom:10px"><input id="q" placeholder="Search name / code / mobile / Install ID / domain" style="flex:1;min-width:220px">
       <select id="fs"><option value="">All statuses</option><option>active</option><option>trial</option><option>expired</option><option>suspended</option></select></div>
-    <div class="wrap"><table><thead><tr><th>Hotel</th><th>Code</th><th>Type / Plan</th><th>Owner</th><th>Status</th><th>Backup</th><th>Paid Till</th><th>Domain</th><th>Joined</th></tr></thead><tbody id="rows"></tbody></table></div>`;
+    <div class="wrap"><table><thead><tr><th>Hotel</th><th>Code / Install ID</th><th>Type / Plan</th><th>Owner</th><th>Status</th><th>Backup</th><th>Paid Till</th><th>Domain</th><th>Joined</th></tr></thead><tbody id="rows"></tbody></table></div>`;
   $('#q').oninput = $('#fs').onchange = rows;
   rows();
 }
 function rows(){
   const q = $('#q').value.trim().toLowerCase(), f = $('#fs').value;
-  const list = HOTELS.filter(h => (!f || state(h) === f) && (!q || [h.name, h.code, h.phone, h.owner, ...(h.domains || []).map(d => d.host)].join(' ').toLowerCase().includes(q)));
+  const list = HOTELS.filter(h => (!f || state(h) === f) && (!q || [h.name, h.code, h.phone, h.owner, h.iid || '', ...(h.domains || []).map(d => d.host)].join(' ').toLowerCase().includes(q)));
   $('#rows').innerHTML = list.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')">
-    <td><b>${esc(h.name)}</b><div class="muted">${esc(h.email || '')}</div></td><td><code>${esc(h.code)}</code></td>
+    <td><b>${esc(h.name)}</b><div class="muted">${esc(h.email || '')}</div></td><td><code>${esc(h.code)}</code><div class="muted" style="font-size:11px">${h.iid ? esc(h.iid) : 'no Install ID yet'}</div></td>
     <td>${esc((META.templates[h.btype] || {}).label || h.btype || '-')}<div class="muted">${esc((META.tiers[h.tier] || {}).label || '-')}</div></td>
     <td>${esc(h.owner)}<div class="muted">${esc(h.phone)}</div></td><td>${pill(state(h))}</td><td>${health(h.seen)}</td><td>${d8(h.paid_until)}</td>
     <td>${(h.domains || []).map(d => `<div>${esc(d.host)} ${d.status !== 'active' ? pill('pending') : ''}</div>`).join('') || '<span class="muted">-</span>'}</td><td>${d8(h.created)}</td></tr>`).join('')
@@ -230,7 +230,7 @@ const TABS = {overview: 'Overview & Subscription', features: 'Plan & Features', 
 function drawHotel(){
   const h = CUR;
   $('#panel').innerHTML = `<div class="row"><div><h2 style="margin:0">${esc(h.name)} <code>${esc(h.code)}</code></h2>
-      <span class="muted">${esc((META.templates[h.businessType] || {}).label || '')} · ${esc(h.tierLabel)} · ${pill(state(h))}</span></div>
+      <span class="muted">${esc((META.templates[h.businessType] || {}).label || '')} · ${esc(h.tierLabel)} · ${pill(state(h))} · Install ID: <code>${esc((h.counter || {}).installId || '-')}</code></span></div>
       <button class="g" style="margin-left:auto" onclick="closeHotel()">Close</button></div>
     <div class="tabs">${Object.entries(TABS).map(([k, v]) => `<button class="${TAB === k ? 'on' : ''}" onclick="TAB='${k}';drawHotel()">${v}</button>`).join('')}</div>
     <div id="tab"></div>`;

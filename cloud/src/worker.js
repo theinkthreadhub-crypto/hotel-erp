@@ -227,6 +227,7 @@ export class SetuRegistry extends DurableObject {
     const cols = this.sql.exec('PRAGMA table_info(hotel)').toArray().map(c => c.name);
     if(!cols.includes('tier')) this.sql.exec('ALTER TABLE hotel ADD COLUMN tier TEXT');
     if(!cols.includes('btype')) this.sql.exec('ALTER TABLE hotel ADD COLUMN btype TEXT');
+    if(!cols.includes('iid')) this.sql.exec('ALTER TABLE hotel ADD COLUMN iid TEXT');
   }
 
   async fetch(request){
@@ -273,7 +274,7 @@ export class SetuRegistry extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/update'){
-      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype'].filter(c => c in body);
+      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid'].filter(c => c in body);
       if(cols.length) this.sql.exec(`UPDATE hotel SET ${cols.map(c => c + ' = ?').join(', ')} WHERE code = ?`, ...cols.map(c => body[c]), body.code);
       return json(200, { ok: true });
     }
@@ -439,7 +440,8 @@ export class SetuHotel extends DurableObject {
     });
     if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000){
       this.seenPushed = now;
-      this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now }).catch(() => {}));
+      const iid = String((d.settings || {}).installId || '').slice(0, 20);
+      this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid }).catch(() => {}));
     }
     this.meta = meta;
     this.raw = raw;

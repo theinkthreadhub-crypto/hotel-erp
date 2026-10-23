@@ -336,6 +336,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
 .a4rep .a4f{margin-top:10px;font-size:10px;color:#444;text-align:center}
 .prstat{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:100000;display:none;align-items:center;gap:10px;padding:12px 20px;border-radius:12px;background:#111827;color:#fff;font-weight:700;font-size:15px;box-shadow:0 10px 30px rgba(0,0,0,.3);max-width:92vw}
 .prstat.ok{background:#15803d}.prstat.err{background:#b91c1c}
+#top-cloud-pill.on{background:#dcfce7;color:#166534;border-color:#86efac}#top-cloud-pill.bad{background:#fee2e2;color:#991b1b;border-color:#fca5a5}#top-cloud-pill.wait{background:#fef3c7;color:#92400e;border-color:#fde68a}
 .prstat .spin{width:18px;height:18px;flex:none;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;border-radius:50%;animation:prspin .8s linear infinite}
 @keyframes prspin{to{transform:rotate(360deg)}}
 .qrbox{display:inline-block;text-align:center}
@@ -608,6 +609,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
     <button class="sub-pill ok" id="top-sub-pill" onclick="openSubscriptionModal()" title="Aghanya Devanya License Status & Renewal">
       License: Active
     </button>
+    <button class="sub-pill" id="top-cloud-pill" onclick="go('settings')" style="display:none" title="Setu Cloud Sync status — open Settings"></button>
     <button class="btn g sm" id="btn-pwa-install" onclick="triggerPWAInstall()" style="border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#e2e8f0;display:inline-flex" title="Install Desktop App on Computer">
       Install PC App
     </button>
@@ -6970,6 +6972,31 @@ function changeOwnerPass(){
   toast('Password changed — use it on this PC and on the phone app');
 }
 
+// Header pill: is this hotel's data reaching Setu Cloud?
+async function cloudPill(){
+  const el = $('#top-cloud-pill');
+  if(!el) return;
+  let cls = '', txt = '';
+  if(SRV.cloud){
+    cls = SRV.online === false ? 'bad' : 'on';
+    txt = SRV.online === false ? '☁ Offline' : '☁ Cloud live';
+  } else if(SRV.on && SRV.local){
+    try{
+      const c = await (await srvFetch('/api/cloud')).json();
+      if(c.configured){
+        const t = c.at ? new Date(c.at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'}) : '';
+        cls = c.ok === true ? 'on' : c.ok === false ? 'bad' : 'wait';
+        txt = c.ok === true ? `☁ Synced ${t}` : c.ok === false ? '☁ Sync failed' : '☁ Connecting…';
+        el.title = c.ok === false ? 'Cloud Sync failing: ' + (c.error || '') + ' — open Settings' : 'Setu Cloud Sync — open Settings';
+      }
+    }catch(e){}
+  }
+  el.className = 'sub-pill ' + cls;
+  el.textContent = txt;
+  el.style.display = txt ? '' : 'none';
+}
+setInterval(cloudPill, 60000);
+
 async function drawCloudCard(){
   const el = $('#cloud-card');
   if(!el) return;
@@ -6979,6 +7006,7 @@ async function drawCloudCard(){
   if(SRV.cloud){
     const u = location.origin + '/hotel_erp.html';
     el.innerHTML = headT + `
+      <div style="margin:0 0 10px">Counter PC ${installIdHTML()}</div>
       <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
         <div class="qrbox">${qrSvg(u)}<small>Scan with a phone</small></div>
         <div style="font-size:13px;line-height:1.7">You are on <b>Setu Cloud</b>. This link works from any internet connection:<br>
@@ -7000,8 +7028,10 @@ async function drawCloudCard(){
     : '<b style="color:#d97706">Connecting...</b>';
   const link = c.url ? c.url + '/hotel_erp.html' : '';
   const hotelLine = c.hotel ? `Hotel Code: <b>${esc(c.hotel)}</b><br>` : '';
+  cloudPill();
   el.innerHTML = headT + `
     <p style="margin:0 0 10px">Status: ${stat}</p>
+    <div style="margin:0 0 10px">${installIdHTML()}</div>
     <div class="grid">
       <div><label>Cloud URL</label><input id="cl_url" placeholder="https://setu-cloud.theinkthreadhub.workers.dev" value="${esc(c.url || 'https://setu-cloud.theinkthreadhub.workers.dev')}"></div>
       <div><label>Hotel Code</label><input id="cl_hotel" placeholder="e.g. SHARM482" value="${esc(c.hotel || '')}" style="text-transform:uppercase"></div>
@@ -7205,6 +7235,7 @@ async function autoPrinterSetup(){
   }
   startUI();
   autoPrinterSetup();
+  setTimeout(cloudPill, 3000);
 })();
 
 // Register Service Worker for 100% offline computer execution
