@@ -190,13 +190,31 @@ class SetuStore:
             self.saved_at = doc.get('savedAt', 0)
             self.raw = json.dumps(doc.get('data'), ensure_ascii=False)
         except Exception:
-            # Never overwrite a file we could not read: keep it aside and start empty
+            # Never overwrite a file we could not read: keep it aside, then come back from the
+            # newest readable daily backup (copied after every save, so it is the last good state)
             bad = self.path + '.corrupt-' + time.strftime('%Y%m%d-%H%M%S')
             try:
                 shutil.copy2(self.path, bad)
             except Exception:
                 pass
             self.version, self.raw = 0, 'null'
+            try:
+                files = sorted((x for x in os.listdir(self.backup_dir) if x.startswith('setu-') and x.endswith('.json')), reverse=True)
+            except OSError:
+                files = []
+            for name in files:
+                try:
+                    with open(os.path.join(self.backup_dir, name), 'r', encoding='utf-8') as f:
+                        doc = json.load(f)
+                    if not isinstance(doc.get('data'), dict):
+                        continue
+                    self.version = int(doc.get('version', 0))
+                    self.saved_at = doc.get('savedAt', 0)
+                    self.raw = json.dumps(doc['data'], ensure_ascii=False)
+                    self.log(f'setu-db.json was damaged (kept as {os.path.basename(bad)}); loaded backup {name}')
+                    break
+                except Exception:
+                    continue
 
     def data(self):
         return json.loads(self.raw)
@@ -216,6 +234,7 @@ class SetuStore:
         raw = json.dumps(data_obj, ensure_ascii=False)
         doc = '{"version": %d, "savedAt": %d, "data": %s}' % (version, saved_at, raw)
         tmp = self.path + '.tmp'
+        os.makedirs(self.backup_dir, exist_ok=True)   # the data folder may have been deleted while Setu runs
         with open(tmp, 'w', encoding='utf-8') as f:
             f.write(doc)
             f.flush()

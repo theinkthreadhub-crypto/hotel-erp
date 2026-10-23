@@ -3633,6 +3633,8 @@ function setQty(i, v){
   v = +v;
   const c = B.cart[i];
   if(!c) return;
+  // A slip of the keyboard (1000000000) must not make a crore-rupee bill
+  if(v > 9999){ toast('Quantity bahut zyada hai. Max 9999.'); v = 9999; }
   const newQty = v > 0 ? v : 0, sentQty = (B.sent || {})[c.mid] || 0;
   const apply = () => {
     const ci = B.cart.indexOf(c);
