@@ -47,7 +47,7 @@ npm install
 npm start                      # desktop server, http://localhost:<port> (see config.json)
 node cloud/embed.js            # regenerate cloud/worker.js
 node --check cloud/worker.js   # syntax check
-node cloud/smoke.js            # 38 functional checks on a local worker+D1 (CI runs this before every deploy)
+node cloud/smoke.js            # 37 functional checks on a local worker+D1 (CI runs this before every deploy)
 node cloud/smoke.js --load     # 100 libraries x 100 students; prints D1 rows written/read per endpoint
 node tools/gen-data.js 100 12  # realistic test library JSON (size tests)
 npm run build                  # pkg → dist/LibraryERP.exe (+ patch-gui.js, keygen exe)
@@ -71,6 +71,16 @@ Kill wrangler with `pkill -f "[w]rangler dev"` (the bracket trick avoids killing
 
 ## 7. Known limits / open decisions
 - Offline ERP cannot be remotely revoked; an old Lifetime key stays valid for that machine (`activate()` overwrites without downgrade check).
-- Admin **Delete** library does not block re-registration (ERP auto-relinks with a new Library ID).
+- Admin **Delete** has a *Block this computer* option (`blocked` table; Unblock in Admin). Without it, ERP auto-relinks with a new Library ID.
 - Branded per-library APK and pinned shortcut inside APKs were discussed, not built.
-- Pending vendor decisions: align Admin plan presets with the recommended plan matrix; student-count limit / free trial; "Block" on delete; Lifetime warning in Renew box.
+- Pending vendor decisions: align Admin plan presets with the recommended plan matrix; student-count limit / free trial; fee-due notification (options A/B/C); Gemini AI integration (key only as Cloudflare secret `GEMINI_API_KEY`, no student PII on free tier).
+- Not built yet: daily license re-check, warning when restoring a packed (v1.26+) cloud backup into an older ERP. APK client-side license check can be bypassed by repackaging; real protection = cloud-enforced features.
+- Admin lock is per IP (`admin_fail`); many users behind one CGNAT IP share it.
+
+## 8. Hardening (v1.26.1) — keep these
+- `adminGate()`: 10 wrong admin logins in 15 min → 15 min lock (429).
+- `/api/*` body caps: push 8 MB, image 1.2 MB, others 200 KB → 413; admin body 200 KB; bad JSON → 400.
+- Push drops pupil rows > 40 KB and `lib_today` > 400 KB.
+- `mobile.js` `httpPost` has a 70 s JS timeout (Java side 20 s connect / 60 s read).
+- Bulk import max 5,000 rows.
+- Break tests live outside repo (scratch); re-create when changing sync: junk cloud payloads, garbage restore, empty library, deleted-student navigation, broken student payloads.
