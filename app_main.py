@@ -791,6 +791,16 @@ def make_handler(base_dir, store, port, cloud=None):
                 return self.send_json(200, cloud.public() if cloud else {'configured': False})
             if path == '/api/info':
                 return self.send_json(200, {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()})
+            if path == '/api/log':
+                # Error Log screen: the newest lines of setu-server.log (main counter only)
+                if not self.is_local():
+                    return self.send_json(403, {'error': 'main counter only'})
+                try:
+                    with open(os.path.join(store.dir, 'setu-server.log'), 'r', encoding='utf-8', errors='replace') as f:
+                        lines = f.read().splitlines()[-300:]
+                except OSError:
+                    lines = []
+                return self.send_json(200, {'lines': lines, 'cloud': cloud.public() if cloud else {}})
             if path == '/api/support/tickets':
                 if self.role() not in ('local', 'admin') or not cloud:
                     return self.send_json(403, {'error': 'manager only'})
@@ -882,6 +892,7 @@ def make_handler(base_dir, store, port, cloud=None):
                         print_raw(printer, data)
                     return self.send_json(200, {'ok': True})
                 except Exception as e:
+                    store.log(f'PRINT FAILED on {printer!r}: {e}')
                     return self.send_json(500, {'error': str(e)})
             if path == '/api/db':
                 role = self.role()

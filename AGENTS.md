@@ -71,7 +71,10 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   `SCREENS` maps each screenKey to a render function. `go(key)` checks auth and license, then renders
   into `#main`. Screens are plain functions that set `main.innerHTML` from template strings.
   A new screen needs a `MENU` row, a `SCREENS` entry and a `scrXxx()` function.
-  Hotkeys must be unique. All 26 letters are used; `1` = Help & Support. Use another digit for a new screen.
+  Hotkeys must be unique. All 26 letters are used; `1` = Help & Support, `2` = Error Log. Use another digit for a new screen.
+- **Error Log (2):** `logError(kya, kahan, kaise)` keeps the last 200 errors per device in localStorage (`setu_errlog_v1`, never in `D`).
+  `ERR_HINTS` maps a message to a Hinglish fix. Hooked: window errors, a screen that throws (`go()`), failed saves / sync, print
+  failures. The counter also shows `setu-server.log` failures via `/api/log` (main counter only). Log new failure paths with it.
 - **UI helpers:** `modal(title, html)`, `closeModal()`, `tryCloseModal()`, `toast(msg)`,
   `waOpen(phone, text)`, `waOwner(text)`, `printDoc([htmlParts])`.
   Money is formatted with `money()` / `rs()` and rounded with `r2()`. Dates are `YYYY-MM-DD` strings from `today()`.

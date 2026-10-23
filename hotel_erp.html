@@ -973,6 +973,39 @@ const HOTEL_KEY = 'setu_hotel_code';
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
 const lsSet = (k, v) => { try{ localStorage.setItem(k, v); }catch(e){} };
 
+/* ================= ERROR LOG (kya hua, kahan, kaise, kaise theek karein) ================= */
+// Kept on this device only (not in D, so it never syncs or grows the hotel data). Same error = one row + count.
+const ERRLOG_KEY = 'setu_errlog_v1';
+const errList = () => { try{ return JSON.parse(lsGet(ERRLOG_KEY) || '[]') || []; }catch(e){ return []; } };
+// Plain-language fix for the errors owners actually meet
+const ERR_HINTS = [
+  [/no connection to the Main Counter|Failed to fetch|NetworkError|Load failed|connection toota/i, 'Main Counter PC ka Setu band hai ya Wi-Fi / LAN toota hai. Counter PC par Setu kholiye, Wi-Fi check kijiye. Data counter par surakshit hai, phone dobara judte hi save hoga.'],
+  [/No printer selected/i, 'Settings (G) → Printer Setup mein Bill aur KOT printer chuniye, phir Test Print dabaiye.'],
+  [/Print failed|PRINT FAILED|printer|winspool|OpenPrinter|StartDocPrinter/i, 'Printer chalu hai? Kaagaz hai? USB / LAN cable lagi hai? Windows mein printer "Offline" to nahi? Printer band-chalu karke Settings (G) → Printer Setup → Test Print dabaiye.'],
+  [/Invalid Cloud Sync Key|doosre computer par chalu/i, 'Ye hotel ab doosre PC par chal raha hai. Isi PC ko main counter banana ho to Settings (G) → Hotel Setu Cloud → Dobara Jodein (Hotel Code + owner password).'],
+  [/subscription expired|HTTP 402|blocked|suspended/i, 'Cloud ki subscription khatam ya band hai. Billing is PC par chalti rahegi. Renew ke liye Aghanya Devanya Enterprises se baat kijiye.'],
+  [/Cloud HTTP 404|nahi mila, dobara jud rahe/i, 'Hotel cloud se hata diya gaya. Setu khud dobara judne ki koshish karega. Vendor se poochhiye.'],
+  [/CLOUD|Cloud HTTP|timed out|URLError|getaddrinfo|Name or service|cloud se jud/i, 'Internet nahi hai ya kamzor hai. Billing chalti rahegi, internet aate hi data cloud par chala jayega. Baar baar aaye to router restart kijiye.'],
+  [/SAVE FAILED|save failed|HTTP 500|No space|Permission denied|disk/i, 'PC ki C: drive bhari hai ya antivirus file rok raha hai. C: drive mein jagah banaiye, antivirus mein Setu ko Allow kijiye, phir Setu band karke dobara kholiye.'],
+  [/damaged|corrupt/i, 'Data file kharab mili thi (bijli jaane se). Setu ne aakhri achha backup khol liya hai. Aaj ke bill Bill List (L) mein check kar lijiye.'],
+  [/QuotaExceeded|quota/i, 'Browser ki jagah bhar gayi. Settings (G) se Backup download kijiye aur Setu Desktop App (EXE) par chaliye, usmein ye limit nahi hai.'],
+  [/licen[cs]e|activation key|expired on this PC/i, 'License / activation key ki dikkat. K dabakar license dekhiye, ya vendor se nayi key lijiye.'],
+];
+const errHint = t => (ERR_HINTS.find(([re]) => re.test(String(t || ''))) || [0, 'Setu band karke dobara kholiye. Baar baar aaye to Error Log (2) mein "Support ko bhejein" dabaiye.'])[1];
+function logError(kya, kahan, kaise){
+  try{
+    const list = errList(), now = Date.now();
+    kya = String(kya || 'Unknown error').slice(0, 300); kahan = String(kahan || '').slice(0, 200); kaise = String(kaise || '').slice(0, 1500);
+    const same = list.find(x => x.kya === kya && x.kahan === kahan);
+    if(same){ same.n = (same.n || 1) + 1; same.at = now; same.kaise = kaise || same.kaise; }
+    else list.unshift({at: now, kya, kahan, kaise, n: 1, user: (typeof activeUser !== 'undefined' && activeUser) ? activeUser.name : ''});
+    list.sort((a, b) => b.at - a.at);
+    lsSet(ERRLOG_KEY, JSON.stringify(list.slice(0, 200)));
+  }catch(e){}
+}
+window.addEventListener('error', e => logError(e.message, `${(e.filename || '').split('/').pop()}:${e.lineno || ''} · screen: ${typeof cur !== 'undefined' ? cur : ''}`, e.error && e.error.stack));
+window.addEventListener('unhandledrejection', e => { const r = e.reason || {}; logError(r.message || String(r), `screen: ${typeof cur !== 'undefined' ? cur : ''}`, r.stack || ''); });
+
 function srvFetch(path, opts = {}){
   const headers = {'Content-Type': 'application/json', ...(opts.headers || {})};
   if(SRV.token) headers['X-Setu-Token'] = SRV.token;
@@ -1158,6 +1191,7 @@ async function srvPush(){
       throw new Error('HTTP ' + r.status);
     }
   }catch(e){
+    logError(SRV.cloud ? 'Data cloud par save nahi hua' : 'Data Main Counter par save nahi hua', SRV.cloud ? 'Hotel Setu Cloud sync' : 'Main Counter sync (save)', e.message);
     srvStatus(false);
     setTimeout(srvPush, 3000);
   }finally{
@@ -1180,7 +1214,10 @@ async function srvPoll(){
     D = ensureGrowth(fresh.data);
     srvRefreshScreen();
     applyCloudKeys();
-  }catch(e){ srvStatus(false); }
+  }catch(e){
+    if(SRV.online !== false) logError('Main Counter se connection toota', SRV.cloud ? 'Hotel Setu Cloud' : 'Main Counter sync (read)', e.message);
+    srvStatus(false);
+  }
 }
 
 const LIVE_SCREENS = ['gateway', 'kitchen', 'online', 'bills', 'captain', 'tokens', 'reservations', 'daybook', 'settlement'];
@@ -2507,6 +2544,7 @@ const MENU = [
   ['V','Audit Log (Theft Check)','audit','Accounts'],
   ['J','Monthly Report → CA / Lawyer','monthly','Accounts'],
   ['1','Help & Support (Setu Pro)','support','Utilities'],
+  ['2','Error Log (Galti ki report)','errors','Utilities'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -2527,6 +2565,7 @@ const SCREENS = {
   license: () => openSubscriptionModal(),
   settings: scrSettings,
   support: scrSupport,
+  errors: scrErrors,
   kitchen: scrKitchen,
   qr: scrQR,
   customers: scrCustomers,
@@ -2543,7 +2582,7 @@ const SCREENS = {
 };
 
 let kdsTimer = null;
-const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support'];
+const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support', 'errors'];
 const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens'];
 // Current staff member's ticked screens (looked up fresh so Staff edits apply at once)
 const userPerms = () => { const st = activeUser && activeUser.staffId && (D.staff || []).find(x => x.id === activeUser.staffId); return (st && st.perms) || []; };
@@ -2578,7 +2617,11 @@ function go(s, approved){
   $('#hname').textContent = D.settings.name;
   main.scrollTop = 0;
   drawSide();
-  SCREENS[s]();
+  try{ SCREENS[s](); }
+  catch(e){
+    logError(e.message, `screen: ${m ? m[1] : s}`, e.stack);
+    main.innerHTML = `<div class="card"><h3 style="margin-top:0">Ye screen nahi khul payi</h3><p>${esc(errHint(e.message))}</p><p class="muted">Galti Error Log (2) mein likh di gayi hai.</p><div class="btns"><button class="btn g" onclick="go('gateway')">Gateway</button></div></div>`;
+  }
   updateOnlinePills();
 }
 
@@ -4242,7 +4285,7 @@ function printStatus(state, msg){
 
 let printJobs = 0;
 async function sendToPrinter(printer, bytes){
-  if(!printer){ printStatus('err', 'No printer selected — Settings (G) → Printer Setup'); return false; }
+  if(!printer){ printStatus('err', 'No printer selected — Settings (G) → Printer Setup'); logError('No printer selected', 'Printing', 'Direct print is on but no printer is chosen'); return false; }
   let bin = '';
   bytes.forEach(x => bin += String.fromCharCode(x));
   printJobs++;
@@ -4253,7 +4296,7 @@ async function sendToPrinter(printer, bytes){
     if(!r.ok){ const j = await r.json().catch(() => ({})); err = 'Print failed: ' + (j.error || r.status); }
   }catch(e){ err = 'Print failed: no connection to the Main Counter'; }
   printJobs--;
-  if(err) printStatus('err', err);
+  if(err){ printStatus('err', err); logError(err, 'Printer: ' + printer, 'Direct print (ESC/POS) job'); }
   else if(!printJobs) printStatus('ok', 'Printed');
   return !err;
 }
@@ -6911,6 +6954,52 @@ function saasNotices(){
 }
 setInterval(() => { try{ saasNotices(); }catch(e){} }, 15000);
 
+/* ================= ERROR LOG SCREEN ================= */
+let ERR_SRV = [];
+const errAgo = t => new Date(t).toLocaleString('en-IN', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'});
+// Server lines worth showing: failures, cloud problems, recoveries
+const srvErrLine = l => /FAIL|ERROR|CLOUD|damaged|not found|could not|blocked|denied/i.test(l);
+async function scrErrors(){
+  const list = errList();
+  ERR_SRV = [];
+  if(SRV.on && SRV.local){
+    try{ ERR_SRV = ((await (await srvFetch('/api/log')).json()).lines || []).filter(srvErrLine).reverse().slice(0, 60); }catch(e){}
+  }
+  main.innerHTML = `<div class="title">Error Log (Galti ki report)</div>
+  <div class="card"><p style="margin-top:0">Setu mein jo bhi galti aati hai wo yahan likhi jaati hai: <b>kya hua</b>, <b>kahan</b>, <b>kaise</b> aur <b>kaise theek karein</b>. Aapka data in galtiyon se nahi mitta.</p>
+    <div class="btns"><button class="btn g" onclick="scrErrors()">Refresh</button>
+      <button class="btn g" onclick="errCopy()">Copy (Support ke liye)</button>
+      ${SRV.on ? '<button class="btn ok" onclick="errSend()">Support ko bhejein</button>' : ''}
+      ${list.length ? '<button class="btn bad" onclick="errClear()">Saaf karein</button>' : ''}</div></div>
+  <div class="card"><h3 style="margin-top:0">Is computer / phone par (${list.length})</h3>
+    ${list.map(x => `<div style="border:1px solid var(--border);border-left:4px solid #dc2626;border-radius:8px;padding:10px 12px;margin:8px 0">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(x.kya)}</b><span class="muted" style="font-size:12px">${errAgo(x.at)}${x.n > 1 ? ` · ${x.n} baar` : ''}${x.user ? ' · ' + esc(x.user) : ''}</span></div>
+      <div style="font-size:13px;margin-top:4px"><b>Kahan:</b> ${esc(x.kahan || '-')}</div>
+      <div style="font-size:13px;margin-top:4px;background:#f0fdf4;border-radius:6px;padding:6px 8px"><b>Kaise theek karein:</b> ${esc(errHint(x.kya + ' ' + x.kaise))}</div>
+      ${x.kaise ? `<details style="margin-top:4px"><summary class="muted" style="cursor:pointer;font-size:12px">Kaise hua (technical detail)</summary><pre style="white-space:pre-wrap;font-size:11px;margin:4px 0 0">${esc(x.kaise)}</pre></details>` : ''}
+    </div>`).join('') || '<p class="muted">Koi galti nahi. Sab theek chal raha hai.</p>'}</div>
+  ${SRV.on && SRV.local ? `<div class="card"><h3 style="margin-top:0">Main Counter server (setu-server.log)</h3>
+    ${ERR_SRV.map(l => `<div style="border-bottom:1px solid var(--border);padding:6px 0;font-size:13px"><code style="font-size:12px">${esc(l)}</code><div class="muted" style="font-size:12px">${esc(errHint(l))}</div></div>`).join('') || '<p class="muted">Server par koi galti nahi.</p>'}</div>` : ''}`;
+}
+function errText(){
+  return [`Setu Error Log · ${D.settings.name || ''} · ${D.settings.installId || ''} · ${new Date().toLocaleString('en-IN')}`]
+    .concat(errList().slice(0, 30).map(x => `${errAgo(x.at)} | ${x.kya} | ${x.kahan}${x.n > 1 ? ' | ' + x.n + 'x' : ''}${x.kaise ? '\n   ' + x.kaise.split('\n')[0] : ''}`))
+    .concat(ERR_SRV.slice(0, 20).map(l => 'SERVER | ' + l)).join('\n');
+}
+function errCopy(){
+  const t = errText();
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Copy ho gaya. WhatsApp par vendor ko bhej sakte hain.'), () => modal('Error Log', `<textarea style="width:100%;height:50vh">${esc(t)}</textarea>`));
+}
+async function errSend(){
+  try{ await supPost({subject: 'Error Log', text: errText().slice(0, 1990)}); toast('Error Log Help & Support mein bhej diya'); }
+  catch(e){ alert(e.message + '\n\n"Copy" dabakar WhatsApp par bhej dijiye.'); }
+}
+function errClear(){
+  if(!confirm('Error Log saaf karein? (Data par koi asar nahi)')) return;
+  lsSet(ERRLOG_KEY, '[]');
+  scrErrors();
+}
+
 /* ================= HELP & SUPPORT (tickets to Setu Pro) ================= */
 let SUP = [];
 async function scrSupport(){
@@ -7025,7 +7114,7 @@ function scrSettings(){
       </div>
       <div>
         <label>Zomato Restaurant ID / ResId</label>
-        <input id="st_zomatoId" value="${esc(s.zomatoId || 'RES-189240')}">
+        <input id="st_zomatoId" value="${esc(s.zomatoId || '')}" placeholder="Zomato Restaurant ID">
       </div>
       <div>
         <label>Zomato Commission (%)</label>
