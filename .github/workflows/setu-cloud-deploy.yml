@@ -1,12 +1,12 @@
 name: Setu Cloud deploy
 
 # Puts cloud/ (Setu Cloud Worker) live on Cloudflare, like Library ERP's worker deploy.
-# Runs on push to main / hotel-software, or by hand: Actions -> "Setu Cloud deploy" -> Run workflow.
+# Runs on push to main / hotel-software / the current work branch, or by hand: Actions -> "Setu Cloud deploy" -> Run workflow.
 # Needs repo secrets (Settings -> Secrets and variables -> Actions): CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID.
 # Worker secrets (ADMIN_KEY, LICENSE_PRIVATE_KEY, Razorpay) stay in Cloudflare and are not touched here.
 on:
   push:
-    branches: [main, hotel-software]
+    branches: [main, hotel-software, ccr-89eaafa4-mxbfj2]
     paths: ['cloud/**', 'hotel_erp.html', 'sw.js', 'manifest.json', '.github/workflows/setu-cloud-deploy.yml']
   workflow_dispatch:
     inputs:
