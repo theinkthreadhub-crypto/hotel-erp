@@ -503,7 +503,7 @@ class CloudSync:
             return
         now = int(time.time() * 1000)
         if code == 200 and j.get('code') and j.get('syncKey'):
-            self.store.log(f"Setu Cloud: joined by itself as {j['code']}")
+            self.store.log(f"Hotel Setu Cloud: joined by itself as {j['code']}")
             self.auto = {'state': 'joined', 'code': j['code'], 'at': now}
             self._save_link(DEFAULT_CLOUD_URL, j['code'], j['syncKey'])
         elif code == 409 and j.get('code'):
@@ -528,7 +528,7 @@ class CloudSync:
             raise ValueError('Ye Hotel Code cloud par nahi mila')
         if code != 200 or not j.get('syncKey'):
             raise ValueError(j.get('error') or f'Cloud HTTP {code}')
-        self.store.log(f'Setu Cloud: restored from {hotel}')
+        self.store.log(f'Hotel Setu Cloud: restored from {hotel}')
         self.auto = {'state': 'joined', 'code': hotel, 'at': int(time.time() * 1000)}
         self._save_link(DEFAULT_CLOUD_URL, hotel, j['syncKey'], restore=True)
 
@@ -630,7 +630,7 @@ class CloudSync:
     def support(self, method, path, body=None):
         # Help & Support tickets go to the vendor through this PC's cloud link
         if not self.configured():
-            raise ValueError('Help & Support ke liye ye PC Setu Cloud se juda hona chahiye (Settings → Setu Cloud)')
+            raise ValueError('Help & Support ke liye ye PC Hotel Setu Cloud se juda hona chahiye (Settings → Hotel Setu Cloud)')
         code, text = self._request(method, path, json.dumps(body) if body is not None else None)
         try:
             return code, json.loads(text or '{}')
@@ -641,7 +641,7 @@ class CloudSync:
         code, text = self._request('GET', '/api/version')
         if code == 404:
             # The vendor deleted this hotel on the cloud: forget the link, join again (unless blocked)
-            self.store.log(f"Setu Cloud: hotel {self.cfg.get('hotel')} not found on the cloud, joining again")
+            self.store.log(f"Hotel Setu Cloud: hotel {self.cfg.get('hotel')} not found on the cloud, joining again")
             self.cfg = {'enabled': True}
             _write_json(self.cfg_path, self.cfg)
             self.state = {}
@@ -690,7 +690,7 @@ class CloudSync:
             if code == 409:
                 raise CloudBusy()
             if code == 402:
-                raise OSError('Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
+                raise OSError('Hotel Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
             if code != 200:
                 raise OSError(f'Cloud save failed (HTTP {code})')
             cv = json.loads(text)['version']

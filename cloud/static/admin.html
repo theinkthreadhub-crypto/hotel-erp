@@ -348,7 +348,7 @@ const toggleTicket = run(async id => {
 // ----- blocked computers -----
 async function drawBlocked(){
   const L = (await api('/api/admin/blocked')).blocked || [];
-  $('#main').innerHTML = `<div class="card"><h2>Blocked computers</h2><p class="muted" style="margin-top:-6px">These Install IDs cannot join Setu Cloud again (blocked when the hotel was deleted).</p>
+  $('#main').innerHTML = `<div class="card"><h2>Blocked computers</h2><p class="muted" style="margin-top:-6px">These Install IDs cannot join Hotel Setu Cloud again (blocked when the hotel was deleted).</p>
     ${L.map(b => `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>${esc(b.name || b.code)}</b><br><span class="muted"><code>${esc(b.iid)}</code> · ${esc(b.code)} · ${d8(b.at)}</span></span>
       <button class="g" onclick="unblock('${esc(b.iid)}')">Unblock</button></div>`).join('') || '<p class="muted">No blocked computer.</p>'}</div>`;
 }
@@ -446,7 +446,7 @@ function tabOverview(){
         : '<span class="muted">not stored (made before this option) — Support tab → New Counter PC Sync Key, or record the current key there</span>'}</div>
     <div class="row" style="margin-top:6px">Owner password (last set by you): ${h.storedOwnerPass ? `<code style="font-size:14px">${esc(h.storedOwnerPass)}</code>` : '<span class="muted">not stored — set a new one below</span>'}
       <span class="muted">(if the owner changed it in Setu Settings, theirs is newer)</span></div>
-    ${(h.counter || {}).installId ? '' : `<p class="muted" style="margin:6px 0 0">Install ID appears here after the hotel's Setu connects: Setu → Settings (G) → Setu Cloud Sync → Hotel Code <b>${esc(h.code)}</b> + the Sync Key above → Save &amp; Connect.</p>`}
+    ${(h.counter || {}).installId ? '' : `<p class="muted" style="margin:6px 0 0">Install ID appears here after the hotel's Setu connects: Setu → Settings (G) → Hotel Setu Cloud Sync → Hotel Code <b>${esc(h.code)}</b> + the Sync Key above → Save &amp; Connect.</p>`}
     <h3>Counter PC &amp; Backup</h3>
     <div class="grid">
       <div class="stat"><span class="muted">Last data received</span><b style="font-size:15px">${health(h.savedAt)}</b><span class="muted">${h.savedAt ? dt(h.savedAt) : 'Counter PC not connected yet'}</span></div>
@@ -603,7 +603,7 @@ function tabSupport(){
     <h3>Previous Support Access</h3>
     ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Never</p>'}
     <h3>Lost keys</h3>
-    <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Setu Cloud Sync). Owner password: works on the phone app at once and on the counter PC after its next sync.</p>
+    <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Hotel Setu Cloud Sync). Owner password: works on the phone app at once and on the counter PC after its next sync.</p>
     <div class="row"><input id="k_set" placeholder="Current Sync Key (40 characters)" maxlength="40" style="min-width:300px"><button class="g" onclick="setSyncKey()">Record This Key</button></div>
     <div class="row" style="margin-top:8px"><button onclick="newSyncKey()">New Counter PC Sync Key</button>
       <input id="o_pw" placeholder="New owner password (6+ characters)" maxlength="40"><button onclick="ownerPw()">Reset Owner Password</button></div>

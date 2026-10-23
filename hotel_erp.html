@@ -612,7 +612,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
     <button class="sub-pill ok" id="top-sub-pill" onclick="openSubscriptionModal()" title="Aghanya Devanya License Status & Renewal">
       License: Active
     </button>
-    <button class="sub-pill" id="top-cloud-pill" onclick="go('settings')" style="display:none" title="Setu Cloud Sync status — open Settings"></button>
+    <button class="sub-pill" id="top-cloud-pill" onclick="go('settings')" style="display:none" title="Hotel Setu Cloud Sync status — open Settings"></button>
     <button class="btn g sm" id="btn-pwa-install" onclick="triggerPWAInstall()" style="border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#e2e8f0;display:inline-flex" title="Install Desktop App on Computer">
       Install PC App
     </button>
@@ -1055,7 +1055,7 @@ function srvStatus(ok){
   e.textContent = SRV.blocked
     ? 'Subscription expired. Cloud saving is paused. Renew from Settings (G).'
     : SRV.cloud
-    ? (ok ? 'Setu Cloud · Connected' : 'No internet. Data is not being saved; please keep this page open.')
+    ? (ok ? 'Hotel Setu Cloud · Connected' : 'No internet. Data is not being saved; please keep this page open.')
     : (ok ? (SRV.local ? 'Main Counter · LAN Server ON' : 'Connected to Main Counter') : 'Connection to Main Counter lost. Data is not being saved.');
   e.style.color = ok && !SRV.blocked ? '#34d399' : '#ef4444';
 }
@@ -1078,7 +1078,7 @@ async function srvInitData(){
   if(j.version === 0 || !j.data){
     if(!SRV.local && !SRV.signup){
       showConnectScreen(SRV.cloud
-        ? 'No data on the cloud yet. Enable Settings (G) → Setu Cloud Sync on the Main Counter PC.'
+        ? 'No data on the cloud yet. Enable Settings (G) → Hotel Setu Cloud Sync on the Main Counter PC.'
         : 'Setu is not set up on the Main Counter PC yet. Please complete sign-up there first.');
       return false;
     }
@@ -1219,7 +1219,7 @@ async function applyCloudKeys(){
   applyCloudKeys.busy = true;
   try{
     for(const k of fresh){
-      const act = await activateLicenseKey(k, 'Setu Cloud Online Renewal');
+      const act = await activateLicenseKey(k, 'Hotel Setu Cloud Online Renewal');
       if(act.success) toast('License renewed: ' + act.plan);
     }
   }finally{ applyCloudKeys.busy = false; }
@@ -1246,7 +1246,7 @@ function showConnectScreen(msg, view){
 
   if(SRV.saas && view === 'signup'){
     el.innerHTML = `<div class="login-card" style="max-width:440px">
-      ${head('Setu Cloud — New Hotel', 'Start with a free trial. No card required.')}
+      ${head('Hotel Setu Cloud — New Hotel', 'Start with a free trial. No card required.')}
       <form id="signup-form" style="text-align:left">
         <div class="login-field"><label>Hotel / Restaurant Name *</label><input id="su_hotel" required maxlength="80"></div>
         <div class="login-field"><label>Business type *</label><select id="su_type"><option value="restaurant">Restaurant</option><option value="cafe">Cafe / QSR</option><option value="hotel">Hotel (Rooms + Restaurant)</option><option value="cloudkitchen">Cloud Kitchen</option></select></div>
@@ -1282,16 +1282,16 @@ function showConnectScreen(msg, view){
         lsSet(TOKEN_KEY, j.token);
         activeUser = {name: v('su_owner'), role: 'admin', access: 'manager', time: Date.now()};
         lsSet(AUTH_KEY, JSON.stringify(activeUser));
-        const act = await activateLicenseKey(j.trialKey, 'Setu Cloud Free Trial');   // also saves = first upload
+        const act = await activateLicenseKey(j.trialKey, 'Hotel Setu Cloud Free Trial');   // also saves = first upload
         if(!act.success) save();
         el.style.display = 'none';
-        audit('Sign Up', `Setu Cloud · ${j.code}`);
+        audit('Sign Up', `Hotel Setu Cloud · ${j.code}`);
         startUI();
         srvStartPolling();
         modal('Welcome! Your hotel account is ready', `
           <p>Your <b>Hotel Code</b> (used to sign in on every device):</p>
           <div style="font:800 28px 'JetBrains Mono',monospace;letter-spacing:2px;margin:6px 0 14px">${esc(j.code)}</div>
-          <p>Your <b>${j.trialDays}-day free trial</b> has started. After that, renew online from Settings (G) → Setu Cloud.</p>
+          <p>Your <b>${j.trialDays}-day free trial</b> has started. After that, renew online from Settings (G) → Hotel Setu Cloud.</p>
           <p style="margin-top:12px"><b>Counter PC Sync Key</b> (for the Setu Desktop App only. Keep it safe; it will not be shown again):</p>
           <code style="display:block;word-break:break-all;background:#f1f5f9;padding:8px;border-radius:6px">${esc(j.syncKey)}</code>
           <p class="muted" style="margin-top:12px">Create cashier / staff PINs in Settings (G). Simple PINs such as 1234 or 1111 are not accepted on the cloud.</p>
@@ -1304,7 +1304,7 @@ function showConnectScreen(msg, view){
   }
 
   el.innerHTML = `<div class="login-card">
-      ${head(SRV.hostLocked ? esc(SRV.hotelName || 'Setu') : SRV.saas ? 'Setu Cloud — Login' : 'Setu — Device Connect', SRV.cloud ? 'This phone / tablet will connect to Setu Cloud over the internet' : 'This phone / tablet will connect to the Main Counter PC (restaurant Wi-Fi)')}
+      ${head(SRV.hostLocked ? esc(SRV.hotelName || 'Setu') : SRV.saas ? 'Hotel Setu Cloud — Login' : 'Setu — Device Connect', SRV.cloud ? 'This phone / tablet will connect to Hotel Setu Cloud over the internet' : 'This phone / tablet will connect to the Main Counter PC (restaurant Wi-Fi)')}
       <form id="connect-form" style="text-align:left">
         ${SRV.saas && !SRV.hostLocked ? `<div class="login-field"><label>Hotel Code</label><input id="connect_hotel" required placeholder="e.g. SHARM482" value="${esc(SRV.hotel || lsGet(HOTEL_KEY) || '')}" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"></div>` : ''}
         <div class="login-field">
@@ -1343,7 +1343,7 @@ function showConnectScreen(msg, view){
       if(j.setup){
         setupCloudHotel(j, $('#connect_pin').value.trim());
         await srvPush();
-        audit('Login', `${activeUser.name} · pehli baar (Setu Cloud)`);
+        audit('Login', `${activeUser.name} · pehli baar (Hotel Setu Cloud)`);
         save();
         startUI();
         srvStartPolling();
@@ -1391,7 +1391,7 @@ async function payPlan(planId){
       key: j.keyId,
       subscription_id: j.subscriptionId,
       name: 'Setu POS',
-      description: 'Setu Cloud Subscription (Auto-renew)',
+      description: 'Hotel Setu Cloud Subscription (Auto-renew)',
       prefill: {name: D.auth?.ownerName || '', contact: D.auth?.phone || ''},
       notes: {hotel: SRV.hotel},
       theme: {color: '#0ea5e9'},
@@ -1425,7 +1425,7 @@ async function newSyncKey(){
   if(!r.ok) return alert(j.error || 'Could not generate the key');
   audit('Cloud Sync Key Changed', j.hotel);
   save();
-  modal('Counter PC Sync Key', `<p>On the counter PC, enter this under Settings (G) → Setu Cloud Sync:</p>
+  modal('Counter PC Sync Key', `<p>On the counter PC, enter this under Settings (G) → Hotel Setu Cloud Sync:</p>
     <p>Cloud URL: <code>${esc(location.origin)}</code><br>Hotel Code: <b>${esc(j.hotel)}</b></p>
     <code style="display:block;word-break:break-all;background:#f1f5f9;padding:8px;border-radius:6px">${esc(j.syncKey)}</code>
     <p class="muted">This key will not be shown again.</p><div class="btns"><button class="btn ok" onclick="closeModal()">OK</button></div>`);
@@ -2540,7 +2540,7 @@ function go(s, approved){
     if(!approved){ s = 'captain'; }
   }
   if(!screenOn(s)){
-    toast('This module is not included in your Setu plan. See Settings (G) → Setu Cloud to upgrade.');
+    toast('This module is not included in your Setu plan. See Settings (G) → Hotel Setu Cloud to upgrade.');
     s = 'gateway';
   }
   // Staff limited to ticked screens (Staff → Allowed screens); a manager PIN can still open others
@@ -2572,7 +2572,7 @@ function drawSide(){
   let html = `<button class="${cur==='gateway'?'active':''}" onclick="go('gateway')"><u>Esc</u> Gateway</button>`;
   const allowed = userPerms();
   MENU.forEach(m => {
-    if(!screenOn(m[2])) return;   // module not in this hotel's Setu Cloud plan
+    if(!screenOn(m[2])) return;   // module not in this hotel's Hotel Setu Cloud plan
     if(allowed.length && !isManager() && !allowed.includes(m[2])) return;   // staff limited to some screens
     if(m[3] !== cat){
       cat = m[3];
@@ -6804,7 +6804,7 @@ let SUP = [];
 async function scrSupport(){
   main.innerHTML = `<div class="title">Help &amp; Support (Setu Pro)</div><div class="card" id="sup-card"><p class="muted">Loading...</p></div>`;
   const el = $('#sup-card');
-  if(!SRV.on){ el.innerHTML = '<p>Help &amp; Support <b>Setu Desktop App (EXE)</b> par chalta hai, aur PC Setu Cloud se juda hona chahiye.</p>'; return; }
+  if(!SRV.on){ el.innerHTML = '<p>Help &amp; Support <b>Setu Desktop App (EXE)</b> par chalta hai, aur PC Hotel Setu Cloud se juda hona chahiye.</p>'; return; }
   let j = {};
   try{
     const r = await srvFetch('/api/support/tickets');
@@ -6861,9 +6861,9 @@ function scrSettings(){
   <div class="title">Restaurant Settings, Online Aggregators & Backup</div>
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
-  <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
+  <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
   <div class="card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Owner Password</h3>
-    <p class="muted" style="margin-top:-4px">Used to sign in on this PC, as the Manager PIN, and on the owner's phone app (Setu Cloud). Forgot it? Your vendor can set a new one.</p>
+    <p class="muted" style="margin-top:-4px">Used to sign in on this PC, as the Manager PIN, and on the owner's phone app (Hotel Setu Cloud). Forgot it? Your vendor can set a new one.</p>
     <div class="grid">
       <div><label>Current password</label><input id="op_cur" type="password" autocomplete="off"></div>
       <div><label>New password (6+ characters)</label><input id="op_new" type="password" autocomplete="off"></div>
@@ -7049,7 +7049,7 @@ function scrSettings(){
   <div class="card">
     <h3 style="margin-top:0">Data Backup & Restore</h3>
     <p class="muted">${SRV.cloud
-      ? 'This is Setu Cloud. The master data is on the Main Counter PC and syncs to the cloud from there. The cloud keeps nightly backups for 30 days.'
+      ? 'This is Hotel Setu Cloud. The master data is on the Main Counter PC and syncs to the cloud from there. The cloud keeps nightly backups for 30 days.'
       : SRV.on
       ? 'Data is saved to a file on the Main Counter PC with an automatic daily backup in <b>%LOCALAPPDATA%\\AghanyaDevanyaERP\\Data\\Backups</b> (kept for 60 days). We still recommend a weekly backup outside the PC (pen drive / Google Drive).'
       : 'Browser mode: data is stored in this browser (limit ~5 MB). Please download a backup at the end of each day.'}</p>
@@ -7224,7 +7224,7 @@ async function cloudPill(){
         const t = c.at ? new Date(c.at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'}) : '';
         cls = c.ok === true ? 'on' : c.ok === false ? 'bad' : 'wait';
         txt = c.ok === true ? `☁ Synced ${t}` : c.ok === false ? '☁ Sync failed' : '☁ Connecting…';
-        el.title = c.ok === false ? 'Cloud Sync failing: ' + (c.error || '') + ' — open Settings' : 'Setu Cloud Sync — open Settings';
+        el.title = c.ok === false ? 'Cloud Sync failing: ' + (c.error || '') + ' — open Settings' : 'Hotel Setu Cloud Sync — open Settings';
       }
     }catch(e){}
   }
@@ -7237,7 +7237,7 @@ setInterval(cloudPill, 60000);
 async function drawCloudCard(){
   const el = $('#cloud-card');
   if(!el) return;
-  const headT = '<h3 style="margin-top:0">Setu Cloud Sync (Internet Access)</h3>';
+  const headT = '<h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3>';
   const pinNote = '<span class="muted">Simple PINs such as 1234 / 1111 are not accepted on the cloud. Please change the Manager and Cashier PINs first.</span>';
   if(SRV.saas) return drawSaasCard(el, headT);
   if(SRV.cloud){
@@ -7246,7 +7246,7 @@ async function drawCloudCard(){
       <div style="margin:0 0 10px">Counter PC ${installIdHTML()}</div>
       <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
         <div class="qrbox">${qrSvg(u)}<small>Scan with a phone</small></div>
-        <div style="font-size:13px;line-height:1.7">You are on <b>Setu Cloud</b>. This link works from any internet connection:<br>
+        <div style="font-size:13px;line-height:1.7">You are on <b>Hotel Setu Cloud</b>. This link works from any internet connection:<br>
           <code style="font-size:13px;font-weight:700">${esc(u)}</code><br>
           Bills and KOTs reach the Main Counter PC within seconds (when the PC is on and online).<br>${pinNote}</div>
       </div>`;
@@ -7288,7 +7288,7 @@ async function drawCloudCard(){
         <div class="btns"><button class="btn ok" onclick="cloudJoin()">${c.enabled === false ? 'Cloud Chalu Karein' : 'Abhi Jodein'}</button>
           <button class="btn g" onclick="drawCloudCard()">Status Refresh</button></div>
         ${restoreForm('', 'Naya computer? Purana data cloud se laayein')}
-        <p class="muted" style="margin:4px 0 0">Hotel Code purane PC par Settings → Setu Cloud mein, ya owner ke phone app mein milta hai.</p>`) + `
+        <p class="muted" style="margin:4px 0 0">Hotel Code purane PC par Settings → Hotel Setu Cloud mein, ya owner ke phone app mein milta hai.</p>`) + `
       <details style="margin-top:14px"><summary class="muted" style="cursor:pointer">Advanced: Cloud URL / Sync Key haath se bharein</summary>
       <div style="margin:8px 0">${installIdHTML()}</div>
       <div class="grid">`;
