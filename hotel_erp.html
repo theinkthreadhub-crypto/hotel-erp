@@ -3333,6 +3333,7 @@ function redeemPts(){
 }
 
 function scrBill(){
+  const showCust = !!(B.showCust || B.cust || B.phone || billFields().some(f => f.required) || +saasRules().phoneAbove);
   const cats = ['All', ...new Set(D.menu.map(m => m.cat))];
   if(billCat >= cats.length) billCat = 0;
   
@@ -3408,21 +3409,26 @@ function scrBill(){
 
     <!-- Right Column: Cart & Billing Details -->
     <div class="card">
-      <div class="grid" style="grid-template-columns:110px 1fr 1fr">
+      ${kacchaEntries.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+        <b style="font-size:12px;color:#b45309">Running orders:</b>
+        ${kacchaEntries.map(([tbl, k]) => `<button class="btn sm ${B.table === tbl ? 'ok' : 'g'}" style="padding:5px 10px" onclick="switchTable('${esc(tbl)}')">${esc(tbl)} · ${money(calc(k.cart, k.disc, gstRate()).total)}</button>`).join('')}
+      </div>` : ''}
+      <div class="grid" style="grid-template-columns:110px 1fr${showCust ? ' 1fr' : ''}">
         <div>
           <label>${B.channel==='Dine-In' ? 'Table No' : B.channel.includes('Zomato')||B.channel.includes('Swiggy') ? 'Order ID' : 'Order Token'}</label>
           <input id="b_table" value="${esc(B.channel==='Dine-In' ? B.table : (B.orderId || B.table))}" 
             onchange="${B.channel==='Dine-In' ? 'switchTable(this.value.trim())' : 'B.orderId=this.value.trim();B.table=this.value.trim()'}">
         </div>
-        <div>
-          <label>Customer Name</label>
+        ${showCust ? `<div>
+          <label>Customer Name (optional)</label>
           <input id="b_cust" value="${esc(B.cust)}" oninput="B.cust=this.value" placeholder="${B.channel.includes('Zomato')?'Zomato Guest':'Walk-in Guest'}">
         </div>
         <div>
-          <label>Mobile (WhatsApp)</label>
+          <label>Mobile (optional)</label>
           <input value="${esc(B.phone)}" oninput="onPhone(this.value)" inputmode="tel" placeholder="10-digit number">
         </div>
-        ${billFields().map((f, i) => `<div><label>${esc(f.label)}${f.required ? ' *' : ''}</label><input value="${esc((B.extra || {})[f.label] || '')}" oninput="setExtra(${i}, this.value)" maxlength="60"></div>`).join('')}
+        ${billFields().map((f, i) => `<div><label>${esc(f.label)}${f.required ? ' *' : ''}</label><input value="${esc((B.extra || {})[f.label] || '')}" oninput="setExtra(${i}, this.value)" maxlength="60"></div>`).join('')}`
+        : `<div style="display:flex;align-items:flex-end"><button class="btn g sm" onclick="B.showCust=true;scrBill()">+ Customer name / mobile (optional)</button></div>`}
       </div>
       <div id="pts"></div>
 
