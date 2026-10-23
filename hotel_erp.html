@@ -790,6 +790,7 @@ function ensureGrowth(s){
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
   if(!s.settings.outletCode) s.settings.outletCode = 'OUT-' + Math.random().toString(36).slice(2,6).toUpperCase();
   if(!s.settings.installId) s.settings.installId = newInstallId();
+  if(!s.settings.thermal58Fix){ s.settings.thermal58Fix = true; s.settings.width = 58; s.settings.billPaper = 'thermal'; s.settings.kotPaper = 'thermal'; }
   applySaas(s);
   return s;
 }
@@ -4196,6 +4197,12 @@ function printDoc(parts){
   p.style.setProperty('--pw', (D.settings.width == 58 ? '46mm' : '70mm'));
   p.innerHTML = parts.join('<div class="cut"></div>');
   if(+D.settings.width === 58) p.querySelectorAll('.rcpt').forEach(r => r.classList.add('w58'));
+  p.style.cssText += ';display:block;position:absolute;left:-9999px;top:0';
+  const hPx = Math.max(0, ...[...p.querySelectorAll('.rcpt:not(.a6)')].map(r => r.offsetHeight));
+  p.style.display = p.style.position = p.style.left = p.style.top = '';
+  let pg = $('#pgsz');
+  if(!pg){ pg = document.createElement('style'); pg.id = 'pgsz'; document.head.appendChild(pg); }
+  pg.textContent = hPx ? `@page thermal{size:${+D.settings.width === 58 ? 58 : 80}mm ${Math.ceil(hPx * 25.4 / 96) + 8}mm;margin:0}` : '';
   setTimeout(() => window.print(), 60);
 }
 function printBill(id, what){
@@ -6950,6 +6957,26 @@ function startUI(){
   if(activeUser) go('gateway');
 }
 
+async function autoPrinterSetup(){
+  if(D.settings.printAuto || !SRV.on || SRV.cloud) return;
+  try{
+    const list = (await (await srvFetch('/api/printers')).json()).printers || [];
+    const thermal = n => /pos|thermal|receipt|58\s?mm|80\s?mm/i.test(n);
+    const pick = list.find(n => thermal(n) && !/copy of/i.test(n)) || list.find(thermal);
+    const st = D.settings;
+    st.printAuto = true;
+    if(pick){
+      st.printMode = 'direct';
+      st.printGraphic = true;
+      if(!st.billPrinter) st.billPrinter = pick;
+      if(!st.kotPrinter) st.kotPrinter = pick;
+      if(/58/.test(pick)){ st.width = 58; st.billPaper = 'thermal'; st.kotPaper = 'thermal'; }
+      toast(`Thermal printer connected: ${pick}`);
+    }
+    save();
+  }catch(e){}
+}
+
 (async function boot(){
   if(await srvDetect()){
     SRV.on = true;
@@ -6961,6 +6988,7 @@ function startUI(){
     applyCloudKeys();
   }
   startUI();
+  autoPrinterSetup();
 })();
 
 // Register Service Worker for 100% offline computer execution
