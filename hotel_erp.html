@@ -1314,7 +1314,7 @@ function showConnectScreen(msg, view){
       ${foot}
     </div>`;
   el.style.display = 'flex';
-  if(SRV.saas && !SRV.hostLocked) $('#to-signup').onclick = ev => { ev.preventDefault(); showConnectScreen('', 'signup'); };
+  if($('#to-signup')) $('#to-signup').onclick = ev => { ev.preventDefault(); showConnectScreen('', 'signup'); };
   $('#connect-form').onsubmit = async ev => {
     ev.preventDefault();
     try{
