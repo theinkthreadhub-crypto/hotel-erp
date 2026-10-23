@@ -193,7 +193,9 @@ function drawAdd(){
     const f = Object.fromEntries(new FormData(e.target));
     f.paid = !!f.paid;
     const gstin = (f.gstin || '').trim(); delete f.gstin;
-    const j = await api('/api/admin/create', f);
+    $('#ares').innerHTML = '<span class="muted">Creating…</span>';
+    let j;
+    try{ j = await api('/api/admin/create', f); }catch(err){ $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err; }
     if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
     $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
       <p>Send this to the owner (WhatsApp):</p>
@@ -252,6 +254,10 @@ function tabOverview(){
     <p class="muted" style="margin-top:-4px">Owner forgot the password? Set a new one: it works on the phone app at once and on the counter PC after its next sync (it is also the Manager PIN there).</p>
     <div class="row"><input id="o_pw2" placeholder="New owner password (6+ characters)" maxlength="40" style="min-width:240px">
       <button onclick="ownerPw2()">Set Owner Password</button></div>
+    <h3>Counter PC Connection</h3>
+    <div class="row">Hotel Code: <code style="font-size:14px">${esc(h.code)}</code>
+      Sync Key: ${h.storedSyncKey ? `<code style="font-size:14px">${esc(h.storedSyncKey)}</code><button class="g" onclick="navigator.clipboard.writeText('${esc(h.storedSyncKey)}').then(() => toast('Sync Key copied'))">Copy</button>`
+        : '<span class="muted">not stored (made before this option) — Support tab → New Counter PC Sync Key, or record the current key there</span>'}</div>
     <h3>Counter PC &amp; Backup</h3>
     <div class="grid">
       <div class="stat"><span class="muted">Last data received</span><b style="font-size:15px">${health(h.savedAt)}</b><span class="muted">${h.savedAt ? dt(h.savedAt) : 'Counter PC not connected yet'}</span></div>
@@ -409,7 +415,8 @@ function tabSupport(){
     ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Never</p>'}
     <h3>Lost keys</h3>
     <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Setu Cloud Sync). Owner password: works on the phone app at once and on the counter PC after its next sync.</p>
-    <div class="row"><button onclick="newSyncKey()">New Counter PC Sync Key</button>
+    <div class="row"><input id="k_set" placeholder="Current Sync Key (40 characters)" maxlength="40" style="min-width:300px"><button class="g" onclick="setSyncKey()">Record This Key</button></div>
+    <div class="row" style="margin-top:8px"><button onclick="newSyncKey()">New Counter PC Sync Key</button>
       <input id="o_pw" placeholder="New owner password (6+ characters)" maxlength="40"><button onclick="ownerPw()">Reset Owner Password</button></div>
     <div id="k_out"></div>`;
 }
@@ -417,6 +424,13 @@ const newSyncKey = run(async () => {
   if(!confirm('Create a new Sync Key? The counter PC must be updated with it.')) return;
   const j = await api('/api/admin/hotel', {code: CUR.code, update: {newSyncKey: true}});
   $('#k_out').innerHTML = `<p>Hotel Code: <b>${esc(CUR.code)}</b><br>New Sync Key (shown only now): <b style="font-family:monospace">${esc(j.syncKey || '')}</b></p>`;
+});
+const setSyncKey = run(async () => {
+  const k = $('#k_set').value.trim();
+  if(!k) return;
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: {setSyncKey: k}});
+  toast('Sync Key recorded');
+  TAB = 'overview'; drawHotel();
 });
 const ownerPw2 = run(async () => {
   const pw = $('#o_pw2').value.trim();

@@ -628,7 +628,13 @@ export class SetuHotel extends DurableObject {
     }
     if(b.overrides || b.billing || b.rules || b.tier || b.applyTemplate || b.businessType) cfg.ver = (cfg.ver || 1) + 1;
     // Lost keys: a new Counter PC Sync Key (shown once) and / or a new owner first-login password
-    if(b.newSyncKey){ this.issuedSyncKey = randomHex(20); a.syncHash = await sha256(this.issuedSyncKey); notes.push('new sync key'); }
+    if(b.newSyncKey){ this.issuedSyncKey = randomHex(20); a.syncHash = await sha256(this.issuedSyncKey); a.syncKey = this.issuedSyncKey; notes.push('new sync key'); }
+    // Record a key the counter PC already uses (keys issued before the Super Admin could show them)
+    if(b.setSyncKey){
+      const k = String(b.setSyncKey).trim().toLowerCase();
+      if(!/^[0-9a-f]{40}$/.test(k)) throw new Error('A Sync Key is 40 characters (0-9, a-f)');
+      a.syncHash = await sha256(k); a.syncKey = k; notes.push('sync key set');
+    }
     if(b.ownerPassword){
       const pw = String(b.ownerPassword);
       if(pw.length < 6 || isWeak(pw)) throw new Error('weak password');
@@ -662,7 +668,7 @@ export class SetuHotel extends DurableObject {
       const syncKey = randomHex(20);
       this.account = { code: b.code, name: b.name, owner: b.owner, phone: b.phone, email: b.email, installId: b.installId || '',
         created: Date.now(), paidUntil: b.paidUntil, status: b.status || 'trial', plan: b.plan || 'trial',
-        syncHash: await sha256(syncKey), pendingKeys: [], config: newConfig(b.businessType, b.tier),
+        syncHash: await sha256(syncKey), syncKey, pendingKeys: [], config: newConfig(b.businessType, b.tier),
         ...(b.password ? { ownerHash: await sha256(b.password), initialDays: b.days } : {}) };
       let trialKey = '';
       if(b.installId){
@@ -686,7 +692,7 @@ export class SetuHotel extends DurableObject {
       try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
       const syncKey = this.issuedSyncKey;
       this.issuedSyncKey = '';
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}) });
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '' });
     }
     if(path === '/internal/support'){
       // Time-limited, read-only support login; the hotel sees it in Settings
@@ -786,6 +792,7 @@ export class SetuHotel extends DurableObject {
       if(role !== 'admin') return json(403, { error: 'manager only' });
       const syncKey = randomHex(20);
       this.account.syncHash = await sha256(syncKey);
+      this.account.syncKey = syncKey;
       this.saveAccount();
       return json(200, { syncKey, hotel: this.account.code });
     }
