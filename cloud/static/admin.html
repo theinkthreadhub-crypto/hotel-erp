@@ -463,7 +463,11 @@ async function openPanel(){
     $('#login').hidden = true;
     $('#app').hidden = false;
     show('dash');
-  }catch(e){ $('#lerr').textContent = e.message; }
+  }catch(e){
+    // A remembered key that no longer works must not keep trying (it would lock this device)
+    if(/Invalid Admin Key/.test(e.message)){ try{ sessionStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin'); }catch(x){} KEY = ''; }
+    $('#lerr').textContent = e.message;
+  }
 }
 $('#lf').onsubmit = e => { e.preventDefault(); KEY = $('#key').value.trim(); openPanel(); };
 $('#drawer').onclick = e => { if(e.target.id === 'drawer') closeHotel(); };

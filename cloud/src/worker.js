@@ -244,6 +244,7 @@ export class SetuRegistry extends DurableObject {
         return json(200, { ok: true });
       }
       if(body.ok){ this.sql.exec('DELETE FROM hit WHERE k = ?', kIp); return json(200, { ok: true }); }
+      if(body.reset){ this.sql.exec(`DELETE FROM hit WHERE k LIKE 'admin:%'`); return json(200, { ok: true }); }
       const until = ipHit.n >= ADMIN_IP_LIMIT ? ipHit.at + ADMIN_IP_WINDOW : allHit.n >= ADMIN_ALL_LIMIT ? allHit.at + ADMIN_ALL_WINDOW : 0;
       return json(200, { locked: !!until, minutes: until ? Math.ceil((until - now) / 60000) : 0 });
     }
@@ -907,6 +908,12 @@ async function admin(request, env, path){
   const validCode = c => /^[A-Z0-9]{4,12}$/.test(c || '');
   const hotelCall = (code, p, b) => hotelStub(env, code).fetch('https://hotel' + p, { method: 'POST', body: JSON.stringify(b || {}) });
 
+  // Clear every Admin Key lock (e.g. a phone that kept trying an old remembered key)
+  if(path === '/api/admin/unlock'){
+    await regCall(env, '/adminguard', { reset: true });
+    await log('Admin locks cleared', '', '');
+    return json(200, { ok: true });
+  }
   if(path === '/api/admin/meta'){
     return json(200, {
       features: Object.fromEntries(Object.entries(FEATURES).map(([k, v]) => [k, v.label])),
