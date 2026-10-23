@@ -67,7 +67,8 @@ const rawJson = (code, text) => new Response(text, { status: code, headers: HEAD
 const enc = s => new TextEncoder().encode(s);
 const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
 const istDay = (ms = Date.now()) => new Date(ms + 330 * 60000).toISOString().slice(0, 10);
-const isWeak = pin => String(pin).length < 4 || WEAK_PINS.has(String(pin).toLowerCase());
+// Same rule as the app (changeOwnerPass): short, listed, or one repeated character
+const isWeak = pin => String(pin).length < 4 || WEAK_PINS.has(String(pin).toLowerCase()) || /^(.)+$/.test(String(pin));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 function sameText(a, b){
@@ -640,6 +641,7 @@ export class SetuHotel extends DurableObject {
       const pw = String(b.ownerPassword);
       if(pw.length < 6 || isWeak(pw)) throw new Error('weak password');
       a.ownerHash = await sha256(pw);
+      a.ownerPass = pw;
       // Owner forgot the password: put the new one into the hotel's data, so it works on the
       // phone app now and on the counter PC after its next sync (also the Manager PIN there)
       if(this.meta.version){
@@ -670,7 +672,7 @@ export class SetuHotel extends DurableObject {
       this.account = { code: b.code, name: b.name, owner: b.owner, phone: b.phone, email: b.email, installId: b.installId || '',
         created: Date.now(), paidUntil: b.paidUntil, status: b.status || 'trial', plan: b.plan || 'trial',
         syncHash: await sha256(syncKey), syncKey, pendingKeys: [], config: newConfig(b.businessType, b.tier),
-        ...(b.password ? { ownerHash: await sha256(b.password), initialDays: b.days } : {}) };
+        ...(b.password ? { ownerHash: await sha256(b.password), ownerPass: b.password, initialDays: b.days } : {}) };
       let trialKey = '';
       if(b.installId){
         trialKey = await makeLicenseKey(this.env, b.installId, b.days);
@@ -693,7 +695,7 @@ export class SetuHotel extends DurableObject {
       try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
       const syncKey = this.issuedSyncKey;
       this.issuedSyncKey = '';
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '' });
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', storedOwnerPass: this.account.ownerPass || '' });
     }
     if(path === '/internal/support'){
       // Time-limited, read-only support login; the hotel sees it in Settings

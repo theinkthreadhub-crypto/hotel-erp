@@ -258,6 +258,9 @@ function tabOverview(){
     <div class="row">Hotel Code: <code style="font-size:14px">${esc(h.code)}</code>
       Sync Key: ${h.storedSyncKey ? `<code style="font-size:14px">${esc(h.storedSyncKey)}</code><button class="g" onclick="navigator.clipboard.writeText('${esc(h.storedSyncKey)}').then(() => toast('Sync Key copied'))">Copy</button>`
         : '<span class="muted">not stored (made before this option) — Support tab → New Counter PC Sync Key, or record the current key there</span>'}</div>
+    <div class="row" style="margin-top:6px">Owner password (last set by you): ${h.storedOwnerPass ? `<code style="font-size:14px">${esc(h.storedOwnerPass)}</code>` : '<span class="muted">not stored — set a new one below</span>'}
+      <span class="muted">(if the owner changed it in Setu Settings, theirs is newer)</span></div>
+    ${(h.counter || {}).installId ? '' : `<p class="muted" style="margin:6px 0 0">Install ID appears here after the hotel's Setu connects: Setu → Settings (G) → Setu Cloud Sync → Hotel Code <b>${esc(h.code)}</b> + the Sync Key above → Save &amp; Connect.</p>`}
     <h3>Counter PC &amp; Backup</h3>
     <div class="grid">
       <div class="stat"><span class="muted">Last data received</span><b style="font-size:15px">${health(h.savedAt)}</b><span class="muted">${h.savedAt ? dt(h.savedAt) : 'Counter PC not connected yet'}</span></div>

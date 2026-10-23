@@ -1836,7 +1836,7 @@ function handleSignInSubmit(e){
       userName = st.name;
       role = st.access === 'manager' ? 'admin' : 'cashier';
       if(err) err.style.display = 'none';
-      activeUser = { name: userName, role, access: st.access, staffId: st.id, time: Date.now() };
+      activeUser = { name: userName, role, access: st.access, staffId: st.id, perms: st.perms || [], time: Date.now() };
       return finishLogin();
     }
     if(cPin !== validCashierPin){
@@ -2223,15 +2223,6 @@ function triggerPWAInstall(){
   }
 }
 
-function downloadDesktopLauncher(){
-  const batCode = `@echo off\r\nstart msedge.exe --app="http://localhost:8000/hotel_erp.html" --app-id=aghanya_devanya_erp\r\n`;
-  const blob = new Blob([batCode], { type: 'application/octet-stream' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'Launch-Hotel-ERP.bat';
-  a.click();
-  toast('Launcher downloaded!');
-}
 
 /* ================= UI HELPERS ================= */
 const main = $('#main');
@@ -2481,7 +2472,7 @@ const MENU = [
   ['F','Reports & Tally Export','reports','Accounts'],
   ['U','Suppliers & Payables','suppliers','Accounts'],
   ['Y','Zomato/Swiggy Settlement','settlement','Accounts'],
-  ['V','Audit Log (Chori Check)','audit','Accounts'],
+  ['V','Audit Log (Theft Check)','audit','Accounts'],
   ['J','Monthly Report → CA / Lawyer','monthly','Accounts'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
@@ -2520,6 +2511,8 @@ const SCREENS = {
 let kdsTimer = null;
 const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly'];
 const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens'];
+// Current staff member's ticked screens (looked up fresh so Staff edits apply at once)
+const userPerms = () => { const st = activeUser && activeUser.staffId && (D.staff || []).find(x => x.id === activeUser.staffId); return (st && st.perms) || []; };
 
 function go(s, approved){
   if(!activeUser && !checkAuth()) return;
@@ -2531,9 +2524,15 @@ function go(s, approved){
     toast('This module is not included in your Setu plan. See Settings (G) → Setu Cloud to upgrade.');
     s = 'gateway';
   }
+  // Staff limited to ticked screens (Staff → Allowed screens); a manager PIN can still open others
+  if(!approved && !isManager() && s !== 'gateway' && userPerms().length && !userPerms().includes(s)){
+    const m = MENU.find(x => x[2] === s);
+    withManager(`${m ? m[1] : s} — open`, () => go(s, true));
+    return;
+  }
   if(!approved && !isManager() && CASHIER_BLOCK.includes(s)){
     const m = MENU.find(x => x[2] === s);
-    withManager(`${m ? m[1] : s} kholna`, () => go(s, true));
+    withManager(`${m ? m[1] : s} — open`, () => go(s, true));
     return;
   }
   cur = s;
@@ -2552,8 +2551,10 @@ function go(s, approved){
 function drawSide(){
   let cat = '';
   let html = `<button class="${cur==='gateway'?'active':''}" onclick="go('gateway')"><u>Esc</u> Gateway</button>`;
+  const allowed = userPerms();
   MENU.forEach(m => {
     if(!screenOn(m[2])) return;   // module not in this hotel's Setu Cloud plan
+    if(allowed.length && !isManager() && !allowed.includes(m[2])) return;   // staff limited to some screens
     if(m[3] !== cat){
       cat = m[3];
       html += `<div class="side-cat">${cat}</div>`;
@@ -3287,6 +3288,16 @@ function newB(tbl = 'T-1', channel = 'Dine-In'){
 
 /* ================= LOYALTY POINTS AT BILLING ================= */
 const redeemRs = () => r2((+B.redeem || 0) * (+D.settings.ptValue || 0));
+// Discount typed in ₹ or %; a % discount follows the cart total as items change
+function syncDisc(){
+  if(B.discType === '%') B.disc = r2(calc(B.cart, 0, gstRate()).sub * Math.min(+B.discPct || 0, 100) / 100);
+}
+function setDisc(v){
+  v = Math.max(0, +v || 0);
+  if(B.discType === '%') B.discPct = Math.min(v, 100); else { B.disc = v; B.discPct = 0; }
+  syncDisc();
+  drawTotals();
+}
 const billDisc = () => (+B.disc || 0) + redeemRs();
 
 function onPhone(v){
@@ -3436,8 +3447,11 @@ function scrBill(){
 
       <div class="grid" style="grid-template-columns:120px 1fr;margin-top:12px">
         <div>
-          <label>Discount (₹)</label>
-          <input type="number" min="0" value="${B.disc||''}" oninput="B.disc=+this.value||0;drawTotals()">
+          <label>Discount</label>
+          <div style="display:flex;gap:4px">
+            <input id="b_disc" type="number" min="0" style="min-width:0" value="${B.discType === '%' ? (B.discPct || '') : (B.disc || '')}" oninput="setDisc(this.value)">
+            <select style="width:58px" onchange="B.discType=this.value;setDisc($('#b_disc').value)"><option value="₹" ${B.discType !== '%' ? 'selected' : ''}>₹</option><option value="%" ${B.discType === '%' ? 'selected' : ''}>%</option></select>
+          </div>
         </div>
         <div>
           <label>Kitchen Note / Special Instructions</label>
@@ -3640,6 +3654,7 @@ function drawCart(){
 }
 
 function drawTotals(){
+  syncDisc();
   const t = calc(B.cart, billDisc(), gstRate()), g = gstRate(), lr = Math.min(redeemRs(), t.disc);
   $('#tot').innerHTML = `
     <div><span>Sub Total (${sum(B.cart,'qty')} items)${t.incl ? ' <small class="muted">incl. GST</small>' : ''}</span><b>${money(t.sub)}</b></div>
@@ -3765,6 +3780,7 @@ function cancelKacchaOrder(tbl){
 }
 
 function finalizePakkaBill(approvedDisc){
+  syncDisc();
   const sub = getSubscriptionInfo();
   if(sub.isExpired){
     toast('License expired. Please enter an activation key first.');
@@ -3806,7 +3822,7 @@ function finalizePakkaBill(approvedDisc){
   if(pa && t.total >= pa && !hasPh && !isAggregator(ch)){ toast(`Customer mobile number is required for bills of ${money(pa)} or more`); return; }
   const discPct = t.sub ? (+B.disc || 0) / t.sub * 100 : 0;
   if(!approvedDisc && (+B.disc || 0) > 0 && discPct > (+st.maxDiscPct || 0) && !isManager()){
-    withManager(`${money(B.disc)} discount (${Math.round(discPct)}%) dena`, by => finalizePakkaBill(by));
+    withManager(`${money(B.disc)} discount (${Math.round(discPct)}%)`, by => finalizePakkaBill(by));
     return;
   }
   const token = B.token || (st.tokenOn && ch === 'Takeaway' ? nextToken() : 0);
@@ -4739,7 +4755,7 @@ function reportText(d){
   t += `\n\n*Net Profit/Margin: ₹${r2(s.sales+s.recT-s.expT-s.purT)}*`;
   const au = auditSummary(d);
   if(au.rows.length || au.discN){
-    t += `\n\n*Audit Alerts (Chori Check)*` +
+    t += `\n\n*Audit Alerts (Theft Check)*` +
       (au.discN ? `\n   Discount: ${au.discN} bills, ₹${r2(au.discAmt)}` : '') +
       Object.entries(au.by).map(([k, v]) => `\n   ${k}: ${v.n}${v.amt ? ` (₹${r2(v.amt)})` : ''}`).join('');
   }
@@ -5759,6 +5775,10 @@ function editStaff(id){
       </select></div>
       <div><label>Login PIN (4-6 digit)</label><input id="sf_pin" type="password" inputmode="numeric" value="${esc(s.pin || '')}" autocomplete="new-password"></div>
     </div>
+    <div style="margin-top:10px"><label>Allowed screens (optional — tick to limit this person; none ticked = normal access for the role)</label>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px;margin-top:4px">
+        ${MENU.filter(m => !['settings', 'license', 'staff', 'audit'].includes(m[2])).map(m => `<label style="display:flex;gap:6px;align-items:center;font-size:13px;color:inherit"><input type="checkbox" class="sf_perm" value="${m[2]}" ${(s.perms || []).includes(m[2]) ? 'checked' : ''} style="width:auto"> ${esc(m[1])}</label>`).join('')}
+      </div></div>
     <p class="muted" style="font-size:12px;margin:8px 0 0">A personal PIN for each staff member records who created, cancelled or discounted each bill (Audit Log - V).</p>
     <div class="btns">
       <button class="btn ok" onclick="saveStaff('${id || ''}')">Save</button>
@@ -5785,7 +5805,8 @@ function saveStaff(id){
   if(pin && (pin === String(D.settings.adminPin) || pin === String(D.settings.cashierPin) || D.staff.some(x => x.id !== id && x.pin === pin))){
     toast('This PIN is already in use. Please choose another.'); return;
   }
-  const v = {name, role: $('#sf_role').value.trim(), phone: $('#sf_phone').value.trim(), salary: +$('#sf_sal').value || 0, pin: access ? pin : '', access};
+  const perms = access && access !== 'manager' ? [...document.querySelectorAll('.sf_perm:checked')].map(x => x.value) : [];
+  const v = {name, role: $('#sf_role').value.trim(), phone: $('#sf_phone').value.trim(), salary: +$('#sf_sal').value || 0, pin: access ? pin : '', access, perms};
   const prev = id && D.staff.find(x => x.id === id);
   if(!prev || (prev.access || '') !== access) audit('Staff Access Change', `${name}: ${(prev && prev.access) || 'none'} → ${access || 'none'}`);
   if(id) Object.assign(D.staff.find(x => x.id === id), v);
@@ -6631,7 +6652,7 @@ function scrAudit(){
   const count = act => all.filter(a => a.action === act).length;
   main.innerHTML = `
   <div class="title">
-    <span>Audit Log — Kisne Kya Kiya</span>
+    <span>Audit Log — Who Did What</span>
     <span class="r">From <input type="date" value="${audFrom}" onchange="audFrom=this.value;scrAudit()"> To <input type="date" value="${audTo}" onchange="audTo=this.value;scrAudit()"></span>
   </div>
   <div class="kpi-grid">
