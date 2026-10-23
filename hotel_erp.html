@@ -4478,73 +4478,146 @@ function saveVoucher(type){
 }
 
 /* ================= DAY BOOK ================= */
-let dbDate = today();
-function scrDaybook(){
-  const d = dbDate, e = [];
-  D.bills.filter(b => b.date === d).forEach(b => e.push({
-    time: b.time, type: 'Sales (' + (b.channel || 'Dine-In') + ')',
-    part: `Bill #${b.no}${b.table ? ' · '+b.table : ''}${b.cust ? ' · '+b.cust : ''}${b.cancelled ? ' (CANCELLED)' : ''}`,
-    mode: b.mode, in: b.cancelled ? 0 : b.total, out: 0, x: b.cancelled
+let dbFrom = today(), dbTo = today();
+
+// Every voucher (bills + cash book) between two dates, oldest first
+function daybookData(from, to){
+  const inRange = d => d >= from && d <= to, e = [];
+  D.bills.filter(b => inRange(b.date)).forEach(b => e.push({
+    date: b.date, time: b.time || '', type: 'Sales (' + (b.channel || 'Dine-In') + ')',
+    part: `Bill #${b.no}${b.table ? ' · ' + b.table : ''}${b.cust ? ' · ' + b.cust : ''}${b.cancelled ? ' (CANCELLED)' : ''}`,
+    mode: b.mode || '', in: b.cancelled ? 0 : b.total, out: 0, x: b.cancelled
   }));
-  D.txns.filter(t => t.date === d).forEach(t => e.push({
-    time: t.time, type: t.type === 'Receipt' ? 'Receipt' : t.type === 'Expense' ? 'Payment' : 'Purchase',
-    part: `${t.head||''} ${t.desc||''}${t.party ? ' · '+t.party : ''}`, mode: t.mode,
+  D.txns.filter(t => inRange(t.date)).forEach(t => e.push({
+    date: t.date, time: t.time || '', type: t.type === 'Receipt' ? 'Receipt' : t.type === 'Expense' ? 'Payment' : 'Purchase',
+    part: `${t.head || ''} ${t.desc || ''}${t.party ? ' · ' + t.party : ''}`.trim(), mode: t.mode || '',
     in: t.type === 'Receipt' ? t.amount : 0, out: t.type === 'Receipt' ? 0 : t.amount
   }));
-  e.sort((a,b) => a.time.localeCompare(b.time));
-  const s = summary(d);
+  e.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  // Day summaries added up over the range (cash in hand = closing of the last day)
+  const t = {sales: 0, dineSales: 0, takeawaySales: 0, zomatoSales: 0, swiggySales: 0, expT: 0, purT: 0, cashIn: 0, cashOut: 0, tax: 0, disc: 0, bills: 0, cancelled: 0, by: {}};
+  MODES.forEach(m => t.by[m] = 0);
+  let days = 0;
+  for(let d = from; d <= to && days < 400; d = addDays(d, 1), days++){
+    const s = summary(d);
+    ['sales', 'dineSales', 'takeawaySales', 'zomatoSales', 'swiggySales', 'expT', 'purT', 'cashIn', 'cashOut', 'tax', 'disc', 'cancelled'].forEach(k => t[k] += +s[k] || 0);
+    t.bills += s.bills.length;
+    MODES.forEach(m => t.by[m] += +s.by[m] || 0);
+  }
+  t.expected = summary(to).expected;
+  return {e, t, days};
+}
 
+function scrDaybook(){
+  if(dbTo < dbFrom) dbTo = dbFrom;
+  const {e, t, days} = daybookData(dbFrom, dbTo), many = dbFrom !== dbTo;
   main.innerHTML = `
   <div class="title">
     <span>Day Book & Daily Ledger</span>
-    <span class="r">Date: <input type="date" value="${d}" onchange="dbDate=this.value;scrDaybook()"></span>
+    <span class="r">From <input type="date" value="${dbFrom}" onchange="dbFrom=this.value;scrDaybook()">
+      To <input type="date" value="${dbTo}" onchange="dbTo=this.value;scrDaybook()"></span>
+  </div>
+  <div class="cats" style="margin-bottom:12px">
+    <button class="cat" onclick="dbFrom=dbTo=today();scrDaybook()">Today</button>
+    <button class="cat" onclick="dbFrom=dbTo=addDays(today(),-1);scrDaybook()">Yesterday</button>
+    <button class="cat" onclick="dbFrom=addDays(today(),-6);dbTo=today();scrDaybook()">Last 7 Days</button>
+    <button class="cat" onclick="dbFrom=today().slice(0,8)+'01';dbTo=today();scrDaybook()">This Month</button>
+    <button class="cat" onclick="dbTo=addDays(today().slice(0,8)+'01',-1);dbFrom=dbTo.slice(0,8)+'01';scrDaybook()">Last Month</button>
   </div>
   <div class="grid" style="margin-bottom:16px">
     ${[
-      ['Total Sales', s.sales, 'green'],
-      ['Dine-In Sales', s.dineSales, 'green'],
-      ['Takeaway Sales', s.takeawaySales, 'green'],
-      ['Zomato Sales', s.zomatoSales, 'green'],
-      ['Swiggy Sales', s.swiggySales, 'green'],
-      ['Expenses', s.expT, 'red'],
-      ['Purchases', s.purT, 'red'],
-      ['Cash In', s.cashIn, 'green'],
-      ['Cash Out', s.cashOut, 'red'],
-      ['Cash in Hand (exp.)', s.expected, '']
-    ].map(([l,v,c]) => `
+      ['Bills', t.bills, '', true],
+      ['Total Sales', t.sales, 'green'],
+      ['Dine-In Sales', t.dineSales, 'green'],
+      ['Takeaway Sales', t.takeawaySales, 'green'],
+      ['Zomato Sales', t.zomatoSales, 'green'],
+      ['Swiggy Sales', t.swiggySales, 'green'],
+      ['GST', t.tax, ''],
+      ['Expenses', t.expT, 'red'],
+      ['Purchases', t.purT, 'red'],
+      ['Cash In', t.cashIn, 'green'],
+      ['Cash Out', t.cashOut, 'red'],
+      [many ? 'Cash in Hand (on ' + dmy(dbTo) + ')' : 'Cash in Hand (exp.)', t.expected, '']
+    ].map(([l, v, c, n]) => `
       <div class="card" style="margin:0;padding:12px">
         <label>${l}</label>
-        <div style="font-size:17px;font-weight:800" class="${c}">${money(v)}</div>
+        <div style="font-size:17px;font-weight:800" class="${c}">${n ? v : money(v)}</div>
       </div>
     `).join('')}
+  </div>
+  <div class="btns" style="margin-bottom:12px">
+    <button class="btn ok" onclick="printDaybook()">Print / Save PDF</button>
+    <button class="btn g" onclick="daybookCSV()">Export to Excel (CSV)</button>
   </div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
       <thead>
-        <tr><th>Time</th><th>Voucher</th><th>Particulars</th><th>Mode</th><th class="n">Inward (₹)</th><th class="n">Outward (₹)</th></tr>
+        <tr>${many ? '<th>Date</th>' : ''}<th>Time</th><th>Voucher</th><th>Particulars</th><th>Mode</th><th class="n">Inward (₹)</th><th class="n">Outward (₹)</th></tr>
       </thead>
       <tbody>
         ${e.map(r => `
           <tr style="${r.x ? 'opacity:.5' : ''}">
-            <td>${r.time}</td>
+            ${many ? `<td>${dmy(r.date)}</td>` : ''}
+            <td>${esc(r.time)}</td>
             <td><b>${r.type}</b></td>
             <td>${esc(r.part)}</td>
-            <td>${r.mode}</td>
+            <td>${esc(r.mode)}</td>
             <td class="n font-bold">${r.in ? r2(r.in).toFixed(2) : ''}</td>
             <td class="n font-bold">${r.out ? r2(r.out).toFixed(2) : ''}</td>
           </tr>
-        `).join('') || '<tr><td colspan="6" class="muted" style="text-align:center;padding:20px">No entries on this date</td></tr>'}
+        `).join('') || `<tr><td colspan="${many ? 7 : 6}" class="muted" style="text-align:center;padding:20px">No entries ${many ? 'in this date range' : 'on this date'}</td></tr>`}
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="4">Total</td>
-          <td class="n font-bold">${money(sum(e,'in'))}</td>
-          <td class="n font-bold">${money(sum(e,'out'))}</td>
+          <td colspan="${many ? 5 : 4}">Total${many ? ` (${days} days)` : ''}</td>
+          <td class="n font-bold">${money(sum(e, 'in'))}</td>
+          <td class="n font-bold">${money(sum(e, 'out'))}</td>
         </tr>
       </tfoot>
     </table>
   </div>
-  <div class="card"><b>Mode-wise Sales:</b> ${MODES.map(m => `${m}: ${money(s.by[m])}`).join(' &nbsp;·&nbsp; ')}</div>`;
+  <div class="card"><b>Mode-wise Sales:</b> ${MODES.map(m => `${m}: ${money(t.by[m])}`).join(' &nbsp;·&nbsp; ')}</div>`;
+}
+
+function daybookCSV(){
+  const {e, t} = daybookData(dbFrom, dbTo), st = D.settings;
+  const rows = [[st.name || 'Hotel'], ['Day Book', dmy(dbFrom) + ' to ' + dmy(dbTo)], [],
+    ['Date', 'Time', 'Voucher', 'Particulars', 'Mode', 'Inward', 'Outward']]
+    .concat(e.map(r => [dmy(r.date), r.time, r.type, r.part, r.mode, r.in ? r2(r.in) : '', r.out ? r2(r.out) : '']))
+    .concat([['TOTAL', '', '', '', '', r2(sum(e, 'in')), r2(sum(e, 'out'))], [],
+      ['Bills', t.bills], ['Total Sales', r2(t.sales)], ['GST', r2(t.tax)], ['Expenses', r2(t.expT)], ['Purchases', r2(t.purT)]]
+      .concat(MODES.map(m => [m + ' sales', r2(t.by[m])])));
+  downloadCSV(rows, `${(st.name || 'setu').replace(/[^\w]+/g, '-')}-daybook-${dbFrom}-to-${dbTo}.csv`);
+}
+
+// A4 Day Book with the hotel's details, for printing or "Save as PDF"
+function printDaybook(){
+  const {e, t, days} = daybookData(dbFrom, dbTo), st = D.settings, au = D.auth || {};
+  const cell = (c, i, n) => `<td class="${n.includes(i) ? 'n' : ''}">${c}</td>`;
+  const kv = [['Bills', t.bills], ['Total Sales', money(t.sales)], ['Dine-In', money(t.dineSales)], ['Takeaway', money(t.takeawaySales)],
+    ['Zomato', money(t.zomatoSales)], ['Swiggy', money(t.swiggySales)], ['Discount', money(t.disc)], ['GST', money(t.tax)],
+    ['Expenses', money(t.expT)], ['Purchases', money(t.purT)], ['Cash In', money(t.cashIn)], ['Cash Out', money(t.cashOut)],
+    ['Cash in Hand (on ' + dmy(dbTo) + ')', money(t.expected)], ['Cancelled Bills', t.cancelled]];
+  $('#print').style.removeProperty('--pw');
+  $('#print').innerHTML = `<div class="a4rep">
+    <div class="a4h">
+      <div><h2>${esc(st.name || 'Hotel')}</h2>
+        ${st.address ? `<div>${esc(st.address)}</div>` : ''}
+        ${st.gstin ? `<div>GSTIN: <b>${esc(st.gstin)}</b></div>` : ''}${st.fssai ? `<div>FSSAI: ${esc(st.fssai)}</div>` : ''}
+        <div>Owner: ${esc(au.ownerName || '')}${st.phone ? ' · Ph: ' + esc(st.phone) : ''}</div></div>
+      <div style="text-align:right"><h2>Day Book</h2><div><b>${dmy(dbFrom)}</b> to <b>${dmy(dbTo)}</b> (${days} day${days > 1 ? 's' : ''})</div><div>Printed: ${dmy(today())} ${nowTime()}</div></div>
+    </div>
+    <h3>Summary</h3>
+    <table>${Array.from({length: Math.ceil(kv.length / 2)}, (_, i) => `<tr>${[kv[i * 2], kv[i * 2 + 1]].map(x => x ? `<td>${esc(x[0])}</td><td class="n"><b>${esc(x[1])}</b></td>` : '<td></td><td></td>').join('')}</tr>`).join('')}</table>
+    <div style="margin:4px 0 8px"><b>Mode-wise:</b> ${MODES.map(m => `${m} ${money(t.by[m])}`).join(' · ')}</div>
+    <h3>Entries</h3>
+    <table><tr><th>Date</th><th>Time</th><th>Voucher</th><th>Particulars</th><th>Mode</th><th class="n">Inward</th><th class="n">Outward</th></tr>
+      ${e.map(r => `<tr${r.x ? ' style="color:#777"' : ''}>${[dmy(r.date), esc(r.time), esc(r.type), esc(r.part), esc(r.mode), r.in ? r2(r.in).toFixed(2) : '', r.out ? r2(r.out).toFixed(2) : ''].map((c, i) => cell(c, i, [5, 6])).join('')}</tr>`).join('') || '<tr><td colspan="7">No entries</td></tr>'}
+      <tr class="tot"><td colspan="5">TOTAL</td><td class="n">${money(sum(e, 'in'))}</td><td class="n">${money(sum(e, 'out'))}</td></tr></table>
+    <div class="a4f">Generated by Setu · Powered by Aghanya Devanya Enterprises</div>
+  </div>`;
+  printStatus('busy', 'Opening print window… to save a PDF choose "Save as PDF" / "Microsoft Print to PDF"');
+  setTimeout(() => { window.print(); printStatus('ok', 'Day Book sent'); }, 80);
 }
 
 /* ================= CASH COUNTER ================= */
@@ -6952,6 +7025,7 @@ async function drawCloudCard(){
 
 async function saveCloud(enabled){
   const body = {enabled, url: ($('#cl_url')?.value || '').trim(), hotel: ($('#cl_hotel')?.value || '').trim().toUpperCase(), key: ($('#cl_key')?.value || '').trim()};
+  if(enabled && body.key && !/^[0-9a-f]{40}$/i.test(body.key)){ alert('The Cloud Sync Key is 40 characters (letters a-f and numbers). Copy it exactly from the Super Admin / your vendor.'); return; }
   if(!enabled && !confirm('Turn off Cloud Sync? Internet access from phones will stop. (Data stays safe on this PC.)')) return;
   toast(enabled ? 'Connecting to the cloud...' : 'Turning off...');
   try{
