@@ -3867,6 +3867,11 @@ function finalizePakkaBill(approvedDisc){
   B = newB(tbl, B.channel);
   scrBill();
 
+  if(st.afterBill === 'none' || st.afterBill === 'print'){
+    if(st.afterBill === 'print') printBill(bill.id, 'bill');
+    toast(`Bill #${bill.no} saved — ${money(bill.total)}${bill.token ? ' · Token #' + bill.token : ''}`);
+    return;
+  }
   modal(`Bill #${bill.no} Saved — ${money(bill.total)}`, `
     <p style="margin:0 0 12px;font-size:13px"><b class="green">Bill finalized.</b> Order <b>${esc(tbl)}</b> (${esc(bill.channel)}) settled.</p>
     ${bill.token ? `<p style="margin:0 0 12px;font-size:28px;font-weight:800;text-align:center;color:var(--primary-dark)">TOKEN #${bill.token}</p>` : ''}
@@ -4355,7 +4360,7 @@ function scrBills(){
               <button class="btn sm g" onclick="printBill('${b.id}','bill')">Bill</button>
               <button class="btn sm g" onclick="printBill('${b.id}','kot')">KOT</button>
               <button class="btn wa sm" onclick="${b.phone ? `waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))` : `waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WhatsApp</button>
-              ${b.cancelled ? '' : `<button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}
+              ${b.cancelled ? '' : `<button class="btn sm" onclick="editBill('${b.id}')">Edit</button><button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}
             </td>
           </tr>
         `).join('') || '<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">No bills on this date.</td></tr>'}
@@ -4369,6 +4374,57 @@ function scrBills(){
       </tfoot>
     </table>
   </div>`;
+}
+
+// Fix a saved bill: payment mode / customer in place; wrong items = cancel and re-make (Manager PIN, audited)
+function editBill(id){
+  const b = getBill(id);
+  if(!b || b.cancelled) return;
+  modal(`Edit Bill #${b.no} — ${money(b.total)}`, `
+    <div class="grid">
+      <div><label>Payment Mode</label><select id="eb_mode">${MODES.map(m => `<option ${m === b.mode ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+      <div><label>Customer Name</label><input id="eb_cust" value="${esc(b.cust || '')}"></div>
+      <div><label>Mobile</label><input id="eb_phone" value="${esc(b.phone || '')}" inputmode="tel"></div>
+    </div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">Wrong items or amount? Use <b>Cancel &amp; Re-make</b>: this bill is cancelled and its items open in the Billing Desk to correct and finalize again.</p>
+    <div class="btns">
+      <button class="btn ok" onclick="saveBillEdit('${b.id}')">Save Changes</button>
+      <button class="btn bad" onclick="remakeBill('${b.id}')">Cancel &amp; Re-make</button>
+      <button class="btn g" onclick="closeModal()">Close</button>
+    </div>`);
+}
+function saveBillEdit(id){
+  const b = getBill(id);
+  if(!b || b.cancelled) return;
+  const mode = $('#eb_mode').value, cust = $('#eb_cust').value.trim(), phone = $('#eb_phone').value.trim();
+  if(mode === 'Wallet' && b.mode !== 'Wallet'){ toast('Wallet payments must be taken at billing time'); return; }
+  const changes = [mode !== b.mode && `mode ${b.mode} → ${mode}`, cust !== (b.cust || '') && `customer → ${cust || '—'}`, phone !== (b.phone || '') && `mobile → ${phone || '—'}`].filter(Boolean);
+  if(!changes.length){ closeModal(); return; }
+  withManager(`Edit bill #${b.no}`, by => {
+    Object.assign(b, {mode, cust, phone, editedBy: by, editedAt: Date.now()});
+    audit('Bill Edit', `Bill #${b.no} · ${changes.join(' · ')}`, b.total, b.id, by);
+    save();
+    closeModal();
+    toast(`Bill #${b.no} updated`);
+    if(cur === 'bills') scrBills();
+  });
+}
+function remakeBill(id){
+  const b = getBill(id);
+  if(!b || b.cancelled) return;
+  if(!confirm(`Cancel bill #${b.no} and open its items for correction?`)) return;
+  withManager(`Bill #${b.no} cancel & re-make`, by => {
+    b.cancelled = true;
+    b.cancelledBy = by;
+    applyStock(b.used, +1);
+    audit('Bill Cancel', `Bill #${b.no} (re-make) · ${b.items.map(i => i.name + '×' + i.qty).join(', ')}`, b.total, b.id, by);
+    save();
+    closeModal();
+    B = newB(b.table || '', b.channel || 'Dine-In');
+    Object.assign(B, {cart: b.items.map(i => ({...i})), cust: b.cust || '', phone: b.phone || '', disc: +b.disc || 0, mode: b.mode || 'Cash'});
+    go('bill');
+    toast(`Bill #${b.no} cancelled — correct the items and press Final Bill`);
+  });
 }
 
 function cancelBill(id){
@@ -6925,6 +6981,10 @@ async function drawPrintCard(){
       <div><label>Kitchen KOT Printer (main)</label><select id="pr_kot">${opt(st.kotPrinter || st.billPrinter || def)}</select></div>
       <div><label>Paper Width</label><select id="pr_width"><option value="58" ${+st.width === 58 ? 'selected' : ''}>58 mm thermal</option><option value="80" ${+st.width !== 58 ? 'selected' : ''}>80 mm thermal</option></select></div>
       <div><label>Thermal Print Style</label><select id="pr_graphic"><option value="1" ${st.printGraphic !== false ? 'selected' : ''}>Graphic — Hindi & ₹ supported (recommended)</option><option value="0" ${st.printGraphic === false ? 'selected' : ''}>Text — fastest, English only</option></select></div>
+      <div><label>After Final Bill</label><select id="pr_after">
+        <option value="ask" ${(st.afterBill || 'ask') === 'ask' ? 'selected' : ''}>Show print options</option>
+        <option value="print" ${st.afterBill === 'print' ? 'selected' : ''}>Print the bill automatically</option>
+        <option value="none" ${st.afterBill === 'none' ? 'selected' : ''}>Only save — no print</option></select></div>
       <div><label>Auto-print KOT</label><select id="pr_auto"><option value="1" ${st.autoKot ? 'selected' : ''}>Yes (when an order is saved)</option><option value="0" ${st.autoKot ? '' : 'selected'}>No</option></select></div>
       <div><label>Open cash drawer on cash bills</label><select id="pr_drawer"><option value="1" ${st.drawerKick ? 'selected' : ''}>Yes</option><option value="0" ${st.drawerKick ? '' : 'selected'}>No</option></select></div>
     </div>
@@ -6947,6 +7007,7 @@ function savePrintSettings(silent){
   st.drawerKick = $('#pr_drawer').value === '1';
   st.width = +$('#pr_width').value;
   st.printGraphic = $('#pr_graphic').value === '1';
+  st.afterBill = $('#pr_after').value;
   if(st.width === 58){ st.billPaper = 'thermal'; st.kotPaper = 'thermal'; }
   const cats = [...new Set(D.menu.map(m => m.cat))];
   st.catPrinters = {};
