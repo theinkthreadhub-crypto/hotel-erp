@@ -572,6 +572,14 @@ export class SetuHotel extends DurableObject {
       notes.push('profile');
     }
     if(b.overrides || b.billing || b.rules || b.tier || b.applyTemplate || b.businessType) cfg.ver = (cfg.ver || 1) + 1;
+    // Lost keys: a new Counter PC Sync Key (shown once) and / or a new owner first-login password
+    if(b.newSyncKey){ this.issuedSyncKey = randomHex(20); a.syncHash = await sha256(this.issuedSyncKey); notes.push('new sync key'); }
+    if(b.ownerPassword){
+      const pw = String(b.ownerPassword);
+      if(pw.length < 6 || isWeak(pw)) throw new Error('weak password');
+      a.ownerHash = await sha256(pw);
+      notes.push('owner password reset');
+    }
     this.saveAccount();
     await this.refresh();
     return notes;
@@ -610,8 +618,11 @@ export class SetuHotel extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/internal/admin'){
-      const notes = await this.adminUpdate(body());
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes });
+      let notes;
+      try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
+      const syncKey = this.issuedSyncKey;
+      this.issuedSyncKey = '';
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}) });
     }
     if(path === '/internal/support'){
       // Time-limited, read-only support login; the hotel sees it in Settings
@@ -939,7 +950,7 @@ export default {
     const byHost = await hostHotel(env, url.hostname);
     const code = byHost || String(request.headers.get('X-Setu-Hotel') || '').toUpperCase();
     if(!code){
-      if(path === '/api/ping' || path === '/api/info') return json(200, { setu: true, cloud: true, saas: true, local: false, ips: [] });
+      if(path === '/api/ping' || path === '/api/info') return json(200, { setu: true, cloud: true, saas: true, local: false, ips: [], signup: !!env.LICENSE_PRIVATE_KEY });
       return json(400, { error: 'hotel code required' });
     }
     if(!/^[A-Z0-9]{4,12}$/.test(code)) return json(404, { error: 'hotel not found' });

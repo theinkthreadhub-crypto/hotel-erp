@@ -970,6 +970,7 @@ async function srvDetect(){
     SRV.local = !!j.local;
     SRV.cloud = !!j.cloud;
     SRV.saas = !!j.saas;
+    SRV.signupOpen = !!j.signup;
     // The hotel's own domain / subdomain already decides the hotel
     if(j.hostLocked){ SRV.hostLocked = true; SRV.hotel = j.hotel; SRV.hotelName = j.name || ''; }
     return j.setu === true;
@@ -1301,13 +1302,13 @@ function showConnectScreen(msg, view){
       <form id="connect-form" style="text-align:left">
         ${SRV.saas && !SRV.hostLocked ? `<div class="login-field"><label>Hotel Code</label><input id="connect_hotel" required placeholder="e.g. SHARM482" value="${esc(SRV.hotel || lsGet(HOTEL_KEY) || '')}" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"></div>` : ''}
         <div class="login-field">
-          <label>${SRV.saas ? 'Password / PIN (Manager, Cashier ya Staff)' : 'Manager ya Cashier PIN'}</label>
+          <label>${SRV.saas ? 'Password / PIN (Owner, Manager, Cashier or Staff)' : 'Manager or Cashier PIN'}</label>
           <input id="connect_pin" type="password" required placeholder="PIN" autocomplete="off">
         </div>
         ${errBox}
         <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">${SRV.saas ? 'Login' : 'Connect'}</button>
       </form>
-      ${SRV.saas && !SRV.hostLocked ? '<p style="font-size:12px;margin:12px 0 0">New hotel? <a href="#" id="to-signup"><b>Sign up free</b></a></p>' : ''}
+      ${SRV.saas && !SRV.hostLocked && SRV.signupOpen ? '<p style="font-size:12px;margin:12px 0 0">New hotel? <a href="#" id="to-signup"><b>Sign up free</b></a></p>' : ''}
       ${foot}
     </div>`;
   el.style.display = 'flex';
@@ -6902,7 +6903,7 @@ async function drawCloudCard(){
   el.innerHTML = headT + `
     <p style="margin:0 0 10px">Status: ${stat}</p>
     <div class="grid">
-      <div><label>Cloud URL</label><input id="cl_url" placeholder="https://setu-cloud.xxxx.workers.dev" value="${esc(c.url || '')}"></div>
+      <div><label>Cloud URL</label><input id="cl_url" placeholder="https://setu-cloud.theinkthreadhub.workers.dev" value="${esc(c.url || 'https://setu-cloud.theinkthreadhub.workers.dev')}"></div>
       <div><label>Hotel Code</label><input id="cl_hotel" placeholder="e.g. SHARM482" value="${esc(c.hotel || '')}" style="text-transform:uppercase"></div>
       <div><label>Cloud Sync Key ${c.hasKey ? '(saved — enter only to change)' : ''}</label><input id="cl_key" type="password" autocomplete="off" placeholder="${c.hasKey ? '••••••••' : 'Sync Key'}"></div>
     </div>
