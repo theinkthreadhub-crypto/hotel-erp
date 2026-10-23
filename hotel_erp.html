@@ -450,6 +450,10 @@ body.kitchen-mode .kcard ul{font-size:19px}
       <span style="font-size:11px;color:#64748b">For demo / testing:</span>
       <button type="button" class="btn g sm" style="width:100%;margin-top:4px;font-size:11px;font-weight:700;color:#0284c7" onclick="quickDemoLogin()">Click Here for Quick Demo Login (ID: demo | PIN: demo)</button>
     </div>
+    <div style="margin-top:12px;background:#f0fdf4;border:1px dashed #22c55e;border-radius:8px;padding:8px 12px;text-align:center">
+      <span style="font-size:11px;color:#166534">Moving from another PC? Bring all hotel data in one go:</span>
+      <label class="btn g sm" style="width:100%;margin:4px 0 0;font-size:12px;font-weight:700;color:#166534;cursor:pointer">Restore from Backup File (.json)<input type="file" accept=".json,application/json" style="display:none" onchange="restoreFresh(this.files[0]);this.value=''"></label>
+    </div>
     <div style="margin-top:14px;font-size:12px;color:#64748b">
       Already have an account? <a href="javascript:void(0)" onclick="showLoginView('signin')" style="color:var(--primary);font-weight:700;text-decoration:none">Sign In here</a>
     </div>
@@ -6710,7 +6714,7 @@ function scrSettings(){
       : 'Browser mode: data is stored in this browser (limit ~5 MB). Please download a backup at the end of each day.'}</p>
     <div class="btns">
       <button class="btn" onclick="backup()">Download JSON Backup</button>
-      <label class="btn g" style="margin:0;cursor:pointer">Restore Backup File<input type="file" accept=".json" style="display:none" onchange="restore(this.files[0])"></label>
+      <label class="btn g" style="margin:0;cursor:pointer">Restore Backup File<input type="file" accept=".json" style="display:none" onchange="restore(this.files[0]);this.value=''"></label>
       <button class="btn bad" onclick="resetAll()">Reset All Data</button>
     </div>
   </div>`;
@@ -6916,27 +6920,70 @@ function saveSettings(){
 function backup(){
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(D, null, 1)], {type:'application/json'}));
-  a.download = `restaurant-pos-backup-${today()}.json`;
+  const name = String(D.settings.name || 'hotel').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'hotel';
+  a.download = `setu-backup-${name}-${today()}.json`;
   a.click();
 }
 
-function restore(f){
+// Accepts a Setu backup download, the setu-db.json file, or a daily file from Data\Backups
+function readBackup(text){
+  let x = JSON.parse(text);
+  if(x && x.data && !x.settings) x = typeof x.data === 'string' ? JSON.parse(x.data) : x.data;
+  if(!x || !x.settings || !Array.isArray(x.bills)) throw new Error('format');
+  return x;
+}
+function backupSummary(x){
+  const n = a => (Array.isArray(a) ? a.length : 0);
+  return `${x.settings.name || 'Hotel'}\n• ${n(x.menu)} menu items\n• ${n(x.bills)} bills\n• ${n(x.staff)} staff\n• ${n(x.customers)} customers\n• ${n(x.stock)} stock items`;
+}
+function applyBackup(x, fileName){
+  const mine = {installId: D.settings.installId, subscription: D.subscription};
+  D = ensureGrowth(x);
+  // A licence belongs to one PC: data from another computer keeps this PC's Install ID and licence,
+  // and printer names are detected again
+  const moved = !!mine.installId && D.settings.installId !== mine.installId;
+  if(moved){
+    D.settings.installId = mine.installId;
+    if(mine.subscription) D.subscription = mine.subscription;
+    D.settings.printAuto = false;
+    D.settings.billPrinter = '';
+    D.settings.kotPrinter = '';
+    D.settings.catPrinters = {};
+  }
+  audit('Backup Restore', (fileName || 'backup file') + (moved ? ' (from another PC)' : ''));
+  SRV.forceNext = true;
+  save();
+  return moved;
+}
+function pickBackup(f, cb){
   if(!f) return;
   const r = new FileReader();
   r.onload = () => {
-    try{
-      const x = JSON.parse(r.result);
-      if(!x.settings || !x.bills) throw 0;
-      if(!confirm('This will replace the current data. Restore now?')) return;
-      D = ensureGrowth(x);
-      audit('Backup Restore', f.name || 'backup file');
-      SRV.forceNext = true;
-      save();
-      toast('Backup restored');
-      go('gateway');
-    }catch(e){ alert('Invalid backup file format.'); }
+    let x;
+    try{ x = readBackup(r.result); }catch(e){ alert('This is not a Setu backup file.'); return; }
+    cb(x);
   };
   r.readAsText(f);
+}
+
+function restore(f){
+  pickBackup(f, x => {
+    if(!confirm('Restore this backup? All current data on this PC will be replaced.\n\n' + backupSummary(x))) return;
+    applyBackup(x, f.name);
+    toast('Backup restored');
+    go('gateway');
+  });
+}
+
+// New PC: bring the whole hotel in from a backup before signing up
+function restoreFresh(f){
+  pickBackup(f, async x => {
+    if(!confirm('Restore this hotel data on this PC?\n\n' + backupSummary(x) + '\n\nAfter restoring, sign in with the owner ID and password from the old PC.')) return;
+    const moved = applyBackup(x, f.name);
+    if(SRV.on){ SRV.dirty = true; await srvPush(); }
+    alert('Data restored.' + (moved ? '\n\nThis is a new PC: after signing in, enter an activation key for this PC\'s Install ID.' : ''));
+    location.reload();
+  });
 }
 
 function resetAll(){
