@@ -31,4 +31,5 @@ jobs:
           echo "setu-cloud /api/counter/link (400 install id = new code; hotel code required = old code):"
           curl -s -m 15 -X POST -H 'Content-Type: application/json' -d '{}' https://setu-cloud.theinkthreadhub.workers.dev/api/counter/link || echo "(no answer)"; echo
           echo "setu-cloud /admin.html:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" https://setu-cloud.theinkthreadhub.workers.dev/admin.html || true
+          echo "hotel SHRIM011 on the cloud (name + version = it exists):"; curl -s -m 15 -H 'X-Setu-Hotel: SHRIM011' https://setu-cloud.theinkthreadhub.workers.dev/api/ping || true; echo
           echo "library setu-erp /api ping:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" https://setu-erp.theinkthreadhub.workers.dev/view || true
