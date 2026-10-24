@@ -25,6 +25,8 @@ jobs:
           if [ -z "$CLOUDFLARE_API_TOKEN" ]; then echo "no token, skipping"; exit 0; fi
           npx --yes wrangler@4 whoami || true
           npx --yes wrangler@4 deployments list --name setu-cloud || echo "setu-cloud is not deployed on this account"
+          echo "---- secret NAMES on setu-cloud (values are never shown) ----"
+          npx --yes wrangler@4 secret list --name setu-cloud | grep -o '"name": *"[^"]*"' || true
       - name: What answers on the internet
         run: |
           echo "setu-cloud /api/ping:"; curl -s -m 15 https://setu-cloud.theinkthreadhub.workers.dev/api/ping || echo "(no answer)"; echo
