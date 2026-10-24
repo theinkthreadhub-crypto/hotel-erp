@@ -123,7 +123,7 @@ def cmd_init():
         f.write(priv.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()))
     print('Private key created:', PRIVATE_KEY_FILE)
     print('Back up this file to a pen drive / Google Drive. Never share it and never upload it to GitHub.')
-    print('\nSet LIC_PUBKEY in hotel_erp.html to:\n' + public_key_b64(priv))
+    print('\nPut this first in LIC_PUBKEYS in hotel_erp.html and cloud/src/worker.js:\n' + public_key_b64(priv))
 
 
 def main():

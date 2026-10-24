@@ -130,7 +130,7 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   (the Android WebView app had none, so Lock / Suspend silently did nothing): use `ask()` / `toast()`.
 - **Keygen in Super Admin:** `/api/admin/keygen` signs `SETU-` keys (same format and plans as `keygen.py`) with the
   `LICENSE_PRIVATE_KEY` secret, or the vendor's `.pem` saved once from Super Admin → Keygen → Setup (registry `conf`
-  `licpriv`, refused unless its public half equals `LIC_PUBKEY`). `send` pushes the key to the hotel (`pushKey`) and the
+  `licpriv`, refused unless its public half is in `LIC_PUBKEYS`). `send` pushes the key to the hotel (`pushKey`) and the
   counter page activates it on its next sync. A new PC: install, read its Install ID, make a key, type it on the PC;
   once licensed it auto-joins and shows under Hotels.
 - **Setu Pro config in the app:** `featureOn()` / `screenOn()` hide modules (`FEATURE_SCREENS`, `drawSide`, `go`). `applySaas()` (in
@@ -142,7 +142,7 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Multi-outlet:** no shared cloud across outlets yet. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
 - **License:** keys are `SETU-...` strings = 13-byte payload (kind, days/minutes, install-ID hash, serial,
   issue day) + 64-byte ECDSA signature, base32. `getActivationKeyInfo()` verifies with WebCrypto against
-  `LIC_PUBKEY` and `settings.installId` (needs a secure context: 127.0.0.1 / localhost / https).
+  `LIC_PUBKEYS` (current key file first, then the earlier one, so its keys keep working) and `settings.installId` (needs a secure context: 127.0.0.1 / localhost / https).
   Used keys go to `subscription.usedKeys`. `subscription.lastSeen` blocks clock rollback.
   Built-in `AD-DEMO-*` keys work once per install and never shorten a running license.
   Kind 4 = owner password Reset Key (`keygen.py <ID> reset`): `forgotPass()` / `resetOwnerPass()` on the sign-in screen,

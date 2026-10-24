@@ -1568,7 +1568,8 @@ function updateOnlinePills(){
 /* ================= SIGNED LICENSE KEYS (AGHANYA DEVANYA ENTERPRISES) ================= */
 // Keys are signed with the vendor's private key (keygen.py). This page only holds the
 // PUBLIC key, so keys cannot be forged, and each key is tied to this install's ID.
-const LIC_PUBKEY = 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M=';
+// Vendor public keys: the current key file first, then the earlier one (keys it issued keep working)
+const LIC_PUBKEYS = ['BIaSZabMX2d0YUMVTeNbvQvwWGvewBdIUMBTDu83hyD84V2ursUn7/DNMjWY5yQcQULZ3zgHMuJCTwZol9WrPg0=', 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M='];
 const LIC_B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const LIC_EPOCH = Date.UTC(2026, 0, 1);
 
@@ -1608,8 +1609,11 @@ async function licVerify(keyStr){
   try{
     const bytes = b32ToBytes(text.slice(4, 4 + 124), 77);
     const payload = bytes.slice(0, 13), sig = bytes.slice(13);
-    const pub = await crypto.subtle.importKey('raw', Uint8Array.from(atob(LIC_PUBKEY), c => c.charCodeAt(0)), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
-    const ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload);
+    let ok = false;
+    for(const k of LIC_PUBKEYS){
+      const pub = await crypto.subtle.importKey('raw', Uint8Array.from(atob(k), c => c.charCodeAt(0)), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+      if(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload)){ ok = true; break; }
+    }
     if(!ok || payload[0] !== 1) return { reason: 'signature' };
     const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cleanInstallId(D.settings.installId))));
     if([0, 1, 2, 3].some(i => ih[i] !== payload[4 + i])) return { reason: 'install' };

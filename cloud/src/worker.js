@@ -196,13 +196,14 @@ async function licPrivMatches(env, pem){
   try{ jwk = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey('pkcs8', pemBytes(pem), { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign'])); }
   catch(e){ return false; }
   const b64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(-s.length & 3)), c => c.charCodeAt(0));
-  const pub = Uint8Array.from(atob(env.LICENSE_PUBKEY || LIC_PUBKEY), c => c.charCodeAt(0));
   const mine = new Uint8Array([4, ...b64u(jwk.x), ...b64u(jwk.y)]);
-  return mine.length === pub.length && mine.every((b, i) => b === pub[i]);
+  return pubKeys(env).some(k => { const pub = Uint8Array.from(atob(k), c => c.charCodeAt(0)); return mine.length === pub.length && mine.every((b, i) => b === pub[i]); });
 }
 
-// Vendor's PUBLIC key (same as LIC_PUBKEY in hotel_erp.html). LICENSE_PUBKEY overrides it.
-const LIC_PUBKEY = 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M=';
+// Vendor's PUBLIC keys (same as LIC_PUBKEYS in hotel_erp.html): current key file first, then the earlier one.
+// LICENSE_PUBKEY overrides them (tests).
+const LIC_PUBKEYS = ['BIaSZabMX2d0YUMVTeNbvQvwWGvewBdIUMBTDu83hyD84V2ursUn7/DNMjWY5yQcQULZ3zgHMuJCTwZol9WrPg0=', 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M='];
+const pubKeys = env => env.LICENSE_PUBKEY ? [env.LICENSE_PUBKEY] : LIC_PUBKEYS;
 
 function b32decode(text, n){
   let bits = '';
@@ -218,9 +219,12 @@ async function verifyLicense(env, key, installId){
   const text = String(key || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
   if(!text.startsWith('SETU') || text.length < 128) throw new Error('license key required');
   const bytes = b32decode(text.slice(4, 128), 77), payload = bytes.slice(0, 13), sig = bytes.slice(13);
-  const pub = await crypto.subtle.importKey('raw', Uint8Array.from(atob(env.LICENSE_PUBKEY || LIC_PUBKEY), c => c.charCodeAt(0)),
-    { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
-  if(payload[0] !== 1 || !await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload)) throw new Error('license key not genuine');
+  let ok = false;
+  for(const k of pubKeys(env)){
+    const pub = await crypto.subtle.importKey('raw', Uint8Array.from(atob(k), c => c.charCodeAt(0)), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    if(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload)){ ok = true; break; }
+  }
+  if(payload[0] !== 1 || !ok) throw new Error('license key not genuine');
   const clean = String(installId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', enc(clean)));
   if(clean.length < 8 || [0, 1, 2, 3].some(i => ih[i] !== payload[4 + i])) throw new Error('license key is for another computer');
