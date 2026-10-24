@@ -38,8 +38,8 @@ python app_main.py --server --port 8000 --data ./test-data
 ```
 Then open `http://127.0.0.1:8000/hotel_erp.html` (main counter) and `http://<LAN-IP>:8000/hotel_erp.html`
 (acts as a phone: asks for the Manager/Cashier PIN). `python -m http.server` still works and runs the
-app in **browser mode** (localStorage, no LAN). Use **"1-Click Demo Login"** (demo / demo)
-and the test license key `AD-DEMO-24HR-TEST`.
+app in **browser mode** (localStorage, no LAN). There is no demo login in the client build: sign up
+with the test license key `AD-DEMO-24HR-TEST` (once per install) or a key from `keygen.py`.
 
 There is no build step and no test suite. Before committing:
 
