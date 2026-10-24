@@ -131,12 +131,12 @@ async function api(path, body){
 const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ alert(e.message); } };
 
 // ---------------- navigation ----------------
-const VIEWS = {hotels: 'Hotels', tickets: 'Tickets', dash: 'Dashboard', add: '+ New', audit: 'Log', blocked: 'Blocked'};
+const VIEWS = {hotels: 'Hotels', tickets: 'Tickets', dash: 'Dashboard', ai: 'AI', add: '+ New', audit: 'Log', blocked: 'Blocked'};
 let UNREAD = 0;
 function nav(){
   $('#nav').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${VIEW === k ? 'on' : ''}" onclick="show('${k}')">${v}${k === 'tickets' && UNREAD ? `<span class="badge">${UNREAD}</span>` : ''}</button>`).join('');
 }
-const show = run(async v => { VIEW = v; nav(); await ({dash: drawDash, hotels: drawHotels, tickets: drawTickets, add: drawAdd, audit: drawAudit, blocked: drawBlocked})[v](); nav(); });
+const show = run(async v => { VIEW = v; nav(); await ({dash: drawDash, hotels: drawHotels, tickets: drawTickets, ai: drawAI, add: drawAdd, audit: drawAudit, blocked: drawBlocked})[v](); nav(); });
 
 async function loadHotels(){ const j = await api('/api/admin/hotels'); HOTELS = j.hotels; UNREAD = j.ticketsUnread || 0; }
 
@@ -343,6 +343,28 @@ const toggleTicket = run(async id => {
   const t = TICKETS.find(x => x.id === id);
   await api('/api/admin/ticket', {code: t.code, id, status: t.status === 'resolved' ? 'open' : 'resolved'});
   toast('Updated'); closeSheet(); await drawTickets();
+});
+
+// ----- Setu AI (one Gemini key for all hotels; stays on the cloud) -----
+async function drawAI(res){
+  const j = res || await api('/api/admin/ai', {});
+  $('#main').innerHTML = `<div class="card"><h2>Setu AI (Gemini)</h2>
+    <p class="muted" style="margin-top:-6px">aistudio.google.com → Get API key → Create. Key yahan paste karke Save kijiye. Key sirf Hotel Setu Cloud mein rehti hai, kisi hotel ke app mein nahi jaati.</p>
+    <label>Gemini API Key ${j.hasKey ? `(saved, ...${esc(j.keyEnd)} · badalni ho tabhi daaliye)` : ''}</label>
+    <input id="ai_key" type="password" autocomplete="off" placeholder="${j.hasKey ? '••••••••••••' : 'AIza...'}" style="width:100%">
+    <div class="grid" style="margin-top:8px">
+      <div><label>Har hotel ki roz ki limit (sawaal)</label><input id="ai_limit" type="number" min="1" max="1000" value="${+j.limit || 30}"></div>
+      <div><label>Model</label><input id="ai_model" value="${esc(j.model || '')}"></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button onclick="saveAI(false)">Save</button><button class="g" onclick="saveAI(true)">Save &amp; Test</button></div>
+    ${j.test ? `<p class="${j.test.ok ? 'ok' : 'err'}" style="margin:10px 0 0">${j.test.ok ? '✔ Key chal rahi hai. Gemini ne jawab diya: ' + esc(j.test.answer) : '✖ ' + esc(j.test.error)}</p>` : ''}
+    <p class="muted" style="margin:10px 0 0">Status: ${j.hasKey ? '<b class="ok">Key saved</b>' : '<b class="err">Key nahi hai, AI band hai</b>'} · Aaj ${j.today || 0} sawaal, ${j.hotelsToday || 0} hotels</p>
+    <p class="muted">Kis hotel mein AI chale: hotel kholiye → Plan &amp; Features → "Setu AI (Gemini)" ON / OFF. Premium aur Diamond plan mein apne aap ON.</p></div>`;
+}
+const saveAI = run(async test => {
+  const j = await api('/api/admin/ai', {set: true, key: $('#ai_key').value.trim(), limit: +$('#ai_limit').value, model: $('#ai_model').value.trim(), test});
+  toast(test ? (j.test && j.test.ok ? 'Key chal rahi hai' : 'Test fail hua') : 'Saved');
+  drawAI(j);
 });
 
 // ----- blocked computers -----

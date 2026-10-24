@@ -71,7 +71,11 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   `SCREENS` maps each screenKey to a render function. `go(key)` checks auth and license, then renders
   into `#main`. Screens are plain functions that set `main.innerHTML` from template strings.
   A new screen needs a `MENU` row, a `SCREENS` entry and a `scrXxx()` function.
-  Hotkeys must be unique. All 26 letters are used; `1` = Help & Support, `2` = Error Log. Use another digit for a new screen.
+  Hotkeys must be unique. All 26 letters are used; `1` = Help & Support, `2` = Error Log, `3` = Setu AI. Use another digit for a new screen.
+- **Setu AI (3):** the app posts the question to `/api/ai` (counter: proxied by `app_main.py` through the cloud link). The Worker checks
+  the `ai` feature and a per-hotel daily limit (registry `hit`), builds `aiContext(d)` from totals only (never customer names, phones,
+  PINs) and calls Gemini. The single Gemini key, model and limit live in the registry `conf` table, set from Super Admin → AI
+  (`/api/admin/ai`); the key never reaches an app. `GEMINI_BASE` points tests at a mock.
 - **Error Log (2):** `logError(kya, kahan, kaise)` keeps the last 200 errors per device in localStorage (`setu_errlog_v1`, never in `D`).
   `ERR_HINTS` maps a message to a Hinglish fix. Hooked: window errors, a screen that throws (`go()`), failed saves / sync, print
   failures. The counter also shows `setu-server.log` failures via `/api/log` (main counter only). Log new failure paths with it.

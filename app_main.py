@@ -840,6 +840,17 @@ def make_handler(base_dir, store, port, cloud=None):
                 role, name = found
                 token = store.add_token(role)
                 return self.send_json(200, {'token': token, 'role': role, 'name': name})
+            if path == '/api/ai':
+                # Setu AI goes through this PC's cloud link (the Gemini key lives only on the cloud)
+                if self.role() not in ('local', 'admin') or not cloud:
+                    return self.send_json(403, {'error': 'Setu AI sirf owner / manager ke liye hai'})
+                try:
+                    code, j = cloud.support('POST', path, self.read_json())
+                except ValueError as e:
+                    return self.send_json(400, {'error': str(e).replace('Help & Support', 'Setu AI')})
+                except Exception:
+                    return self.send_json(502, {'error': 'Cloud se jud nahi paye. Internet check karein.'})
+                return self.send_json(code, j)
             if path == '/api/support/ticket':
                 if self.role() not in ('local', 'admin') or not cloud:
                     return self.send_json(403, {'error': 'manager only'})

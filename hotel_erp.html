@@ -780,7 +780,7 @@ const GROWTH_DEFAULTS = {
 const FEATURE_SCREENS = {
   kot: ['kitchen'], online: ['online', 'settlement'], inventory: ['purchase', 'stock', 'suppliers'], qr: ['qr'],
   loyalty: ['customers'], staff: ['staff'], captain: ['captain'], reservations: ['reservations'], tokens: ['tokens'],
-  reports: ['reports'], outlets: ['outlets']
+  reports: ['reports'], outlets: ['outlets'], ai: ['ai']
 };
 function featureOn(k){ return !(typeof D !== 'undefined' && D && D.saas && D.saas.features && D.saas.features[k] === false); }
 function screenOn(s){ return Object.keys(FEATURE_SCREENS).every(k => !FEATURE_SCREENS[k].includes(s) || featureOn(k)); }
@@ -988,6 +988,7 @@ const ERR_HINTS = [
   [/CLOUD|Cloud HTTP|timed out|URLError|getaddrinfo|Name or service|cloud se jud/i, 'Internet nahi hai ya kamzor hai. Billing chalti rahegi, internet aate hi data cloud par chala jayega. Baar baar aaye to router restart kijiye.'],
   [/SAVE FAILED|save failed|HTTP 500|No space|Permission denied|disk/i, 'PC ki C: drive bhari hai ya antivirus file rok raha hai. C: drive mein jagah banaiye, antivirus mein Setu ko Allow kijiye, phir Setu band karke dobara kholiye.'],
   [/damaged|corrupt/i, 'Data file kharab mili thi (bijli jaane se). Setu ne aakhri achha backup khol liya hai. Aaj ke bill Bill List (L) mein check kar lijiye.'],
+  [/Setu AI|Gemini/i, 'Setu AI ki dikkat: internet check kijiye. "Key galat" ya "chalu nahi hua" aaye to vendor ko batayein (Super Admin → AI). "Limit poori" aaye to kal poochhiye.'],
   [/QuotaExceeded|quota/i, 'Browser ki jagah bhar gayi. Settings (G) se Backup download kijiye aur Setu Desktop App (EXE) par chaliye, usmein ye limit nahi hai.'],
   [/licen[cs]e|activation key|expired on this PC/i, 'License / activation key ki dikkat. K dabakar license dekhiye, ya vendor se nayi key lijiye.'],
 ];
@@ -2545,6 +2546,7 @@ const MENU = [
   ['J','Monthly Report → CA / Lawyer','monthly','Accounts'],
   ['1','Help & Support (Setu Pro)','support','Utilities'],
   ['2','Error Log (Galti ki report)','errors','Utilities'],
+  ['3','Setu AI (Gemini)','ai','Utilities'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -2566,6 +2568,7 @@ const SCREENS = {
   settings: scrSettings,
   support: scrSupport,
   errors: scrErrors,
+  ai: scrAI,
   kitchen: scrKitchen,
   qr: scrQR,
   customers: scrCustomers,
@@ -2582,7 +2585,7 @@ const SCREENS = {
 };
 
 let kdsTimer = null;
-const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support', 'errors'];
+const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support', 'errors', 'ai'];
 const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens'];
 // Current staff member's ticked screens (looked up fresh so Staff edits apply at once)
 const userPerms = () => { const st = activeUser && activeUser.staffId && (D.staff || []).find(x => x.id === activeUser.staffId); return (st && st.perms) || []; };
@@ -6953,6 +6956,47 @@ function saasNotices(){
   }
 }
 setInterval(() => { try{ saasNotices(); }catch(e){} }, 15000);
+
+/* ================= SETU AI (Gemini via Hotel Setu Cloud) ================= */
+// The question goes to the cloud; the cloud adds this hotel's totals (no customer data) and asks Gemini.
+const AI_QUICK = ['Aaj sabse zyada kya bika?', 'Is hafte sale kyun giri ya badhi?', 'Kal kitna stock mangaun?', 'Kaunsi dish menu se hata dun?', 'Sabse busy time kaunsa hai?', 'Weekend offer ka WhatsApp message likho'];
+let AI_LAST = null;
+// Safe formatting of the reply: escape first, then **bold** and line breaks
+const aiFmt = t => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/^\s*[*-]\s+/gm, '• ').replace(/\n/g, '<br>');
+function scrAI(){
+  const ready = SRV.cloud || (SRV.on && SRV.local);
+  main.innerHTML = `<div class="title">Setu AI (Gemini)</div>
+  <div class="card" style="border-left:4px solid #7c3aed">
+    <p class="muted" style="margin-top:0">Apne hotel ke hisaab se kuch bhi poochhiye. AI ko sirf bikri, menu aur stock ke jod jaate hain. Grahak ka naam / mobile nahi jata.</p>
+    ${ready ? '' : '<p><b>Setu AI ke liye Setu Desktop App (counter PC) aur Hotel Setu Cloud chahiye.</b></p>'}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${AI_QUICK.map((q, i) => `<button class="btn g sm" style="margin:0" onclick="aiAsk(AI_QUICK[${i}])">${esc(q)}</button>`).join('')}</div>
+    <div style="display:flex;gap:8px"><input id="ai_q" style="flex:1" maxlength="500" placeholder="Apna sawaal likhiye..." onkeydown="if(event.key==='Enter')aiAsk()">
+      <button class="btn" id="ai_btn" style="margin:0;background:#7c3aed;border-color:#7c3aed;color:#fff" onclick="aiAsk()">Poochhiye</button></div>
+    <div id="ai_out">${AI_LAST ? aiCard(AI_LAST) : ''}</div>
+  </div>`;
+  setTimeout(() => $('#ai_q') && $('#ai_q').focus(), 30);
+}
+const aiCard = r => `<div style="margin-top:14px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:10px;padding:12px 14px;line-height:1.7">
+  <div class="muted" style="font-size:12px;margin-bottom:4px">Sawaal: ${esc(r.q)}</div><b>Setu AI:</b><br>${aiFmt(r.answer)}</div>
+  ${r.limit ? `<p class="muted" style="font-size:12px;margin:8px 0 0">Aaj ke AI sawaal: ${r.used} / ${r.limit} · Gemini · AI galat bhi ho sakta hai, zaroori faisle se pehle hisaab dekh lijiye.</p>` : ''}`;
+async function aiAsk(q){
+  q = String(q || ($('#ai_q') && $('#ai_q').value) || '').trim();
+  if(q.length < 3) return toast('Sawaal likhiye');
+  if($('#ai_q')) $('#ai_q').value = q;
+  const out = $('#ai_out'), btn = $('#ai_btn');
+  if(out) out.innerHTML = '<p class="muted" style="margin-top:14px">Setu AI soch raha hai...</p>';
+  if(btn) btn.disabled = true;
+  try{
+    const r = await srvFetch('/api/ai', {method: 'POST', body: JSON.stringify({question: q})});
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    AI_LAST = {q, ...j};
+    if(cur === 'ai' && $('#ai_out')) $('#ai_out').innerHTML = aiCard(AI_LAST);
+  }catch(e){
+    logError('Setu AI: ' + e.message, 'Setu AI', q);
+    if(cur === 'ai' && $('#ai_out')) $('#ai_out').innerHTML = `<p style="margin-top:14px;color:#dc2626"><b>${esc(e.message)}</b></p>`;
+  }finally{ if($('#ai_btn')) $('#ai_btn').disabled = false; }
+}
 
 /* ================= ERROR LOG SCREEN ================= */
 let ERR_SRV = [];

@@ -47,11 +47,12 @@ const FEATURES = {
   reservations: { label: 'Table Reservations', keys: ['reservations'] },
   tokens:       { label: 'Token Display (TV)', keys: [] },
   reports:      { label: 'Reports & Tally Export', keys: [] },
-  outlets:      { label: 'Multi-Outlet Dashboard', keys: ['outlets'] }
+  outlets:      { label: 'Multi-Outlet Dashboard', keys: ['outlets'] },
+  ai:           { label: 'Setu AI (Gemini)', keys: [] }
 };
 const TIERS = {
   basic:   { label: 'Basic', features: ['kot', 'qr', 'tokens'] },
-  premium: { label: 'Premium', features: ['kot', 'qr', 'tokens', 'inventory', 'loyalty', 'captain', 'reservations', 'reports', 'staff'] },
+  premium: { label: 'Premium', features: ['kot', 'qr', 'tokens', 'inventory', 'loyalty', 'captain', 'reservations', 'reports', 'staff', 'ai'] },
   diamond: { label: 'Diamond', features: Object.keys(FEATURES) }
 };
 const TEMPLATES = {
@@ -209,6 +210,75 @@ async function verifyLicense(env, key, installId){
   throw new Error('not a license key');
 }
 
+// ---------- Setu AI (Gemini) ----------
+const AI_DEFAULTS = { model: 'gemini-2.5-flash', limit: 30 };
+async function aiConf(env){
+  const v = (await regJson(env, '/conf/get', { k: 'gemini' })).v || {};
+  return { key: v.key || env.GEMINI_API_KEY || '', model: v.model || AI_DEFAULTS.model, limit: +v.limit || AI_DEFAULTS.limit };
+}
+async function gemini(env, c, prompt, system){
+  const base = env.GEMINI_BASE || 'https://generativelanguage.googleapis.com';
+  const r = await fetch(`${base}/v1beta/models/${encodeURIComponent(c.model)}:generateContent`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key },
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.4, maxOutputTokens: 900 } })
+  });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok){
+    const m = (j.error && j.error.message) || ('HTTP ' + r.status);
+    if(r.status === 429) throw new Error('Gemini ki free limit abhi poori ho gayi. Thodi der baad poochhiye.');
+    if(r.status === 400 && /API key/i.test(m)) throw new Error('Gemini key galat hai. Super Admin → AI mein sahi key daaliye.');
+    if(r.status === 403) throw new Error('Gemini key ko permission nahi hai: ' + m);
+    if(r.status === 404) throw new Error('Gemini model "' + c.model + '" nahi mila. Super Admin → AI mein model badaliye.');
+    throw new Error('Gemini: ' + m);
+  }
+  const text = (((j.candidates || [])[0] || {}).content || {}).parts;
+  const out = (text || []).map(p => p.text || '').join('').trim();
+  if(!out) throw new Error('Gemini ne khaali jawab diya. Sawaal thoda badal kar poochhiye.');
+  return out;
+}
+// What the AI may see: totals only. No customer names, phone numbers, addresses or staff PINs.
+function aiContext(d){
+  const st = d.settings || {}, now = Date.now(), from = new Date(now - 42 * DAY + 330 * 60000).toISOString().slice(0, 10), today = istDay();
+  const bills = (Array.isArray(d.bills) ? d.bills : []).filter(b => b && !b.cancelled && String(b.date || '') >= from);
+  const days = {}, items = {}, hours = {}, chan = {}, modes = {}, wk = {};
+  bills.forEach(b => {
+    const t = +b.total || 0, day = String(b.date);
+    days[day] = (days[day] || 0) + t;
+    const wd = new Date(day + 'T12:00:00Z').getUTCDay(), w = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][wd];
+    wk[w] = (wk[w] || 0) + t;
+    const hr = String(b.time || '').match(/(\d{1,2}):\d{2}\s*(am|pm)?/i);
+    if(hr){ let h = +hr[1]; if(hr[2] && /pm/i.test(hr[2]) && h < 12) h += 12; if(hr[2] && /am/i.test(hr[2]) && h === 12) h = 0; hours[h] = (hours[h] || 0) + t; }
+    chan[b.channel || 'Dine-In'] = (chan[b.channel || 'Dine-In'] || 0) + t;
+    (b.mode === 'Split' && Array.isArray(b.pays) ? b.pays : [{ mode: b.mode || 'Cash', amt: t }]).forEach(p => modes[p.mode] = (modes[p.mode] || 0) + (+p.amt || 0));
+    (b.items || []).forEach(i => {
+      const k = String(i.name || '').slice(0, 40), x = items[k] || (items[k] = { qty: 0, amt: 0, last7: 0 });
+      x.qty += +i.qty || 0; x.amt += (+i.qty || 0) * (+i.price || 0);
+      if(day > new Date(now - 7 * DAY + 330 * 60000).toISOString().slice(0, 10)) x.last7 += +i.qty || 0;
+    });
+  });
+  const r0 = n => Math.round(n);
+  const top = Object.entries(items).sort((a, b) => b[1].qty - a[1].qty).slice(0, 25).map(([k, v]) => `${k}: ${v.qty} (7 din: ${v.last7}), ₹${r0(v.amt)}`);
+  const menu = (Array.isArray(d.menu) ? d.menu : []).slice(0, 120).map(m => `${String(m.name || '').slice(0, 40)} ₹${+m.price || 0} [${String(m.cat || '').slice(0, 20)}]`);
+  const stock = (Array.isArray(d.stock) ? d.stock : []).slice(0, 80).map(x => `${String(x.name || '').slice(0, 30)}: ${+x.qty || 0} ${x.unit || ''}${+x.min ? ' (min ' + x.min + ')' : ''}`);
+  const tx = (Array.isArray(d.txns) ? d.txns : []).filter(t => t && String(t.date || '') >= from && t.type === 'Expense');
+  const exp = {}; tx.forEach(t => exp[t.head || 'Other'] = (exp[t.head || 'Other'] || 0) + (+t.amount || 0));
+  return [
+    `Restaurant: ${String(st.name || '').slice(0, 60)} · Aaj ki tareekh: ${today} · GST: ${st.gstScheme || 'regular'} ${+st.gst || 0}%`,
+    `Roz ki sale (pichhle 6 hafte, ₹): ${Object.entries(days).sort().map(([k, v]) => k + '=' + r0(v)).join(', ') || 'koi bill nahi'}`,
+    `Hafte ke din ke hisaab se sale: ${Object.entries(wk).map(([k, v]) => k + '=' + r0(v)).join(', ')}`,
+    `Ghante ke hisaab se sale: ${Object.entries(hours).sort((a, b) => a[0] - b[0]).map(([k, v]) => k + ':00=' + r0(v)).join(', ')}`,
+    `Channel: ${Object.entries(chan).map(([k, v]) => k + '=' + r0(v)).join(', ')} · Payment: ${Object.entries(modes).map(([k, v]) => k + '=' + r0(v)).join(', ')}`,
+    `Sabse zyada bikne wale (6 hafte qty): ${top.join('; ')}`,
+    `Menu: ${menu.join('; ')}`,
+    stock.length ? `Stock abhi: ${stock.join('; ')}` : 'Stock: daala nahi gaya',
+    `Kharche (6 hafte): ${Object.entries(exp).map(([k, v]) => k + '=' + r0(v)).join(', ') || 'nahi'}`
+  ].join('\n');
+}
+const AI_SYSTEM = 'Tum "Setu AI" ho, ek Indian restaurant / hotel ke owner ke madadgaar. Hamesha saral Hinglish (Roman Hindi + English) mein, chhote points mein jawab do. ' +
+  'Sirf diye gaye hisaab (data) par bharosa karo; jo data mein nahi hai wo mat banao, saaf bolo ki data nahi hai. Paise ₹ mein likho. ' +
+  'Aakhir mein 1-2 line ki seedhi salah do. Grahakon ke naam ya number kabhi mat maango ya likho.';
+
 // ---------- Razorpay / Cloudflare APIs ----------
 async function razorpay(env, method, path, body){
   if(!env.RAZORPAY_KEY_ID || !env.RAZORPAY_KEY_SECRET) throw new Error('Online payment is not configured yet');
@@ -268,6 +338,8 @@ export class SetuRegistry extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ticket (id TEXT PRIMARY KEY, code TEXT NOT NULL, subject TEXT, status TEXT, msgs TEXT,
       created INTEGER, updated INTEGER, unread_admin INTEGER DEFAULT 0, unread_hotel INTEGER DEFAULT 0)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS blocked (iid TEXT PRIMARY KEY, code TEXT, name TEXT, at INTEGER)`);
+    // Vendor settings set from Super Admin (e.g. the Gemini key: kept here, never sent to any app)
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS conf (k TEXT PRIMARY KEY, v TEXT)`);
   }
 
   async fetch(request){
@@ -354,6 +426,26 @@ export class SetuRegistry extends DurableObject {
       if(body.block && h && h.iid) this.sql.exec('INSERT OR REPLACE INTO blocked (iid, code, name, at) VALUES (?, ?, ?, ?)', h.iid, h.code, h.name || '', Date.now());
       ['hotel', 'domain', 'ticket'].forEach(t => this.sql.exec(`DELETE FROM ${t} WHERE code = ?`, body.code));
       return json(200, { ok: true, iid: h ? h.iid : '' });
+    }
+    if(path === '/conf/get'){
+      const r = one('SELECT v FROM conf WHERE k = ?', body.k);
+      return json(200, { v: r ? JSON.parse(r.v) : null });
+    }
+    if(path === '/conf/set'){
+      this.sql.exec('INSERT OR REPLACE INTO conf (k, v) VALUES (?, ?)', body.k, JSON.stringify(body.v));
+      return json(200, { ok: true });
+    }
+    // Setu AI usage: one counter per hotel per IST day; 'take' only counts when under the limit
+    if(path === '/ai/use'){
+      const day = istDay(), k = 'ai:' + day + ':' + body.code;
+      const h = one('SELECT n FROM hit WHERE k = ?', k), n = h ? h.n : 0;
+      if(body.take){
+        if(n >= body.limit) return json(200, { ok: false, n });
+        this.sql.exec('INSERT OR REPLACE INTO hit (k, n, at) VALUES (?, ?, ?)', k, n + 1, Date.now());
+        return json(200, { ok: true, n: n + 1 });
+      }
+      const all = this.sql.exec(`SELECT k, n FROM hit WHERE k LIKE ?`, 'ai:' + day + ':%').toArray();
+      return json(200, { n, hotels: all.length, total: all.reduce((a, r) => a + r.n, 0) });
     }
     if(path === '/blocked/check') return json(200, { blocked: !!(body.iid && one('SELECT 1 AS x FROM blocked WHERE iid = ?', body.iid)) });
     if(path === '/blocked/list') return json(200, { blocked: this.sql.exec('SELECT * FROM blocked ORDER BY at DESC').toArray() });
@@ -932,6 +1024,24 @@ export class SetuHotel extends DurableObject {
       }
     }
 
+    // Setu AI: owner / manager (or the counter PC) asks; the Worker adds the hotel's totals and asks Gemini
+    if(method === 'POST' && path === '/api/ai'){
+      if(!isAdmin) return json(403, { error: 'Setu AI sirf owner / manager ke liye hai' });
+      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI aapke plan mein chalu nahi hai. Vendor se baat karein.' });
+      const q = str(body().question, 500);
+      if(q.length < 3) return json(400, { error: 'Sawaal likhiye' });
+      const c = await aiConf(this.env);
+      if(!c.key) return json(503, { error: 'Setu AI abhi chalu nahi hua (vendor ne key nahi daali).' });
+      const u = await regJson(this.env, '/ai/use', { code: this.account.code, take: true, limit: c.limit });
+      if(!u.ok) return json(429, { error: `Aaj ke ${c.limit} AI sawaal poore ho gaye. Kal phir poochhiye.` });
+      let d = {};
+      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      try{
+        const answer = await gemini(this.env, c, `Hotel ka hisaab:\n${aiContext(d)}\n\nOwner ka sawaal: ${q}`, AI_SYSTEM);
+        return json(200, { answer, used: u.n, limit: c.limit });
+      }catch(e){ return json(502, { error: e.message, used: u.n, limit: c.limit }); }
+    }
+
     // Help & Support: the hotel writes to the vendor, the vendor replies from Super Admin
     if(path === '/api/support/tickets' || path === '/api/support/ticket'){
       if(!isAdmin) return json(403, { error: 'manager only' });
@@ -1126,6 +1236,25 @@ async function admin(request, env, path){
     return res;
   }
 
+  // ----- Setu AI settings (one Gemini key for all hotels) -----
+  if(path === '/api/admin/ai'){
+    const c = await aiConf(env), u = await regJson(env, '/ai/use', { code: '' });
+    if(body.set){
+      const v = (await regJson(env, '/conf/get', { k: 'gemini' })).v || {};
+      const key = String(body.key || '').trim();
+      if(key && !/^[A-Za-z0-9_\-]{20,100}$/.test(key)) return json(400, { error: 'Ye Gemini API key jaisi nahi lag rahi' });
+      const nv = { key: key || v.key || '', model: str(body.model, 60) || v.model || AI_DEFAULTS.model, limit: Math.max(1, Math.min(1000, +body.limit || v.limit || AI_DEFAULTS.limit)) };
+      await regCall(env, '/conf/set', { k: 'gemini', v: nv });
+      await log('Setu AI settings', '', `model ${nv.model}, limit ${nv.limit}${key ? ', new key' : ''}`);
+      Object.assign(c, nv);
+    }
+    let test = null;
+    if(body.test){
+      if(!c.key) test = { ok: false, error: 'Pehle key daaliye' };
+      else { try{ test = { ok: true, answer: (await gemini(env, c, 'Sirf "OK" likho.', 'Short reply.')).slice(0, 80) }; }catch(e){ test = { ok: false, error: e.message }; } }
+    }
+    return json(200, { hasKey: !!c.key, keyEnd: c.key ? c.key.slice(-4) : '', model: c.model, limit: c.limit, today: u.total || 0, hotelsToday: u.hotels || 0, test });
+  }
   if(path === '/api/admin/tickets') return regCall(env, '/ticket/list', { code: validCode(body.code) ? body.code : '', read: body.read ? 'admin' : '' });
   if(path === '/api/admin/blocked') return regCall(env, '/blocked/list', {});
   if(path === '/api/admin/unblock'){
