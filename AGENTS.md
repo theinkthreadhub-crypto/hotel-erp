@@ -1,205 +1,314 @@
-# AGENTS.md — Setu (Restaurant & Hotel POS)
+# AGENTS.md — Setu (Restaurant & Hotel POS) — A to Z
 
-Guide for AI coding agents (Claude Code, Codex, Cursor, etc.) working in this repo.
+Guide for AI coding agents (Claude Code, Codex, Cursor, …) and developers working in this repo.
+Read it fully before changing anything: licensing, sync and printing carry real money and real data.
 
-## What this is
+---
 
-**Setu** is an offline restaurant/hotel billing POS, *Powered by Aghanya Devanya Enterprises*.
-It runs as a single HTML page, either in Chrome/Edge or inside a Windows desktop
-wrapper (`.exe` built with PyInstaller + pywebview). There is no backend and no
-internet dependency at runtime. All data lives on the customer's PC.
+## 1. What Setu is
 
-- Users: Indian restaurant owners, cashiers and kitchen staff.
-- UI language: Hinglish (Roman Hindi + English), e.g. "Bill save ho gaya".
-- Branding rule: the product name is **Setu**. Keep every
-  "Powered by Aghanya Devanya Enterprises" line and the licensing authority
-  name exactly as they are.
+**Setu** is a restaurant / hotel billing POS, *Powered by Aghanya Devanya Enterprises*.
 
-## Files
+- **Main counter PC (Windows EXE):** `app_main.py` (PyInstaller + pywebview) runs a local server on port 8000 and opens
+  `hotel_erp.html` in a window. All data lives on that PC and works **fully offline**.
+- **Phones / tablets on the restaurant Wi-Fi** open the same page from the counter (`http://<counter-IP>:8000/hotel_erp.html`)
+  and log in with a PIN (captain / cashier / manager).
+- **Hotel Setu Cloud (optional, automatic):** a Cloudflare Worker (`cloud/`). A licensed counter joins by itself, syncs its data,
+  and the owner can open Setu on a phone from anywhere. The vendor runs everything from **Super Admin** (web page + Android app).
+- Users: Indian restaurant owners, cashiers, captains, kitchen staff. UI language: short **Hinglish** ("Bill save ho gaya").
+- **Branding:** product name **Setu**. Keep every "Powered by Aghanya Devanya Enterprises" line and the licensing authority name.
+- Cloud host: `https://setu-cloud.theinkthreadhub.workers.dev` (worker `setu-cloud`, Cloudflare account *theinkthreadhub*).
+  The Library ERP's worker `setu-erp` lives in the same account and is **never touched** by this repo.
 
-| File | Purpose |
+---
+
+## 2. Repository map
+
+| Path | What it is |
 |---|---|
-| `hotel_erp.html` | The entire app: CSS, HTML shell and all JavaScript (~5.7k lines). Almost all work happens here. |
-| `app_main.py` | Main-counter launcher + LAN server on fixed port 8000 (`0.0.0.0`). Keeps the shared database in `setu-db.json` with daily `Backups/`, serves phones/tablets, opens the pywebview window. `--server` = no window. Data dir: `%LOCALAPPDATA%\AghanyaDevanyaERP\Data`. |
-| `Aghanya-Devanya-Hotel-ERP.spec`, `Build-New-EXE.bat` | PyInstaller build. The `.bat` passes its own flags and does not use the `.spec`. Keep both in sync if you add bundled files. `.github/workflows/build-exe.yml` builds the same EXE on GitHub (Actions artifact `Setu-POS-Setup`) and must use the same flags. |
-| `cloud/` | **Setu Pro Cloud SaaS** (Cloudflare Worker). `SetuHotel` Durable Object (SQLite) per hotel, keyed by Hotel Code (`X-Setu-Hotel`) or by the hotel's own domain/subdomain (registry `domain` table; host beats header). `SetuRegistry` = hotels, domains, payments, Super Admin audit. Catalogue in `worker.js`: `FEATURES` (module -> data keys), `TIERS` (basic/premium/diamond), `TEMPLATES` (restaurant/cafe/hotel/cloudkitchen). Per-hotel `config` (tier, feature overrides, billing template, rules) is written into the data as `D.saas` by `prepare()` on every save; clients only read it. Off modules: server keeps its stored copy of their keys. Razorpay plans in `PLANS` var (`tier_cycle`). Super Admin UI: `static/admin.html` (`/api/admin/*`, `ADMIN_KEY`). See `cloud/README-HINDI.md`. |
-| `manifest.json`, `sw.js` | PWA install + offline cache. |
-| `keygen.py`, `Generate-Activation-Keys.bat` | Vendor-only license key signer (ECDSA P-256). Needs `setu-license-private.pem`, which is **never** in git (`*.pem` ignored). `python keygen.py <INSTALL-ID> <plan>`. |
-| `favicon.ico`, `icon-*.png`, `logo.png` | Branding assets. |
+| `hotel_erp.html` | The whole app: CSS, HTML shell and all JavaScript (~8k lines). Two `<script>` blocks: vendored MIT `qrcode-generator` 1.4.4 (do not edit), then the app. |
+| `app_main.py` | Counter launcher + LAN server (port 8000, `0.0.0.0`): `SetuStore` (database file + daily backups), `CloudSync` (cloud link, merge, licence push), direct printing (winspool), `/api/save-file`, pywebview window. `--server` = no window. |
+| `sw.js`, `manifest.json` | PWA offline cache + install. Bump `CACHE_NAME` in `sw.js` whenever `hotel_erp.html` changes. |
+| `keygen.py`, `Generate-Activation-Keys.bat` | Vendor-only licence key signer (ECDSA P-256). Needs `setu-license-private.pem` (**never in git**). |
+| `installer/setu-setup.iss` | Inno Setup 6 installer (`Setu-POS-Setup.exe`): per-user, no admin, WebView2 bootstrapper, 64-bit Windows 8.1+ only. |
+| `installer/stamp-version.py` | Writes `1.0.<build>` into `APP_VERSION` before the EXE is packed. |
+| `Aghanya-Devanya-Hotel-ERP.spec`, `Build-New-EXE.bat` | Local PyInstaller build (Windows). Keep flags in sync with `build-exe.yml`. |
+| `Install-*.bat`, `Start-ERP-Server.bat` | Old script installs (kept for existing sites). The installer EXE is the normal way now. |
+| `cloud/src/worker.js` | Cloudflare Worker: `SetuHotel` Durable Object per hotel (SQLite), `SetuRegistry` (hotels, domains, payments, audit, tickets, blocked, conf), Super Admin API, Setu AI, licence verify / sign. |
+| `cloud/static/admin.html` | Super Admin page (served at `/admin.html`). `cloud/static/_headers` = no-cache for pages. |
+| `cloud/scripts/copy-assets.mjs` | Allow-list copy of public files into `cloud/public` before deploy (never `app_main.py`, `keygen.py`, keys). |
+| `cloud/wrangler.toml` | Worker config (`keep_vars = true`, assets binding). |
+| `android-admin/` | **Setu Hotel Admin** APK (`com.aghanya.setuadmin`): WebView of `/admin.html` + `SA` bridge (save/share file, copy, share text), WebChromeClient (dialogs, file pick). |
+| `.github/workflows/` | `build-exe.yml`, `build-admin-apk.yml`, `setu-cloud-deploy.yml`, `setu-cloud-check.yml` (see §5). |
+| `DB-STRUCTURE.md`, `DB-CRASH-RISKS.md`, `WORKFLOW.md`, `README.md`, `cloud/README-HINDI.md` | Older notes; this file wins where they differ. |
 
-Not in git (see `.gitignore`): `build/`, `dist/`, `*.exe`, `*.bak`,
-`Activation_Keys/`, `Activation-Keys-*.txt`, `*.pem`. **Never commit the private signing key,
-generated activation keys or EXE binaries.**
+**Never commit:** `*.pem` (signing key), generated activation keys / key lists (`Activation_Keys/`, `Activation-Keys-*.txt`),
+`*.exe`, `build/`, `dist/`, `cloud/.dev.vars`, `cloud/public/`. Never put real keys, salts or private keys in any page.
 
-## Run and check
+---
+
+## 3. Data on the client PC
+
+Everything is in **one folder**: `%LOCALAPPDATA%\AghanyaDevanyaERP\Data` (Win+R → paste).
+
+| File | Content |
+|---|---|
+| `setu-db.json` | The whole database `D` (menu, bills, KOTs, stock, staff, salary, settings, auth, licence, `saas`). |
+| `Backups\` | One copy per day, newest 60 kept (`KEEP_BACKUPS`). |
+| `setu-cloud.json` / `-state.json` / `-base.json` | Cloud link (URL, Hotel Code, Sync Key) / sync state (`cv`, `lv`, `licSent`) / last common copy for merging. |
+| `setu-server.log` | Server-side failures (writes, sync, printing); shown in Error Log (2). |
+| `EBWebView\` | Window storage (remembered login, per-device Error Log). |
+| `setu-db.json.corrupt-*` | A damaged file copied aside; Setu then opens the newest backup. |
+
+- Program files: `%LOCALAPPDATA%\Programs\AghanyaDevanyaERP` (no data). Install / uninstall / update **never** touch the Data folder.
+- User exports (JSON backup, CSV, Tally XML, PDF, menu.html): `Downloads\Setu`.
+- With the cloud on, every change is also on Hotel Setu Cloud; a new PC restores with Hotel Code + owner password.
+
+---
+
+## 4. Run and check locally
 
 ```bash
-python app_main.py --server --port 8000 --data ./test-data
+python app_main.py --server --port 8000 --data ./test-data          # counter (open http://127.0.0.1:8000/hotel_erp.html)
+SETU_CLOUD_URL=http://127.0.0.1:8787 python app_main.py --server --port 8161 --data ./t1   # counter against a local cloud
+cd cloud && node scripts/copy-assets.mjs && npx wrangler dev --port 8787 --local          # local cloud (needs cloud/.dev.vars)
 ```
-Then open `http://127.0.0.1:8000/hotel_erp.html` (main counter) and `http://<LAN-IP>:8000/hotel_erp.html`
-(acts as a phone: asks for the Manager/Cashier PIN). `python -m http.server` still works and runs the
-app in **browser mode** (localStorage, no LAN). There is no demo login in the client build: sign up
-with the test license key `AD-DEMO-24HR-TEST` (once per install) or a key from `keygen.py`.
+- `cloud/.dev.vars` (not in git): `ADMIN_KEY`, and for tests `LICENSE_PUBKEY` (test public key), `LICENSE_PRIVATE_KEY`,
+  `GEMINI_BASE` / `VERTEX_BASE` (mock Gemini). Real keys are never written there.
+- Sign up a fresh install with `AD-DEMO-24HR-TEST` (24 h, once per install) or a key from `keygen.py` / Super Admin.
+  There is **no demo login** in the client build.
+- No test suite. Before every commit:
+  1. `node --check` the last `<script>` of `hotel_erp.html` and of `admin.html`; `node --input-type=module --check < cloud/src/worker.js`;
+     `python -m py_compile app_main.py keygen.py`. `eslint` (no-undef etc.) and `ruff --select F` are available and should be clean.
+  2. Exercise the changed flow in a real browser (Playwright is available) and watch the console.
+  3. Bump `CACHE_NAME` in `sw.js` after changing `hotel_erp.html`.
+- Careful with `pkill -f` / `pgrep -f`: a pattern that appears in your own command line kills your own shell.
 
-There is no build step and no test suite. Before committing:
+---
 
-1. Syntax-check the main script. Extract the last `<script>` block and run `node --check` on it.
-2. Exercise the changed flow in a browser and watch the console for errors.
-3. `sw.js` serves cache-first. After changing `hotel_erp.html`, bump `CACHE_NAME` in `sw.js`.
-   When testing, unregister the service worker and clear caches, otherwise you will test a stale file.
+## 5. Build, release, deploy (GitHub Actions)
 
-Rebuild the EXE on Windows with `Build-New-EXE.bat`.
+| Workflow | Trigger | Does |
+|---|---|---|
+| `build-exe.yml` | push touching app files / installer | Stamps version, PyInstaller one-file EXE, Inno installer, uploads **Setu-POS-Setup.exe** + **.zip** to release **`setu-latest`**. |
+| `build-admin-apk.yml` | push touching `android-admin/**` | Builds **SetuHotelAdmin.apk** → release `setu-latest`. Signing: secrets `SETU_ADMIN_KEYSTORE`, `SETU_ADMIN_KSPASS`. |
+| `setu-cloud-deploy.yml` | push to `main` / `hotel-software` / work branch touching `cloud/**`, `hotel_erp.html`, `sw.js` | `copy-assets`, `wrangler deploy` of worker `setu-cloud` (`keep_vars`: secrets stay). |
+| `setu-cloud-check.yml` | push touching itself | Read-only: Cloudflare login, deployments, **secret names**, live checks (ping, admin page, a hotel). |
 
-## Architecture of `hotel_erp.html`
+- Repo secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `SETU_ADMIN_KEYSTORE`, `SETU_ADMIN_KSPASS`.
+- Worker secrets / vars (Cloudflare, not in git): `ADMIN_KEY` (required), optional `LICENSE_PRIVATE_KEY`, Razorpay keys, `PLANS`,
+  `BASE_DOMAIN`, `CF_API_TOKEN` / `CF_ZONE_ID` / `SAAS_CNAME_TARGET` (custom domains). The Gemini key and the saved signing key
+  live in the registry `conf` table, set from Super Admin.
+- **Version:** `APP_VERSION = 'dev'` in git. The EXE build writes `1.0.<run number>` (same as the installer); shown on the sign-in
+  card and footer, stored by the counter in `settings.appVersion`, copied by the Worker to registry `appv`, shown in Super Admin
+  (older than the newest = "purana").
+- `workflow_dispatch` only works on the default branch; on a work branch push a change to the workflow file instead.
+- Most admin changes need **no new APK**: the app only shows the live `/admin.html`. Rebuild the APK only for `android-admin/` changes.
 
-- **Two `<script>` blocks.** The first is the vendored MIT `qrcode-generator` 1.4.4
-  (used by `qrSvg()`). Do not edit it. The second is the app.
-- **State:** one global object `D`. Always call `save()` after mutating `D`. Two storage modes:
-  - **LAN / desktop mode** (`SRV.on`, page served by `app_main.py`): `save()` debounces `srvPush()`, which POSTs
-    the whole `D` with `baseVersion`. On HTTP 409 the client runs `merge3(base, mine, theirs)` (record-level
-    3-way merge by `id`, key-level for maps, `seq` takes the max, duplicate new bill/KOT numbers are renumbered)
-    and retries. `srvPoll()` checks `/api/version` every 2.5 s and reloads `D`; `srvRefreshScreen()` re-renders
-    live screens. Never write code that assumes `D` is only changed by this device.
-  - **Browser mode** (no `/api/ping`): `load()` / `save()` use `localStorage['hotelerp_v1']` + an IndexedDB mirror.
-- **LAN auth:** requests from 127.0.0.1 are trusted. Other devices call `/api/login` with the Manager or Cashier
-  PIN and send `X-Setu-Token`. First upload and forced restore/reset (`SRV.forceNext`) are main-counter / admin only.
-- **Schema migration:** `seed()` defines a fresh install. `ensureGrowth(s)` back-fills
-  newer fields (settings defaults in `GROWTH_DEFAULTS`, `kots`, `staff`, `att`, `outlets`, `reservations`, `seq.token`).
-  When you add a field, give it a default in **both** places. `load()`, `restore()` and
-  `resetAll()` all pass through `ensureGrowth`.
-- **Navigation:** `MENU` holds the rows `[hotkey, label, screenKey, sidebarCategory]`.
-  `SCREENS` maps each screenKey to a render function. `go(key)` checks auth and license, then renders
-  into `#main`. Screens are plain functions that set `main.innerHTML` from template strings.
-  A new screen needs a `MENU` row, a `SCREENS` entry and a `scrXxx()` function.
-  Hotkeys must be unique. All 26 letters are used; `1` = Help & Support, `2` = Error Log, `3` = Setu AI. Use another digit for a new screen.
-- **Setu AI (3):** the app posts the question to `/api/ai` (counter: proxied by `app_main.py` through the cloud link). The Worker checks
-  the `ai` feature and a per-hotel daily limit (registry `hit`), builds `aiContext(d)` from totals only (never customer names, phones,
-  PINs) and calls Gemini. The single Gemini key, model and limit live in the registry `conf` table, set from Super Admin → AI
-  (`/api/admin/ai`); the key never reaches an app. `GEMINI_BASE` points tests at a mock.
-- **Error Log (2):** `logError(kya, kahan, kaise)` keeps the last 200 errors per device in localStorage (`setu_errlog_v1`, never in `D`).
-  `ERR_HINTS` maps a message to a Hinglish fix. Hooked: window errors, a screen that throws (`go()`), failed saves / sync, print
-  failures. The counter also shows `setu-server.log` failures via `/api/log` (main counter only). Log new failure paths with it.
-- **UI helpers:** `modal(title, html)`, `closeModal()`, `tryCloseModal()`, `toast(msg)`,
-  `waOpen(phone, text)`, `waOwner(text)`, `printDoc([htmlParts])`.
-  Money is formatted with `money()` / `rs()` and rounded with `r2()`. Dates are `YYYY-MM-DD` strings from `today()`.
-- **Escaping:** wrap every user-entered value with `esc()` before it goes into HTML.
-  In inline `onclick` handlers pass ids, never names or free text.
+---
 
-### Key domain flows
+## 6. Architecture of `hotel_erp.html`
 
-- **Billing:** the cart lives in the global `B` (`newB()`). Channels are `Dine-In`, `Takeaway`, `Zomato` and `Swiggy`.
-  - **Dine-In:** a running "Kaccha Bill" is stored per table in `D.kaccha[table]`.
-  - **Final bill:** `finalizePakkaBill()` turns the cart into a tax invoice in `D.bills` and frees the table.
-  - **Totals:** `calc(items, discount, gstRate)` computes every total. Do not compute totals by hand.
-- **Kitchen Display (KOT):** `pushKot()` adds tickets to `D.kots`.
-  - **Delta only:** `B.sent` / `kaccha.sent` record what the kitchen already has, and `cartDelta()` sends only new quantities.
-  - **Example:** 3 roti, then 5 more, gives a KOT for 3, a KOT for 5, and one bill line of 8.
-  - **Keep this invariant** when you change billing.
-- **Loyalty:** points are derived from bills (`ptsEarned` / `ptsUsed`) and are never stored separately.
-  `ptsBal()` / `ptsBalAt()` sum them. Zomato/Swiggy bills never earn points.
-  Loyalty discount is part of `bill.disc` and is also kept in `bill.loyaltyDisc` for display.
-- **Customers** are derived from bills that carry a 10-digit phone number (`customers()`).
-- **Stock:** each menu item `recipe` holds `[{sid, qty}]`. `applyStock(bill.used, ±1)` runs on bill save and on bill cancel.
-- **Money that is not income/expense:** `NON_INCOME_HEADS` (wallet top-ups, Zomato/Swiggy settlements) and
-  `NON_EXPENSE_HEADS` (supplier payments) move cash but are excluded from margin in `summary()`, so sales/purchases are not counted twice.
-- **Split payment:** `bill.mode = 'Split'` + `bill.pays = [{mode, amt}]` (Cash / UPI / Card / Credit, sum = total). Anything that adds
-  money by mode must use `payParts(b)` / `paidBy(b, mode)` (summary, reports, Tally) and `modeText(b)` for display; Wallet is never split.
-- **Wallet:** balance = top-up receipts (`txn.phone`) − bills with `mode: 'Wallet'` (`walletBal()`).
-- **Tokens:** `nextToken()` restarts daily (`seq.tokenDate`); only Takeaway bills / parcel QR orders get one when `settings.tokenOn`.
-- **Captain app:** `captainSend()` merges the waiter's items into the table's kaccha bill via `kacchaToB()` + `saveKacchaBill(true, true)`.
-- **Setu Cloud:** `CloudSync` in `app_main.py` keeps the counter PC as master and syncs `setu-db.json` with the hotel on the Worker
-  (`setu-cloud.json` = URL + Hotel Code + sync key, `setu-cloud-base.json` = last common copy). It uses a Python port of `merge3`
-  with the cloud as "mine", so bills printed at the counter keep their numbers. **If you change `merge3` / `mergeNode` in the HTML,
-  change the Python port too.** On the cloud (`SRV.cloud` / `SRV.saas`) login = Hotel Code + PIN (or the hotel's domain), weak PINs
-  are refused, 5 wrong PINs lock an IP for 15 min, direct printing is off. Never trust the client for billing or modules: the Worker
-  decides `blocked`, `D.saas` and what off-modules may change.
-- **Auto-join (Library ERP style):** a licensed counter with menu or bills joins Setu Cloud by itself
-  (`CloudSync.auto_link()` -> Worker `/api/counter/link`, proof = the PC's own signed `SETU-` key + Install ID,
-  `DEFAULT_CLOUD_URL`). One hotel per Install ID (registry `iid`); a second join gets 409 and needs
-  `/api/counter/restore` (Hotel Code + owner password -> new Sync Key; `restore` flag makes the first sync take the
-  cloud copy but keep this PC's Install ID and licence). Joined hotels have `plan: 'counter'`; `/api/counter/license`
-  moves `paidUntil` to the newest signed key. Deploy: `.github/workflows/setu-cloud-deploy.yml`.
-- **Super Admin (Library ERP style):** hotel cards sorted by urgency (licence / payment <= 5 days, tickets, stale
-  backup) with Call / WhatsApp. Message (`account.notice`) and Warning / Lock (`account.lock`, lv 1 banner, lv 2 full
-  lock, data untouched) reach the app as `D.saas.notice` / `D.saas.lock` (`saasNotices()`). Help & Support tickets
-  live in the registry `ticket` table (`/api/support/*` on the hotel, proxied by `app_main.py` for the counter).
-  Delete (`/api/admin/delete`, type the code) can block the Install ID (registry `blocked`); a deleted hotel's
-  counter gets 404 and joins again unless blocked.
-  Suspend (`status: 'suspended'`) shows the same full lock in the app (`saasView` sends `lock.lv 2`); the counter's
-  sync copies `saas` from the cloud even when its push gets 402. The admin page never uses native `alert` / `confirm`
-  (the Android WebView app had none, so Lock / Suspend silently did nothing): use `ask()` / `toast()`.
-- **Keygen in Super Admin:** `/api/admin/keygen` signs `SETU-` keys (same format and plans as `keygen.py`) with the
-  `LICENSE_PRIVATE_KEY` secret, or the vendor's `.pem` saved once from Super Admin → Keygen → Setup (registry `conf`
-  `licpriv`, refused unless its public half is in `LIC_PUBKEYS`). `send` pushes the key to the hotel (`pushKey`) and the
-  counter page activates it on its next sync. A new PC: install, read its Install ID, make a key, type it on the PC;
-  once licensed it auto-joins and shows under Hotels.
-- **Setu Pro config in the app:** `featureOn()` / `screenOn()` hide modules (`FEATURE_SCREENS`, `drawSide`, `go`). `applySaas()` (in
-  `ensureGrowth`) maps the bill template and rules onto `settings`. `billFields()` = custom bill fields (`B.extra` -> `bill.extra`,
-  printed by `billHTML` / `escBill`). `saasRules().phoneAbove` needs a mobile on big bills. Support links (`#support=CODE.TOKEN`) open a
-  read-only session (`SRV.readOnly`). LAN / browser installs have no `D.saas`, so everything stays on.
-- **Dashboard setup:** the owner/manager picks what the Gateway shows (`dashSetup()`): sections in `DASH_PARTS` hidden via
-  `settings.dashHide`, launchpad tiles via `settings.dashTiles` (missing = all). New Gateway sections need a `DASH_PARTS` entry + `on('key')` wrap.
-- **Multi-outlet:** no shared cloud across outlets yet. Each outlet exports `outletSnapshot()` as JSON (daily totals only, no customer data), and the owner imports the files.
-- **License:** keys are `SETU-...` strings = 13-byte payload (kind, days/minutes, install-ID hash, serial,
-  issue day) + 64-byte ECDSA signature, base32. `getActivationKeyInfo()` verifies with WebCrypto against
-  `LIC_PUBKEYS` (current key file first, then the earlier one, so its keys keep working) and `settings.installId` (needs a secure context: 127.0.0.1 / localhost / https).
-  Used keys go to `subscription.usedKeys`. `subscription.lastSeen` blocks clock rollback.
-  Built-in `AD-DEMO-*` keys work once per install and never shorten a running license.
-  Kind 1 adds days to the running licence; kind 5 (Super Admin Keygen "Aaj se N din", `keygen.py set1m`) sets it to N days
-  from the key's issue day, also shortening a longer one or a lifetime. The counter sends every used key once, in order
-  (`_push_license`, state `licSent`), and the Worker applies the same rules (`licUsed` dedupe) so the cloud period matches.
-  Kind 6 = Master Key for the vendor's pendrive (Super Admin → Keygen → Master Key, `keygen.py master`): no Install ID
-  inside, works on any PC once, N days from activation, usable `MASTER_KEY_LIFE` (180) days after it was made (app and
-  Worker); refused while a licence is running. A signed-up PC joins the cloud at once (`_auto_link` accepts hotel name +
-  owner login, and a save retries a local "nolicense / waiting" state immediately).
-  Kind 4 = owner password Reset Key (`keygen.py <ID> reset`): `forgotPass()` / `resetOwnerPass()` on the sign-in screen,
-  one use, valid 2 days from issue; `getActivationKeyInfo()` must keep refusing it as a license. Both share `licVerify()`.
-  Never put real keys, salts or private keys in the page.
-- **Staff & permissions:** `activeUser = {name, role: 'admin'|'cashier', access: 'manager'|'cashier'|'captain'}`.
-  Staff log in with their own PIN (`staff[].pin/access`). `go()` blocks `CASHIER_BLOCK` screens and keeps
-  captains on `CAPTAIN_ALLOW`. Sensitive actions call `withManager(label, fn)` (manager PIN modal) and
-  `audit(action, detail, amount, ref, approvedBy)`. `AUDIT_ALERTS` feed the Audit screen (V), dashboard and daily report.
-  Keep both when you add a new way to remove money or food from the books.
-- **GST type:** `gstRate()` (0 for composition / unregistered) — never read `settings.gst` directly for totals.
-  Bills store `scheme`; `billTitle()` prints TAX INVOICE / BILL OF SUPPLY / BILL. FSSAI number prints in `head()`.
-- **Printing:** `directPrint()` (desktop server + `printMode: 'direct'`) builds ESC/POS with `EscPos` and POSTs
-  `/api/print` (RAW job via winspool, no dialog). KOT items are split by `catPrinters[category]` in `directKot()`.
-  Otherwise `printDoc()` uses the browser dialog. Thermal receipts are ASCII only (`asciiSafe`).
-- **License:** `activateLicenseKey()` / `getSubscriptionInfo()` / `checkExpiryLock()`.
-  Changes here affect revenue. Do not loosen checks, add bypasses or print key lists unless the owner explicitly asks.
+- **State:** one global `D`. Always `save()` after changing it.
+  - **Counter / LAN mode** (`SRV.on`): `save()` debounces `srvPush()` (whole `D` + `baseVersion`). On 409 → `merge3(base, mine, theirs)`
+    (record-level by `id`, key-level for maps, `seq` = max, clashing new bill/KOT numbers renumbered) and retry. `srvPoll()` checks
+    `/api/version` every 2.5 s, reloads `D`, `srvRefreshScreen()`, `applyCloudKeys()`. Never assume only this device changes `D`.
+  - **Browser mode** (no server): `localStorage['hotelerp_v1']` + IndexedDB mirror (`openIDB()`, version 2).
+  - **Cloud mode** (`SRV.cloud` / `SRV.saas`): the page talks to the Worker; login = Hotel Code + PIN; direct printing off.
+- **Auth on LAN:** 127.0.0.1 is trusted; others `/api/login` with a PIN and send `X-Setu-Token`. First upload and forced restore /
+  reset (`SRV.forceNext`) are main-counter / manager only.
+- **Schema:** `seed()` = fresh install; `ensureGrowth(s)` back-fills newer fields (`GROWTH_DEFAULTS`, `kots`, `staff`, `att`, `outlets`,
+  `reservations`, `audit`, `monthlySent`, `salaryDays`, `salarySheets`, `seq.token`, `installId`, `applySaas`). New field → default there.
+- **Navigation:** `MENU` rows `[hotkey, label, screenKey, category]`, `SCREENS` map, `go(key)` checks auth / licence / plan, screens
+  render into `#main`. All 26 letters are used; `1` Help & Support, `2` Error Log, `3` Setu AI. A new screen needs a MENU row,
+  a SCREENS entry and a `scrXxx()`; use a free digit.
+- **Helpers:** `modal`, `closeModal`, `tryCloseModal`, `toast`, `waOpen`, `waOwner`, `printDoc`, `money`/`rs`, `r2`, `today()`
+  (`YYYY-MM-DD`), `dmy`, `esc` (wrap **every** user value in HTML; in inline `onclick` pass ids, never free text).
+- **Files to the user:** always `saveFile(name, textOrBytes, type, msg)` (counter: `/api/save-file` → `Downloads\Setu` + Explorer,
+  because pywebview blocks downloads; elsewhere a blob link). Never a raw `a.download`. CSV via `downloadCSV(rows, name)`.
+- **PDF:** `pdfFile(name, doc)` → `pdfMake()` draws A4 pages on a canvas (Hindi and ₹ work) → `pdfPack()` = JPEG pages in a PDF.
+  `doc = {title, sub: [..], sections: [{h, head, rows, total, left}]}`. Used by Reports, Monthly (CA), Day Book, Bill List, Salary.
+  **Print** buttons stay separate (`printDoc` / A4 HTML + browser print dialog).
 
-## Gotchas (learned the hard way)
+---
 
-- **Data wipe on load.** `load()` used to treat any menu containing "Dal Tadka" or "Paneer" as demo data
-  and wiped real bills on every launch. It now runs once (`demoCleanupDone`) and only for the old
-  demo hotel name. Never add heuristics that delete user data.
-- **IndexedDB.** Open it only through `openIDB()` (version 2, which creates the store). Bump the version
-  if you add stores.
-- **Downloads.** The EXE window (pywebview) blocks downloads. Every file the user saves (backup, CSV, Tally XML,
-  menu.html, outlet file) goes through `saveFile(name, text, type, msg)`: on the main counter it POSTs `/api/save-file`
-  and `app_main.py` writes it to `Downloads\Setu` and opens Explorer; elsewhere it is a blob link. Never add a raw `a.download`.
-  PDFs (Reports, Monthly, Day Book, Bill List, Salary) come from `pdfFile(name, doc)`: `pdfMake()` draws A4 pages on a canvas
-  (Hindi and ₹ work) and `pdfPack()` wraps them as JPEG pages in a PDF; no print dialog. "Print" buttons still use `printDoc` / A4 HTML.
-- **Version:** `APP_VERSION` in `hotel_erp.html` stays `'dev'` in git; `build-exe.yml` runs `installer/stamp-version.py`
-  so the EXE shows `Setu v1.0.<build>` (same as the installer). The main counter stores it in `settings.appVersion`; the Worker
-  copies it to the registry `appv` column and Super Admin shows it, marking hotels older than the newest seen as "purana".
-- **Salary records:** `D.salarySheets[month]` keeps a copy of each month's sheet (on Save / Pay / PDF / Excel), so a later salary
-  or staff change never alters a finished month. Bulk upload of stock items and purchases: `bulkUpload('stock' | 'purchase')`.
-- **Line endings.** The repo uses LF. Keep LF when you write files.
-- **Service worker** must never cache `/api/*` (see `sw.js`).
-- **Port is fixed** on purpose. A random port used to change the browser origin and made data look lost.
-- **Corrupt data** is copied aside (`setu-db.json.corrupt-*`, `hotelerp_v1_corrupt_*`), never overwritten.
-- **Server writes:** `SetuStore.write()` updates version/memory only after `os.replace` succeeds (retries on
-  Windows locks). Failures go to `setu-server.log`. Keep that order or a restart loses data.
-- **Async license:** activation functions are `async` (WebCrypto). Await them.
-- **Paper sizes.** Keep `paper()` and `printDoc()` working for both A6 and 58/80 mm thermal printing.
+## 7. Business flows (keep these invariants)
 
-## Conventions
+- **Billing:** cart `B` (`newB()`); channels Dine-In, Takeaway, Zomato, Swiggy. Dine-In keeps a running "Kaccha Bill" per table in
+  `D.kaccha[table]`; `finalizePakkaBill()` makes the invoice in `D.bills`. Totals only via `calc(items, discount, gstRate)`.
+- **Discount:** ₹ or % (`setDiscType`); cashier max % from rules; above it needs Manager PIN.
+- **Split payment:** `bill.mode = 'Split'`, `bill.pays = [{mode, amt}]` (Cash / UPI / Card / Credit, sum = total). Money by mode only via
+  `payParts(b)` / `paidBy(b, mode)`; display via `modeText(b)`. Wallet is never split.
+- **Bill edit after final:** mode / customer in place (`editBill` → `saveBillEdit`); wrong items = **Cancel & Re-make** (audited).
+- **KOT:** `pushKot()` → `D.kots`; delta only (`B.sent` / `kaccha.sent`, `cartDelta()`): 3 roti then 5 more = KOT 3 + KOT 5, bill line 8.
+- **Loyalty:** derived from bills (`ptsEarned` / `ptsUsed`, `ptsBal()`); Zomato/Swiggy never earn; loyalty discount sits in `bill.disc`
+  and `bill.loyaltyDisc`.
+- **Customers** = bills with a 10-digit phone (`customers()`). **Wallet** = top-ups (`txn.phone`) − Wallet bills (`walletBal()`).
+- **Stock:** menu `recipe [{sid, qty}]`; `applyStock(used, ±1)` on bill save / cancel and purchases. **Bulk upload** of stock items and
+  purchases: `bulkUpload('stock' | 'purchase')` (CSV or paste, sample file, line checks, new purchase items create stock items).
+- **Not income / expense:** `NON_INCOME_HEADS`, `NON_EXPENSE_HEADS` are excluded from margin in `summary()`.
+- **Tokens:** `nextToken()` restarts daily; Takeaway / parcel QR only, when `settings.tokenOn`.
+- **Captain app:** `captainSend()` merges into the table's kaccha bill (`kacchaToB()` + `saveKacchaBill(true, true)`).
+- **Staff & permissions:** `activeUser {name, role, access}`; staff PINs in `staff[]`; `CASHIER_BLOCK`, `CAPTAIN_ALLOW`;
+  sensitive actions `withManager(label, fn)` + `audit(...)`; `AUDIT_ALERTS` feed Audit (V). Keep both for any new way to remove
+  money or food from the books.
+- **Salary:** attendance → `staffMonth()`; manual day overrides in `D.salaryDays`; every Save / Pay / PDF / Excel stores a copy in
+  `D.salarySheets[month]` so a finished month never changes; "Salary Records" lists them with PDF / Excel.
+- **GST:** `gstRate()` (0 for composition / unregistered), never `settings.gst` directly; `billTitle()` = TAX INVOICE / BILL OF SUPPLY / BILL.
+- **Reports:** `rptData()` tabs; exports CSV, Tally XML (`tallyExport`, one voucher per day and mode), PDF. Monthly CA report (J):
+  WhatsApp text, GST register CSV, day-wise CSV, PDF.
+- **Zomato / Swiggy:** manual order entry only (`manualAggregatorEntry`). There are no fake / test order buttons in the client build.
+  A real integration would go through an aggregator API (e.g. UrbanPiper) — not built.
+- **Multi-outlet:** each outlet exports `outletSnapshot()` (daily totals only); the owner imports the files.
+- **Dashboard setup:** `dashSetup()` → `settings.dashHide` / `settings.dashTiles`; new Gateway sections need a `DASH_PARTS` entry.
 
-- Match the surrounding style: 2-space indent, `const` arrow helpers, template-string HTML, semicolons.
-- No frameworks, bundlers or CDNs for JavaScript. Everything must work offline.
-  Google Fonts is the only external request, and it is optional.
-- Keep every feature usable by keyboard (Enter to add, Esc to go back, hotkeys).
-- Write UI copy in short Hinglish. Use no emojis in the app UI or in printed bills.
-- Branch: `hotel-software`. Leave `main` alone unless asked.
-- Commit messages: an imperative summary line, then a body that explains why.
+---
+
+## 8. Printing (do not change without need — it works)
+
+- `directPrint()` = counter server + `printMode: 'direct'`. Receipts are built by `RasterPos` (default: canvas image, Hindi and ₹,
+  58 mm = 384 dots, 80 mm = 576 dots) or `EscPos` (text, ASCII via `asciiSafe`); same API (`center`, `lr`, `items`, `cut`, `drawer`).
+- `sendToPrinter(printer, bytes)` → `/api/print` → `print_raw()` = Windows RAW job via `winspool.drv` (no dialog), one at a time
+  (`print_lock`). Printers listed by `list_printers()` (`/api/printers`).
+- `autoPrinterSetup()` (once, `printAuto`): picks a printer named POS / thermal / receipt / 58mm / 80mm, turns on direct print.
+- KOT split by category → printer: `catPrinters`, `kotPrinterFor()`, `directKot()`. Otherwise `printDoc()` (A6 or thermal page size).
+- Reusable in another product: `list_printers` + `print_raw` + the two routes, and `EscPos` / `RasterPos` / `sendToPrinter`;
+  only the receipt builders (`escBill`, `escKot`, …) are product-specific.
+
+---
+
+## 9. Hotel Setu Cloud (Worker)
+
+- `SetuHotel` (one per Hotel Code): `kv` (account, meta), `chunk` (data slots `cur` + daily `bk:<day>`), payments. `commit()` writes
+  atomically, keeps daily backups, renames the registry entry when `settings.name` changes, and pushes `version / seen / iid / lic /
+  appv` to the registry (at once when the licence date or version changes, else every 10 minutes).
+- `prepare(d)` makes `D.saas` from the account (`saasView`: tier, features, billing template, rules, `notice`, `lock`; a suspended
+  hotel gets `lock.lv 2`). Clients only read `D.saas`; the counter's merge always takes `saas` from the cloud. Off modules keep the
+  server's copy of their keys (`FEATURES`). Catalogue: `FEATURES`, `TIERS` (basic / premium / diamond), `TEMPLATES`.
+- `blocked()`: suspended, or paid period + `GRACE_DAYS` over → saves get 402 (reading still works). The counter keeps billing locally
+  and still applies the vendor's `saas` (lock screen) on 402.
+- **Counter sync** (`CloudSync` in `app_main.py`): counter = master; Python port of `merge3` with the cloud as "mine" so printed bill
+  numbers stay. **Change `merge3` / `mergeNode` in the HTML → change the Python port too.**
+- **Auto-join:** a licensed counter joins by itself (`auto_link()` → `/api/counter/link`, proof = signed key + Install ID) once it has
+  menu, bills, or a completed sign-up (hotel name + owner login). A save retries a local "nolicense / waiting" state at once; real
+  network retries are at most once a minute / every 30 minutes. One hotel per Install ID (registry `iid`); a second join → 409 →
+  **Restore** (`/api/counter/restore`, Hotel Code + owner password, new Sync Key; first sync takes the cloud copy but keeps this
+  PC's Install ID and licence; `/claimiid`). Deleted hotel → counter gets 404 and joins again unless the Install ID is **blocked**.
+- Cloud login (phone): Hotel Code + PIN or the hotel's own domain; weak PINs refused; 5 wrong tries lock an IP for 15 min.
+  Support links `#support=CODE.TOKEN` = read-only session (`SRV.readOnly`).
+- **Help & Support tickets:** registry `ticket`; app → `/api/support/*` (counter proxies via the cloud link); replies from Super Admin.
+
+---
+
+## 10. Super Admin (web + Setu Hotel Admin APK)
+
+- Login with `ADMIN_KEY` (optional "remember on this phone"); wrong tries lock. Bottom tabs: **Hotels · Keygen · Tickets · More**.
+- **Hotels:** search, chips (Sab / Dhyan do / Locked-Suspended / Tickets / Backup nahi), cards sorted by urgency (licence or payment
+  ≤ 5 days, tickets, stale sync), tags: licence, last sync, version. Tap → sheet: Call, WhatsApp, facts (owner, licence, sync,
+  version, Install ID), tiles: **Activate** (Keygen for this hotel), **Lock / Unlock**, **Warning**, **Suspend / Activate**, **Message**,
+  **Tickets**, **Backup** (download / share), **Password** (owner), **Sab settings** (plan & features, billing builder, rules, domains,
+  support link, sync key, payments, history), **Delete** (type the code; can block the Install ID).
+- **More:** Dashboard, Naya Hotel (cloud-only hotel), Setu AI settings, Activity Log, Blocked computers, Keygen setup, Logout.
+- **Rules for this page:** never use native `alert` / `confirm` / `prompt` (the WebView app used to drop them, so Lock / Suspend did
+  nothing) — use `ask()` / `askThen()` / `toast()`. Android back closes the top layer (`pushLayer` / `popLayer`). Copy / share / save go
+  through `copyText` / `shareText` / `SA.save` so they work in the APK.
+
+---
+
+## 11. Licensing and keys (revenue — do not loosen unless the owner explicitly asks)
+
+- Key = `SETU-` + base32 of a 13-byte payload (`[1, kind, value(2), installHash(4), serial(3), issueDay(2)]`) + 64-byte ECDSA
+  signature. Verified with WebCrypto against **`LIC_PUBKEYS`** (current key file first, then the earlier one, so its keys keep
+  working) in the app and in the Worker (`pubKeys(env)`; `LICENSE_PUBKEY` overrides for tests). Needs a secure context.
+- Used keys → `subscription.usedKeys` (each key once per PC); `subscription.lastSeen` blocks clock rollback; `checkExpiryLock()` locks
+  an expired PC. Built-in `AD-DEMO-*` keys: once per install, never shorten a running licence.
+
+| Kind | Meaning | Made by |
+|---|---|---|
+| 1 | Add N days to the running licence | Keygen "Purani date mein jodo", `keygen.py ID 1m/3m/6m/1y` |
+| 2 | Demo: N minutes | `demo1h`, `demo24h` |
+| 3 | Lifetime | `life` |
+| 4 | Owner password reset (one use, 2 days; never a licence) | `reset` → `forgotPass()` / `resetOwnerPass()` |
+| 5 | **Set** the licence to N days from the issue day (also shortens a longer one / a lifetime) | Keygen "Aaj se N din", `set1m/set3m/set1y` (Setu v1.0.16+) |
+| 6 | **Master Key** for the vendor's pendrive: no Install ID inside, any new PC once, N days (default 7) from activation, usable for `MASTER_KEY_LIFE` = 180 days after it was made, refused while a licence runs | Keygen → Master Key, `keygen.py master` (Setu v1.0.17+) |
+
+- **Signing:** `keygen.py` with `setu-license-private.pem` on the vendor PC, or Super Admin Keygen (Worker signs with the
+  `LICENSE_PRIVATE_KEY` secret or the `.pem` saved once in Keygen → Setup, registry `conf` `licpriv`, refused unless its public
+  half is in `LIC_PUBKEYS`). The current key file was made new in Oct 2026; back it up on a pendrive — losing it means a new key
+  file and a new `LIC_PUBKEYS` entry.
+- **Sending a key from Super Admin:** `pushKey` → `d.subscription.cloudKeys` → the counter page's `applyCloudKeys()` activates it on the
+  next sync (PC on, internet, Setu open). The counter then sends every used key once, in order (`_push_license`, state `licSent`); the
+  Worker applies the same add / set / lifetime rules with a per-key dedupe (`licUsed`) so the cloud period follows the PC.
+- Registry `lic` (shown in Super Admin) = the counter's `validUntil` or `lifetime`.
+
+---
+
+## 12. Setu AI (Gemini)
+
+- App screen **3** → `/api/ai` (counter proxies through its cloud link). The Worker checks the `ai` feature (premium / diamond, or a
+  per-hotel override) and a per-hotel daily limit, builds `aiContext(d)` from **totals only** (no customer names, phones, PINs), and
+  calls Gemini.
+- One key for all hotels, set in Super Admin → More → Setu AI (registry `conf` `gemini`: key, model, limit); it never reaches an app.
+  `AQ.` keys are accepted (tried on the Gemini API, then Vertex AI express). If a model is not found the next of `AI_MODELS` is tried
+  and the one that works is saved. Errors show Google's own message.
+- Setu AI cannot change code. Bugs go: Help & Support ticket → vendor → developer → new EXE (Super Admin shows who needs it).
+
+---
+
+## 13. Error Log (2)
+
+`logError(kya, kahan, kaise)` keeps the last 200 errors per device in localStorage (`setu_errlog_v1`, never in `D`); `ERR_HINTS` maps
+a message to a Hinglish fix. Hooked: window errors, a screen that throws, failed saves / sync, print and file-save failures. The counter
+also shows `setu-server.log` via `/api/log` (main counter only). Log every new failure path.
+
+---
+
+## 14. Vendor lock, message, suspend
+
+- **Message** (`account.notice`) → popup once per message. **Warning** (`lock.lv 1`) → red banner, Setu works. **Lock** (`lv 2`) and
+  **Suspend** → full "Setu band hai" screen; data untouched; Backup Download still offered.
+- While the lock screen shows, a capture `keydown` listener swallows every key (no hotkey or Enter reaches the app behind it).
+
+---
+
+## 15. Installer and client PCs
+
+- `Setu-POS-Setup.exe`: Next → Install → Finish; Desktop + Start Menu shortcuts; installs WebView2 if missing (internet needed);
+  refuses 32-bit or pre-8.1 Windows with a message. Unsigned → SmartScreen "More info → Run anyway".
+- No WebView2 → Setu opens in the browser instead. Port 8000 must be free. A second Setu window takes over the running server.
+- Each PC has its own Install ID and needs its own key (or the Master Key once). Data does not move by itself: Restore from cloud or
+  from a JSON backup.
+
+---
+
+## 16. Operator runbook (vendor)
+
+- **New client:** pendrive with `Setu-POS-Setup.exe` + `Setu-Master-Key.txt` → install → Sign Up (hotel, owner, user ID, password,
+  Master Key) → it shows in Super Admin within seconds (internet) → Hotel → Activate → plan → **Aaj se N din** → Key banao.
+- **Renew:** Hotel → Activate → plan → "Purani date mein jodo" (keeps remaining days) or "Aaj se N din" (exact date).
+- **Payment due:** Warning → Lock → Suspend; undo with Unlock / Activate.
+- **Owner forgot password:** Hotel → Password (works on the phone app now, on the PC after the next sync), or a Reset key.
+- **New / formatted PC:** install → Settings → Hotel Setu Cloud → Restore (Hotel Code + owner password), or Restore from JSON backup.
+- **Which hotels need the new EXE:** version tag "purana" in Hotels.
+
+---
+
+## 17. Gotchas (learned the hard way)
+
+- `load()` once wiped real bills because menus contained "Paneer". The demo cleanup now runs once, only for the old demo name.
+  **Never add heuristics that delete user data.**
+- Corrupt data is copied aside, never overwritten. `SetuStore.write()` changes version / memory only after `os.replace` succeeds.
+- The port is fixed (a random port changed the origin and made data look lost). The service worker never caches `/api/*`.
+- Activation functions are async (WebCrypto): await them. Keep `paper()` / `printDoc()` working for A6 and 58 / 80 mm.
+- Repo uses LF line endings (`.bat` files are CRLF via `.gitattributes`).
+- Cloud pages are served `no-cache` (`cloud/static/_headers`) so the phone app never shows an old admin page.
+
+---
+
+## 18. Conventions
+
+- 2-space indent, `const` arrow helpers, template-string HTML, semicolons; match the surrounding code and its comment density.
+- No frameworks, bundlers or CDNs; everything works offline (Google Fonts optional).
+- Every feature usable by keyboard (Enter, Esc, hotkeys). Short Hinglish UI copy. No emojis in the app UI or printed bills.
+- Work branch for this effort: `ccr-89eaafa4-mxbfj2` (deploys too); long-lived branch `hotel-software`; leave `main` alone unless asked.
+- Commit messages: imperative summary line, then a body that explains why.
