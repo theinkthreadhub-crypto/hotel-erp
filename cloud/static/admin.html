@@ -608,7 +608,7 @@ async function drawAI(res){
   $('#main').innerHTML = backBtn() + `<div class="card"><h2>Setu AI (Gemini)</h2>
     <p class="muted" style="margin-top:-6px">aistudio.google.com → Get API key → Create. Key yahan paste karke Save kijiye. Key sirf Hotel Setu Cloud mein rehti hai, kisi hotel ke app mein nahi jaati.</p>
     <label>Gemini API Key ${j.hasKey ? `(saved, ...${esc(j.keyEnd)} · badalni ho tabhi daaliye)` : ''}</label>
-    <input id="ai_key" type="password" autocomplete="off" placeholder="${j.hasKey ? '••••••••••••' : 'AIza...'}" style="width:100%">
+    <input id="ai_key" type="password" autocomplete="off" placeholder="${j.hasKey ? '••••••••••••' : 'AIza... ya AQ....'}" style="width:100%">
     <div class="grid" style="margin-top:8px">
       <div><label>Har hotel ki roz ki limit (sawaal)</label><input id="ai_limit" type="number" min="1" max="1000" value="${+j.limit || 30}"></div>
       <div><label>Model</label><input id="ai_model" value="${esc(j.model || '')}"></div>

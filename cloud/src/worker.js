@@ -242,12 +242,14 @@ async function aiConf(env){
   return { key: v.key || env.GEMINI_API_KEY || '', model: v.model || AI_DEFAULTS.model, limit: +v.limit || AI_DEFAULTS.limit };
 }
 async function gemini(env, c, prompt, system){
-  const base = env.GEMINI_BASE || 'https://generativelanguage.googleapis.com';
-  const r = await fetch(`${base}/v1beta/models/${encodeURIComponent(c.model)}:generateContent`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key },
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.4, maxOutputTokens: 900 } })
-  });
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.4, maxOutputTokens: 900 } });
+  const call = url => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body });
+  const model = encodeURIComponent(c.model);
+  let r = await call(`${env.GEMINI_BASE || 'https://generativelanguage.googleapis.com'}/v1beta/models/${model}:generateContent`);
+  // Newer Google keys ("AQ.") may belong to Vertex AI express mode: same request, other address
+  if([400, 401, 403].includes(r.status) && c.key.startsWith('AQ.'))
+    r = await call(`${env.VERTEX_BASE || 'https://aiplatform.googleapis.com'}/v1/publishers/google/models/${model}:generateContent`);
   const j = await r.json().catch(() => ({}));
   if(!r.ok){
     const m = (j.error && j.error.message) || ('HTTP ' + r.status);
@@ -1275,7 +1277,7 @@ async function admin(request, env, path){
     if(body.set){
       const v = (await regJson(env, '/conf/get', { k: 'gemini' })).v || {};
       const key = String(body.key || '').trim();
-      if(key && !/^[A-Za-z0-9_\-]{20,100}$/.test(key)) return json(400, { error: 'Ye Gemini API key jaisi nahi lag rahi' });
+      if(key && !/^[A-Za-z0-9_.\-]{20,200}$/.test(key)) return json(400, { error: 'Ye Gemini API key jaisi nahi lag rahi' });
       const nv = { key: key || v.key || '', model: str(body.model, 60) || v.model || AI_DEFAULTS.model, limit: Math.max(1, Math.min(1000, +body.limit || v.limit || AI_DEFAULTS.limit)) };
       await regCall(env, '/conf/set', { k: 'gemini', v: nv });
       await log('Setu AI settings', '', `model ${nv.model}, limit ${nv.limit}${key ? ', new key' : ''}`);
