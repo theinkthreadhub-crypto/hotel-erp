@@ -878,7 +878,8 @@ def make_handler(base_dir, store, port, cloud=None):
                     return self.send_json(403, {'error': 'main counter only'})
                 try:
                     body = self.read_json()
-                    saved = save_user_file(str(body.get('name') or ''), str(body.get('text') or ''))
+                    content = base64.b64decode(body['b64']) if body.get('b64') else str(body.get('text') or '')
+                    saved = save_user_file(str(body.get('name') or ''), content)
                 except Exception as e:
                     store.log(f'File save failed: {e}')
                     return self.send_json(500, {'error': str(e)})
@@ -1085,7 +1086,7 @@ def main():
             return
 
 
-def save_user_file(name, text):
+def save_user_file(name, text):   # text: str, or bytes (PDF)
     """Write a file the user asked for into Downloads\\Setu (never overwrites) and show it in Explorer."""
     name = ''.join(c for c in os.path.basename(name) if c.isalnum() or c in '._- ()').strip(' .') or 'setu-file.txt'
     home = os.path.expanduser('~')
@@ -1096,8 +1097,12 @@ def save_user_file(name, text):
     path, n = os.path.join(folder, name), 2
     while os.path.exists(path):
         path, n = os.path.join(folder, f'{stem} ({n}){ext}'), n + 1
-    with open(path, 'w', encoding='utf-8', newline='') as f:
-        f.write(text)
+    if isinstance(text, bytes):
+        with open(path, 'wb') as f:
+            f.write(text)
+    else:
+        with open(path, 'w', encoding='utf-8', newline='') as f:
+            f.write(text)
     if os.name == 'nt':
         try:
             import subprocess

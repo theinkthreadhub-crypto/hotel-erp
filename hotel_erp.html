@@ -815,6 +815,7 @@ function ensureGrowth(s){
   if(!Array.isArray(s.audit)) s.audit = [];
   if(!s.monthlySent || typeof s.monthlySent !== 'object') s.monthlySent = {};
   if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
+  if(!s.salarySheets || typeof s.salarySheets !== 'object') s.salarySheets = {};
   if(!s.seq) s.seq = { bill: 0, kot: 0 };
   if(!s.seq.token) s.seq.token = 0;
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
@@ -4494,6 +4495,10 @@ function scrBills(){
     <button class="cat ${billFilterChannel==='Swiggy'?'on':''}" onclick="billFilterChannel='Swiggy';scrBills()">Swiggy</button>
   </div>
 
+  <div class="btns" style="margin:0 0 12px">
+    <button class="btn ok" onclick="billsPDF()">PDF</button>
+    <button class="btn g" onclick="billsCSV()">Excel</button>
+  </div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
       <thead>
@@ -4533,6 +4538,26 @@ function scrBills(){
       </tfoot>
     </table>
   </div>`;
+}
+
+// Bill List export: the date and channel shown on screen
+function billListRows(){
+  return D.bills.filter(b => b.date === listDate && (billFilterChannel === 'all' || (b.channel || 'Dine-In') === billFilterChannel)).sort((a, b) => a.no - b.no);
+}
+function billsCSV(){
+  const bs = billListRows();
+  if(!bs.length){ toast('Is date par koi bill nahi'); return; }
+  downloadCSV([['Bill No', 'Date', 'Time', 'Channel', 'Table / Ref', 'Customer', 'Mobile', 'Items', 'Payment Mode', 'Sub Total', 'Discount', 'GST', 'Total', 'Status']]
+    .concat(bs.map(b => [b.no, dmy(b.date), b.time, b.channel || 'Dine-In', b.table || '', b.cust || '', b.phone || '', b.items.map(i => i.name + ' x ' + i.qty).join('; '), modeText(b), r2(b.sub), r2(b.disc), r2(b.tax), r2(b.total), b.cancelled ? 'CANCELLED' : 'OK'])),
+    `${fileStem()}-bills-${listDate}.csv`);
+}
+function billsPDF(){
+  const bs = billListRows(), ok = bs.filter(b => !b.cancelled);
+  if(!bs.length){ toast('Is date par koi bill nahi'); return; }
+  pdfFile(`${fileStem()}-bills-${listDate}.pdf`, {title: 'Bill List', sub: [hotelLine(), dmy(listDate) + (billFilterChannel !== 'all' ? ' · ' + billFilterChannel : '')], sections: [
+    {head: ['Bill', 'Time', 'Channel', 'Table', 'Customer', 'Items', 'Mode', 'Total'], left: [0, 1, 2, 3, 4, 5, 6],
+      rows: bs.map(b => ['#' + b.no + (b.cancelled ? ' (cancel)' : ''), b.time, b.channel || 'Dine-In', b.table || '', b.cust || '', b.items.map(i => i.name + ' x' + i.qty).join(', '), modeText(b), money(b.total)]),
+      total: [`${ok.length} bills`, '', '', '', '', '', '', money(sum(ok, 'total'))]}]});
 }
 
 // Fix a saved bill: payment mode / customer in place; wrong items = cancel and re-make (Manager PIN, audited)
@@ -4681,6 +4706,7 @@ function scrPurchase(){
     </div>
     <div class="btns">
       <button class="btn ok" onclick="savePurchase()">Save Purchase</button>
+      <button class="btn" onclick="bulkUpload('purchase')">Bulk Purchase (Excel)</button>
       <button class="btn g" onclick="go('stock')">View Stock Summary</button>
     </div>
     <p class="muted" style="margin-top:8px">Credit = payable to the supplier later (not deducted from the cash counter).</p>
@@ -4813,8 +4839,9 @@ function scrDaybook(){
     `).join('')}
   </div>
   <div class="btns" style="margin-bottom:12px">
-    <button class="btn ok" onclick="printDaybook()">Print / Save PDF</button>
-    <button class="btn g" onclick="daybookCSV()">Export to Excel (CSV)</button>
+    <button class="btn g" onclick="printDaybook()">Print</button>
+    <button class="btn ok" onclick="daybookPDF()">PDF</button>
+    <button class="btn g" onclick="daybookCSV()">Excel</button>
   </div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
@@ -4857,7 +4884,21 @@ function daybookCSV(){
   downloadCSV(rows, `${(st.name || 'setu').replace(/[^\w]+/g, '-')}-daybook-${dbFrom}-to-${dbTo}.csv`);
 }
 
-// A4 Day Book with the hotel's details, for printing or "Save as PDF"
+function daybookPDF(){
+  const {e, t, days} = daybookData(dbFrom, dbTo);
+  const kv = [['Bills', t.bills], ['Total Sales', money(t.sales)], ['Dine-In', money(t.dineSales)], ['Takeaway', money(t.takeawaySales)],
+    ['Zomato', money(t.zomatoSales)], ['Swiggy', money(t.swiggySales)], ['Discount', money(t.disc)], ['GST', money(t.tax)],
+    ['Expenses', money(t.expT)], ['Purchases', money(t.purT)], ['Cash In', money(t.cashIn)], ['Cash Out', money(t.cashOut)],
+    ['Cash in Hand (on ' + dmy(dbTo) + ')', money(t.expected)], ['Cancelled Bills', t.cancelled]];
+  pdfFile(`${fileStem()}-daybook-${dbFrom}-to-${dbTo}.pdf`, {title: 'Day Book', sub: [hotelLine(), `${dmy(dbFrom)} to ${dmy(dbTo)} (${days} day${days > 1 ? 's' : ''})`], sections: [
+    {h: 'Summary', head: ['Item', 'Value'], rows: kv},
+    {h: 'Mode-wise Sales', head: ['Mode', 'Amount'], rows: MODES.map(m => [m, money(t.by[m])])},
+    {h: 'Entries', head: ['Date', 'Time', 'Voucher', 'Particulars', 'Mode', 'Inward', 'Outward'], left: [0, 1, 2, 3, 4],
+      rows: e.map(r => [dmy(r.date), r.time, r.type, r.part, r.mode, r.in ? r2(r.in).toFixed(2) : '', r.out ? r2(r.out).toFixed(2) : '']),
+      total: ['TOTAL', '', '', '', '', money(sum(e, 'in')), money(sum(e, 'out'))]}]});
+}
+
+// A4 Day Book with the hotel's details, for printing
 function printDaybook(){
   const {e, t, days} = daybookData(dbFrom, dbTo), st = D.settings, au = D.auth || {};
   const cell = (c, i, n) => `<td class="${n.includes(i) ? 'n' : ''}">${c}</td>`;
@@ -5039,6 +5080,7 @@ function scrStock(){
   </div>
   <div class="btns" style="margin:0 0 14px">
     <button class="btn ok" onclick="editStock()">New Stock Item</button>
+    <button class="btn" onclick="bulkUpload('stock')">Bulk Upload (Excel)</button>
     <button class="btn g" onclick="go('purchase')">Purchase / Inward Entry (P)</button>
   </div>
   <div class="card" style="padding:0;overflow:auto">
@@ -5071,6 +5113,112 @@ function scrStock(){
     </table>
   </div>
   <p class="muted">Stock is deducted automatically on every bill according to each menu item recipe.</p>`;
+}
+
+/* Bulk upload: many stock items or purchases at once, from an Excel (CSV) file or pasted lines */
+const BULK = {
+  stock: {title: 'Stock Items — Bulk Upload', cols: ['Name', 'Unit', 'Opening Qty', 'Min Level', 'Rate'],
+    sample: [['Paneer', 'kg', 5, 2, 320], ['Milk', 'ltr', 20, 5, 56], ['Gas Cylinder', 'pcs', 2, 1, 1100]],
+    note: 'Naam pehle se ho to sirf Unit, Min Level aur Rate badlega (qty purchase se hi badhegi).'},
+  purchase: {title: 'Purchases — Bulk Upload', cols: ['Item', 'Qty', 'Rate', 'Supplier', 'Mode', 'Date', 'Unit'],
+    sample: [['Paneer', 10, 300, 'Shyam Dairy', 'Cash', dmy(today()), 'kg'], ['Onion', 25, 30, 'Mandi', 'Credit', dmy(today()), 'kg']],
+    note: 'Naya item ho to stock mein apne aap ban jayega. Mode: Cash / UPI / Card / Credit (khaali = Cash). Date khaali = aaj.'}
+};
+function csvRows(txt){
+  return String(txt || '').replace(/^﻿/, '').replace(/\r/g, '').split('\n').filter(l => l.trim())
+    .map(l => l.split(/\t|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^\s*"|"\s*$/g, '').replace(/""/g, '"').trim()));
+}
+const bulkNum = v => { const n = +String(v ?? '').replace(/₹|rs\.?|,/gi, '').trim(); return isFinite(n) ? n : NaN; };
+// DD-MM-YYYY, DD/MM/YYYY or YYYY-MM-DD; blank = today; anything else = null
+function bulkDate(v){
+  v = String(v || '').trim();
+  if(!v) return today();
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  m = v.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})$/);
+  if(m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+  return null;
+}
+function bulkUpload(kind){
+  const k = BULK[kind];
+  modal(k.title, `
+    <p class="muted" style="margin:0 0 8px;font-size:12px">Ek line = ek ${kind === 'stock' ? 'item' : 'purchase'}. Columns: <b>${k.cols.join(', ')}</b>. ${k.note}</p>
+    <div class="btns" style="margin:0 0 8px">
+      <label class="btn g sm" style="margin:0;cursor:pointer">Excel (CSV) File Chunein<input type="file" accept=".csv,.txt" style="display:none" onchange="bulkFile(this.files[0],'${kind}')"></label>
+      <button class="btn g sm" onclick="downloadCSV([BULK.${kind}.cols].concat(BULK.${kind}.sample), '${kind}-sample.csv')">Sample Excel File</button>
+    </div>
+    <textarea id="bu_txt" rows="9" placeholder="${k.sample.map(r => r.join(', ')).join('&#10;')}" oninput="bulkPreview('${kind}')"></textarea>
+    <div id="bu_prev" class="muted" style="font-size:12px;margin-top:6px"></div>
+    <div class="btns"><button class="btn ok" onclick="bulkSave('${kind}')">Save All</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function bulkFile(f, kind){
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { $('#bu_txt').value = String(r.result); bulkPreview(kind); };
+  r.readAsText(f);
+}
+// Checks every line; returns {ok: [...], bad: ['line 3: ...']}
+function bulkParse(kind){
+  let rows = csvRows($('#bu_txt').value);
+  const skip = rows.length && /^(name|item)$/i.test(rows[0][0]) ? 1 : 0;   // header line
+  rows = rows.slice(skip);
+  const ok = [], bad = [];
+  rows.forEach((c, i) => {
+    const n = i + 1 + skip, name = (c[0] || '').trim();
+    if(!name){ bad.push(`line ${n}: naam khaali`); return; }
+    if(kind === 'stock'){
+      const [qty, min, rate] = [c[2], c[3], c[4]].map(v => v === undefined || v === '' ? 0 : bulkNum(v));
+      if([qty, min, rate].some(v => isNaN(v) || v < 0)){ bad.push(`line ${n} (${name}): qty / min / rate sahi number nahi`); return; }
+      ok.push({name, unit: (c[1] || '').trim() || 'pcs', qty, min, rate});
+    } else {
+      const qty = bulkNum(c[1]), rate = c[2] === undefined || c[2] === '' ? 0 : bulkNum(c[2]), date = bulkDate(c[5]);
+      const mode = MODES.find(m => m.toLowerCase() === String(c[4] || 'Cash').trim().toLowerCase() && ['Cash', 'UPI', 'Card', 'Credit'].includes(m));
+      if(!(qty > 0)){ bad.push(`line ${n} (${name}): qty 0 se zyada honi chahiye`); return; }
+      if(isNaN(rate) || rate < 0){ bad.push(`line ${n} (${name}): rate sahi number nahi`); return; }
+      if(!mode){ bad.push(`line ${n} (${name}): mode "${c[4]}" — Cash / UPI / Card / Credit likhiye`); return; }
+      if(!date || date > today()){ bad.push(`line ${n} (${name}): date "${c[5]}" sahi nahi (DD-MM-YYYY)`); return; }
+      ok.push({name, qty, rate, party: (c[3] || '').trim(), mode, date, unit: (c[6] || '').trim() || 'pcs'});
+    }
+  });
+  return {ok, bad};
+}
+function bulkPreview(kind){
+  const {ok, bad} = bulkParse(kind);
+  const isNew = x => !D.stock.some(s => s.name.toLowerCase() === x.name.toLowerCase());
+  $('#bu_prev').innerHTML = (ok.length ? `<b class="green">${ok.length} line theek</b>` + (kind === 'stock'
+      ? ` · ${ok.filter(isNew).length} naye, ${ok.filter(x => !isNew(x)).length} update`
+      : ` · total ${money(sum(ok, x => x.qty * x.rate))} · ${ok.filter(isNew).length} naye stock item`) : 'Abhi koi line nahi')
+    + (bad.length ? `<div class="red" style="margin-top:4px">${bad.slice(0, 8).map(esc).join('<br>')}${bad.length > 8 ? `<br>… aur ${bad.length - 8}` : ''}</div>` : '');
+}
+function bulkSave(kind){
+  const {ok, bad} = bulkParse(kind);
+  if(bad.length){ bulkPreview(kind); toast('Pehle laal wali lines theek kijiye'); return; }
+  if(!ok.length){ toast('Koi line nahi mili'); return; }
+  const find = n => D.stock.find(s => s.name.toLowerCase() === n.toLowerCase());
+  let added = 0, updated = 0;
+  if(kind === 'stock'){
+    ok.forEach(x => {
+      const s = find(x.name);
+      if(s){ Object.assign(s, {unit: x.unit, min: x.min, rate: x.rate}); updated++; }
+      else { D.stock.push({id: uid(), name: x.name, unit: x.unit, qty: x.qty, min: x.min, rate: x.rate}); added++; }
+    });
+    audit('Stock Bulk Upload', `${added} new, ${updated} updated`);
+    toast(`${added} stock item bane${updated ? `, ${updated} update hue` : ''}`);
+  } else {
+    ok.forEach(x => {
+      let s = find(x.name);
+      if(!s){ s = {id: uid(), name: x.name, unit: x.unit, qty: 0, min: 0, rate: x.rate}; D.stock.push(s); added++; }
+      applyStock([{sid: s.id, qty: x.qty}], +1);
+      if(x.rate) s.rate = x.rate;
+      D.txns.push({id: uid(), type: 'Purchase', date: x.date, time: nowTime(), head: s.name, desc: `${fq(x.qty)} ${s.unit} @ ₹${x.rate}`,
+        party: x.party, amount: r2(x.qty * x.rate), mode: x.mode, sid: s.id, qty: x.qty});
+    });
+    audit('Purchase Bulk Upload', `${ok.length} purchases${added ? `, ${added} new stock items` : ''}`, r2(sum(ok, x => x.qty * x.rate)));
+    toast(`${ok.length} purchase save hue, stock badh gaya`);
+  }
+  save();
+  closeModal();
+  go(cur);
 }
 
 function editStock(id){
@@ -5563,10 +5711,12 @@ function campStep(){
 
 // One way to hand the user a file. The EXE window blocks downloads, so on the main counter
 // app_main.py saves it in Downloads\Setu; in a browser / phone it is a normal download.
+// text may be a string or bytes (Uint8Array, e.g. a PDF).
 async function saveFile(name, text, type, msg){
+  const bin = text instanceof Uint8Array;
   if(SRV.on && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)){
     try{
-      const r = await fetch('/api/save-file', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, text})});
+      const r = await fetch('/api/save-file', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(bin ? {name, b64: bytesB64(text)} : {name, text})});
       const j = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
       toast((msg ? msg + ' ' : '') + 'Saved: ' + j.path);
@@ -5579,6 +5729,103 @@ async function saveFile(name, text, type, msg){
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   if(msg) toast(msg);
+}
+
+const bytesB64 = u8 => { let b = ''; for(let i = 0; i < u8.length; i += 0x8000) b += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(b); };
+
+/* ================= PDF FILES (straight to a file, no print dialog) ================= */
+// Each A4 page is drawn on a canvas (Hindi and ₹ come out as on screen) and packed as a JPEG page into a PDF.
+// doc = {title, sub: [lines], sections: [{h, head, rows, total, left: [columns kept left-aligned, default [0]]}]}
+function pdfMake(doc){
+  const W = 1240, H = 1754, M = 64, FOOT = 50, RH = 36;   // A4 at 150 dpi
+  const F = (px, b) => `${b ? 'bold ' : ''}${px}px "Nirmala UI", "Segoe UI", "Mangal", Arial, sans-serif`;
+  const pages = [];
+  let cx, y;
+  const page = () => {
+    const cv = document.createElement('canvas');
+    cv.width = W; cv.height = H;
+    cx = cv.getContext('2d');
+    cx.fillStyle = '#fff'; cx.fillRect(0, 0, W, H); cx.textBaseline = 'middle';
+    pages.push(cv); y = M;
+  };
+  const fit = (t, w) => { t = String(t ?? ''); if(cx.measureText(t).width <= w) return t; while(t.length > 1 && cx.measureText(t + '…').width > w) t = t.slice(0, -1); return t + '…'; };
+  const text = (t, x, yy, w, px, bold, color, right) => {
+    cx.font = F(px, bold); cx.fillStyle = color || '#0f172a'; cx.textAlign = right ? 'right' : 'left';
+    cx.fillText(fit(t, w), right ? x + w : x, yy);
+  };
+  page();
+  text(doc.title, M, y + 20, W - 2 * M, 34, true); y += 52;
+  (doc.sub || []).filter(Boolean).forEach(l => { text(l, M, y + 12, W - 2 * M, 20, false, '#475569'); y += 28; });
+  y += 12;
+  const room = () => H - M - FOOT - y;
+  (doc.sections || []).forEach(sec => {
+    const head = sec.head.map(String), rows = sec.rows.map(r => r.map(c => String(c ?? '')));
+    const all = sec.total ? rows.concat([sec.total.map(c => String(c ?? ''))]) : rows, left = sec.left || [0];
+    cx.font = F(19);
+    // Column widths follow the content, then stretch or shrink to the page width
+    const want = head.map((h, i) => Math.min((W - 2 * M) * 0.5, Math.max(cx.measureText(h).width * 1.1, ...all.slice(0, 500).map(r => cx.measureText(r[i] || '').width)) + 26));
+    const k = (W - 2 * M) / want.reduce((a, b) => a + b, 0), wd = want.map(w => w * k);
+    const drawHead = () => {
+      cx.fillStyle = '#e2e8f0'; cx.fillRect(M, y, W - 2 * M, RH);
+      let x = M;
+      head.forEach((h, i) => { text(h, x + 10, y + RH / 2, wd[i] - 20, 18, true, '#334155', !left.includes(i)); x += wd[i]; });
+      y += RH;
+    };
+    if(room() < RH * 4) page();
+    if(sec.h){ text(sec.h, M, y + 16, W - 2 * M, 24, true); y += 40; }
+    drawHead();
+    if(!rows.length){ text('No data', M + 10, y + RH / 2, 400, 19, false, '#64748b'); y += RH; }
+    all.forEach((r, ri) => {
+      if(room() < RH){ page(); drawHead(); }
+      const tot = sec.total && ri === all.length - 1;
+      if(tot || ri % 2){ cx.fillStyle = tot ? '#f1f5f9' : '#f8fafc'; cx.fillRect(M, y, W - 2 * M, RH); }
+      let x = M;
+      r.forEach((c, i) => { if(i < wd.length) text(c, x + 10, y + RH / 2, wd[i] - 20, 19, tot, '#0f172a', !left.includes(i)); x += wd[i] || 0; });
+      cx.strokeStyle = '#e5e7eb'; cx.beginPath(); cx.moveTo(M, y + RH); cx.lineTo(W - M, y + RH); cx.stroke();
+      y += RH;
+    });
+    y += 24;
+  });
+  pages.forEach((cv, i) => {
+    const c = cv.getContext('2d');
+    c.font = F(16); c.fillStyle = '#64748b'; c.textBaseline = 'middle';
+    c.textAlign = 'left'; c.fillText(`${D.settings.name || 'Setu'} · ${dmy(today())} ${nowTime()} · Powered by Aghanya Devanya Enterprises`, M, H - M / 2 - 6);
+    c.textAlign = 'right'; c.fillText(`Page ${i + 1} / ${pages.length}`, W - M, H - M / 2 - 6);
+  });
+  return pdfPack(pages);
+}
+// Minimal PDF 1.4: one full-page JPEG per page
+function pdfPack(pages){
+  const enc = new TextEncoder(), parts = [], offs = [], PW = 595.28, PH = 841.89;
+  let len = 0;
+  const add = x => { const b = typeof x === 'string' ? enc.encode(x) : x; parts.push(b); len += b.length; };
+  const obj = (n, body) => { offs[n] = len; add(`${n} 0 obj\n`); body(); add('\nendobj\n'); };
+  add('%PDF-1.4\n');
+  obj(1, () => add('<< /Type /Catalog /Pages 2 0 R >>'));
+  obj(2, () => add(`<< /Type /Pages /Count ${pages.length} /Kids [${pages.map((_, i) => `${3 + i * 3} 0 R`).join(' ')}] >>`));
+  pages.forEach((cv, i) => {
+    const p = 3 + i * 3, jpg = Uint8Array.from(atob(cv.toDataURL('image/jpeg', 0.88).split(',')[1]), c => c.charCodeAt(0));
+    const content = `q ${PW} 0 0 ${PH} 0 0 cm /Im0 Do Q`;
+    obj(p, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /XObject << /Im0 ${p + 1} 0 R >> >> /Contents ${p + 2} 0 R >>`));
+    obj(p + 1, () => { add(`<< /Type /XObject /Subtype /Image /Width ${cv.width} /Height ${cv.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`); add(jpg); add('\nendstream'); });
+    obj(p + 2, () => add(`<< /Length ${content.length} >>\nstream\n${content}\nendstream`));
+  });
+  const xref = len, size = 3 + pages.length * 3;
+  add(`xref\n0 ${size}\n0000000000 65535 f \n` + offs.slice(1).map(o => String(o).padStart(10, '0') + ' 00000 n \n').join(''));
+  add(`trailer\n<< /Size ${size} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  const out = new Uint8Array(len);
+  let o = 0;
+  parts.forEach(b => { out.set(b, o); o += b.length; });
+  return out;
+}
+const hotelLine = () => [D.settings.name, D.settings.address, D.settings.gstin ? 'GSTIN: ' + D.settings.gstin : ''].filter(Boolean).join(' · ');
+const fileStem = () => (D.settings.name || 'setu').replace(/[^\w]+/g, '-');
+function pdfFile(name, doc, msg){
+  printStatus('busy', 'PDF ban raha hai…');
+  setTimeout(() => {
+    try{ saveFile(name, pdfMake(doc), 'application/pdf', msg || 'PDF ready.'); printStatus('ok', 'PDF ready'); }
+    catch(e){ printStatus('err', 'PDF nahi bana: ' + e.message); logError('PDF nahi bana: ' + name, 'pdfFile', e.message); }
+  }, 30);
 }
 
 function downloadCSV(rows, name){
@@ -5870,8 +6117,11 @@ function scrStaff(){
     ${rows.length ? `<div class="btns" style="padding:0 16px 14px">
       <button class="btn ok" onclick="saveSalaryDays()">Save Changes</button>
       <button class="btn" onclick="if(saveSalaryDays(true))payAllSalary()">Sabko Salary Pay</button>
+      <button class="btn g" onclick="if(saveSalaryDays(true))salaryPDF(stMonth)">PDF</button>
+      <button class="btn g" onclick="if(saveSalaryDays(true))salaryCSV(stMonth)">Excel</button>
     </div>` : ''}
   </div>
+${salaryRecordsHTML()}
 
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center">
@@ -5893,6 +6143,58 @@ function scrStaff(){
     </table>
   </div>
   <p class="muted">Earned salary = Monthly Salary ÷ ${dim} × Days Worked (P + W + H/2) − Advance. Advances and salary payments are recorded as expenses automatically.</p>`;
+}
+
+// Salary record: a copy of each month's sheet is kept (saved on Save / Pay / PDF / Excel), so later
+// salary or staff changes never alter a month that was already worked out
+function salaryLive(month){
+  return D.staff.filter(s => { const m = staffMonth(s, month); return !s.left || m.worked || m.adv || m.paid; }).map(s => {
+    const m = staffMonth(s, month);
+    return {name: s.name, role: s.role || '', salary: +s.salary || 0, worked: m.worked, earned: m.earned, adv: m.adv, paid: m.paid, payable: m.payable};
+  });
+}
+function salarySnap(month){
+  const rows = salaryLive(month);
+  if(rows.length) D.salarySheets[month] = {date: today(), time: nowTime(), by: activeUser ? activeUser.name : '', rows};
+  return rows;
+}
+function salarySheet(month){
+  // The month on screen is always worked out fresh (and stored); other months come from the record
+  if(month === stMonth){ const rows = salarySnap(month); save(); return rows; }
+  return ((D.salarySheets || {})[month] || {}).rows || [];
+}
+function salaryTable(rows){
+  const t = k => r2(sum(rows, k));
+  return {head: ['Name', 'Role', 'Monthly Salary', 'Days Worked', 'Earned', 'Advance', 'Paid', 'Payable'], left: [0, 1],
+    rows: rows.map(r => [r.name, r.role, money(r.salary), r.worked, money(r.earned), money(r.adv), money(r.paid), money(r.payable)]),
+    total: ['Total', '', '', '', money(t('earned')), money(t('adv')), money(t('paid')), money(t('payable'))]};
+}
+function salaryPDF(month){
+  const rows = salarySheet(month);
+  if(!rows.length){ toast('Is mahine ki salary sheet khaali hai'); return; }
+  pdfFile(`${fileStem()}-salary-${month}.pdf`, {title: 'Salary Sheet — ' + monthLabel(month), sub: [hotelLine(), `${daysInMonth(month)}-day month · Earned = Monthly Salary ÷ days in month × Days Worked`],
+    sections: [salaryTable(rows)]});
+  if(month === stMonth) scrStaff();
+}
+function salaryCSV(month){
+  const rows = salarySheet(month);
+  if(!rows.length){ toast('Is mahine ki salary sheet khaali hai'); return; }
+  downloadCSV([['Name', 'Role', 'Monthly Salary', 'Days Worked', 'Earned', 'Advance', 'Paid', 'Payable']]
+    .concat(rows.map(r => [r.name, r.role, r.salary, r.worked, r2(r.earned), r2(r.adv), r2(r.paid), r2(r.payable)]))
+    .concat([['Total', '', '', '', r2(sum(rows, 'earned')), r2(sum(rows, 'adv')), r2(sum(rows, 'paid')), r2(sum(rows, 'payable'))]]), `${fileStem()}-salary-${month}.csv`);
+  if(month === stMonth) scrStaff();
+}
+function salaryRecordsHTML(){
+  const months = Object.keys(D.salarySheets || {}).sort().reverse();
+  if(!months.length) return '';
+  return `<div class="card" style="padding:0;overflow:auto">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><b style="font-size:15px">Salary Records (har mahine ka)</b>
+      <div class="muted" style="font-size:12px">Save, Pay, PDF ya Excel dabane par us mahine ki sheet yahan record ho jaati hai.</div></div>
+    <table><thead><tr><th>Month</th><th class="n">Staff</th><th class="n">Earned</th><th class="n">Paid</th><th class="n">Payable</th><th>Saved</th><th></th></tr></thead>
+      <tbody>${months.map(m => { const x = D.salarySheets[m], rows = x.rows || [];
+        return `<tr><td><b>${monthLabel(m)}</b></td><td class="n">${rows.length}</td><td class="n">${money(sum(rows, 'earned'))}</td><td class="n">${money(sum(rows, 'paid'))}</td><td class="n">${money(sum(rows, 'payable'))}</td>
+          <td class="muted" style="font-size:12px">${dmy(x.date)} ${esc(x.time || '')}</td>
+          <td style="white-space:nowrap"><button class="btn sm g" onclick="salaryPDF('${m}')">PDF</button> <button class="btn sm g" onclick="salaryCSV('${m}')">Excel</button></td></tr>`; }).join('')}</tbody></table></div>`;
 }
 
 // Month grid: click a cell to cycle  P → H → A → W → blank
@@ -5959,6 +6261,7 @@ function saveSalaryDays(silent){
     mo[id] = +v;
   });
   if(bad){ toast(`${bad}: enter days between 0 and ${dim}`); return false; }
+  salarySnap(stMonth);
   save();
   if(!silent){ toast('Saved'); scrStaff(); }
   return true;
@@ -5972,6 +6275,7 @@ function payAllSalary(){
   const mode = confirm('Paid in cash? (Cancel = UPI / Bank)') ? 'Cash' : 'UPI';
   due.forEach(({s, m}) => D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: m.payable, mode, staffId: s.id, salMonth: stMonth}));
   audit('Salary Paid', `${stMonth}: ${due.length} staff (${mode})`, total);
+  salarySnap(stMonth);
   save();
   toast(`Salary of ${money(total)} paid to ${due.length} staff`);
   scrStaff();
@@ -6008,6 +6312,7 @@ function paySalary(id){
   if(!(v > 0)) return;
   const mode = confirm('Paid in cash? (Cancel = UPI)') ? 'Cash' : 'UPI';
   D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: v, mode, staffId: id, salMonth: stMonth});
+  salarySnap(stMonth);
   save();
   toast('Salary payment saved');
   scrStaff();
@@ -6655,8 +6960,9 @@ function scrReports(){
     </table>
   </div>
   <div class="btns">
-    <button class="btn ok" onclick="printReport()">Print / Save PDF</button>
-    <button class="btn g" onclick="rptCSV()">Export to Excel (CSV)</button>
+    <button class="btn g" onclick="printReport()">Print</button>
+    <button class="btn ok" onclick="rptPDF()">PDF</button>
+    <button class="btn g" onclick="rptCSV()">Excel</button>
     <button class="btn" onclick="tallyExport()">Tally XML Export (Sales)</button>
   </div>
   <p class="muted">Tally XML: one sales voucher per day and payment mode. Create these ledgers in Tally first: Sales, CGST, SGST, Round Off, Cash, UPI, Card, Credit Sales, Customer Wallet, Zomato, Swiggy. Import: Gateway of Tally → Import Data → Vouchers.</p>`;
@@ -6679,6 +6985,12 @@ function printReport(){
   </div>`;
   printStatus('busy', 'Opening print window… to save a PDF choose "Save as PDF" / "Microsoft Print to PDF"');
   setTimeout(() => { window.print(); printStatus('ok', 'Report sent'); }, 80);
+}
+
+function rptPDF(){
+  const r = rptData()[rptTab](), label = (RPT_TABS.find(t => t[0] === rptTab) || [0, 'Sales'])[1];
+  pdfFile(`${fileStem()}-${rptTab}-${rptFrom}-to-${rptTo}.pdf`, {title: `${label} Report`, sub: [hotelLine(), `${dmy(rptFrom)} to ${dmy(rptTo)}`],
+    sections: [{head: r.head, rows: r.rows, total: r.total}]});
 }
 
 function rptCSV(){
@@ -6838,9 +7150,10 @@ function scrMonthly(){
     <div class="btns" style="margin:0">
       <button class="btn" onclick="monthlyRegisterCSV()">GST Bill Register (Excel)</button>
       <button class="btn g" onclick="monthlyDaysCSV()">Day-wise Sales (Excel)</button>
-      <button class="btn g" onclick="printMonthly()">Print / PDF Report</button>
+      <button class="btn ok" onclick="monthlyPDF()">PDF Report</button>
+      <button class="btn g" onclick="printMonthly()">Print</button>
     </div>
-    <p class="muted" style="font-size:12px;margin-bottom:0">The WhatsApp button opens the complete summary as a <b>message</b> in your CA WhatsApp chat — just click Send. Excel / PDF files must be attached manually (WhatsApp links cannot carry files). Choose "Save as PDF" in the print dialog to create a PDF.</p>
+    <p class="muted" style="font-size:12px;margin-bottom:0">The WhatsApp button opens the complete summary as a <b>message</b> in your CA WhatsApp chat — just click Send. Excel / PDF files must be attached manually (WhatsApp links cannot carry files). PDF Report saves the file straight away.</p>
   </div>`;
 }
 
@@ -6871,6 +7184,17 @@ function monthlyDaysCSV(){
   const x = monthData(mrMonth);
   downloadCSV([['Date', 'Bills', 'Taxable', 'GST', 'Total']].concat(Object.keys(x.days).sort().map(d => [dmy(d), x.days[d].n, r2(x.days[d].taxable), r2(x.days[d].tax), r2(x.days[d].total)])),
     `${(D.settings.name || 'setu').replace(/[^\w]+/g, '-')}-daywise-${mrMonth}.csv`);
+}
+
+function monthlyPDF(){
+  const x = monthData(mrMonth), st = D.settings;
+  pdfFile(`${fileStem()}-monthly-${mrMonth}.pdf`, {title: 'Monthly Sales Report', sub: [hotelLine(), monthLabel(mrMonth) + (st.fssai ? ' · FSSAI: ' + st.fssai : '')], sections: [
+    {h: 'Summary', head: ['Item', 'Amount'], rows: [['Bills', x.bills], ['Cancelled bills', `${x.canc.length} (${money(x.cancT)})`], ['Gross (items)', money(x.sub)], ['Discount', money(x.disc)], ['Taxable Value', money(x.taxable)], ['GST', money(x.tax)], ['Round Off', money(x.round)], ['Total Sales', money(x.sales)], ['Purchases', money(x.purT)], ['Expenses', money(x.expT)], ['Net (approx)', money(x.net)]]},
+    {h: 'GST Summary', head: ['GST %', 'Bills', 'Taxable', 'CGST', 'SGST', 'Total'], rows: Object.keys(x.gst).sort((a, b) => a - b).map(g => [g + '%', x.gst[g].n, money(x.gst[g].taxable), money(x.gst[g].tax / 2), money(x.gst[g].tax / 2), money(x.gst[g].total)])},
+    {h: 'Payment Mode', head: ['Mode', 'Amount'], rows: Object.entries(x.modes).map(([k, v]) => [k, money(v)])},
+    {h: 'Channel', head: ['Channel', 'Amount'], rows: Object.entries(x.channels).map(([k, v]) => [k, money(v)])},
+    {h: 'Expenses by Head', head: ['Head', 'Amount'], rows: [['Purchases', money(x.purT)]].concat(Object.entries(x.expBy).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, money(v)]))},
+    {h: 'Day-wise Sales', head: ['Date', 'Bills', 'Taxable', 'GST', 'Total'], rows: Object.keys(x.days).sort().map(d => [dmy(d), x.days[d].n, money(x.days[d].taxable), money(x.days[d].tax), money(x.days[d].total)])}]});
 }
 
 function printMonthly(){

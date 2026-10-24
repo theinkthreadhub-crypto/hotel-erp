@@ -171,6 +171,10 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
 - **Downloads.** The EXE window (pywebview) blocks downloads. Every file the user saves (backup, CSV, Tally XML,
   menu.html, outlet file) goes through `saveFile(name, text, type, msg)`: on the main counter it POSTs `/api/save-file`
   and `app_main.py` writes it to `Downloads\Setu` and opens Explorer; elsewhere it is a blob link. Never add a raw `a.download`.
+  PDFs (Reports, Monthly, Day Book, Bill List, Salary) come from `pdfFile(name, doc)`: `pdfMake()` draws A4 pages on a canvas
+  (Hindi and ₹ work) and `pdfPack()` wraps them as JPEG pages in a PDF; no print dialog. "Print" buttons still use `printDoc` / A4 HTML.
+- **Salary records:** `D.salarySheets[month]` keeps a copy of each month's sheet (on Save / Pay / PDF / Excel), so a later salary
+  or staff change never alters a finished month. Bulk upload of stock items and purchases: `bulkUpload('stock' | 'purchase')`.
 - **Line endings.** The repo uses LF. Keep LF when you write files.
 - **Service worker** must never cache `/api/*` (see `sw.js`).
 - **Port is fixed** on purpose. A random port used to change the browser origin and made data look lost.
