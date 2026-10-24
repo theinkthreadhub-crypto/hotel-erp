@@ -18,6 +18,9 @@ DisableDirPage=yes
 DefaultGroupName=Setu POS
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
+; Setu is a 64-bit program (Python 3.12): Windows 8.1 / 10 / 11, 64-bit. Older or 32-bit Windows get a clear message instead of a broken install.
+ArchitecturesAllowed=x64
+MinVersion=6.3
 OutputDir=..\Output
 OutputBaseFilename=Setu-POS-Setup
 SetupIconFile=..\favicon.ico
