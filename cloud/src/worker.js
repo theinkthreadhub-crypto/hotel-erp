@@ -377,6 +377,7 @@ export class SetuRegistry extends DurableObject {
     if(!cols.includes('lic')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lic TEXT');
     if(!cols.includes('notice')) this.sql.exec('ALTER TABLE hotel ADD COLUMN notice TEXT');
     if(!cols.includes('lockv')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lockv INTEGER DEFAULT 0');
+    if(!cols.includes('appv')) this.sql.exec('ALTER TABLE hotel ADD COLUMN appv TEXT');
     // Help & Support tickets from the hotels, and Install IDs the vendor blocked
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ticket (id TEXT PRIMARY KEY, code TEXT NOT NULL, subject TEXT, status TEXT, msgs TEXT,
       created INTEGER, updated INTEGER, unread_admin INTEGER DEFAULT 0, unread_hotel INTEGER DEFAULT 0)`);
@@ -498,7 +499,7 @@ export class SetuRegistry extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/update'){
-      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv'].filter(c => c in body);
+      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv'].filter(c => c in body);
       if(cols.length) this.sql.exec(`UPDATE hotel SET ${cols.map(c => c + ' = ?').join(', ')} WHERE code = ?`, ...cols.map(c => body[c]), body.code);
       return json(200, { ok: true });
     }
@@ -668,11 +669,13 @@ export class SetuHotel extends DurableObject {
         this.kvSet('account', a);
       }
     });
-    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000){
+    const appv = String((d.settings || {}).appVersion || '').slice(0, 20);
+    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed){
+      this.appvPushed = appv;
       this.seenPushed = now;
       const iid = String((d.settings || {}).installId || '').slice(0, 20), sub = d.subscription || {};
       const lic = sub.isLifetime ? 'lifetime' : String(sub.validUntil || '').slice(0, 25);
-      this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid, lic }).catch(() => {}));
+      this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid, lic, appv }).catch(() => {}));
     }
     this.meta = meta;
     this.raw = raw;

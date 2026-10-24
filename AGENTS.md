@@ -173,6 +173,9 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   and `app_main.py` writes it to `Downloads\Setu` and opens Explorer; elsewhere it is a blob link. Never add a raw `a.download`.
   PDFs (Reports, Monthly, Day Book, Bill List, Salary) come from `pdfFile(name, doc)`: `pdfMake()` draws A4 pages on a canvas
   (Hindi and ₹ work) and `pdfPack()` wraps them as JPEG pages in a PDF; no print dialog. "Print" buttons still use `printDoc` / A4 HTML.
+- **Version:** `APP_VERSION` in `hotel_erp.html` stays `'dev'` in git; `build-exe.yml` runs `installer/stamp-version.py`
+  so the EXE shows `Setu v1.0.<build>` (same as the installer). The main counter stores it in `settings.appVersion`; the Worker
+  copies it to the registry `appv` column and Super Admin shows it, marking hotels older than the newest seen as "purana".
 - **Salary records:** `D.salarySheets[month]` keeps a copy of each month's sheet (on Save / Pay / PDF / Excel), so a later salary
   or staff change never alters a finished month. Bulk upload of stock items and purchases: `bulkUpload('stock' | 'purchase')`.
 - **Line endings.** The repo uses LF. Keep LF when you write files.

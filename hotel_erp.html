@@ -539,6 +539,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
 
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b">
       Powered by <strong style="color:#0f172a">Aghanya Devanya Enterprises</strong>
+      <div class="app-ver" style="margin-top:2px"></div>
     </div>
   </div>
 </div>
@@ -641,6 +642,8 @@ body.kitchen-mode .kcard ul{font-size:19px}
     <span>Powered by <strong>Aghanya Devanya Enterprises</strong></span>
     <span class="footer-sep">|</span>
     <span>Setu — Hotel & Restaurant Management POS</span>
+    <span class="footer-sep">|</span>
+    <span class="app-ver"></span>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <span id="footer-lic-text" style="color:#38bdf8;cursor:pointer" onclick="openSubscriptionModal()">License: Active</span>
@@ -1573,6 +1576,9 @@ function updateOnlinePills(){
 const LIC_PUBKEYS = ['BIaSZabMX2d0YUMVTeNbvQvwWGvewBdIUMBTDu83hyD84V2ursUn7/DNMjWY5yQcQULZ3zgHMuJCTwZol9WrPg0=', 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M='];
 const LIC_B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const LIC_EPOCH = Date.UTC(2026, 0, 1);
+// Set by the EXE build (.github/workflows/build-exe.yml) to the same number as the installer: 1.0.<build>
+const APP_VERSION = 'dev';
+const verText = () => APP_VERSION === 'dev' ? 'Setu' : 'Setu v' + APP_VERSION;
 
 // Built-in demo keys work once per installation (for showing the software to a new client)
 const SPECIAL_DEMO_KEYS = {
@@ -8117,6 +8123,12 @@ async function autoPrinterSetup(){
     applyCloudKeys();
   }
   startUI();
+  document.querySelectorAll('.app-ver').forEach(e => e.textContent = verText());
+  // The main counter tells the cloud which Setu version it runs (shown in Super Admin)
+  if(SRV.on && !SRV.cloud && APP_VERSION !== 'dev' && /^(127\.0\.0\.1|localhost)$/.test(location.hostname) && D.settings.appVersion !== APP_VERSION){
+    D.settings.appVersion = APP_VERSION;
+    save();
+  }
   try{ saasNotices(); }catch(e){}   // vendor warning / lock shows before anyone signs in
   autoPrinterSetup();
   setTimeout(cloudPill, 3000);

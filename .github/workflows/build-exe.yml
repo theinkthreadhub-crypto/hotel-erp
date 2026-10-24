@@ -33,6 +33,11 @@ jobs:
       - name: Install build tools
         run: python -m pip install --upgrade pyinstaller pywebview
 
+      # The version shown in Setu and sent to Super Admin = the installer's version
+      - name: Stamp version
+        shell: cmd
+        run: python installer\stamp-version.py 1.0.${{ github.run_number }}
+
       # Same flags as Build-New-EXE.bat; keep both in sync
       - name: Build EXE
         shell: cmd
@@ -81,7 +86,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $notes = "Newest Setu EXE (branch ${{ github.ref_name }}, commit ${{ github.sha }}). Download Setu-POS-Setup.exe and double-click it (Next, Install, Finish). Setu-POS-Setup.zip = same app without installer."
+          $notes = "Setu v1.0.${{ github.run_number }}. Newest Setu EXE (branch ${{ github.ref_name }}, commit ${{ github.sha }}). Download Setu-POS-Setup.exe and double-click it (Next, Install, Finish). Setu-POS-Setup.zip = same app without installer."
           gh release view setu-latest *> $null
           if ($LASTEXITCODE -ne 0) {
             gh release create setu-latest Output/Setu-POS-Setup.exe Setu-POS-Setup.zip --title "Setu POS - Latest EXE" --notes $notes --target ${{ github.sha }}

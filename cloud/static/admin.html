@@ -325,6 +325,10 @@ function licTag(h){
   if(d === null) return '<span class="tag">Licence -</span>';
   return `<span class="tag ${d < 0 ? 'bad' : d <= 5 ? 'warn' : 'ok'}">Licence ${d < 0 ? 'khatam' : d + ' din'}</span>`;
 }
+// Setu version on the hotel's counter PC; older than the newest one seen = needs the new EXE
+const verNum = v => String(v || '').split('.').map(n => +n || 0).reduce((a, n) => a * 10000 + n, 0);
+const newestVer = () => HOTELS.reduce((m, h) => verNum(h.appv) > verNum(m) ? h.appv : m, '');
+const verTag = h => !h.appv ? '<span class="tag">Version -</span>' : `<span class="tag ${verNum(h.appv) < verNum(newestVer()) ? 'warn' : ''}">v${esc(h.appv)}${verNum(h.appv) < verNum(newestVer()) ? ' · purana' : ''}</span>`;
 const seenTag = h => `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Abhi sync nahi'}</span>`;
 function drawCards(){
   const q = ($('#q').value || '').trim().toLowerCase();
@@ -334,7 +338,7 @@ function drawCards(){
     const [sl, sc] = appState(h), al = hotelAlert(h);
     return `<div class="hc" onclick="hotelSheet('${esc(h.code)}')"><div class="top">${avatar(h)}
         <div class="mid"><b class="nm">${esc(h.name)}</b><small>${esc(h.code)}${h.owner ? ' · ' + esc(h.owner) : ''}</small></div><span class="st ${sc}">${sl}</span></div>
-      <div class="tags">${licTag(h)}${seenTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
+      <div class="tags">${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
       ${al ? `<div class="strip ${al[0]}">${esc(al[1])}</div>` : ''}</div>`;
   }).join('') || `<div class="card muted" style="text-align:center">${KF === 'all' && !q ? 'Abhi koi hotel nahi. Naye PC par EXE install karke Keygen se activate karein.' : 'Is list mein kuch nahi'}</div>`;
 }
@@ -352,6 +356,7 @@ function hotelSheet(code){
       <div><span>Owner</span><b>${esc(h.owner || '-')} ${h.phone ? '· ' + esc(h.phone) : ''}</b></div>
       <div><span>Licence</span><b class="${d === Infinity ? 'ok' : d !== null && d <= 5 ? 'err' : ''}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + (d < 0 ? ' · khatam' : ' · ' + d + ' din')}</b></div>
       <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Abhi nahi'}</b></div>
+      <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(naya: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
       <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
       <div><span>Juda</span><b>${d8(h.created)}</b></div>
     </div>
@@ -506,7 +511,8 @@ function drawMore(){
     + row('list', 'Activity Log', 'Aapne kab kya badla', "show('audit')")
     + row('block', 'Blocked computers', 'Delete karte waqt block kiye PC', "show('blocked')")
     + row('key', 'Keygen setup', 'Phone se key banane ke liye', "show('keygen').then(() => drawKeygenSetup())")
-    + row('out', 'Logout', 'Is phone se Admin Key hatao', 'logout()');
+    + row('out', 'Logout', 'Is phone se Admin Key hatao', 'logout()')
+    + `<p class="muted" style="text-align:center;font-size:12px">${(navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/) || [])[1] ? 'Setu Hotel Admin app v' + navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/)[1] : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Naya Setu EXE: v' + esc(newestVer()) : ''}</p>`;
 }
 
 // ---------------- dashboard ----------------
