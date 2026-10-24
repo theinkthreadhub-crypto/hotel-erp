@@ -509,9 +509,13 @@ const kgMake = run(async () => {
 });
 function drawKeygenSetup(){
   const ready = KGS && KGS.ready;
-  $('#main').innerHTML = `<div class="card"><h2>Keygen setup (sirf ek baar)</h2>
-    <p class="muted" style="margin-top:0">Phone se key banane ke liye cloud ko aapki <b>setu-license-private.pem</b> file chahiye (jo PC par Generate-Activation-Keys wale folder mein hai). Ye wahi file hai jisse ab tak keys banti thi, isliye purani keys bhi chalti rahengi.</p>
-    <ol class="steps"><li>PC par Chrome mein ye Admin page kholiye (ya file phone mein le aaiye).</li><li>Neeche <b>File chunein</b> → setu-license-private.pem.</li><li><b>Save</b>. Galat file ho to cloud mana kar dega.</li></ol>
+  $('#main').innerHTML = `${ready ? '' : `<div class="card" style="border-color:#fecaca;background:#fef2f2">
+      <h2 class="err" style="margin-bottom:6px">Keygen abhi band hai</h2>
+      <p style="margin:0">Ek baar neeche key file save karte hi yahan ye sab chalu ho jayega:</p>
+      <ul class="steps" style="margin-top:6px"><li><b>Master Key</b> (pendrive ke liye, har naye PC par 7 din)</li><li>Hotel ko <b>Activation Key</b> bhejna (Aaj se N din / jodo)</li><li>Password Reset key</li></ul></div>`}
+    <div class="card"><h2>Keygen setup (sirf ek baar)</h2>
+    <p class="muted" style="margin-top:0">Cloud ko aapki <b>setu-license-private.pem</b> file chahiye — wahi file jo humne aapko bheji thi (nayi key file). Ise ek baar yahan save kar dijiye.</p>
+    <ol class="steps"><li>Phone mein woh file save karke rakhiye (Downloads / Files).</li><li>Neeche <b>File chunein</b> → setu-license-private.pem.</li><li><b>Save</b> dabaiye. Galat file ho to cloud mana kar dega.</li></ol>
     <label>Key file</label><input type="file" id="pem_file" accept=".pem,text/plain,application/x-pem-file,*/*" style="width:100%">
     <label>… ya file ka text yahan paste karein</label><textarea id="pem_txt" rows="4" placeholder="-----BEGIN PRIVATE KEY-----" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea>
     <button class="big" style="margin-top:12px" onclick="kgSetup()">Save</button>

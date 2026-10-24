@@ -1,0 +1,5 @@
+# The admin page and the app must never come from a stale cache (the phone app showed an old page)
+/admin*
+  Cache-Control: no-cache
+/hotel_erp.html
+  Cache-Control: no-cache

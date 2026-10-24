@@ -16,4 +16,5 @@ for(const f of FILES){
 }
 copyFileSync(join(here, '..', 'static', 'admin.html'), join(out, 'admin.html'));
 copyFileSync(join(here, '..', 'static', 'admin.webmanifest'), join(out, 'admin.webmanifest'));
+copyFileSync(join(here, '..', 'static', '_headers'), join(out, '_headers'));
 console.log('Copied ' + FILES.length + ' app files + admin.html to cloud/public');
