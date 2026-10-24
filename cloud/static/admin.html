@@ -889,10 +889,9 @@ function tabSupport(){
     <h3>Previous Support Access</h3>
     ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Never</p>'}
     <h3>Lost keys</h3>
-    <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Hotel Setu Cloud Sync). Owner password: works on the phone app at once and on the counter PC after its next sync.</p>
+    <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Hotel Setu Cloud Sync). Owner password: Overview tab.</p>
     <div class="row"><input id="k_set" placeholder="Current Sync Key (40 characters)" maxlength="40" style="min-width:300px"><button class="g" onclick="setSyncKey()">Record This Key</button></div>
-    <div class="row" style="margin-top:8px"><button onclick="newSyncKey()">New Counter PC Sync Key</button>
-      <input id="o_pw" placeholder="New owner password (6+ characters)" maxlength="40"><button onclick="ownerPw()">Reset Owner Password</button></div>
+    <div class="row" style="margin-top:8px"><button onclick="newSyncKey()">New Counter PC Sync Key</button></div>
     <div id="k_out"></div>`;
 }
 const newSyncKey = run(async () => {
@@ -914,12 +913,6 @@ const ownerPw2 = run(async () => {
   CUR = await api('/api/admin/hotel', {code: CUR.code, update: {ownerPassword: pw}});
   toast('Owner password set — tell the owner: ' + pw);
   drawHotel();
-});
-const ownerPw = run(async () => {
-  const pw = $('#o_pw').value.trim();
-  await api('/api/admin/hotel', {code: CUR.code, update: {ownerPassword: pw}});
-  $('#k_out').innerHTML = '<p>Owner password updated.</p>';
-  $('#o_pw').value = '';
 });
 const supportOpen = run(async () => {
   if(!$('#s_why').value.trim()) return toast('Please enter a reason (visible to the hotel)', true);

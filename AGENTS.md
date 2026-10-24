@@ -168,8 +168,9 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   demo hotel name. Never add heuristics that delete user data.
 - **IndexedDB.** Open it only through `openIDB()` (version 2, which creates the store). Bump the version
   if you add stores.
-- **Downloads.** `backup()`, `menu.html`, CSV and outlet exports use blob links. They work in the
-  browser and in the EXE, but not inside sandboxed preview iframes.
+- **Downloads.** The EXE window (pywebview) blocks downloads. Every file the user saves (backup, CSV, Tally XML,
+  menu.html, outlet file) goes through `saveFile(name, text, type, msg)`: on the main counter it POSTs `/api/save-file`
+  and `app_main.py` writes it to `Downloads\Setu` and opens Explorer; elsewhere it is a blob link. Never add a raw `a.download`.
 - **Line endings.** The repo uses LF. Keep LF when you write files.
 - **Service worker** must never cache `/api/*` (see `sw.js`).
 - **Port is fixed** on purpose. A random port used to change the browser origin and made data look lost.

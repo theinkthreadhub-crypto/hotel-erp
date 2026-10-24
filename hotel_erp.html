@@ -2300,7 +2300,7 @@ function triggerPWAInstall(){
 
 /* ================= UI HELPERS ================= */
 const main = $('#main');
-let cur = 'gateway', gwSel = 0;
+let cur = 'gateway';
 
 function toast(t){
   const e = $('#toast');
@@ -5561,12 +5561,29 @@ function campStep(){
     </div>`);
 }
 
-function downloadCSV(rows, name){
-  const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
+// One way to hand the user a file. The EXE window blocks downloads, so on the main counter
+// app_main.py saves it in Downloads\Setu; in a browser / phone it is a normal download.
+async function saveFile(name, text, type, msg){
+  if(SRV.on && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)){
+    try{
+      const r = await fetch('/api/save-file', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({name, text})});
+      const j = await r.json().catch(() => ({}));
+      if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      toast((msg ? msg + ' ' : '') + 'Saved: ' + j.path);
+      return;
+    }catch(e){ logError('File save nahi hua: ' + name, 'saveFile', e.message); }
+  }
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['﻿' + csv], {type: 'text/csv'}));
+  a.href = URL.createObjectURL(new Blob([text], {type}));
   a.download = name;
   a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  if(msg) toast(msg);
+}
+
+function downloadCSV(rows, name){
+  const csv = rows.map(r => r.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\n');
+  saveFile(name, '﻿' + csv, 'text/csv');
 }
 
 function custCSV(){
@@ -5751,11 +5768,7 @@ function dlMenuPage(){
 'if(nm)L.push("Name: "+nm);if(ph)L.push("Phone: "+ph);L.push("");var t=0;for(var k in C){L.push(C[k]+" x "+D.menu[k].n+" = ₹"+C[k]*D.menu[k].p);t+=C[k]*D.menu[k].p}',
 'L.push("","Total: ₹"+t+(D.gst?" + GST":""));if(nt)L.push("Note: "+nt);location.href="https://wa.me/"+D.wa+"?text="+encodeURIComponent(L.join("\\n"))}',
 'draw();<\/script></body></html>'].join('\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([html], {type: 'text/html'}));
-  a.download = 'menu.html';
-  a.click();
-  toast('menu.html downloaded. Upload it online to publish.');
+  saveFile('menu.html', html, 'text/html', 'menu.html ready. Upload it online to publish.');
 }
 
 /* ================= STAFF ATTENDANCE & SALARY ================= */
@@ -6170,11 +6183,7 @@ function scrOutlets(){
 }
 
 function exportOutlet(){
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(outletSnapshot())], {type: 'application/json'}));
-  a.download = `outlet-${D.settings.outletCode}-${today()}.json`;
-  a.click();
-  toast('Outlet summary downloaded. Send it to the owner.');
+  saveFile(`outlet-${D.settings.outletCode}-${today()}.json`, JSON.stringify(outletSnapshot()), 'application/json', 'Outlet summary ready. Send it to the owner.');
 }
 
 function importOutlets(files){
@@ -6716,11 +6725,7 @@ function tallyExport(){
     </REQUESTDATA>
   </IMPORTDATA></BODY>
 </ENVELOPE>`;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([xml], {type: 'application/xml'}));
-  a.download = `tally-sales-${rptFrom}-to-${rptTo}.xml`;
-  a.click();
-  toast(`${Object.keys(groups).length} sales vouchers exported to Tally XML`);
+  saveFile(`tally-sales-${rptFrom}-to-${rptTo}.xml`, xml, 'application/xml', `${Object.keys(groups).length} sales vouchers exported to Tally XML.`);
 }
 
 /* ================= MONTHLY REPORT FOR CA / LAWYER ================= */
@@ -6944,7 +6949,7 @@ function saasNotices(){
   } else if(w) w.remove();
   let l = $('#saas-lock');
   if(lk && lk.lv === 2){
-    if(!l){ l = document.createElement('div'); l.id = 'saas-lock'; document.body.appendChild(l); }
+    if(!l){ l = document.createElement('div'); l.id = 'saas-lock'; document.body.appendChild(l); if(document.activeElement) document.activeElement.blur(); }
     l.style.cssText = 'position:fixed;inset:0;background:radial-gradient(circle at 50% 15%,#1e293b 0%,#090d16 100%);z-index:99999999;display:flex;align-items:center;justify-content:center;padding:20px';
     l.innerHTML = `<div class="login-card" style="max-width:460px;text-align:center">
       <h2 style="margin-top:0">Setu band hai</h2>
@@ -6960,6 +6965,11 @@ function saasNotices(){
   }
 }
 setInterval(() => { try{ saasNotices(); }catch(e){} }, 15000);
+// Vendor lock: nothing behind the lock screen may be used, not even with the keyboard (hotkeys, Enter on a focused button)
+document.addEventListener('keydown', e => {
+  const l = $('#saas-lock');
+  if(l && !l.contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
 
 /* ================= SETU AI (Gemini via Hotel Setu Cloud) ================= */
 // The question goes to the cloud; the cloud adds this hotel's totals (no customer data) and asks Gemini.
@@ -7669,11 +7679,8 @@ function saveSettings(){
 }
 
 function backup(){
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(D, null, 1)], {type:'application/json'}));
   const name = String(D.settings.name || 'hotel').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'hotel';
-  a.download = `setu-backup-${name}-${today()}.json`;
-  a.click();
+  saveFile(`setu-backup-${name}-${today()}.json`, JSON.stringify(D, null, 1), 'application/json', 'Backup ready.');
 }
 
 // Accepts a Setu backup download, the setu-db.json file, or a daily file from Data\Backups

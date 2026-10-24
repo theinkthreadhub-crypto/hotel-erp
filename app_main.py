@@ -872,6 +872,17 @@ def make_handler(base_dir, store, port, cloud=None):
                 except Exception:
                     return self.send_json(502, {'error': 'Cloud se jud nahi paye. Internet check karein.'})
                 return self.send_json(code, j)
+            if path == '/api/save-file':
+                # The desktop window blocks downloads: backups / CSV / Tally files go to Downloads\Setu
+                if not self.is_local():
+                    return self.send_json(403, {'error': 'main counter only'})
+                try:
+                    body = self.read_json()
+                    saved = save_user_file(str(body.get('name') or ''), str(body.get('text') or ''))
+                except Exception as e:
+                    store.log(f'File save failed: {e}')
+                    return self.send_json(500, {'error': str(e)})
+                return self.send_json(200, {'path': saved})
             if path in ('/api/cloud/restore', '/api/cloud/join'):
                 if not self.is_local() or not cloud:
                     return self.send_json(403, {'error': 'main counter only'})
@@ -1072,6 +1083,28 @@ def main():
                 time.sleep(3600)
         except KeyboardInterrupt:
             return
+
+
+def save_user_file(name, text):
+    """Write a file the user asked for into Downloads\\Setu (never overwrites) and show it in Explorer."""
+    name = ''.join(c for c in os.path.basename(name) if c.isalnum() or c in '._- ()').strip(' .') or 'setu-file.txt'
+    home = os.path.expanduser('~')
+    root = next((d for d in (os.path.join(home, 'Downloads'), os.path.join(home, 'Documents')) if os.path.isdir(d)), home)
+    folder = os.path.join(root, 'Setu')
+    os.makedirs(folder, exist_ok=True)
+    stem, ext = os.path.splitext(name)
+    path, n = os.path.join(folder, name), 2
+    while os.path.exists(path):
+        path, n = os.path.join(folder, f'{stem} ({n}){ext}'), n + 1
+    with open(path, 'w', encoding='utf-8', newline='') as f:
+        f.write(text)
+    if os.name == 'nt':
+        try:
+            import subprocess
+            subprocess.Popen(['explorer', '/select,', path])
+        except Exception:
+            pass
+    return path
 
 
 def log_line(data_dir, msg):
