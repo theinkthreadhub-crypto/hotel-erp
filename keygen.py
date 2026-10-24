@@ -34,7 +34,8 @@ EPOCH = datetime.date(2026, 1, 1)
 B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
 # kind: 1 = days (added to the running licence), 2 = minutes (demo), 3 = lifetime,
-#       4 = owner password reset (one use, 2 days), 5 = days from today (replaces the date; Setu v1.0.16+)
+#       4 = owner password reset (one use, 2 days), 5 = days from today (replaces the date; Setu v1.0.16+),
+#       6 = Master Key: any PC (no Install ID inside), N days from activation, usable 180 days (Setu v1.0.17+)
 PLANS = {
     '1m':      (1, 30,  '1 Month (30 Days)'),
     '2m':      (1, 60,  '2 Months (60 Days)'),
@@ -48,6 +49,7 @@ PLANS = {
     'set1m':   (5, 30,  'Set: 30 Days from today'),
     'set3m':   (5, 90,  'Set: 90 Days from today'),
     'set1y':   (5, 365, 'Set: 1 Year from today'),
+    'master':  (6, 7,   'Master Key (7 days, any new PC, usable 180 days)'),
 }
 
 
@@ -85,7 +87,8 @@ def public_key_b64(priv):
 def make_key(install_id, plan):
     kind, value, _ = PLANS[plan]
     issued = (datetime.date.today() - EPOCH).days
-    payload = bytes([1, kind]) + value.to_bytes(2, 'big') + install_hash(install_id) + secrets.token_bytes(3) + issued.to_bytes(2, 'big')
+    ih = bytes(4) if kind == 6 else install_hash(install_id)
+    payload = bytes([1, kind]) + value.to_bytes(2, 'big') + ih + secrets.token_bytes(3) + issued.to_bytes(2, 'big')
     der = load_private_key().sign(payload, ec.ECDSA(hashes.SHA256()))
     r, s = decode_dss_signature(der)
     sig = r.to_bytes(32, 'big') + s.to_bytes(32, 'big')
@@ -104,7 +107,7 @@ def verify_key(key, install_id):
         pub.verify(encode_dss_signature(int.from_bytes(sig[:32], 'big'), int.from_bytes(sig[32:], 'big')), payload, ec.ECDSA(hashes.SHA256()))
     except InvalidSignature:
         return None
-    if payload[4:8] != install_hash(install_id):
+    if payload[1] != 6 and payload[4:8] != install_hash(install_id):
         return None
     return {'kind': payload[1], 'value': int.from_bytes(payload[2:4], 'big')}
 
@@ -143,6 +146,12 @@ def main():
     print('=' * 64)
     print('   SETU LICENSE KEY GENERATOR — Aghanya Devanya Enterprises')
     print('=' * 64)
+    if args[:1] == ['master']:
+        # Master Key for the pendrive: python keygen.py master
+        key = make_key('MASTER-ANY-PC', 'master')
+        log_key('ANY PC', 'master', 'Master Key', key)
+        print('\n' + PLANS['master'][2] + ':\n\n' + key + '\n')
+        return
     install_id = args[0] if args else input('Client Install ID (e.g. SETU-7F3K-92QD): ').strip()
     if len(clean_install_id(install_id)) < 8:
         sys.exit('Invalid Install ID')

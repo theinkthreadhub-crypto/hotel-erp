@@ -457,9 +457,18 @@ async function drawKeygen(){
       ${match && KG.plan !== 'reset' ? `<label class="switch"><input type="checkbox" id="kg_send" ${KG.send ? 'checked' : ''}> Cloud se seedha is hotel ke PC par bhejo</label>` : ''}
       <button class="big" style="margin-top:14px" onclick="kgMake()">${ic('key')} Key banao</button>
     </div>
+    <div class="card"><h2>Master Key (pendrive ke liye)</h2>
+      <p class="muted" style="margin-top:0">Ek hi key har naye PC par chalegi. Setu sirf utne din chalega (bhool jaayein to bhi apne aap band). PC activate hote hi Hotels mein aa jayega; phir upar se client ke hisaab se asli din bhejiye (<b>Aaj se N din</b>). Ek key 180 din tak naye PC par lag sakti hai, phir nayi banaiye.</p>
+      <div class="row"><input id="mk_days" type="number" min="1" max="30" value="${+KG.mdays || 7}" style="width:90px"> <span>din</span>
+        <button style="flex:1" onclick="kgMaster()">${ic('key')} Master Key banao</button></div>
+      ${KG.master ? `<div class="keybox" style="margin-top:10px">${esc(KG.master.key)}</div>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">${esc(KG.master.label)} · naye PC par ${d8(KG.master.usableTill)} tak lag sakti hai</p>
+        <div class="btns"><button class="g" onclick="copyText(KG.master.key, 'Master Key')">Copy</button><button class="okb" onclick="kgMasterFile()">File save (pendrive)</button></div>` : ''}
+    </div>
     <div class="card"><h2>Naya PC (pehli baar)</h2>
-      <ol class="steps"><li>PC par Setu EXE install karein (pendrive se).</li><li>Setu khulte hi <b>Install ID</b> dikhegi. Upar daaliye.</li>
-        <li><b>Key banao</b> → key PC par paste karein → Activate.</li><li>Activate hote hi PC khud cloud se jud jayega aur <b>Hotels</b> mein aa jayega.</li>
+      <ol class="steps"><li>PC par Setu EXE install karein (pendrive se).</li><li>Sign-up mein <b>Master Key</b> paste karein (ya Install ID ki key yahan banaiye).</li>
+        <li>Internet chalu ho to PC khud cloud se jud jayega aur <b>Hotels</b> mein aa jayega.</li>
+        <li>Hotel kholiye → <b>Activate</b> → din chuniye → <b>Aaj se N din</b> → key seedha PC par chali jayegi.</li>
         <li>Uske baad ghar baithe yahin se Activate, Lock, Suspend sab.</li></ol>
       <p class="muted" style="margin-bottom:0;font-size:12px">Keygen: ${KGS.from === 'secret' ? 'Cloudflare secret se' : 'saved key file se'} · <a href="#" onclick="event.preventDefault();drawKeygenSetup()">Setup</a></p></div>`;
   kgDateLine();
@@ -510,6 +519,21 @@ function drawKeygenSetup(){
     ${ready ? `<div class="row" style="justify-content:space-between;margin-top:6px"><span class="ok">Keygen chalu hai (${KGS.from === 'secret' ? 'Cloudflare secret' : 'saved file'})</span>
       <span class="row"><button class="g" onclick="drawKeygen()">‹ Keygen</button>${KGS.from === 'saved' ? `<button class="g" style="color:var(--bad)" onclick="kgRemove()">Hatao</button>` : ''}</span></div>` : ''}</div>`;
   $('#pem_file').onchange = e => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = () => $('#pem_txt').value = String(r.result || ''); r.readAsText(f); };
+}
+const kgMaster = run(async () => {
+  KG.mdays = +$('#mk_days').value || 7;
+  KG.master = await api('/api/admin/keygen', {master: true, days: KG.mdays});
+  toast('Master Key ban gayi');
+  await drawKeygen();
+});
+function kgMasterFile(){
+  const m = KG.master, text = `Setu POS — Master Key (${m.days} din)\r\nAghanya Devanya Enterprises\r\n\r\n${m.key}\r\n\r\nNaye PC par: Setu-POS-Setup.exe install karein → Sign Up mein yeh key paste karein.\r\nNaye PC par ${d8(m.usableTill)} tak lag sakti hai. Kisi ko na dein.\r\n`;
+  if(window.SA && SA.save){ SA.save('Setu-Master-Key.txt', 'text/plain', btoa(unescape(encodeURIComponent(text)))); return toast('File: save ya share karein'); }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
+  a.download = 'Setu-Master-Key.txt';
+  a.click();
+  toast('Setu-Master-Key.txt download ho gayi');
 }
 const kgSetup = run(async () => {
   const t = $('#pem_txt').value.trim();

@@ -162,13 +162,16 @@ function b32encode(bytes){
   return out;
 }
 
-// kind: 1 = days (added), 2 = minutes (demo), 3 = lifetime, 4 = owner password reset, 5 = days from today (replaces the date)
+// kind: 1 = days (added), 2 = minutes (demo), 3 = lifetime, 4 = owner password reset, 5 = days from today (replaces the date),
+//       6 = Master Key for first installs (any PC, N days from activation, usable MASTER_KEY_LIFE days after it is made)
+const MASTER_KEY_LIFE = 180;
 async function makeLicenseKey(env, installId, days, kind = 1, pem = env.LICENSE_PRIVATE_KEY){
   if(!pem) throw new Error('LICENSE_PRIVATE_KEY secret is not set');
   const clean = String(installId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  if(clean.length < 8) throw new Error('install id missing');
+  if(clean.length < 8 && kind !== 6) throw new Error('install id missing');
   days = kind === 3 || kind === 4 ? 0 : Math.max(1, Math.min(65535, Math.round(days)));
-  const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', enc(clean)));
+  // Kind 6 (Master Key) works on any computer: no Install ID inside
+  const ih = kind === 6 ? new Uint8Array(4) : new Uint8Array(await crypto.subtle.digest('SHA-256', enc(clean)));
   const serial = new Uint8Array(3);
   crypto.getRandomValues(serial);
   const issued = Math.floor((Date.now() + 330 * 60000 - LIC_EPOCH) / DAY);
@@ -227,13 +230,15 @@ async function verifyLicense(env, key, installId){
   if(payload[0] !== 1 || !ok) throw new Error('license key not genuine');
   const clean = String(installId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', enc(clean)));
-  if(clean.length < 8 || [0, 1, 2, 3].some(i => ih[i] !== payload[4 + i])) throw new Error('license key is for another computer');
+  if(payload[1] !== 6 && (clean.length < 8 || [0, 1, 2, 3].some(i => ih[i] !== payload[4 + i]))) throw new Error('license key is for another computer');
   const kind = payload[1], value = (payload[2] << 8) | payload[3], issued = LIC_EPOCH + ((payload[11] << 8) | payload[12]) * DAY;
+  if(kind === 6 && Date.now() > issued + MASTER_KEY_LIFE * DAY) throw new Error('master key expired');
   const id = text.slice(0, 128), base = { id, kind, value };
   if(kind === 3) return { ...base, until: Date.now() + 3650 * DAY, lifetime: true };
   if(kind === 1) return { ...base, until: issued + (value + 1) * DAY, lifetime: false };
   if(kind === 2) return { ...base, until: issued + DAY + value * 60000, lifetime: false };
   if(kind === 5) return { ...base, until: issued + (value + 1) * DAY, lifetime: false, set: true };   // vendor set the date (may be shorter)
+  if(kind === 6) return { ...base, until: Date.now() + (value + 1) * DAY, lifetime: false, starter: true };
   throw new Error('not a license key');
 }
 
@@ -1328,6 +1333,15 @@ async function admin(request, env, path){
       await log('Keygen setup', '', pem ? 'signing key saved' : 'signing key removed');
     }
     const lp = await licPriv(env);
+    // Master Key for the vendor's pendrive: any new PC, a few days, until the real key is sent from Super Admin
+    if(body.master){
+      if(!lp.pem) return json(400, { error: 'Keygen abhi set nahi hai. Pehle Keygen → Setup mein key file daaliye.' });
+      const d = Math.round(+body.days || 7);
+      if(d < 1 || d > 30) return json(400, { error: 'Master Key 1 se 30 din ki ho sakti hai' });
+      const key = await makeLicenseKey(env, '', d, 6, lp.pem);
+      await log('Master Key banayi', '', `${d} days, usable ${MASTER_KEY_LIFE} days`);
+      return json(200, { key, label: `Master Key (${d} din)`, days: d, usableTill: Date.now() + MASTER_KEY_LIFE * DAY });
+    }
     if(!body.installId) return json(200, { ready: !!lp.pem, from: lp.from, plans: Object.fromEntries(Object.entries(KEY_PLANS).map(([k, v]) => [k, v[2]])) });
     if(!lp.pem) return json(400, { error: 'Keygen abhi set nahi hai. Pehle Keygen → Setup mein key file daaliye.' });
     const iid = String(body.installId).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30);

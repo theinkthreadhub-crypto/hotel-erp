@@ -1614,8 +1614,9 @@ async function licVerify(keyStr){
       if(await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, pub, sig, payload)){ ok = true; break; }
     }
     if(!ok || payload[0] !== 1) return { reason: 'signature' };
+    // Kind 6 (vendor's Master Key for first installs) is not tied to one computer
     const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(cleanInstallId(D.settings.installId))));
-    if([0, 1, 2, 3].some(i => ih[i] !== payload[4 + i])) return { reason: 'install' };
+    if(payload[1] !== 6 && [0, 1, 2, 3].some(i => ih[i] !== payload[4 + i])) return { reason: 'install' };
     return { payload, id: text.slice(0, 4 + 124) };
   }catch(e){}
   return { reason: 'format' };
@@ -1637,6 +1638,13 @@ async function getActivationKeyInfo(keyStr){
     const names = {30: '1 Month (30 Days)', 60: '2 Months (60 Days)', 90: '3 Months (90 Days)', 180: '6 Months (180 Days)', 365: '1 Year (365 Days)'};
     if(kind === 1) return { valid: true, id, plan: names[value] || `${value} Days Plan`, days: value, isLifetime: false };
     // Kind 5: the vendor sets the licence to exactly N days from the key's issue day (replaces the old date, also a lifetime)
+    // Kind 6: Master Key from the vendor's pendrive, any PC, N days from today, once per PC; the key itself works
+    // only for MASTER_KEY_LIFE days after it was made
+    if(kind === 6){
+      const made = LIC_EPOCH + ((payload[11] << 8) | payload[12]) * 864e5;
+      if(Date.now() > made + MASTER_KEY_LIFE * 864e5) return { valid: false, reason: 'old' };
+      return { valid: true, id, plan: `Starter (${value} Days)`, days: value, isLifetime: false, starter: true };
+    }
     if(kind === 5){
       const issued = new Date(LIC_EPOCH + ((payload[11] << 8) | payload[12]) * 864e5).toISOString().slice(0, 10);
       return { valid: true, id, plan: `${names[value] || value + ' Days'} (date set by vendor)`, days: value, isLifetime: false, setFrom: issued };
@@ -1649,8 +1657,10 @@ const LIC_ERRORS = {
   format: 'Invalid activation key. Please paste the complete key issued by Aghanya Devanya Enterprises.',
   signature: 'This key is not genuine. Please obtain a valid key from Aghanya Devanya Enterprises.',
   install: 'This key was issued for a different computer. Share your Install ID with your vendor to get a new key.',
-  secure: 'Keys can be activated only on the Main Counter PC (Setu Desktop App).'
+  secure: 'Keys can be activated only on the Main Counter PC (Setu Desktop App).',
+  old: 'Ye Master Key purani ho gayi hai. Aghanya Devanya Enterprises se nayi Master Key lein.'
 };
+const MASTER_KEY_LIFE = 180;   // days a Master Key can be used after it is made (same as the Worker)
 
 async function activateLicenseKey(keyStr, reason = 'Key Activation'){
   const info = await getActivationKeyInfo(keyStr);
@@ -1663,6 +1673,9 @@ async function activateLicenseKey(keyStr, reason = 'Key Activation'){
   }
   // A short demo key must never cut down a longer license that is still running
   const cur = getSubscriptionInfo();
+  if(info.starter && !cur.isExpired && (cur.isLifetime || D.subscription.validUntil)){
+    return { success: false, message: 'Licence pehle se chalu hai. Master Key sirf naye PC ke liye hai.' };
+  }
   if(info.minutes && !cur.isExpired && (cur.isLifetime || (cur.diffMs || 0) > info.minutes * 60000)){
     return { success: false, message: 'Your license is already active. A demo key is not required.' };
   }
@@ -1677,6 +1690,8 @@ async function activateLicenseKey(keyStr, reason = 'Key Activation'){
     D.subscription.planName = info.plan;
     if(info.minutes){
       D.subscription.validUntil = new Date(Date.now() + info.minutes * 60000).toISOString();
+    } else if(info.starter){
+      D.subscription.validUntil = addDays(today(), info.days);
     } else if(info.setFrom){
       D.subscription.validUntil = addDays(info.setFrom, info.days);
     } else {

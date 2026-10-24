@@ -423,7 +423,8 @@ def _read_json(path, default):
 
 
 def _key_kind(key):
-    # Byte 1 of a SETU key: 1 days, 2 minutes, 3 lifetime, 4 password reset (not a licence), 5 date set by the vendor
+    # Byte 1 of a SETU key: 1 days, 2 minutes, 3 lifetime, 4 password reset (not a licence), 5 date set by the vendor,
+    # 6 vendor Master Key (first install, any PC)
     B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
     try:
         bits = ''.join(f'{B32.index(c):05b}' for c in key[4:8])
@@ -474,7 +475,7 @@ class CloudSync:
     def _licence_keys(d):
         # Licence keys used on this PC, oldest first (never reset keys or the built-in AD-DEMO keys)
         sub = (d or {}).get('subscription') or {}
-        return [k for k in (sub.get('usedKeys') or []) if isinstance(k, str) and k.startswith('SETU') and len(k) >= 128 and _key_kind(k) in (1, 2, 3, 5)]
+        return [k for k in (sub.get('usedKeys') or []) if isinstance(k, str) and k.startswith('SETU') and len(k) >= 128 and _key_kind(k) in (1, 2, 3, 5, 6)]
 
     def _post(self, url, path, obj, hotel=None):
         headers = {'Content-Type': 'application/json', 'User-Agent': 'Setu-Main-Counter/1.0'}
@@ -514,8 +515,11 @@ class CloudSync:
         if not key or not iid:
             self.auto = {'state': 'nolicense', 'code': '', 'at': int(time.time() * 1000)}
             return
-        # A fresh PC (no menu, no bills) may be meant for "restore from cloud": do not make a new hotel yet
-        if not (d.get('menu') or d.get('bills')):
+        # A fresh PC may be meant for "restore from cloud": join once it has data or has been signed up (hotel
+        # name + owner login), so a new client shows in Super Admin right after the first activation
+        auth0 = d.get('auth') or {}
+        signed_up = bool(auth0.get('isRegistered') and (d.get('settings') or {}).get('name'))
+        if not (d.get('menu') or d.get('bills') or signed_up):
             self.auto = {'state': 'waiting', 'code': '', 'at': int(time.time() * 1000)}
             return
         st, auth = d.get('settings') or {}, d.get('auth') or {}
@@ -639,8 +643,11 @@ class CloudSync:
                 gap = time.time() - last_try
                 if getattr(self, 'relink_at', 0) > last_try:
                     gap = AUTO_LINK_EVERY + 1
+                # Not licensed / no data yet is checked on this PC only, so a save may retry it at once
+                # (a new client shows in Super Admin right after sign-up)
+                local_wait = self.auto.get('state') in ('', 'nolicense', 'waiting')
                 if self.cfg.get('enabled', True) and self.auto.get('state') != 'linked' and \
-                        ((woken and gap > 60) or gap > AUTO_LINK_EVERY):
+                        ((woken and (gap > 60 or local_wait)) or gap > AUTO_LINK_EVERY):
                     last_try = time.time()
                     try:
                         self.auto_link()

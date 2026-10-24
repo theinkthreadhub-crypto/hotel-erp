@@ -148,6 +148,10 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   Kind 1 adds days to the running licence; kind 5 (Super Admin Keygen "Aaj se N din", `keygen.py set1m`) sets it to N days
   from the key's issue day, also shortening a longer one or a lifetime. The counter sends every used key once, in order
   (`_push_license`, state `licSent`), and the Worker applies the same rules (`licUsed` dedupe) so the cloud period matches.
+  Kind 6 = Master Key for the vendor's pendrive (Super Admin → Keygen → Master Key, `keygen.py master`): no Install ID
+  inside, works on any PC once, N days from activation, usable `MASTER_KEY_LIFE` (180) days after it was made (app and
+  Worker); refused while a licence is running. A signed-up PC joins the cloud at once (`_auto_link` accepts hotel name +
+  owner login, and a save retries a local "nolicense / waiting" state immediately).
   Kind 4 = owner password Reset Key (`keygen.py <ID> reset`): `forgotPass()` / `resetOwnerPass()` on the sign-in screen,
   one use, valid 2 days from issue; `getActivationKeyInfo()` must keep refusing it as a license. Both share `licVerify()`.
   Never put real keys, salts or private keys in the page.
