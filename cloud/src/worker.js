@@ -606,6 +606,9 @@ export class SetuHotel extends DurableObject {
     const now = Date.now(), day = istDay(now);
     const meta = { version: this.meta.version + 1, savedAt: now, day };
     const a = this.account;
+    // Hotel renamed in Settings: the Super Admin list follows (the code stays)
+    const newName = String((d.settings || {}).name || '').trim().slice(0, 80);
+    const renamed = newName && newName !== a.name;
     // All-or-nothing: a failed write leaves the previous version untouched
     this.ctx.storage.transactionSync(() => {
       // First write of a new day keeps yesterday's last state as that day's backup
@@ -630,6 +633,7 @@ export class SetuHotel extends DurableObject {
     }
     this.meta = meta;
     this.raw = raw;
+    if(renamed){ a.name = newName; this.saveAccount(); }
   }
 
   // Re-save the current data so devices pick up new config / keys
