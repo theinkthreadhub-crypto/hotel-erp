@@ -703,12 +703,23 @@ class CloudSync:
             merged = merge3(base, theirs, local)
         if not isinstance(merged, dict) or 'settings' not in merged:
             raise OSError('Merge ke baad data galat laga, sync roka gaya')
+        # The vendor's part (plan, message, warning / lock) always comes from the cloud
+        if isinstance(theirs, dict) and 'saas' in theirs:
+            merged['saas'] = theirs['saas']
         if theirs is None or not jeq(merged, theirs):
             body = '{"baseVersion": %d, "force": false, "data": %s}' % (cv, json.dumps(merged, ensure_ascii=False))
             code, text = self._request('POST', '/api/db', body)
             if code == 409:
                 raise CloudBusy()
             if code == 402:
+                # Suspended / expired: cloud saving stops, but the vendor's lock screen must still reach this PC
+                with self.store.lock:
+                    cur = self.store.data()
+                    if isinstance(theirs, dict) and isinstance(cur, dict) and theirs.get('saas') != cur.get('saas'):
+                        cur['saas'] = theirs.get('saas')
+                        self.store.write(cur)
+                if 'suspended' in text:
+                    raise OSError('Setu account vendor ne suspend kiya hai. Aghanya Devanya Enterprises se sampark karein.')
                 raise OSError('Hotel Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
             if code != 200:
                 raise OSError(f'Cloud save failed (HTTP {code})')

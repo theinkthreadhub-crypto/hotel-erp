@@ -2,12 +2,15 @@ package com.aghanya.setuadmin;
 
 import android.app.Activity;
 import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
 import android.webkit.JavascriptInterface;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -24,6 +27,8 @@ public class MainActivity extends Activity {
     static final String HOST = "setu-cloud.theinkthreadhub.workers.dev";
     static final String START = "https://" + HOST + "/admin.html";
     WebView web;
+    ValueCallback<Uri[]> pick;
+    static final int PICK = 7;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -36,7 +41,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setSupportMultipleWindows(false);
-        s.setUserAgentString(s.getUserAgentString() + " SetuHotelAdminApp/1.0");
+        s.setUserAgentString(s.getUserAgentString() + " SetuHotelAdminApp/1.1");
         web.addJavascriptInterface(new Bridge(), "SA");
         web.setWebViewClient(new WebViewClient() {
             @Override
@@ -56,6 +61,20 @@ public class MainActivity extends Activity {
             @Override
             public void onReceivedError(WebView v, int code, String desc, String url) {
                 if (url != null && url.equals(v.getUrl())) showOffline();
+            }
+        });
+        // Without this, alert() / confirm() in the page do nothing (confirm returns false) and file pick does not open
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView v, ValueCallback<Uri[]> cb, FileChooserParams p) {
+                if (pick != null) pick.onReceiveValue(null);
+                pick = cb;
+                Intent i = new Intent(Intent.ACTION_GET_CONTENT);
+                i.addCategory(Intent.CATEGORY_OPENABLE);
+                i.setType("*/*");
+                try { startActivityForResult(Intent.createChooser(i, "Choose file"), PICK); }
+                catch (Exception e) { pick = null; return false; }
+                return true;
             }
         });
         setContentView(web);
@@ -81,6 +100,16 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onActivityResult(int req, int res, Intent data) {
+        if (req == PICK && pick != null) {
+            pick.onReceiveValue(res == RESULT_OK && data != null && data.getData() != null ? new Uri[]{ data.getData() } : null);
+            pick = null;
+            return;
+        }
+        super.onActivityResult(req, res, data);
+    }
+
+    @Override
     public void onBackPressed() {
         if (web.canGoBack()) web.goBack();
         else super.onBackPressed();
@@ -98,8 +127,24 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() { web.onPause(); super.onPause(); }
 
-    // Sirf ek kaam: backup / file ko save ya share karna (Gmail, WhatsApp, Drive)
+    // Backup / file save ya share (Gmail, WhatsApp, Drive), text copy aur text share (activation key)
     class Bridge {
+        @JavascriptInterface
+        public void copy(final String text) {
+            runOnUiThread(new Runnable() { @Override public void run() {
+                ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (cm != null) cm.setPrimaryClip(ClipData.newPlainText("Setu", text));
+            } });
+        }
+        @JavascriptInterface
+        public void share(final String text) {
+            runOnUiThread(new Runnable() { @Override public void run() {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                i.putExtra(Intent.EXTRA_TEXT, text);
+                try { startActivity(Intent.createChooser(i, "Send")); } catch (Exception e) { }
+            } });
+        }
         @JavascriptInterface
         public void save(final String name, final String mime, final String b64) {
             runOnUiThread(new Runnable() { @Override public void run() {

@@ -125,6 +125,14 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   live in the registry `ticket` table (`/api/support/*` on the hotel, proxied by `app_main.py` for the counter).
   Delete (`/api/admin/delete`, type the code) can block the Install ID (registry `blocked`); a deleted hotel's
   counter gets 404 and joins again unless blocked.
+  Suspend (`status: 'suspended'`) shows the same full lock in the app (`saasView` sends `lock.lv 2`); the counter's
+  sync copies `saas` from the cloud even when its push gets 402. The admin page never uses native `alert` / `confirm`
+  (the Android WebView app had none, so Lock / Suspend silently did nothing): use `ask()` / `toast()`.
+- **Keygen in Super Admin:** `/api/admin/keygen` signs `SETU-` keys (same format and plans as `keygen.py`) with the
+  `LICENSE_PRIVATE_KEY` secret, or the vendor's `.pem` saved once from Super Admin → Keygen → Setup (registry `conf`
+  `licpriv`, refused unless its public half equals `LIC_PUBKEY`). `send` pushes the key to the hotel (`pushKey`) and the
+  counter page activates it on its next sync. A new PC: install, read its Install ID, make a key, type it on the PC;
+  once licensed it auto-joins and shows under Hotels.
 - **Setu Pro config in the app:** `featureOn()` / `screenOn()` hide modules (`FEATURE_SCREENS`, `drawSide`, `go`). `applySaas()` (in
   `ensureGrowth`) maps the bill template and rules onto `settings`. `billFields()` = custom bill fields (`B.extra` -> `bill.extra`,
   printed by `billHTML` / `escBill`). `saasRules().phoneAbove` needs a mobile on big bills. Support links (`#support=CODE.TOKEN`) open a

@@ -148,7 +148,8 @@ function saasView(a){
   const features = {};
   Object.keys(FEATURES).forEach(k => features[k] = k in (c.overrides || {}) ? !!c.overrides[k] : TIERS[tier].features.includes(k));
   return { hotel: a.code, tier, tierLabel: TIERS[tier].label, businessType: c.businessType, features, billing: c.billing, rules: c.rules, ver: c.ver || 1,
-    notice: a.notice || null, lock: a.lock || null };
+    notice: a.notice || null,
+    lock: a.status === 'suspended' ? { lv: 2, msg: 'Aapka Setu account suspend hai. Kripya Aghanya Devanya Enterprises se sampark karein.', at: a.suspendedAt || 0 } : a.lock || null };
 }
 
 // ---------- License keys (same format as keygen.py / getActivationKeyInfo in the app) ----------
@@ -161,23 +162,43 @@ function b32encode(bytes){
   return out;
 }
 
-async function makeLicenseKey(env, installId, days){
-  if(!env.LICENSE_PRIVATE_KEY) throw new Error('LICENSE_PRIVATE_KEY secret is not set');
+// kind: 1 = days, 2 = minutes (demo), 3 = lifetime, 4 = owner password reset (same as keygen.py)
+async function makeLicenseKey(env, installId, days, kind = 1, pem = env.LICENSE_PRIVATE_KEY){
+  if(!pem) throw new Error('LICENSE_PRIVATE_KEY secret is not set');
   const clean = String(installId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   if(clean.length < 8) throw new Error('install id missing');
-  days = Math.max(1, Math.min(65535, Math.round(days)));
+  days = kind === 3 || kind === 4 ? 0 : Math.max(1, Math.min(65535, Math.round(days)));
   const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', enc(clean)));
   const serial = new Uint8Array(3);
   crypto.getRandomValues(serial);
   const issued = Math.floor((Date.now() + 330 * 60000 - LIC_EPOCH) / DAY);
-  const payload = new Uint8Array([1, 1, days >> 8, days & 255, ih[0], ih[1], ih[2], ih[3], ...serial, issued >> 8, issued & 255]);
-  const der = Uint8Array.from(atob(env.LICENSE_PRIVATE_KEY.replace(/-----[^-]+-----|\s/g, '')), c => c.charCodeAt(0));
-  const priv = await crypto.subtle.importKey('pkcs8', der, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const payload = new Uint8Array([1, kind, days >> 8, days & 255, ih[0], ih[1], ih[2], ih[3], ...serial, issued >> 8, issued & 255]);
+  const priv = await crypto.subtle.importKey('pkcs8', pemBytes(pem), { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
   const sig = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, priv, payload));
   const all = new Uint8Array(77);
   all.set(payload);
   all.set(sig, 13);
   return 'SETU-' + b32encode(all).match(/.{1,8}/g).join('-');
+}
+const pemBytes = pem => Uint8Array.from(atob(String(pem).replace(/-----[^-]+-----|\s/g, '')), c => c.charCodeAt(0));
+
+// Keygen in Super Admin: the LICENSE_PRIVATE_KEY secret, or the key file the vendor pasted once (Super Admin -> Keygen)
+const KEY_PLANS = { '1m': [1, 30, '1 Month'], '3m': [1, 90, '3 Months'], '6m': [1, 180, '6 Months'], '1y': [1, 365, '1 Year'],
+  life: [3, 0, 'Lifetime'], demo1h: [2, 60, 'Demo 1 Hour'], demo24h: [2, 1440, 'Demo 24 Hours'], reset: [4, 0, 'Owner Password Reset'] };
+async function licPriv(env){
+  if(env.LICENSE_PRIVATE_KEY) return { pem: env.LICENSE_PRIVATE_KEY, from: 'secret' };
+  const v = (await regJson(env, '/conf/get', { k: 'licpriv' })).v;
+  return v ? { pem: v, from: 'saved' } : { pem: '', from: '' };
+}
+// A pasted key file must be the vendor's real one: its public half has to match the key every Setu checks against
+async function licPrivMatches(env, pem){
+  let jwk;
+  try{ jwk = await crypto.subtle.exportKey('jwk', await crypto.subtle.importKey('pkcs8', pemBytes(pem), { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign'])); }
+  catch(e){ return false; }
+  const b64u = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat(-s.length & 3)), c => c.charCodeAt(0));
+  const pub = Uint8Array.from(atob(env.LICENSE_PUBKEY || LIC_PUBKEY), c => c.charCodeAt(0));
+  const mine = new Uint8Array([4, ...b64u(jwk.x), ...b64u(jwk.y)]);
+  return mine.length === pub.length && mine.every((b, i) => b === pub[i]);
 }
 
 // Vendor's PUBLIC key (same as LIC_PUBKEY in hotel_erp.html). LICENSE_PUBKEY overrides it.
@@ -807,7 +828,11 @@ export class SetuHotel extends DurableObject {
     const a = this.account, c = a.config;
     const notes = [];
     if(b.days){ await this.credit('manual-' + Date.now(), 'manual', +b.days, +b.amount ? Math.round(+b.amount * 100) : 0); notes.push(`+${b.days} days`); }
-    if(['active', 'suspended'].includes(b.status)){ a.status = b.status; notes.push('status ' + b.status); }
+    if(['active', 'suspended'].includes(b.status)){
+      a.status = b.status;
+      if(b.status === 'suspended') a.suspendedAt = Date.now();
+      notes.push('status ' + b.status);
+    }
     if(b.lifetime !== undefined){ a.lifetime = !!b.lifetime; notes.push('lifetime ' + a.lifetime); }
     if(b.applyTemplate && TEMPLATES[b.applyTemplate]){
       a.config = { ...newConfig(b.applyTemplate, b.tier), ver: (c.ver || 1) + 1 };
@@ -1258,6 +1283,34 @@ async function admin(request, env, path){
       else { try{ test = { ok: true, answer: (await gemini(env, c, 'Sirf "OK" likho.', 'Short reply.')).slice(0, 80) }; }catch(e){ test = { ok: false, error: e.message }; } }
     }
     return json(200, { hasKey: !!c.key, keyEnd: c.key ? c.key.slice(-4) : '', model: c.model, limit: c.limit, today: u.total || 0, hotelsToday: u.hotels || 0, test });
+  }
+  if(path === '/api/admin/keygen'){
+    if(body.setKey !== undefined){
+      const pem = String(body.setKey || '').trim();
+      if(pem && !await licPrivMatches(env, pem)) return json(400, { error: 'Ye Setu ki asli key file (setu-license-private.pem) nahi hai' });
+      await regCall(env, '/conf/set', { k: 'licpriv', v: pem.replace(/-----[^-]+-----|\s/g, '') });
+      await log('Keygen setup', '', pem ? 'signing key saved' : 'signing key removed');
+    }
+    const lp = await licPriv(env);
+    if(!body.installId) return json(200, { ready: !!lp.pem, from: lp.from, plans: Object.fromEntries(Object.entries(KEY_PLANS).map(([k, v]) => [k, v[2]])) });
+    if(!lp.pem) return json(400, { error: 'Keygen abhi set nahi hai. Pehle Keygen → Setup mein key file daaliye.' });
+    const iid = String(body.installId).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30);
+    if(iid.replace(/-/g, '').length < 8) return json(400, { error: 'Install ID sahi nahi hai (jaise SETU-AB12-CD34)' });
+    let kind, value, label;
+    if(KEY_PLANS[body.plan]) [kind, value, label] = KEY_PLANS[body.plan];
+    else { value = Math.round(+body.days || 0); if(value < 1 || value > 3650) return json(400, { error: 'Din 1 se 3650 ke beech' }); kind = 1; label = value + ' Days'; }
+    const key = await makeLicenseKey(env, iid, value, kind, lp.pem);
+    // Send it to the hotel's counter PC through the cloud (it activates on its next sync)
+    let sentTo = '';
+    if(body.send && kind !== 4){
+      const to = validCode(String(body.code || '').toUpperCase()) ? String(body.code).toUpperCase() : (await regJson(env, '/byiid', { iid })).code;
+      if(!to) return json(200, { key, label, sentTo: '', note: 'Ye computer abhi cloud se juda nahi hai. Key PC par khud daaliye.' });
+      const r = await hotelCall(to, '/internal/admin', { pushKey: key });
+      if(!r.ok) return json(200, { key, label, sentTo: '', note: 'Hotel tak nahi bhej paye. Key PC par khud daaliye.' });
+      sentTo = to;
+    }
+    await log('Key banayi', sentTo || '', `${label} · ${iid}${sentTo ? ' · sent to PC' : ''}`);
+    return json(200, { key, label, sentTo });
   }
   if(path === '/api/admin/tickets') return regCall(env, '/ticket/list', { code: validCode(body.code) ? body.code : '', read: body.read ? 'admin' : '' });
   if(path === '/api/admin/blocked') return regCall(env, '/blocked/list', {});

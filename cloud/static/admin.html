@@ -2,104 +2,149 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Setu Pro Super Admin</title>
+<title>Setu Hotel Admin</title>
 <link rel="manifest" href="admin.webmanifest">
-<meta name="theme-color" content="#0ea5e9">
+<meta name="theme-color" content="#1e3a8a">
 <link rel="icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-  :root{ --bg:#eef1f6; --card:#fff; --ink:#1d2433; --muted:#6b7385; --line:#e3e7ef; --pri:#2b4c7e; --pri-ink:#fff; --brand:#1f3a63; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; --soft:#f8fafc; }
-  *{ box-sizing:border-box }
-  body{ margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 system-ui, -apple-system, Segoe UI, sans-serif }
-  header{ padding:12px 16px; padding-top:max(12px, env(safe-area-inset-top)); display:flex; gap:10px; align-items:center; background:var(--brand); color:#fff; position:sticky; top:0; z-index:5 }
-  header h1{ flex:1; color:#fff } header button{ background:#ffffff26 !important; color:#fff !important; border:0 !important; padding:8px 10px; font-size:13px }
-  h1{ font-size:17px; margin:0 } h2{ font-size:16px; margin:0 0 10px } h3{ font-size:14px; margin:16px 0 8px }
+  :root{ --bg:#f3f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e5e9f0; --pri:#2563eb; --pri-ink:#fff; --brand:#1e3a8a; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; --soft:#f8fafc; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif }
+  svg.i{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none }
+  header{ padding:14px 16px 16px; padding-top:max(14px, env(safe-area-inset-top)); background:linear-gradient(135deg, #1e3a8a, #2563eb); color:#fff; position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px }
+  header .t{ flex:1; min-width:0 } header h1{ font-size:18px; margin:0 } header small{ opacity:.8; font-size:12px }
+  header button{ background:#ffffff26; color:#fff; border:0; width:40px; height:40px; border-radius:12px; display:grid; place-items:center; padding:0 }
+  h2{ font-size:17px; margin:0 0 10px } h3{ font-size:14px; margin:16px 0 8px }
   nav{ display:flex; position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); z-index:6; padding-bottom:env(safe-area-inset-bottom) }
-  nav button{ flex:1; background:transparent; color:var(--muted); border:0; border-radius:0; padding:12px 2px; font-size:12px; font-weight:600 }
-  nav button.on{ color:var(--pri); box-shadow:inset 0 3px 0 var(--pri) }
-  main{ padding:12px; max-width:980px; margin:0 auto 80px }
-  input, button, select, textarea{ font:inherit; padding:7px 10px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink) }
+  nav button{ flex:1; background:transparent; color:var(--muted); border:0; border-radius:0; padding:8px 2px 9px; font-size:11px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:2px; position:relative }
+  nav button svg.i{ width:22px; height:22px } nav button.on{ color:var(--pri) }
+  nav .badge{ position:absolute; top:4px; left:calc(50% + 6px) }
+  main{ padding:14px 14px 96px; max-width:760px; margin:0 auto }
+  input, button, select, textarea{ font:inherit; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--ink); max-width:100% }
+  input:focus, select:focus, textarea:focus{ outline:2px solid #bfdbfe; border-color:var(--pri) }
   button{ cursor:pointer; background:var(--pri); color:var(--pri-ink); border:0; font-weight:600 }
-  button.g{ background:transparent; color:var(--ink); border:1px solid var(--line) }
-  button.bad{ background:var(--bad); color:#fff }
+  button.g{ background:var(--card); color:var(--ink); border:1px solid var(--line) }
+  button.bad{ background:var(--bad); color:#fff } button.okb{ background:var(--ok); color:#fff }
+  button.big{ width:100%; padding:14px; font-size:16px; border-radius:14px }
   button:disabled{ opacity:.5; cursor:default }
-  label{ display:block; font-size:12px; color:var(--muted); margin-bottom:3px }
-  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:14px }
+  label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; font-weight:600 }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px }
+  .muted{ color:var(--muted) } .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  .err{ color:var(--bad); font-weight:600 } .ok{ color:var(--ok); font-weight:600 }
+  code{ font:12px ui-monospace, Consolas, monospace; background:var(--soft); padding:2px 6px; border-radius:6px; word-break:break-all }
+  .badge{ background:var(--bad); color:#fff; border-radius:20px; font-size:10px; padding:1px 6px; font-weight:700 }
+  /* hotels list */
+  .search{ display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:0 12px; margin-bottom:10px; color:var(--muted) }
+  .search input{ border:0; flex:1; padding:12px 0; outline:0 }
+  .chips{ display:flex; gap:8px; overflow-x:auto; margin:0 -14px 12px; padding:0 14px; scrollbar-width:none } .chips::-webkit-scrollbar{ display:none }
+  .chip{ flex:none; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:99px; padding:7px 14px; font-size:13px; font-weight:600 }
+  .chip.on{ background:var(--ink); color:#fff; border-color:var(--ink) } .chip b{ margin-left:4px; opacity:.7 }
+  .hc{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:10px; cursor:pointer }
+  .hc:active{ transform:scale(.99) }
+  .hc .top{ display:flex; align-items:center; gap:12px }
+  .av{ width:42px; height:42px; border-radius:12px; display:grid; place-items:center; color:#fff; font-weight:800; font-size:17px; flex:none }
+  .hc .mid{ flex:1; min-width:0 } .hc b.nm{ display:block; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .hc small{ color:var(--muted); font-size:12px }
+  .tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px }
+  .tag{ font-size:11px; font-weight:600; padding:3px 8px; border-radius:8px; background:var(--soft); color:var(--muted) }
+  .tag.ok{ background:#dcfce7; color:#166534 } .tag.warn{ background:#fef3c7; color:#92400e } .tag.bad{ background:#fee2e2; color:#991b1b }
+  .st{ font-size:11px; font-weight:700; padding:4px 9px; border-radius:99px; white-space:nowrap }
+  .st.ok{ background:#dcfce7; color:#166534 } .st.warn{ background:#fef3c7; color:#92400e } .st.bad{ background:#fee2e2; color:#991b1b } .st.off{ background:#e2e8f0; color:#334155 }
+  .strip{ margin-top:8px; font-size:12px; font-weight:600; padding:6px 10px; border-radius:10px }
+  .strip.warn{ background:#fef3c7; color:#92400e } .strip.bad{ background:#fee2e2; color:#991b1b }
+  /* one hotel */
+  .hero{ display:flex; gap:12px; align-items:center; margin-bottom:12px } .hero .av{ width:52px; height:52px; font-size:21px; border-radius:14px }
+  .hero h2{ margin:0; font-size:18px }
+  .quick{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px }
+  .quick a{ display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:14px; text-decoration:none; font-weight:700; background:var(--soft); color:var(--ink); border:1px solid var(--line) }
+  .quick a.wa{ background:#16a34a; color:#fff; border-color:#16a34a }
+  .facts{ border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px }
+  .facts div{ display:flex; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); font-size:14px } .facts div:last-child{ border-bottom:0 }
+  .facts span{ color:var(--muted) } .facts b{ text-align:right }
+  .tiles{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px }
+  .tile{ background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:14px; padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; font-weight:700; text-align:center; line-height:1.2 }
+  .tile svg.i{ width:24px; height:24px } .tile small{ font-weight:500; color:var(--muted); font-size:10px }
+  .tile.blue{ color:var(--pri) } .tile.red{ color:var(--bad) } .tile.amber{ color:var(--warn) } .tile.green{ color:var(--ok) }
+  .tile.on{ background:#fef2f2; border-color:#fecaca }
+  /* keygen */
+  .plans{ display:grid; grid-template-columns:repeat(2, 1fr); gap:8px }
+  .plan{ background:var(--card); color:var(--ink); border:2px solid var(--line); border-radius:14px; padding:12px; text-align:left; font-weight:700 }
+  .plan small{ display:block; color:var(--muted); font-weight:500; font-size:11px } .plan.on{ border-color:var(--pri); background:#eff6ff }
+  .keybox{ font:13px/1.5 ui-monospace, Consolas, monospace; background:#0f172a; color:#e2e8f0; padding:12px; border-radius:12px; word-break:break-all; user-select:all }
+  .steps{ margin:0; padding-left:20px } .steps li{ margin:4px 0 }
+  .switch{ display:flex; align-items:center; gap:10px; margin-top:12px; font-size:14px } .switch input{ width:20px; height:20px }
+  /* lists */
+  .li{ display:flex; align-items:center; gap:12px; padding:14px; background:var(--card); border:1px solid var(--line); border-radius:14px; margin-bottom:8px; cursor:pointer; font-weight:600; width:100%; color:var(--ink); text-align:left }
+  .li .ico{ width:38px; height:38px; border-radius:11px; display:grid; place-items:center; background:#eff6ff; color:var(--pri) } .li span{ flex:1 } .li small{ display:block; color:var(--muted); font-weight:500; font-size:12px }
+  .msg{ max-width:85%; padding:8px 11px; border-radius:12px; margin:6px 0; white-space:pre-wrap } .msg.hotel{ background:var(--soft); border:1px solid var(--line) } .msg.admin{ background:#dcfce7; color:#14532d; margin-left:auto }
+  .msg small{ display:block; color:var(--muted); font-size:11px }
+  /* sheets */
+  #sheet, #ask{ position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; z-index:15; align-items:flex-end; justify-content:center }
+  #ask{ z-index:30; align-items:center; padding:16px }
+  #sheet.open, #ask.open{ display:flex }
+  #sheet .box{ background:var(--bg); width:100%; max-width:640px; border-radius:20px 20px 0 0; max-height:94vh; overflow:auto; padding:10px 16px 24px; padding-bottom:max(24px, env(safe-area-inset-bottom)) }
+  #sheet .grab{ width:42px; height:5px; border-radius:9px; background:#cbd5e1; margin:0 auto 12px }
+  #ask .box{ background:var(--card); width:100%; max-width:420px; border-radius:18px; padding:18px }
+  #sheet textarea, #sheet input, #sheet select, #ask textarea, #ask input{ width:100% }
+  .btns{ display:flex; gap:8px; margin-top:14px } .btns button{ flex:1; padding:12px }
+  #toast{ position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:#0f172a; color:#fff; padding:10px 16px; border-radius:12px; display:none; z-index:40; max-width:90vw; text-align:center; font-size:14px }
+  #toast.err{ background:var(--bad) }
+  /* login */
+  #login{ max-width:400px; margin:0 auto; padding:10vh 16px 0 }
+  #login input{ width:100% }
+  /* advanced (old full settings) */
   .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px }
   .grid > div > input, .grid > div > select{ width:100% }
-  .stats{ display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:14px }
-  .stat{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px }
-  .stat b{ display:block; font-size:22px }
-  .wrap{ overflow-x:auto; background:var(--card); border:1px solid var(--line); border-radius:12px }
+  .stats{ display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:12px }
+  .stat{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px }
+  .stat b{ display:block; font-size:21px }
   table{ width:100%; border-collapse:collapse }
-  .wrap table{ min-width:860px }
   th, td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle }
   th{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em }
-  tr.click{ cursor:pointer } tr.click:hover td{ background:var(--soft) }
+  tr.click{ cursor:pointer }
   .pill{ padding:2px 8px; border-radius:99px; font-size:12px; font-weight:700; white-space:nowrap }
   .p-active{ background:#dcfce7; color:#166534 } .p-trial{ background:#e0f2fe; color:#075985 }
   .p-expired{ background:#fee2e2; color:#991b1b } .p-suspended{ background:#e2e8f0; color:#334155 } .p-pending{ background:#fef3c7; color:#92400e }
   .h-ok{ background:#dcfce7; color:#166534 } .h-warn{ background:#fef3c7; color:#92400e } .h-bad{ background:#fee2e2; color:#991b1b }
-  .muted{ color:var(--muted) } .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
   .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin:12px 0; overflow-x:auto }
-  .tabs button{ background:transparent; color:var(--muted); border-radius:8px 8px 0 0; white-space:nowrap }
+  .tabs button{ background:transparent; color:var(--muted); border-radius:10px 10px 0 0; white-space:nowrap }
   .tabs button.on{ color:var(--ink); background:var(--soft); border:1px solid var(--line); border-bottom-color:var(--soft) }
-  .feat{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:10px; background:var(--soft) }
+  .feat{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:12px; background:var(--soft) }
   .feat select{ margin-left:auto }
   .two{ display:grid; grid-template-columns:1fr 300px; gap:16px } @media (max-width:820px){ .two{ grid-template-columns:1fr } }
   .rcpt{ background:#fff; color:#000; font:12px/1.35 ui-monospace, Consolas, monospace; padding:10px; border:1px dashed #94a3b8; margin:0 auto }
   .rcpt .c{ text-align:center } .rcpt hr{ border:0; border-top:1px dashed #000 } .rcpt .r{ text-align:right } .rcpt td{ padding:1px 0; border:0 }
-  #drawer{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; z-index:10; overflow:auto; padding:20px 12px }
-  #drawer .panel{ max-width:980px; margin:0 auto; background:var(--card); border-radius:14px; padding:18px; border:1px solid var(--line) }
-  #login{ max-width:380px; margin:9vh auto 0; padding:0 16px }
-  #login input{ width:100%; margin:10px 0 }
-  .err{ color:var(--bad); font-weight:600 } .ok{ color:var(--ok); font-weight:600 }
-  code{ font:12px ui-monospace, Consolas, monospace; background:var(--soft); padding:1px 5px; border-radius:5px; word-break:break-all }
-  /* Library ERP style hotel cards */
-  .kpis{ display:grid; grid-template-columns:repeat(5, 1fr); gap:8px; margin-bottom:12px } @media (max-width:700px){ .kpis{ grid-template-columns:repeat(2, 1fr) } }
-  .k{ background:var(--card); border:2px solid var(--line); border-radius:12px; padding:10px; text-align:center; cursor:pointer } .k.on{ border-color:var(--pri) }
-  .k b{ display:block; font-size:22px } .k span{ font-size:11px; color:var(--muted) }
-  .hcard{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px }
-  .hcard .top{ display:flex; gap:8px; align-items:flex-start } .hcard .top .nm{ flex:1; min-width:0 }
-  .info{ display:grid; grid-template-columns:1fr 1fr; gap:2px 14px; margin:8px 0; font-size:13px } @media (max-width:560px){ .info{ grid-template-columns:1fr } }
-  .info div{ display:flex; justify-content:space-between; gap:8px; border-bottom:1px solid var(--line); padding:4px 0 } .info span{ color:var(--muted) } .info b{ text-align:right }
-  .alert{ border-radius:10px; padding:7px 10px; font-size:13px; font-weight:600; margin:6px 0 } .alert.warn{ background:#fef3c7; color:#92400e } .alert.bad{ background:#fee2e2; color:#991b1b }
-  .acts{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px } .acts a, .acts button{ padding:6px 10px; font-size:13px; border-radius:8px; text-decoration:none }
-  a.btnl{ background:transparent; color:var(--ink); border:1px solid var(--line); font-weight:600 } a.btnl.wa{ background:#16a34a; color:#fff; border-color:#16a34a }
-  .badge{ background:var(--bad); color:#fff; border-radius:20px; font-size:11px; padding:1px 7px; margin-left:4px }
-  #sheet{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; z-index:15; align-items:flex-end; justify-content:center }
-  #sheet.open{ display:flex } #sheet .box{ background:var(--card); width:100%; max-width:560px; border-radius:16px 16px 0 0; max-height:90vh; overflow:auto; padding:16px }
-  #sheet textarea, #sheet input, #sheet select{ width:100% }
-  .msg{ max-width:85%; padding:8px 11px; border-radius:12px; margin:6px 0; white-space:pre-wrap } .msg.hotel{ background:var(--soft); border:1px solid var(--line) } .msg.admin{ background:#dcfce7; color:#14532d; margin-left:auto }
-  .msg small{ display:block; color:var(--muted); font-size:11px }
-  #toast{ position:fixed; bottom:16px; left:50%; transform:translateX(-50%); background:#0f172a; color:#fff; padding:9px 16px; border-radius:10px; display:none; z-index:20 }
+  #drawer{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; z-index:20; overflow:auto; padding:16px 10px }
+  #drawer .panel{ max-width:980px; margin:0 auto; background:var(--card); border-radius:16px; padding:16px; border:1px solid var(--line) }
 </style>
 </head>
 <body>
 <div id="login">
-  <div style="text-align:center"><img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px"><h2 style="margin:10px 0 2px">Setu Hotel — Super Admin</h2>
-    <p class="muted" style="margin:0 0 12px">Monitor all hotels, payments and support</p></div>
-  <div class="card"><form id="lf"><label>Admin Key</label><input id="key" type="password" placeholder="Cloudflare ADMIN_KEY" autocomplete="off" required>
-    <label style="display:flex;gap:8px;align-items:center;margin:0 0 10px;font-size:13px"><input id="remember" type="checkbox" style="width:auto;margin:0" checked> Remember on this device (only your own phone)</label>
-    <button style="width:100%;padding:11px">Open dashboard</button></form>
+  <div style="text-align:center"><img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:18px;box-shadow:0 8px 24px #1e3a8a33">
+    <h2 style="margin:14px 0 2px;font-size:21px">Setu Hotel Admin</h2>
+    <p class="muted" style="margin:0 0 18px">Sab hotels ek jagah se chalaiye</p></div>
+  <div class="card"><form id="lf"><label style="margin-top:0">Admin Key</label><input id="key" type="password" placeholder="Apni Admin Key daaliye" autocomplete="off" required>
+    <label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13px;color:var(--ink);font-weight:500"><input id="remember" type="checkbox" style="width:20px;height:20px" checked> Is phone par yaad rakho</label>
+    <button class="big">Kholo</button></form>
   <p id="lerr" class="err"></p></div>
   <p class="muted" style="text-align:center;font-size:12px">Aghanya Devanya Enterprises</p>
 </div>
 
 <div id="app" hidden>
   <header>
-    <h1>Super Admin</h1>
-    <button onclick="show(VIEW)" title="Refresh">↻</button>
-    <button onclick="logout()">Exit</button>
+    <div class="t"><h1 id="htitle">Hotels</h1><small id="hsub">Setu Hotel Admin</small></div>
+    <button onclick="show(VIEW)" title="Refresh" aria-label="Refresh"></button>
   </header>
-  <nav id="nav"></nav>
   <main id="main"></main>
+  <nav id="nav"></nav>
 </div>
 <div id="drawer"><div class="panel" id="panel"></div></div>
+<div id="sheet"><div class="box"><div class="grab"></div><div id="sbox"></div></div></div>
+<div id="ask"><div class="box" id="abox"></div></div>
 <div id="toast"></div>
-<div id="sheet"><div class="box" id="sbox"></div></div>
 
 <script>
 let KEY = '', META = null, HOTELS = [], VIEW = 'hotels', CUR = null, TAB = 'overview';
@@ -112,14 +157,59 @@ const dt = ms => ms ? new Date(ms).toLocaleString('en-IN', {day:'2-digit', month
 const rs = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
 const state = h => h.status === 'suspended' ? 'suspended' : ((h.paid_until ?? h.paidUntil) < Date.now() && !h.lifetime ? 'expired' : h.status);
 const pill = s => `<span class="pill p-${esc(s)}">${esc(s)}</span>`;
-const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'abhi' : m < 60 ? m + ' min pehle' : m < 1440 ? Math.round(m / 60) + ' ghante pehle' : Math.round(m / 1440) + ' din pehle'; };
 // Backup health = when the hotel's data last reached the cloud
 const health = ms => !ms ? '<span class="pill h-bad">No backup yet</span>'
   : Date.now() - ms < 26 * 36e5 ? `<span class="pill h-ok">OK · ${ago(ms)}</span>`
   : Date.now() - ms < 72 * 36e5 ? `<span class="pill h-warn">${ago(ms)}</span>`
   : `<span class="pill h-bad">${ago(ms)}</span>`;
 const backupIssue = h => state(h) !== 'suspended' && (!h.seen || Date.now() - h.seen > 48 * 36e5);
-function toast(t){ const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2600); }
+
+// Line icons (no external files)
+const ICONS = {
+  hotels: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4',
+  key: 'M14.5 4a5.5 5.5 0 1 1-4.3 8.9L4 19v-3h2.5v-2.5H9l1.2-1.2A5.5 5.5 0 0 1 14.5 4zM16 8h.01',
+  ticket: 'M4 5h16v11H9l-5 4z',
+  more: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  lock: 'M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+  unlock: 'M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 6.8-1.2',
+  warn: 'M12 3l9.5 17h-19zM12 10v4.5M12 17.5v.01',
+  pause: 'M9 5v14M15 5v14',
+  play: 'M8 5l11 7-11 7z',
+  msg: 'M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z',
+  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 21a7.5 7.5 0 0 1 15 0',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1',
+  trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+  phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z',
+  copy: 'M9 9h11v11H9zM5 15V4h11',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20.5 20.5l-4.5-4.5',
+  refresh: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
+  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  plus: 'M12 5v14M5 12h14',
+  spark: 'M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z',
+  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  block: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 5.6l12.8 12.8',
+  out: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11',
+  share: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4'
+};
+const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[n]}"/></svg>`;
+document.querySelector('header button').innerHTML = ic('refresh');
+
+function toast(t, bad){ const e = $('#toast'); e.textContent = t; e.className = bad ? 'err' : ''; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', bad ? 5000 : 2600); }
+// Copy / share work in a browser and in the Setu Hotel Admin phone app (SA bridge)
+function copyText(t, label){
+  if(window.SA && SA.copy){ SA.copy(t); return toast((label || 'Text') + ' copy ho gaya'); }
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast((label || 'Text') + ' copy ho gaya'), () => {
+    const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select();
+    try{ document.execCommand('copy'); toast((label || 'Text') + ' copy ho gaya'); }catch(e){ toast('Copy nahi hua, haath se select karein', true); }
+    a.remove(); });
+}
+function shareText(t){
+  if(window.SA && SA.share) return SA.share(t);
+  if(navigator.share) return navigator.share({text: t}).catch(() => {});
+  window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+}
 
 async function api(path, body){
   const r = await fetch(path, {method: 'POST', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
@@ -128,17 +218,296 @@ async function api(path, body){
   if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
 }
-const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ alert(e.message); } };
+// Errors show in the page: the phone app has no native alert()
+const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ toast(e.message, true); } };
+
+// ----- layers: Android back closes the top one -----
+let LAYERS = 0;
+function pushLayer(){ LAYERS++; try{ history.pushState({layer: LAYERS}, ''); }catch(e){} }
+function popLayer(){ if(LAYERS > 0){ try{ history.back(); }catch(e){ closeTop(); } } }
+function closeTop(){
+  LAYERS = Math.max(0, LAYERS - 1);
+  if($('#ask').classList.contains('open')) return askDone(null);
+  if($('#drawer').style.display === 'block') return closeHotelNow();
+  if($('#sheet').classList.contains('open')) return $('#sheet').classList.remove('open');
+}
+window.addEventListener('popstate', closeTop);
+
+function sheet(html){ $('#sbox').innerHTML = html; if(!$('#sheet').classList.contains('open')){ $('#sheet').classList.add('open'); pushLayer(); } $('#sheet .box').scrollTop = 0; }
+function closeSheet(){ if($('#sheet').classList.contains('open')) popLayer(); }
+$('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
+
+// In-page confirm: resolves with the box's input values ({id: value}) on OK, null on cancel
+let ASK = null;
+function ask(title, html, ok, danger){
+  $('#abox').innerHTML = `<h2>${title}</h2>${html || ''}<div class="btns"><button class="g" onclick="popLayer()">Cancel</button><button class="${danger ? 'bad' : ''}" id="ask-ok">${ok || 'OK'}</button></div>`;
+  $('#ask').classList.add('open'); pushLayer();
+  $('#ask-ok').onclick = () => {
+    const v = {}; $('#abox').querySelectorAll('input, textarea, select').forEach(x => v[x.id] = x.type === 'checkbox' ? x.checked : x.value);
+    // The box closes when its history entry is gone (popstate), so Android back stays in step
+    const r = ASK; ASK = null; popLayer(); r && r(v);
+  };
+  return new Promise(res => ASK = res);
+}
+function askDone(v){ $('#ask').classList.remove('open'); const r = ASK; ASK = null; r && r(v); }
 
 // ---------------- navigation ----------------
-const VIEWS = {hotels: 'Hotels', tickets: 'Tickets', dash: 'Dashboard', ai: 'AI', add: '+ New', audit: 'Log', blocked: 'Blocked'};
+const VIEWS = {hotels: ['Hotels', 'hotels'], keygen: ['Keygen', 'key'], tickets: ['Tickets', 'ticket'], more: ['More', 'more']};
+const SUB = {dash: 'Dashboard', add: 'Naya Hotel', ai: 'Setu AI', audit: 'Activity Log', blocked: 'Blocked computers'};
 let UNREAD = 0;
 function nav(){
-  $('#nav').innerHTML = Object.entries(VIEWS).map(([k, v]) => `<button class="${VIEW === k ? 'on' : ''}" onclick="show('${k}')">${v}${k === 'tickets' && UNREAD ? `<span class="badge">${UNREAD}</span>` : ''}</button>`).join('');
+  const top = SUB[VIEW] ? 'more' : VIEW;
+  $('#nav').innerHTML = Object.entries(VIEWS).map(([k, [v, i]]) => `<button class="${top === k ? 'on' : ''}" onclick="show('${k}')">${ic(i)}${v}${k === 'tickets' && UNREAD ? `<span class="badge">${UNREAD}</span>` : ''}</button>`).join('');
+  $('#htitle').textContent = SUB[VIEW] || VIEWS[VIEW][0];
+  $('#hsub').textContent = VIEW === 'hotels' && HOTELS.length ? HOTELS.length + ' hotels · Aghanya Devanya Enterprises' : 'Setu Hotel Admin';
 }
-const show = run(async v => { VIEW = v; nav(); await ({dash: drawDash, hotels: drawHotels, tickets: drawTickets, ai: drawAI, add: drawAdd, audit: drawAudit, blocked: drawBlocked})[v](); nav(); });
+const show = run(async v => { VIEW = v; nav(); window.scrollTo(0, 0);
+  await ({hotels: drawHotels, keygen: drawKeygen, tickets: drawTickets, more: drawMore, dash: drawDash, add: drawAdd, ai: drawAI, audit: drawAudit, blocked: drawBlocked})[v](); nav(); });
+const backBtn = () => `<button class="g" style="margin-bottom:12px" onclick="show('more')">‹ Wapas</button>`;
 
 async function loadHotels(){ const j = await api('/api/admin/hotels'); HOTELS = j.hotels; UNREAD = j.ticketsUnread || 0; }
+
+// ---------------- hotels (simple list) ----------------
+const DAYMS = 864e5;
+// Counter licence from the hotel's data: 'lifetime' or a date (ISO)
+const licDays = h => h.lic === 'lifetime' ? Infinity : h.lic ? Math.ceil((Date.parse(h.lic) - Date.now()) / DAYMS) : null;
+const payDays = h => h.paid_until ? Math.ceil((h.paid_until - Date.now()) / DAYMS) : null;
+const staleH = h => h.seen ? (Date.now() - h.seen) / 36e5 : 1e9;
+const telHref = p => 'tel:' + String(p || '').replace(/[^\d+]/g, '');
+const waHref = (p, name) => { let d = String(p || '').replace(/\D/g, ''); if(d.length === 10) d = '91' + d;
+  return 'https://wa.me/' + d + '?text=' + encodeURIComponent('Namaste ' + (name || '') + ' ji, Aghanya Devanya Enterprises (Setu POS) se baat ho rahi hai.'); };
+const AVC = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#0d9488', '#4f46e5', '#0891b2', '#65a30d'];
+const avatar = h => `<div class="av" style="background:${AVC[[...String(h.code)].reduce((a, c) => a + c.charCodeAt(0), 0) % AVC.length]}">${esc((h.name || h.code || '?').trim()[0].toUpperCase())}</div>`;
+// One plain word for how the hotel's Setu is right now
+function appState(h){
+  const d = licDays(h);
+  if(state(h) === 'suspended') return ['Suspended', 'off'];
+  if(+h.lockv === 2) return ['Locked', 'bad'];
+  if(d !== null && d !== Infinity && d < 0) return ['Licence khatam', 'bad'];
+  if(+h.lockv === 1) return ['Warning', 'warn'];
+  return ['Chal raha', 'ok'];
+}
+// Hotels that need you come first: licence running out, no backup, open tickets
+function urgency(h){
+  const d = licDays(h), p = payDays(h);
+  let u = 0;
+  if(d !== null && d !== Infinity){ if(d < 0) u = 200; else if(d <= 5) u = 150 - d; }
+  if(p !== null && state(h) !== 'suspended' && h.plan !== 'counter'){ if(p < 0) u = Math.max(u, 120); else if(p <= 5) u = Math.max(u, 100 - p); }
+  if(h.tickets) u = Math.max(u, 90);
+  if(staleH(h) > 48 && h.seen) u = Math.max(u, 50);
+  return u;
+}
+let KF = 'all';
+const KFS = {all: ['Sab', () => true], need: ['Dhyan do', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
+  tk: ['Tickets', h => h.tickets > 0], stale: ['Backup nahi', h => staleH(h) > 48]};
+function setKF(k){ KF = k; drawHotelsBody(); }
+async function drawHotels(){
+  await loadHotels();
+  $('#main').innerHTML = `<div class="search">${ic('search')}<input id="q" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
+  $('#q').oninput = drawCards;
+  drawHotelsBody();
+}
+function drawHotelsBody(){
+  $('#kpis').innerHTML = `<div class="chips">${Object.entries(KFS).map(([k, [l, f]]) => `<button class="chip ${KF === k ? 'on' : ''}" onclick="setKF('${k}')">${l}<b>${HOTELS.filter(f).length}</b></button>`).join('')}</div>`;
+  drawCards();
+}
+function hotelAlert(h){
+  const d = licDays(h);
+  if(d !== null && d !== Infinity && d < 0) return ['bad', 'Licence ' + d8(Date.parse(h.lic)) + ' ko khatam ho gaya'];
+  if(d !== null && d !== Infinity && d <= 5) return ['warn', 'Licence ' + d + ' din mein khatam (' + d8(Date.parse(h.lic)) + ')'];
+  if(h.tickets) return ['warn', h.tickets + ' naya ticket message'];
+  if(h.seen && staleH(h) > 48) return ['warn', 'PC se ' + ago(h.seen) + ' se data nahi aaya'];
+  return null;
+}
+function licTag(h){
+  const d = licDays(h);
+  if(d === Infinity) return '<span class="tag ok">Lifetime</span>';
+  if(d === null) return '<span class="tag">Licence -</span>';
+  return `<span class="tag ${d < 0 ? 'bad' : d <= 5 ? 'warn' : 'ok'}">Licence ${d < 0 ? 'khatam' : d + ' din'}</span>`;
+}
+const seenTag = h => `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Abhi sync nahi'}</span>`;
+function drawCards(){
+  const q = ($('#q').value || '').trim().toLowerCase();
+  const list = HOTELS.filter(KFS[KF][1]).filter(h => !q || [h.name, h.code, h.phone, h.owner, h.iid || ''].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => urgency(b) - urgency(a) || b.created - a.created);
+  $('#cards').innerHTML = list.map(h => {
+    const [sl, sc] = appState(h), al = hotelAlert(h);
+    return `<div class="hc" onclick="hotelSheet('${esc(h.code)}')"><div class="top">${avatar(h)}
+        <div class="mid"><b class="nm">${esc(h.name)}</b><small>${esc(h.code)}${h.owner ? ' · ' + esc(h.owner) : ''}</small></div><span class="st ${sc}">${sl}</span></div>
+      <div class="tags">${licTag(h)}${seenTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
+      ${al ? `<div class="strip ${al[0]}">${esc(al[1])}</div>` : ''}</div>`;
+  }).join('') || `<div class="card muted" style="text-align:center">${KF === 'all' && !q ? 'Abhi koi hotel nahi. Naye PC par EXE install karke Keygen se activate karein.' : 'Is list mein kuch nahi'}</div>`;
+}
+
+// ---------------- one hotel: big simple actions ----------------
+const hotelBy = code => HOTELS.find(h => h.code === code) || {code, name: code};
+function hotelSheet(code){
+  const h = hotelBy(code), [sl, sc] = appState(h), C = esc(h.code), d = licDays(h);
+  const lk = +h.lockv, sus = state(h) === 'suspended';
+  const tile = (icon, label, sub, fn, cls) => `<button class="tile ${cls || ''}" onclick="${fn}">${ic(icon)}${label}${sub ? `<small>${sub}</small>` : ''}</button>`;
+  sheet(`<div class="hero">${avatar(h)}<div style="flex:1;min-width:0"><h2>${esc(h.name)}</h2>
+      <div class="row" style="gap:6px;margin-top:4px"><code onclick="copyText('${C}', 'Hotel Code')">${C}</code><span class="st ${sc}">${sl}</span></div></div></div>
+    ${h.phone ? `<div class="quick"><a href="${telHref(h.phone)}">${ic('phone')}Call</a><a class="wa" href="${waHref(h.phone, h.owner)}" target="_blank" rel="noopener">${ic('msg')}WhatsApp</a></div>` : ''}
+    <div class="facts">
+      <div><span>Owner</span><b>${esc(h.owner || '-')} ${h.phone ? '· ' + esc(h.phone) : ''}</b></div>
+      <div><span>Licence</span><b class="${d === Infinity ? 'ok' : d !== null && d <= 5 ? 'err' : ''}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + (d < 0 ? ' · khatam' : ' · ' + d + ' din')}</b></div>
+      <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Abhi nahi'}</b></div>
+      <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
+      <div><span>Juda</span><b>${d8(h.created)}</b></div>
+    </div>
+    <div class="tiles">
+      ${tile('key', 'Activate', 'Key bhejo', `keygenFor('${C}')`, 'blue')}
+      ${lk === 2 ? tile('unlock', 'Unlock', 'Setu chalu karo', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Setu band karo', `lockAsk('${C}')`, 'red')}
+      ${lk === 1 ? tile('warn', 'Warning hatao', 'abhi dikh rahi', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu chalta rahe', `warnAsk('${C}')`, 'amber')}
+      ${sus ? tile('play', 'Activate', 'account chalu', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account band', `suspendAsk('${C}')`, 'red')}
+      ${tile('msg', 'Message', h.notice ? 'dikh raha' : 'popup bhejo', `noticeBox('${C}')`)}
+      ${tile('ticket', 'Tickets', h.tickets ? h.tickets + ' naye' : '', `hotelTickets('${C}')`)}
+      ${tile('download', 'Backup', 'download', `dlBackup('${C}')`)}
+      ${tile('user', 'Password', 'owner ka', `pwAsk('${C}')`)}
+      ${tile('gear', 'Sab settings', 'plan, bill...', `openHotel('${C}')`)}
+    </div>
+    <button class="g" style="width:100%;margin-top:14px;color:var(--bad)" onclick="delBox('${C}')">${'Hotel delete karein'}</button>`);
+}
+const adminUpdate = async (code, update, msg) => {
+  await api('/api/admin/hotel', {code, update});
+  toast(msg);
+  await loadHotels();
+  if(VIEW === 'hotels') drawHotelsBody();
+  if($('#sheet').classList.contains('open')) hotelSheet(code);
+};
+const msgField = (ph, val) => `<label>Message (Setu mein dikhega)</label><textarea id="lm" rows="3" maxlength="300" placeholder="${ph}">${esc(val || '')}</textarea>`;
+const lockAsk = run(async code => {
+  const v = await ask('Setu lock karein?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)} ke saare devices par Setu band ho jayega, sirf aapka message dikhega. Data safe rahega. Unlock dabate hi chalu.</p>${msgField('Jaise: Payment due hai. Aghanya Devanya Enterprises se sampark karein.')}`, 'Lock karo', true);
+  if(v) await adminUpdate(code, {lock: {lv: 2, msg: v.lm.trim()}}, 'Setu lock ho gaya. PC online hote hi lag jayega.');
+});
+const warnAsk = run(async code => {
+  const v = await ask('Warning lagayein?', `<p class="muted" style="margin-top:0">Setu chalta rahega, upar laal patti mein message dikhega.</p>${msgField('Jaise: Payment 3 din mein jama karein.')}`, 'Warning lagao');
+  if(v) await adminUpdate(code, {lock: {lv: 1, msg: v.lm.trim()}}, 'Warning lag gayi');
+});
+const setLock = run(async (code, lv) => adminUpdate(code, {lock: {lv}}, lv ? 'Lag gaya' : 'Hata diya. Setu normal chalega.'));
+const suspendAsk = run(async code => {
+  if(await ask('Account suspend karein?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)} ka Setu band ho jayega aur cloud par saving rukegi. Data PC par safe rahega. Activate dabate hi wapas chalu.</p>`, 'Suspend karo', true))
+    await adminUpdate(code, {status: 'suspended'}, 'Suspend ho gaya. PC online hote hi lock dikhega.');
+});
+const setSuspend = run(async (code, on) => adminUpdate(code, {status: on ? 'suspended' : 'active'}, on ? 'Suspend ho gaya' : 'Account chalu ho gaya'));
+const pwAsk = run(async code => {
+  const v = await ask('Owner ka naya password', `<p class="muted" style="margin-top:0">Owner password bhool gaye? Naya likhiye. Phone app par turant, counter PC par agle sync ke baad chalega (wahi Manager PIN bhi hai).</p><input id="pw" maxlength="40" placeholder="Kam se kam 6 akshar" autocomplete="off">`, 'Set karo');
+  if(!v) return;
+  if(v.pw.trim().length < 6) return toast('Password kam se kam 6 akshar', true);
+  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'Naya password: ' + v.pw.trim() + ' (owner ko bata dein)');
+});
+function noticeBox(code){
+  const h = hotelBy(code);
+  sheet(`<h2>Message: ${esc(h.name)}</h2><p class="muted">Hotel ke Setu mein popup dikhega (PC online hote hi). Khaali karke Hatao dabayein to hat jayega.</p>
+    <textarea id="nm" rows="4" maxlength="500" placeholder="Jaise: Payment due hai, kripya jama karein. — Aghanya Devanya Enterprises">${esc(h.notice || '')}</textarea>
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button>${h.notice ? `<button class="bad" onclick="saveNotice('${esc(code)}', false)">Hatao</button>` : ''}<button onclick="saveNotice('${esc(code)}', true)">Bhejo</button></div>`);
+}
+const saveNotice = run(async (code, on) => {
+  const t = on ? $('#nm').value.trim() : '';
+  if(on && !t) return toast('Message likhiye', true);
+  await adminUpdate(code, {notice: t}, on ? 'Message bhej diya' : 'Message hata diya');
+});
+
+// ---------------- Keygen (activation keys from the phone) ----------------
+let KG = {plan: '1m', days: 30, iid: '', code: '', send: true, res: null};
+let KGS = null;
+const KG_PLANS = [['1m', '1 Month', '30 din'], ['3m', '3 Months', '90 din'], ['6m', '6 Months', '180 din'], ['1y', '1 Year', '365 din'],
+  ['life', 'Lifetime', 'hamesha'], ['demo24h', 'Demo', '24 ghante'], ['days', 'Apne din', 'kitne bhi'], ['reset', 'Password Reset', 'owner bhool gaya']];
+function keygenFor(code){
+  const h = hotelBy(code);
+  KG = {...KG, iid: h.iid || '', code: h.code, send: true, res: null};
+  closeAll();
+  show('keygen');
+}
+async function drawKeygen(){
+  if(!HOTELS.length) await loadHotels();
+  KGS = await api('/api/admin/keygen', {});
+  if(!KGS.ready) return drawKeygenSetup();
+  const match = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  const r = KG.res;
+  $('#main').innerHTML = `
+    ${r ? `<div class="card" style="border-color:#bbf7d0">
+      <h2 class="ok">Key ban gayi · ${esc(r.label)}</h2>
+      ${r.sentTo ? `<p style="margin-top:0"><b>${esc(hotelBy(r.sentTo).name)}</b> ke PC ko cloud se bhej di. PC online hote hi (kuch second mein) apne aap activate ho jayega.</p>`
+        : `<p style="margin-top:0">${r.note ? esc(r.note) + ' ' : ''}Ye key PC par Setu ke activation box mein daaliye (WhatsApp Web / pendrive se copy-paste).</p>`}
+      <div class="keybox">${esc(r.key)}</div>
+      <div class="btns"><button class="g" onclick="copyText(KG.res.key, 'Key')">${'Copy'}</button><button class="okb" onclick="shareText('Setu Activation Key (' + KG.res.label + '):\\n' + KG.res.key)">WhatsApp / Share</button></div>
+      <button class="g" style="width:100%;margin-top:8px" onclick="KG.res=null;drawKeygen()">Nayi key banao</button></div>` : ''}
+    <div class="card">
+      <h2>Activation Key banao</h2>
+      <label style="margin-top:0">Install ID (Setu ki activation screen par likha hota hai)</label>
+      <input id="kg_iid" value="${esc(KG.iid)}" placeholder="SETU-XXXX-XXXX" autocomplete="off" style="width:100%;text-transform:uppercase;font-family:ui-monospace,Consolas,monospace">
+      ${HOTELS.some(h => h.iid) ? `<select id="kg_pick" style="width:100%;margin-top:8px"><option value="">… ya juda hua hotel chunein</option>${HOTELS.filter(h => h.iid).map(h => `<option value="${esc(h.code)}" ${KG.code === h.code ? 'selected' : ''}>${esc(h.name)} (${esc(h.code)})</option>`).join('')}</select>` : ''}
+      <div id="kg_match" class="muted" style="font-size:13px;margin-top:6px">${match ? `Hotel: <b>${esc(match.name)}</b> (${esc(match.code)}) · cloud se juda hai` : KG.iid ? 'Ye PC abhi cloud se juda nahi (naya PC). Key PC par khud daalni hogi.' : ''}</div>
+      <label>Kitne din ki?</label>
+      <div class="plans">${KG_PLANS.map(([k, l, s]) => `<button class="plan ${KG.plan === k ? 'on' : ''}" onclick="kgPlan('${k}')">${l}<small>${s}</small></button>`).join('')}</div>
+      ${KG.plan === 'days' ? `<label>Din</label><input id="kg_days" type="number" min="1" max="3650" value="${+KG.days || 30}" style="width:100%">` : ''}
+      ${match && KG.plan !== 'reset' ? `<label class="switch"><input type="checkbox" id="kg_send" ${KG.send ? 'checked' : ''}> Cloud se seedha is hotel ke PC par bhejo</label>` : ''}
+      <button class="big" style="margin-top:14px" onclick="kgMake()">${ic('key')} Key banao</button>
+    </div>
+    <div class="card"><h2>Naya PC (pehli baar)</h2>
+      <ol class="steps"><li>PC par Setu EXE install karein (pendrive se).</li><li>Setu khulte hi <b>Install ID</b> dikhegi. Upar daaliye.</li>
+        <li><b>Key banao</b> → key PC par paste karein → Activate.</li><li>Activate hote hi PC khud cloud se jud jayega aur <b>Hotels</b> mein aa jayega.</li>
+        <li>Uske baad ghar baithe yahin se Activate, Lock, Suspend sab.</li></ol>
+      <p class="muted" style="margin-bottom:0;font-size:12px">Keygen: ${KGS.from === 'secret' ? 'Cloudflare secret se' : 'saved key file se'} · <a href="#" onclick="event.preventDefault();drawKeygenSetup()">Setup</a></p></div>`;
+  $('#kg_iid').oninput = e => { KG.iid = e.target.value.trim(); KG.code = ''; const s = $('#kg_pick'); if(s) s.value = ''; kgMatchLine(); };
+  if($('#kg_pick')) $('#kg_pick').onchange = e => { const h = hotelBy(e.target.value); KG.code = e.target.value; KG.iid = e.target.value ? h.iid : ''; KG.send = true; drawKeygen(); };
+}
+function kgMatchLine(){
+  const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  if(!!m !== !!$('#kg_send')) return drawKeygen().then(() => { const i = $('#kg_iid'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  $('#kg_match').innerHTML = m ? `Hotel: <b>${esc(m.name)}</b> (${esc(m.code)}) · cloud se juda hai` : KG.iid ? 'Ye PC abhi cloud se juda nahi (naya PC). Key PC par khud daalni hogi.' : '';
+}
+function kgPlan(k){ KG.iid = $('#kg_iid').value.trim(); if($('#kg_days')) KG.days = +$('#kg_days').value; if($('#kg_send')) KG.send = $('#kg_send').checked; KG.plan = k; drawKeygen(); }
+const kgMake = run(async () => {
+  KG.iid = $('#kg_iid').value.trim().toUpperCase();
+  if($('#kg_days')) KG.days = +$('#kg_days').value;
+  KG.send = !!($('#kg_send') && $('#kg_send').checked);
+  if(!KG.iid) return toast('Install ID daaliye', true);
+  if(KG.plan === 'life' && !await ask('Lifetime key?', '<p class="muted" style="margin-top:0">Ye PC hamesha ke liye chalega.</p>', 'Haan, banao')) return;
+  const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.replace(/[^A-Z0-9]/g, ''));
+  KG.res = await api('/api/admin/keygen', {installId: KG.iid, plan: KG.plan === 'days' ? '' : KG.plan, days: KG.days, send: KG.send, code: KG.send && m ? m.code : ''});
+  toast(KG.res.sentTo ? 'Key PC ko bhej di' : 'Key ban gayi');
+  await drawKeygen();
+  window.scrollTo(0, 0);
+});
+function drawKeygenSetup(){
+  const ready = KGS && KGS.ready;
+  $('#main').innerHTML = `<div class="card"><h2>Keygen setup (sirf ek baar)</h2>
+    <p class="muted" style="margin-top:0">Phone se key banane ke liye cloud ko aapki <b>setu-license-private.pem</b> file chahiye (jo PC par Generate-Activation-Keys wale folder mein hai). Ye wahi file hai jisse ab tak keys banti thi, isliye purani keys bhi chalti rahengi.</p>
+    <ol class="steps"><li>PC par Chrome mein ye Admin page kholiye (ya file phone mein le aaiye).</li><li>Neeche <b>File chunein</b> → setu-license-private.pem.</li><li><b>Save</b>. Galat file ho to cloud mana kar dega.</li></ol>
+    <label>Key file</label><input type="file" id="pem_file" accept=".pem,text/plain,application/x-pem-file,*/*" style="width:100%">
+    <label>… ya file ka text yahan paste karein</label><textarea id="pem_txt" rows="4" placeholder="-----BEGIN PRIVATE KEY-----" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea>
+    <button class="big" style="margin-top:12px" onclick="kgSetup()">Save</button>
+    <p class="muted" style="font-size:12px">Ye file kisi ko na bhejein. Cloud par sirf Admin Key se hi istemal hoti hai, kisi hotel ke app mein nahi jaati.</p>
+    ${ready ? `<div class="row" style="justify-content:space-between;margin-top:6px"><span class="ok">Keygen chalu hai (${KGS.from === 'secret' ? 'Cloudflare secret' : 'saved file'})</span>
+      <span class="row"><button class="g" onclick="drawKeygen()">‹ Keygen</button>${KGS.from === 'saved' ? `<button class="g" style="color:var(--bad)" onclick="kgRemove()">Hatao</button>` : ''}</span></div>` : ''}</div>`;
+  $('#pem_file').onchange = e => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = () => $('#pem_txt').value = String(r.result || ''); r.readAsText(f); };
+}
+const kgSetup = run(async () => {
+  const t = $('#pem_txt').value.trim();
+  if(!/PRIVATE KEY|^MI/.test(t)) return toast('Pehle .pem file chunein ya uska text paste karein', true);
+  KGS = await api('/api/admin/keygen', {setKey: t});
+  toast('Keygen chalu ho gaya');
+  await drawKeygen();
+});
+const kgRemove = run(async () => {
+  if(!await ask('Keygen file hatayein?', '<p class="muted" style="margin-top:0">Phone se key banana band ho jayega (PC wala Keygen chalta rahega).</p>', 'Hatao', true)) return;
+  KGS = await api('/api/admin/keygen', {setKey: ''});
+  toast('Hata diya'); drawKeygenSetup();
+});
+
+// ---------------- More ----------------
+function drawMore(){
+  const row = (icon, t, s, fn) => `<button class="li" onclick="${fn}"><span class="ico">${ic(icon)}</span><span>${t}<small>${s}</small></span>›</button>`;
+  $('#main').innerHTML = row('chart', 'Dashboard', 'Kitne hotel, payment, backup', "show('dash')")
+    + row('plus', 'Naya Hotel banao', 'Bina PC ke, sirf phone app wala hotel', "show('add')")
+    + row('spark', 'Setu AI', 'Gemini key aur roz ki limit', "show('ai')")
+    + row('list', 'Activity Log', 'Aapne kab kya badla', "show('audit')")
+    + row('block', 'Blocked computers', 'Delete karte waqt block kiye PC', "show('blocked')")
+    + row('key', 'Keygen setup', 'Phone se key banane ke liye', "show('keygen').then(() => drawKeygenSetup())")
+    + row('out', 'Logout', 'Is phone se Admin Key hatao', 'logout()');
+}
 
 // ---------------- dashboard ----------------
 async function drawDash(){
@@ -150,7 +519,7 @@ async function drawDash(){
   const mrr = HOTELS.filter(h => state(h) === 'active').reduce((a, h) => a + monthly(h.tier), 0);
   const month = Date.now() - 30 * 864e5;
   const soon = HOTELS.filter(h => ['active', 'trial'].includes(state(h)) && h.paid_until - Date.now() < 7 * 864e5).sort((a, b) => a.paid_until - b.paid_until);
-  $('#main').innerHTML = `
+  $('#main').innerHTML = backBtn() + `
     <div class="stats">${[['Total Hotels', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')],
       ['New (30 days)', HOTELS.filter(h => h.created > month).length], ['Payments (30 days)', rs(st.paid30.s / 100)], ['MRR (estimate)', rs(mrr)]]
       .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('')}</div>
@@ -168,118 +537,6 @@ async function drawDash(){
     </div>`;
 }
 
-// ---------------- hotels list (Library ERP style cards) ----------------
-const DAYMS = 864e5;
-// Counter licence from the hotel's data: 'lifetime' or a date (ISO)
-const licDays = h => h.lic === 'lifetime' ? Infinity : h.lic ? Math.ceil((Date.parse(h.lic) - Date.now()) / DAYMS) : null;
-const payDays = h => h.paid_until ? Math.ceil((h.paid_until - Date.now()) / DAYMS) : null;
-const staleH = h => h.seen ? (Date.now() - h.seen) / 36e5 : 1e9;
-const telHref = p => 'tel:' + String(p || '').replace(/[^\d+]/g, '');
-const waHref = (p, name) => { let d = String(p || '').replace(/\D/g, ''); if(d.length === 10) d = '91' + d;
-  return 'https://wa.me/' + d + '?text=' + encodeURIComponent('Namaste ' + (name || '') + ' ji, Aghanya Devanya Enterprises (Setu POS) se baat ho rahi hai.'); };
-// Hotels that need you come first: licence / payment running out, no backup, open tickets
-function urgency(h){
-  const d = licDays(h), p = payDays(h);
-  let u = 0;
-  if(d !== null && d !== Infinity){ if(d < 0) u = 200; else if(d <= 5) u = 150 - d; }
-  if(p !== null && state(h) !== 'suspended'){ if(p < 0) u = Math.max(u, 120); else if(p <= 5) u = Math.max(u, 100 - p); }
-  if(h.tickets) u = Math.max(u, 90);
-  if(staleH(h) > 48 && h.seen) u = Math.max(u, 50);
-  return u;
-}
-let KF = 'all';
-const KFS = {all: 'All hotels', stale: 'Backup stale (48h+)', lic: 'Licence ≤5 days / expired', pay: 'Cloud payment due ≤5 days', tk: 'Unread tickets'};
-function kfMatch(h){
-  if(KF === 'stale') return staleH(h) > 48;
-  if(KF === 'lic'){ const d = licDays(h); return d !== null && d !== Infinity && d <= 5; }
-  if(KF === 'pay'){ const p = payDays(h); return p !== null && p <= 5 && state(h) !== 'suspended'; }
-  if(KF === 'tk') return h.tickets > 0;
-  return true;
-}
-function setKF(k){ KF = KF === k && k !== 'all' ? 'all' : k; drawHotelsBody(); }
-async function drawHotels(){
-  await loadHotels();
-  $('#main').innerHTML = `<div id="kpis"></div>
-    <div class="row" style="margin-bottom:10px"><input id="q" placeholder="Search name / code / mobile / Install ID / domain" style="flex:1;min-width:220px"></div>
-    <div id="fbar"></div><div id="cards"></div>`;
-  $('#q').oninput = drawCards;
-  drawHotelsBody();
-}
-function drawHotelsBody(){
-  const n = k => HOTELS.filter(h => { const o = KF; KF = k; const m = kfMatch(h); KF = o; return m; }).length;
-  $('#kpis').innerHTML = `<div class="kpis">${Object.entries({all: 'Hotels', stale: 'Backup stale', lic: 'Licence ≤5d', pay: 'Payment ≤5d', tk: 'Tickets'}).map(([k, l]) => {
-    const c = n(k);
-    return `<div class="k ${KF === k ? 'on' : ''}" onclick="setKF('${k}')"><b class="${k !== 'all' && c ? 'err' : k === 'all' ? '' : 'ok'}">${c}</b><span>${l}</span></div>`; }).join('')}</div>`;
-  $('#fbar').innerHTML = KF !== 'all' ? `<div class="row" style="margin-bottom:8px"><b>Showing: ${KFS[KF]}</b><button class="g" onclick="setKF('all')">Show all</button></div>` : '';
-  drawCards();
-}
-function drawCards(){
-  const q = ($('#q').value || '').trim().toLowerCase();
-  const list = HOTELS.filter(kfMatch).filter(h => !q || [h.name, h.code, h.phone, h.owner, h.iid || '', ...(h.domains || []).map(d => d.host)].join(' ').toLowerCase().includes(q))
-    .sort((a, b) => urgency(b) - urgency(a) || b.created - a.created);
-  $('#cards').innerHTML = list.map(h => {
-    const d = licDays(h), p = payDays(h), sh = staleH(h), C = esc(h.code);
-    let al = '';
-    if(d !== null && d !== Infinity && d < 0) al += `<div class="alert bad">Counter licence expired on ${d8(Date.parse(h.lic))} — renew now</div>`;
-    else if(d !== null && d !== Infinity && d <= 5) al += `<div class="alert warn">Counter licence ends on ${d8(Date.parse(h.lic))} — ${d} day${d === 1 ? '' : 's'} left</div>`;
-    if(p !== null && state(h) !== 'suspended' && h.plan !== 'counter'){
-      if(p < 0) al += `<div class="alert bad">Cloud payment overdue since ${d8(h.paid_until)}</div>`;
-      else if(p <= 5) al += `<div class="alert warn">Cloud payment due on ${d8(h.paid_until)} — in ${p} day${p === 1 ? '' : 's'}</div>`;
-    }
-    if(h.tickets) al += `<div class="alert warn">${h.tickets} new ticket message${h.tickets === 1 ? '' : 's'} from the hotel</div>`;
-    return `<div class="hcard"><div class="top"><div class="nm"><b style="font-size:15px">${esc(h.name)}</b> ${pill(state(h))}
-        <div class="muted" style="font-size:12px"><code onclick="navigator.clipboard.writeText('${C}').then(() => toast('Copied ${C}'))" style="cursor:pointer">${C}</code> · ${esc(h.owner || '')} · ${esc(h.phone || '-')}</div></div></div>
-      ${al}
-      <div class="info">
-        <div><span>Joined</span><b>${d8(h.created)}</b></div>
-        <div><span>Type / Plan</span><b>${esc((META.templates[h.btype] || {}).label || '-')} · ${esc((META.tiers[h.tier] || {}).label || '-')}</b></div>
-        <div><span>Counter licence</span><b class="${d === Infinity ? 'ok' : d === null ? '' : d < 0 ? 'err' : d <= 5 ? 'err' : 'ok'}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + ' · ' + d + 'd'}</b></div>
-        <div><span>Cloud paid till</span><b>${h.plan === 'counter' ? 'follows licence' : p === null ? '-' : d8(h.paid_until) + (p < 0 ? ' · overdue' : ' · ' + p + 'd')}</b></div>
-        <div><span>Backup</span><b>${health(h.seen)}</b></div>
-        <div><span>Install ID</span><b><code>${esc(h.iid || '-')}</code></b></div>
-      </div>
-      <div class="row" style="gap:6px">${h.notice ? '<span class="pill p-pending">Message showing in app</span>' : ''}${+h.lockv === 2 ? '<span class="pill p-expired">App locked</span>' : +h.lockv === 1 ? '<span class="pill p-pending">Warning showing</span>' : ''}${(h.domains || []).map(x => `<span class="pill p-trial">${esc(x.host)}</span>`).join('')}</div>
-      <div class="acts">
-        ${h.phone ? `<a class="btnl" href="${telHref(h.phone)}">Call</a><a class="btnl wa" href="${waHref(h.phone, h.owner)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
-        <button onclick="openHotel('${C}')">Open</button>
-        <button class="g" onclick="noticeBox('${C}')">Message</button>
-        <button class="${+h.lockv ? 'bad' : 'g'}" onclick="lockBox('${C}')">${+h.lockv === 2 ? 'Locked' : +h.lockv === 1 ? 'Warning' : 'Lock'}</button>
-        <button class="g" onclick="hotelTickets('${C}')">Tickets${h.tickets ? `<span class="badge">${h.tickets}</span>` : ''}</button>
-        <button class="g" onclick="dlBackup('${C}')">Backup</button>
-        <button class="bad" onclick="delBox('${C}')">Delete</button>
-      </div></div>`;
-  }).join('') || `<p class="muted">${KF === 'all' ? 'No hotels yet' : 'Nothing in this filter ✔'}</p>`;
-}
-
-// ----- sheet dialogs -----
-function sheet(html){ $('#sbox').innerHTML = html; $('#sheet').classList.add('open'); }
-function closeSheet(){ $('#sheet').classList.remove('open'); }
-$('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
-const hotelBy = code => HOTELS.find(h => h.code === code) || {code, name: code};
-const adminUpdate = async (code, update, msg) => { await api('/api/admin/hotel', {code, update}); toast(msg); closeSheet(); await loadHotels(); if(VIEW === 'hotels') drawHotelsBody(); };
-function noticeBox(code){
-  const h = hotelBy(code);
-  sheet(`<h2>Message to ${esc(h.name)}</h2><p class="muted">Hotel ke Setu mein popup dikhega (PC online hote hi, kuch second mein). Khaali karke Clear dabayein to hat jayega.</p>
-    <textarea id="nm" rows="4" maxlength="500" placeholder="Jaise: Payment due hai, kripya jama karein. — Aghanya Devanya Enterprises">${esc(h.notice || '')}</textarea>
-    <div class="row" style="margin-top:10px"><button onclick="saveNotice('${esc(code)}', true)">Send</button>${h.notice ? `<button class="bad" onclick="saveNotice('${esc(code)}', false)">Clear</button>` : ''}<button class="g" onclick="closeSheet()">Close</button></div>`);
-}
-const saveNotice = run(async (code, on) => {
-  const t = on ? $('#nm').value.trim() : '';
-  if(on && !t) return toast('Type a message');
-  await adminUpdate(code, {notice: t}, on ? 'Message sent' : 'Message cleared');
-});
-function lockBox(code){
-  const h = hotelBy(code), lv = +h.lockv || 0;
-  sheet(`<h2>Lock / Warning — ${esc(h.name)}</h2><p class="muted">Payment na aane par Setu par warning ya lock laga sakte hain. Payment aane par "Normal" karke hata dein. Data hamesha safe rehta hai.</p>
-    <label>Mode</label><select id="lv"><option value="0" ${lv === 0 ? 'selected' : ''}>Normal (kuch nahi)</option><option value="1" ${lv === 1 ? 'selected' : ''}>Warning banner (Setu chalta rahega)</option><option value="2" ${lv === 2 ? 'selected' : ''}>Lock (Setu band, sirf message dikhega)</option></select>
-    <label style="margin-top:8px">Message (Setu mein dikhega)</label><textarea id="lm" rows="3" maxlength="300" placeholder="Jaise: Subscription due. Aghanya Devanya Enterprises se sampark karein."></textarea>
-    <div class="row" style="margin-top:10px"><button onclick="saveLock('${esc(code)}')">Apply</button><button class="g" onclick="closeSheet()">Close</button></div>`);
-}
-const saveLock = run(async code => {
-  const lv = +$('#lv').value;
-  if(lv === 2 && !confirm('Lock Setu for this hotel? Billing on all their devices stops until you set it back to Normal.')) return;
-  await adminUpdate(code, {lock: {lv, msg: $('#lm').value.trim()}}, ['Lock removed', 'Warning on', 'Setu locked'][lv]);
-});
 const dlBackup = run(async code => {
   const r = await fetch('/api/admin/backup', {method: 'POST', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: JSON.stringify({code})});
   if(!r.ok) throw new Error('Backup download failed (HTTP ' + r.status + ')');
@@ -303,13 +560,13 @@ function delBox(code){
     <p class="muted">Cloud ka saara data, backups, domains aur tickets hamesha ke liye hat jayenge. <b>Wapas nahi aayega.</b> Hotel ke PC ka apna data safe rahega, par wo cloud se alag ho jayega (aur khud naye Hotel Code se dobara jud jayega, jab tak block na karein).</p>
     <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;color:var(--ink)"><input type="checkbox" id="dbk" style="width:auto;margin-top:3px"><span><b>Is computer ko Block karein</b> (Install ID ${esc(h.iid || '-')}) — wo dobara cloud se nahi jud payega. Baad mein Blocked se hata sakte hain.</span></label>
     <label>Confirm: Hotel Code type karein (${esc(code)})</label><input id="dc" autocomplete="off" style="text-transform:uppercase">
-    <div class="row" style="margin-top:10px"><button class="bad" onclick="doDelete('${esc(code)}')">Yes, delete</button><button class="g" onclick="closeSheet()">Cancel</button></div>`);
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button><button class="bad" onclick="doDelete('${esc(code)}')">Haan, delete</button></div>`);
 }
 const doDelete = run(async code => {
   await api('/api/admin/delete', {code, confirm: $('#dc').value.trim(), block: $('#dbk').checked});
-  toast(code + ' deleted');
-  closeSheet();
-  await drawHotels();
+  toast(code + ' delete ho gaya');
+  closeAll();
+  await show('hotels');
 });
 
 // ----- tickets -----
@@ -317,13 +574,13 @@ let TICKETS = [];
 async function drawTickets(code){
   TICKETS = (await api('/api/admin/tickets', {code: code || '', read: true})).tickets;
   await loadHotels();
-  $('#main').innerHTML = `<div class="card"><h2>Help &amp; Support Tickets${code ? ' — ' + esc(hotelBy(code).name) : ''}</h2>
+  $('#main').innerHTML = `<div class="card"><h2>Tickets${code ? ' — ' + esc(hotelBy(code).name) : ''}</h2>
     ${code ? `<button class="g" onclick="show('tickets')">All hotels</button>` : '<p class="muted" style="margin-top:-6px">Hotels write from Setu → Help &amp; Support (1). Your reply shows there.</p>'}
     ${TICKETS.map(t => `<div class="hcard" style="cursor:pointer" onclick="ticketBox('${esc(t.id)}')"><b>${esc(t.subject)}</b> ${t.unread_admin ? '<span class="badge">new</span>' : ''} ${pill(t.status === 'resolved' ? 'active' : 'pending').replace(/>(active|pending)</, '>' + (t.status === 'resolved' ? 'resolved' : 'open') + '<')}
       <div class="muted" style="font-size:12px">${esc(t.hotel_name || hotelBy(t.code).name)} · <code>${esc(t.code)}</code> · ${dt(t.updated)}</div>
       <div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(((t.msgs || []).slice(-1)[0] || {}).text || '')}</div></div>`).join('') || '<p class="muted">No tickets yet.</p>'}</div>`;
 }
-const hotelTickets = run(async code => { VIEW = 'tickets'; nav(); await drawTickets(code); });
+const hotelTickets = run(async code => { closeAll(); VIEW = 'tickets'; nav(); await drawTickets(code); });
 function ticketBox(id){
   const t = TICKETS.find(x => x.id === id);
   if(!t) return;
@@ -348,7 +605,7 @@ const toggleTicket = run(async id => {
 // ----- Setu AI (one Gemini key for all hotels; stays on the cloud) -----
 async function drawAI(res){
   const j = res || await api('/api/admin/ai', {});
-  $('#main').innerHTML = `<div class="card"><h2>Setu AI (Gemini)</h2>
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Setu AI (Gemini)</h2>
     <p class="muted" style="margin-top:-6px">aistudio.google.com → Get API key → Create. Key yahan paste karke Save kijiye. Key sirf Hotel Setu Cloud mein rehti hai, kisi hotel ke app mein nahi jaati.</p>
     <label>Gemini API Key ${j.hasKey ? `(saved, ...${esc(j.keyEnd)} · badalni ho tabhi daaliye)` : ''}</label>
     <input id="ai_key" type="password" autocomplete="off" placeholder="${j.hasKey ? '••••••••••••' : 'AIza...'}" style="width:100%">
@@ -370,7 +627,7 @@ const saveAI = run(async test => {
 // ----- blocked computers -----
 async function drawBlocked(){
   const L = (await api('/api/admin/blocked')).blocked || [];
-  $('#main').innerHTML = `<div class="card"><h2>Blocked computers</h2><p class="muted" style="margin-top:-6px">These Install IDs cannot join Hotel Setu Cloud again (blocked when the hotel was deleted).</p>
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Blocked computers</h2><p class="muted" style="margin-top:-6px">These Install IDs cannot join Hotel Setu Cloud again (blocked when the hotel was deleted).</p>
     ${L.map(b => `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>${esc(b.name || b.code)}</b><br><span class="muted"><code>${esc(b.iid)}</code> · ${esc(b.code)} · ${d8(b.at)}</span></span>
       <button class="g" onclick="unblock('${esc(b.iid)}')">Unblock</button></div>`).join('') || '<p class="muted">No blocked computer.</p>'}</div>`;
 }
@@ -380,7 +637,7 @@ const unblock = run(async iid => { await api('/api/admin/unblock', {iid}); toast
 function drawAdd(){
   const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
   const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
-  $('#main').innerHTML = `<div class="card"><h2>Create New Hotel</h2>
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Create New Hotel</h2>
     <p class="muted">Customer → Business Type → Plan → Features → Login. The hotel signs in the first time with the Hotel Code and this password, then builds its own data.</p>
     <form id="af"><div class="grid">
       <div><label>Hotel / Restaurant name *</label><input name="name" required></div>
@@ -419,17 +676,24 @@ async function drawAudit(code){
   const html = `<table><tr><th>When</th><th>Action</th><th>Hotel</th><th>Detail</th><th>By</th></tr>
     ${j.rows.map(r => `<tr><td>${dt(r.at)}</td><td><b>${esc(r.action)}</b></td><td><code>${esc(r.code)}</code></td><td>${esc(r.detail)}</td><td class="muted">${esc(r.actor)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing yet</td></tr>'}</table>`;
   if(code) return html;
-  $('#main').innerHTML = `<div class="card"><h2>Super Admin Audit Log</h2><p class="muted">Every change, support session and new hotel is recorded here.</p><div style="overflow-x:auto">${html}</div></div>`;
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Activity Log</h2><p class="muted">Every change, support session and new hotel is recorded here.</p><div style="overflow-x:auto">${html}</div></div>`;
 }
 
 // ---------------- one hotel ----------------
 const openHotel = run(async code => {
   CUR = await api('/api/admin/hotel', {code});
   TAB = 'overview';
-  $('#drawer').style.display = 'block';
+  if($('#drawer').style.display !== 'block'){ $('#drawer').style.display = 'block'; pushLayer(); }
+  $('#drawer').scrollTop = 0;
   drawHotel();
 });
-function closeHotel(){ $('#drawer').style.display = 'none'; CUR = null; if(VIEW !== 'add') show(VIEW); }
+function closeHotel(){ popLayer(); }
+async function closeHotelNow(){
+  $('#drawer').style.display = 'none'; CUR = null;
+  await loadHotels().catch(() => {});
+  if(VIEW === 'hotels') drawHotelsBody();
+  if($('#sheet').classList.contains('open')) hotelSheet(($('#sbox code') || {}).textContent || '');
+}
 const update = run(async (u, msg) => {
   CUR = await api('/api/admin/hotel', {code: CUR.code, update: u});
   toast(msg || 'Saved — applies to the hotel devices within seconds');
@@ -464,7 +728,7 @@ function tabOverview(){
       <button onclick="ownerPw2()">Set Owner Password</button></div>
     <h3>Counter PC Connection</h3>
     <div class="row">Hotel Code: <code style="font-size:14px">${esc(h.code)}</code>
-      Sync Key: ${h.storedSyncKey ? `<code style="font-size:14px">${esc(h.storedSyncKey)}</code><button class="g" onclick="navigator.clipboard.writeText('${esc(h.storedSyncKey)}').then(() => toast('Sync Key copied'))">Copy</button>`
+      Sync Key: ${h.storedSyncKey ? `<code style="font-size:14px">${esc(h.storedSyncKey)}</code><button class="g" onclick="copyText('${esc(h.storedSyncKey)}', 'Sync Key')">Copy</button>`
         : '<span class="muted">not stored (made before this option) — Support tab → New Counter PC Sync Key, or record the current key there</span>'}</div>
     <div class="row" style="margin-top:6px">Owner password (last set by you): ${h.storedOwnerPass ? `<code style="font-size:14px">${esc(h.storedOwnerPass)}</code>` : '<span class="muted">not stored — set a new one below</span>'}
       <span class="muted">(if the owner changed it in Setu Settings, theirs is newer)</span></div>
@@ -477,8 +741,8 @@ function tabOverview(){
       <div class="stat"><span class="muted">Counter licence</span><b style="font-size:15px">${c.lifetime ? 'Lifetime' : c.licenceUntil ? d8(Date.parse(c.licenceUntil)) : '-'}</b><span class="muted">${esc(c.plan || '')}${c.licenceUntil && !c.lifetime && Date.parse(c.licenceUntil) < Date.now() ? ' · <b class="err">EXPIRED</b>' : ''}</span></div>
     </div>
     <h3>Send Activation Key (online)</h3>
-    <p class="muted" style="margin-top:-4px">1. Copy the Install ID → 2. make a key in Setu Keygen (PC or phone) → 3. paste it here. The counter PC activates itself on its next sync (internet needed there).</p>
-    <div class="row">Install ID: <code style="font-size:14px">${esc(c.installId || 'not connected yet')}</code>${c.installId ? `<button class="g" onclick="navigator.clipboard.writeText('${esc(c.installId)}').then(() => toast('Install ID copied'))">Copy</button>` : ''}
+    <p class="muted" style="margin-top:-4px">Easiest: <a href="#" onclick="event.preventDefault();keygenFor('${esc(h.code)}')">Keygen</a> makes the key and sends it. Or paste a key made on the PC Keygen. The counter PC activates itself on its next sync.</p>
+    <div class="row">Install ID: <code style="font-size:14px">${esc(c.installId || 'not connected yet')}</code>${c.installId ? `<button class="g" onclick="copyText('${esc(c.installId)}', 'Install ID')">Copy</button>` : ''}
       ${c.keysWaiting ? `<span class="pill h-warn">${c.keysWaiting} key waiting for the counter PC</span>` : ''}</div>
     <div class="row" style="margin-top:8px"><textarea id="x_key" rows="3" style="flex:1;min-width:260px;font-family:ui-monospace,Consolas,monospace" placeholder="SETU-XXXXXXXX-XXXXXXXX-..."></textarea>
       <button onclick="if(x_key.value.trim()) update({pushKey:x_key.value.trim()}, 'Key sent — the counter PC activates on its next sync')">Send Key</button></div>
@@ -487,9 +751,9 @@ function tabOverview(){
     <div class="row">
       <input id="x_days" type="number" min="1" value="30" style="width:90px"> days
       <input id="x_amt" type="number" min="0" placeholder="₹ received (optional)" style="width:160px">
-      <button onclick="if(confirm('Add days? The hotel will receive a new license key automatically.')) update({days:+x_days.value, amount:+x_amt.value||0}, 'Days added')">+ Add Days</button>
-      ${h.status === 'suspended' ? `<button class="g" onclick="update({status:'active'})">Activate</button>` : `<button class="bad" onclick="if(confirm('Suspend this hotel? Cloud saving will stop.')) update({status:'suspended'})">Suspend</button>`}
-      <button class="g" onclick="if(confirm('${h.lifetime ? 'Remove lifetime' : 'Give lifetime'}?')) update({lifetime:${!h.lifetime}})">${h.lifetime ? 'Remove Lifetime' : 'Give Lifetime'}</button>
+      <button onclick="askThen('Add days?', () => update({days:+x_days.value, amount:+x_amt.value||0}, 'Days added'))">+ Add Days</button>
+      ${h.status === 'suspended' ? `<button class="g" onclick="update({status:'active'})">Activate</button>` : `<button class="bad" onclick="askThen('Suspend this hotel? Setu locks and cloud saving stops.', () => update({status:'suspended'}))">Suspend</button>`}
+      <button class="g" onclick="askThen('${h.lifetime ? 'Remove lifetime' : 'Give lifetime'}?', () => update({lifetime:${!h.lifetime}}))">${h.lifetime ? 'Remove Lifetime' : 'Give Lifetime'}</button>
     </div>
     <h3>Payments</h3>
     <table><tr><th>Date</th><th>Plan</th><th>Days</th><th>Amount</th></tr>${h.payments.map(p => `<tr><td>${dt(p.at)}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? rs(p.amount / 100) : '-'}</td></tr>`).join('')}</table>`;
@@ -504,7 +768,7 @@ function tabFeatures(){
     <div class="row"><label style="margin:0">Plan</label><select id="f_tier">${tiers}</select>
       <button onclick="update({tier:f_tier.value}, 'Plan changed')">Plan Save</button>
       <span class="muted" style="margin-left:12px">Template:</span><select id="f_tpl">${tpl}</select>
-      <button class="g" onclick="if(confirm('Apply this template? Features, bill template and rules will be reset to the template defaults.')) update({applyTemplate:f_tpl.value}, 'Template applied')">Apply Template</button></div>
+      <button class="g" onclick="askThen('Apply this template? Features, bill template and rules go back to the template defaults.', () => update({applyTemplate:f_tpl.value}, 'Template applied'))">Apply Template</button></div>
     <h3>Feature Manager</h3>
     <p class="muted">"Per plan" follows the plan automatically. ON / OFF overrides it for this hotel only. The server does not save data for disabled modules.</p>
     <div class="grid">${Object.entries(META.features).map(([k, label]) => `<div class="feat">
@@ -611,7 +875,7 @@ const checkDomain = run(async host => {
   $('#dns').innerHTML = dnsTable(j);
 });
 const removeDomain = run(async host => {
-  if(!confirm('Remove ' + host + '? Setu will no longer open from that address.')) return;
+  if(!await ask('Remove ' + esc(host) + '?', '<p class="muted" style="margin-top:0">Setu will no longer open from that address.</p>', 'Remove', true)) return;
   await api('/api/admin/domain/remove', {code: CUR.code, host});
   CUR = await api('/api/admin/hotel', {code: CUR.code});
   tabDomains();
@@ -632,7 +896,7 @@ function tabSupport(){
     <div id="k_out"></div>`;
 }
 const newSyncKey = run(async () => {
-  if(!confirm('Create a new Sync Key? The counter PC must be updated with it.')) return;
+  if(!await ask('New Sync Key?', '<p class="muted" style="margin-top:0">The counter PC must be updated with it.</p>', 'Create')) return;
   const j = await api('/api/admin/hotel', {code: CUR.code, update: {newSyncKey: true}});
   $('#k_out').innerHTML = `<p>Hotel Code: <b>${esc(CUR.code)}</b><br>New Sync Key (shown only now): <b style="font-family:monospace">${esc(j.syncKey || '')}</b></p>`;
 });
@@ -646,7 +910,7 @@ const setSyncKey = run(async () => {
 const ownerPw2 = run(async () => {
   const pw = $('#o_pw2').value.trim();
   if(!pw) return;
-  if(!confirm('Set this as the new owner password for ' + CUR.name + '?')) return;
+  if(!await ask('New owner password for ' + esc(CUR.name) + '?', '', 'Set')) return;
   CUR = await api('/api/admin/hotel', {code: CUR.code, update: {ownerPassword: pw}});
   toast('Owner password set — tell the owner: ' + pw);
   drawHotel();
@@ -658,12 +922,22 @@ const ownerPw = run(async () => {
   $('#o_pw').value = '';
 });
 const supportOpen = run(async () => {
-  if(!$('#s_why').value.trim()) return alert('Please enter a reason (visible to the hotel)');
+  if(!$('#s_why').value.trim()) return toast('Please enter a reason (visible to the hotel)', true);
   const j = await api('/api/admin/support', {code: CUR.code, minutes: +$('#s_min').value, reason: $('#s_why').value});
   $('#s_out').innerHTML = `<p class="ok">Link created (${j.minutes} min): <a href="${esc(j.url)}" target="_blank" rel="noopener">Open the hotel Setu</a></p>`;
 });
 
 const tabLog = run(async () => { $('#tab').innerHTML = '<div style="overflow-x:auto">' + await drawAudit(CUR.code) + '</div>'; });
+
+const askThen = run(async (msg, fn) => { if(await ask(msg, '', 'Yes')) await fn(); });
+// Close every open layer at once (e.g. jumping to Keygen from a hotel)
+function closeAll(){
+  if(ASK){ const r = ASK; ASK = null; r(null); }
+  $('#ask').classList.remove('open'); $('#sheet').classList.remove('open');
+  if($('#drawer').style.display === 'block'){ $('#drawer').style.display = 'none'; CUR = null; }
+  const n = LAYERS; LAYERS = 0;
+  if(n) try{ history.go(-n); }catch(e){}
+}
 
 // ---------------- start ----------------
 function logout(){ try{ sessionStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin'); }catch(e){} location.reload(); }
@@ -682,7 +956,7 @@ async function openPanel(){
 }
 $('#lf').onsubmit = e => { e.preventDefault(); KEY = $('#key').value.trim(); openPanel(); };
 $('#drawer').onclick = e => { if(e.target.id === 'drawer') closeHotel(); };
-document.addEventListener('keydown', e => { if(e.key === 'Escape' && CUR) closeHotel(); });
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && LAYERS) popLayer(); });
 if(KEY) openPanel();
 </script>
 </body>
