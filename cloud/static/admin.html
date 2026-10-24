@@ -78,7 +78,7 @@
   .switch{ display:flex; align-items:center; gap:10px; margin-top:12px; font-size:14px } .switch input{ width:20px; height:20px }
   /* lists */
   .li{ display:flex; align-items:center; gap:12px; padding:14px; background:var(--card); border:1px solid var(--line); border-radius:14px; margin-bottom:8px; cursor:pointer; font-weight:600; width:100%; color:var(--ink); text-align:left }
-  .li .ico{ width:38px; height:38px; border-radius:11px; display:grid; place-items:center; background:#eff6ff; color:var(--pri) } .li span{ flex:1 } .li small{ display:block; color:var(--muted); font-weight:500; font-size:12px }
+  .li .ico{ width:38px; height:38px; border-radius:11px; display:grid; place-items:center; background:#eff6ff; color:var(--pri) } .li > span:not(.ico){ flex:1 } .li .ico{ flex:none } .li small{ display:block; color:var(--muted); font-weight:500; font-size:12px }
   .msg{ max-width:85%; padding:8px 11px; border-radius:12px; margin:6px 0; white-space:pre-wrap } .msg.hotel{ background:var(--soft); border:1px solid var(--line) } .msg.admin{ background:#dcfce7; color:#14532d; margin-left:auto }
   .msg small{ display:block; color:var(--muted); font-size:11px }
   /* sheets */
