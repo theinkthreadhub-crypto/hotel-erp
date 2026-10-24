@@ -241,28 +241,44 @@ async function aiConf(env){
   const v = (await regJson(env, '/conf/get', { k: 'gemini' })).v || {};
   return { key: v.key || env.GEMINI_API_KEY || '', model: v.model || AI_DEFAULTS.model, limit: +v.limit || AI_DEFAULTS.limit };
 }
+// Models tried after the saved one when Google says "model not found"
+const AI_MODELS = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-lite'];
 async function gemini(env, c, prompt, system){
   const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.4, maxOutputTokens: 900 } });
-  const call = url => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': c.key }, body });
-  const model = encodeURIComponent(c.model);
-  let r = await call(`${env.GEMINI_BASE || 'https://generativelanguage.googleapis.com'}/v1beta/models/${model}:generateContent`);
-  // Newer Google keys ("AQ.") may belong to Vertex AI express mode: same request, other address
-  if([400, 401, 403].includes(r.status) && c.key.startsWith('AQ.'))
-    r = await call(`${env.VERTEX_BASE || 'https://aiplatform.googleapis.com'}/v1/publishers/google/models/${model}:generateContent`);
-  const j = await r.json().catch(() => ({}));
-  if(!r.ok){
-    const m = (j.error && j.error.message) || ('HTTP ' + r.status);
-    if(r.status === 429) throw new Error('Gemini ki free limit abhi poori ho gayi. Thodi der baad poochhiye.');
-    if(r.status === 400 && /API key/i.test(m)) throw new Error('Gemini key galat hai. Super Admin → AI mein sahi key daaliye.');
-    if(r.status === 403) throw new Error('Gemini key ko permission nahi hai: ' + m);
-    if(r.status === 404) throw new Error('Gemini model "' + c.model + '" nahi mila. Super Admin → AI mein model badaliye.');
-    throw new Error('Gemini: ' + m);
+  // AI Studio keys use the Gemini API; newer "AQ." keys may instead belong to Vertex AI express mode (key in the URL)
+  const routes = [m => [`${env.GEMINI_BASE || 'https://generativelanguage.googleapis.com'}/v1beta/models/${m}:generateContent`, { 'x-goog-api-key': c.key }]];
+  if(c.key.startsWith('AQ.')) routes.push(m => [`${env.VERTEX_BASE || 'https://aiplatform.googleapis.com'}/v1/publishers/google/models/${m}:generateContent?key=${encodeURIComponent(c.key)}`, {}]);
+  const models = [...new Set([c.model, ...AI_MODELS])];
+  let last = null;
+  for(const route of routes){
+    for(const m of models){
+      const [url, hdr] = route(encodeURIComponent(m));
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...hdr }, body });
+      const j = await r.json().catch(() => ({}));
+      if(r.ok){
+        const out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('').trim();
+        if(!out) throw new Error('Gemini ne khaali jawab diya. Sawaal thoda badal kar poochhiye.');
+        c.usedModel = m;
+        return out;
+      }
+      last = { status: r.status, msg: (j.error && j.error.message) || ('HTTP ' + r.status), model: m };
+      if(r.status === 429) throw new Error('Gemini ki free limit abhi poori ho gayi. Thodi der baad poochhiye.');
+      if(r.status === 404) continue;                 // this model is not available: try the next one
+      if([400, 401, 403].includes(r.status)) break;   // the key does not work here: try the other route
+      throw new Error('Gemini: ' + last.msg);
+    }
   }
-  const text = (((j.candidates || [])[0] || {}).content || {}).parts;
-  const out = (text || []).map(p => p.text || '').join('').trim();
-  if(!out) throw new Error('Gemini ne khaali jawab diya. Sawaal thoda badal kar poochhiye.');
-  return out;
+  if(last && last.status === 404) throw new Error(`Is key par koi Gemini model nahi mila (${models.join(', ')}). Google ka jawab: ${last.msg}`);
+  if(last && /API key|api_key|credential|unauth/i.test(last.msg)) throw new Error('Gemini key galat hai ya band hai. Super Admin → AI mein sahi key daaliye. Google ka jawab: ' + last.msg);
+  throw new Error('Gemini: ' + (last ? last.msg : 'no answer'));
+}
+// A model that worked after the saved one failed becomes the saved model
+async function aiKeepModel(env, c){
+  if(!c.usedModel || c.usedModel === c.model) return;
+  const v = (await regJson(env, '/conf/get', { k: 'gemini' })).v || {};
+  await regCall(env, '/conf/set', { k: 'gemini', v: { ...v, model: c.usedModel } });
+  c.model = c.usedModel;
 }
 // What the AI may see: totals only. No customer names, phone numbers, addresses or staff PINs.
 function aiContext(d){
@@ -1073,6 +1089,7 @@ export class SetuHotel extends DurableObject {
       try{ d = JSON.parse(this.data()) || {}; }catch(e){}
       try{
         const answer = await gemini(this.env, c, `Hotel ka hisaab:\n${aiContext(d)}\n\nOwner ka sawaal: ${q}`, AI_SYSTEM);
+        await aiKeepModel(this.env, c).catch(() => {});
         return json(200, { answer, used: u.n, limit: c.limit });
       }catch(e){ return json(502, { error: e.message, used: u.n, limit: c.limit }); }
     }
@@ -1286,7 +1303,7 @@ async function admin(request, env, path){
     let test = null;
     if(body.test){
       if(!c.key) test = { ok: false, error: 'Pehle key daaliye' };
-      else { try{ test = { ok: true, answer: (await gemini(env, c, 'Sirf "OK" likho.', 'Short reply.')).slice(0, 80) }; }catch(e){ test = { ok: false, error: e.message }; } }
+      else { try{ test = { ok: true, answer: (await gemini(env, c, 'Sirf "OK" likho.', 'Short reply.')).slice(0, 80) }; await aiKeepModel(env, c); }catch(e){ test = { ok: false, error: e.message }; } }
     }
     return json(200, { hasKey: !!c.key, keyEnd: c.key ? c.key.slice(-4) : '', model: c.model, limit: c.limit, today: u.total || 0, hotelsToday: u.hotels || 0, test });
   }
