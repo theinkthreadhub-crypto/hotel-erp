@@ -1636,6 +1636,11 @@ async function getActivationKeyInfo(keyStr){
     if(kind === 2) return { valid: true, id, plan: `Demo (${value} Minutes)`, minutes: value, days: +(value / 1440).toFixed(4), isLifetime: false, isDemo: true };
     const names = {30: '1 Month (30 Days)', 60: '2 Months (60 Days)', 90: '3 Months (90 Days)', 180: '6 Months (180 Days)', 365: '1 Year (365 Days)'};
     if(kind === 1) return { valid: true, id, plan: names[value] || `${value} Days Plan`, days: value, isLifetime: false };
+    // Kind 5: the vendor sets the licence to exactly N days from the key's issue day (replaces the old date, also a lifetime)
+    if(kind === 5){
+      const issued = new Date(LIC_EPOCH + ((payload[11] << 8) | payload[12]) * 864e5).toISOString().slice(0, 10);
+      return { valid: true, id, plan: `${names[value] || value + ' Days'} (date set by vendor)`, days: value, isLifetime: false, setFrom: issued };
+    }
   }catch(e){}
   return { valid: false, reason: 'format' };
 }
@@ -1672,6 +1677,8 @@ async function activateLicenseKey(keyStr, reason = 'Key Activation'){
     D.subscription.planName = info.plan;
     if(info.minutes){
       D.subscription.validUntil = new Date(Date.now() + info.minutes * 60000).toISOString();
+    } else if(info.setFrom){
+      D.subscription.validUntil = addDays(info.setFrom, info.days);
     } else {
       const currentSub = getSubscriptionInfo();
       let baseDate = today();
@@ -1691,7 +1698,7 @@ async function activateLicenseKey(keyStr, reason = 'Key Activation'){
     time: nowTime(),
     amount: D.subscription.monthlyPrice || 999,
     method: `${reason} [${info.plan}]`,
-    status: info.isLifetime ? 'Lifetime Active' : `Active (+${info.minutes ? info.minutes + ' min' : info.days + ' Days'})`,
+    status: info.isLifetime ? 'Lifetime Active' : info.setFrom ? `Active till ${dmy(D.subscription.validUntil)}` : `Active (+${info.minutes ? info.minutes + ' min' : info.days + ' Days'})`,
     txnId: 'KEY-' + info.id.slice(0, 16)
   });
 

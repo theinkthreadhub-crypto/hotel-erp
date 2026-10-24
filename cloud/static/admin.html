@@ -414,7 +414,10 @@ const saveNotice = run(async (code, on) => {
 });
 
 // ---------------- Keygen (activation keys from the phone) ----------------
-let KG = {plan: '1m', days: 30, iid: '', code: '', send: true, res: null};
+let KG = {plan: '1m', days: 30, iid: '', code: '', send: true, set: true, res: null};
+const KG_DAYS = {'1m': 30, '3m': 90, '6m': 180, '1y': 365};
+// "Set" keys (date from today, replaces the old one) need Setu v1.0.16 or newer on the counter
+const SET_MIN_VER = '1.0.16';
 let KGS = null;
 const KG_PLANS = [['1m', '1 Month', '30 din'], ['3m', '3 Months', '90 din'], ['6m', '6 Months', '180 din'], ['1y', '1 Year', '365 din'],
   ['life', 'Lifetime', 'hamesha'], ['demo24h', 'Demo', '24 ghante'], ['days', 'Apne din', 'kitne bhi'], ['reset', 'Password Reset', 'owner bhool gaya']];
@@ -446,7 +449,11 @@ async function drawKeygen(){
       <div id="kg_match" class="muted" style="font-size:13px;margin-top:6px">${match ? `Hotel: <b>${esc(match.name)}</b> (${esc(match.code)}) · cloud se juda hai` : KG.iid ? 'Ye PC abhi cloud se juda nahi (naya PC). Key PC par khud daalni hogi.' : ''}</div>
       <label>Kitne din ki?</label>
       <div class="plans">${KG_PLANS.map(([k, l, s]) => `<button class="plan ${KG.plan === k ? 'on' : ''}" onclick="kgPlan('${k}')">${l}<small>${s}</small></button>`).join('')}</div>
-      ${KG.plan === 'days' ? `<label>Din</label><input id="kg_days" type="number" min="1" max="3650" value="${+KG.days || 30}" style="width:100%">` : ''}
+      ${KG.plan === 'days' ? `<label>Din</label><input id="kg_days" type="number" min="1" max="3650" value="${+KG.days || 30}" style="width:100%" oninput="KG.days=+this.value;kgDateLine()">` : ''}
+      ${KG_DAYS[KG.plan] || KG.plan === 'days' ? `<label>Date kaise lage?</label>
+        <div class="plans"><button class="plan ${KG.set ? 'on' : ''}" onclick="kgSet(true)">Aaj se ${kgDays()} din<small>purani date hat jayegi (kam bhi kar sakte hain)</small></button>
+          <button class="plan ${KG.set ? '' : 'on'}" onclick="kgSet(false)">Purani date mein jodo<small>bache hue din + ${kgDays()} din</small></button></div>
+        <div id="kg_date" class="muted" style="font-size:13px;margin-top:6px"></div>` : ''}
       ${match && KG.plan !== 'reset' ? `<label class="switch"><input type="checkbox" id="kg_send" ${KG.send ? 'checked' : ''}> Cloud se seedha is hotel ke PC par bhejo</label>` : ''}
       <button class="big" style="margin-top:14px" onclick="kgMake()">${ic('key')} Key banao</button>
     </div>
@@ -455,13 +462,28 @@ async function drawKeygen(){
         <li><b>Key banao</b> → key PC par paste karein → Activate.</li><li>Activate hote hi PC khud cloud se jud jayega aur <b>Hotels</b> mein aa jayega.</li>
         <li>Uske baad ghar baithe yahin se Activate, Lock, Suspend sab.</li></ol>
       <p class="muted" style="margin-bottom:0;font-size:12px">Keygen: ${KGS.from === 'secret' ? 'Cloudflare secret se' : 'saved key file se'} · <a href="#" onclick="event.preventDefault();drawKeygenSetup()">Setup</a></p></div>`;
+  kgDateLine();
   $('#kg_iid').oninput = e => { KG.iid = e.target.value.trim(); KG.code = ''; const s = $('#kg_pick'); if(s) s.value = ''; kgMatchLine(); };
   if($('#kg_pick')) $('#kg_pick').onchange = e => { const h = hotelBy(e.target.value); KG.code = e.target.value; KG.iid = e.target.value ? h.iid : ''; KG.send = true; drawKeygen(); };
+}
+const kgDays = () => KG.plan === 'days' ? (+KG.days || 0) : KG_DAYS[KG.plan] || 0;
+function kgSet(on){ KG.iid = $('#kg_iid').value.trim(); if($('#kg_send')) KG.send = $('#kg_send').checked; KG.set = on; drawKeygen(); }
+// What the licence will read after this key (for a hotel already on the cloud)
+function kgDateLine(){
+  const el = $('#kg_date');
+  if(!el) return;
+  const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, '')), d = kgDays();
+  const old = m && m.lic && m.lic !== 'lifetime' ? Date.parse(m.lic) : null;
+  const base = KG.set || !old || old < Date.now() ? Date.now() : old;
+  let t = `Licence chalegi: <b>${d8(base + d * DAYMS)}</b> tak` + (m ? ` · abhi: <b>${m.lic === 'lifetime' ? 'Lifetime' : m.lic ? d8(Date.parse(m.lic)) : '-'}</b>` : '');
+  if(KG.set && m && verNum(m.appv) < verNum(SET_MIN_VER)) t += `<div class="err">Is hotel par Setu ${m.appv ? 'v' + esc(m.appv) : 'purana'} hai. "Aaj se" wali key ke liye pehle naya EXE (v${SET_MIN_VER}+) install karwaiye, warna key wahan nahi lagegi.</div>`;
+  el.innerHTML = t;
 }
 function kgMatchLine(){
   const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, ''));
   if(!!m !== !!$('#kg_send')) return drawKeygen().then(() => { const i = $('#kg_iid'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
   $('#kg_match').innerHTML = m ? `Hotel: <b>${esc(m.name)}</b> (${esc(m.code)}) · cloud se juda hai` : KG.iid ? 'Ye PC abhi cloud se juda nahi (naya PC). Key PC par khud daalni hogi.' : '';
+  kgDateLine();
 }
 function kgPlan(k){ KG.iid = $('#kg_iid').value.trim(); if($('#kg_days')) KG.days = +$('#kg_days').value; if($('#kg_send')) KG.send = $('#kg_send').checked; KG.plan = k; drawKeygen(); }
 const kgMake = run(async () => {
@@ -471,7 +493,7 @@ const kgMake = run(async () => {
   if(!KG.iid) return toast('Install ID daaliye', true);
   if(KG.plan === 'life' && !await ask('Lifetime key?', '<p class="muted" style="margin-top:0">Ye PC hamesha ke liye chalega.</p>', 'Haan, banao')) return;
   const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.replace(/[^A-Z0-9]/g, ''));
-  KG.res = await api('/api/admin/keygen', {installId: KG.iid, plan: KG.plan === 'days' ? '' : KG.plan, days: KG.days, send: KG.send, code: KG.send && m ? m.code : ''});
+  KG.res = await api('/api/admin/keygen', {installId: KG.iid, plan: KG.plan === 'days' ? '' : KG.plan, days: KG.days, set: !!KG.set && !!kgDays(), send: KG.send, code: KG.send && m ? m.code : ''});
   toast(KG.res.sentTo ? 'Key PC ko bhej di' : 'Key ban gayi');
   await drawKeygen();
   window.scrollTo(0, 0);

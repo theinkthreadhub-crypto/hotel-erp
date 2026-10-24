@@ -423,7 +423,7 @@ def _read_json(path, default):
 
 
 def _key_kind(key):
-    # Byte 1 of a SETU key: 1 days, 2 minutes, 3 lifetime, 4 password reset (not a licence)
+    # Byte 1 of a SETU key: 1 days, 2 minutes, 3 lifetime, 4 password reset (not a licence), 5 date set by the vendor
     B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
     try:
         bits = ''.join(f'{B32.index(c):05b}' for c in key[4:8])
@@ -467,8 +467,14 @@ class CloudSync:
         if not isinstance(d, dict):
             return None, None, {}
         st, sub = d.get('settings') or {}, d.get('subscription') or {}
-        keys = [k for k in (sub.get('usedKeys') or []) if isinstance(k, str) and k.startswith('SETU') and len(k) >= 128 and _key_kind(k) in (1, 2, 3)]
+        keys = self._licence_keys(d)
         return (keys[-1] if keys else None), st.get('installId'), d
+
+    @staticmethod
+    def _licence_keys(d):
+        # Licence keys used on this PC, oldest first (never reset keys or the built-in AD-DEMO keys)
+        sub = (d or {}).get('subscription') or {}
+        return [k for k in (sub.get('usedKeys') or []) if isinstance(k, str) and k.startswith('SETU') and len(k) >= 128 and _key_kind(k) in (1, 2, 3, 5)]
 
     def _post(self, url, path, obj, hotel=None):
         headers = {'Content-Type': 'application/json', 'User-Agent': 'Setu-Main-Counter/1.0'}
@@ -552,13 +558,23 @@ class CloudSync:
         self._save_link(DEFAULT_CLOUD_URL, hotel, j['syncKey'], restore=True)
 
     def _push_license(self):
-        # Licence renewed on this PC: the cloud period follows it (the Worker checks the signature)
-        key, _, _ = self._license()
-        if not key or key == self.state.get('lic'):
-            return
-        code, _ = self._request('POST', '/api/counter/license', json.dumps({'key': key}))
-        if code in (200, 400):   # 400 = key the cloud does not accept: do not resend it every few seconds
-            self.state['lic'] = key
+        # Every licence key used on this PC goes to the cloud once, in order, so the cloud period follows the
+        # PC (the Worker checks each signature and applies the same rules: add days, set the date, lifetime)
+        _, _, d = self._license()
+        keys = self._licence_keys(d)
+        sent = self.state.get('licSent')
+        if sent is None:
+            # First run (just joined / restored, or an older build that sent only the newest key): what the
+            # cloud already counted is everything up to that key
+            last = self.state.get('lic')
+            sent = keys[:keys.index(last) + 1] if last in keys else list(keys)
+            self.state['licSent'] = sent
+            _write_json(self.state_path, self.state)
+        for key in [k for k in keys if k not in sent]:
+            code, _ = self._request('POST', '/api/counter/license', json.dumps({'key': key}))
+            if code not in (200, 400):   # 400 = a key the cloud does not accept: do not resend it every few seconds
+                return
+            sent = self.state['licSent'] = (sent + [key])[-200:]
             _write_json(self.state_path, self.state)
 
     def set_config(self, url, hotel, key, enabled=True):
@@ -736,7 +752,7 @@ class CloudSync:
             new_lv = self.store.version
         _write_json(self.base_path, merged)
         # lv = -1 tells the next round that this PC still has edits the cloud lacks
-        self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1, **({'lic': self.state['lic']} if self.state.get('lic') else {})}
+        self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1, **{k: self.state[k] for k in ('lic', 'licSent') if k in self.state}}
         _write_json(self.state_path, self.state)
         self.status['cloudVersion'] = cv
 

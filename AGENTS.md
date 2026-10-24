@@ -145,6 +145,9 @@ Rebuild the EXE on Windows with `Build-New-EXE.bat`.
   `LIC_PUBKEYS` (current key file first, then the earlier one, so its keys keep working) and `settings.installId` (needs a secure context: 127.0.0.1 / localhost / https).
   Used keys go to `subscription.usedKeys`. `subscription.lastSeen` blocks clock rollback.
   Built-in `AD-DEMO-*` keys work once per install and never shorten a running license.
+  Kind 1 adds days to the running licence; kind 5 (Super Admin Keygen "Aaj se N din", `keygen.py set1m`) sets it to N days
+  from the key's issue day, also shortening a longer one or a lifetime. The counter sends every used key once, in order
+  (`_push_license`, state `licSent`), and the Worker applies the same rules (`licUsed` dedupe) so the cloud period matches.
   Kind 4 = owner password Reset Key (`keygen.py <ID> reset`): `forgotPass()` / `resetOwnerPass()` on the sign-in screen,
   one use, valid 2 days from issue; `getActivationKeyInfo()` must keep refusing it as a license. Both share `licVerify()`.
   Never put real keys, salts or private keys in the page.

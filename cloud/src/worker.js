@@ -162,7 +162,7 @@ function b32encode(bytes){
   return out;
 }
 
-// kind: 1 = days, 2 = minutes (demo), 3 = lifetime, 4 = owner password reset (same as keygen.py)
+// kind: 1 = days (added), 2 = minutes (demo), 3 = lifetime, 4 = owner password reset, 5 = days from today (replaces the date)
 async function makeLicenseKey(env, installId, days, kind = 1, pem = env.LICENSE_PRIVATE_KEY){
   if(!pem) throw new Error('LICENSE_PRIVATE_KEY secret is not set');
   const clean = String(installId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -229,9 +229,11 @@ async function verifyLicense(env, key, installId){
   const ih = new Uint8Array(await crypto.subtle.digest('SHA-256', enc(clean)));
   if(clean.length < 8 || [0, 1, 2, 3].some(i => ih[i] !== payload[4 + i])) throw new Error('license key is for another computer');
   const kind = payload[1], value = (payload[2] << 8) | payload[3], issued = LIC_EPOCH + ((payload[11] << 8) | payload[12]) * DAY;
-  if(kind === 3) return { until: Date.now() + 3650 * DAY, lifetime: true };
-  if(kind === 1) return { until: issued + (value + 1) * DAY, lifetime: false };
-  if(kind === 2) return { until: issued + DAY + value * 60000, lifetime: false };
+  const id = text.slice(0, 128), base = { id, kind, value };
+  if(kind === 3) return { ...base, until: Date.now() + 3650 * DAY, lifetime: true };
+  if(kind === 1) return { ...base, until: issued + (value + 1) * DAY, lifetime: false };
+  if(kind === 2) return { ...base, until: issued + DAY + value * 60000, lifetime: false };
+  if(kind === 5) return { ...base, until: issued + (value + 1) * DAY, lifetime: false, set: true };   // vendor set the date (may be shorter)
   throw new Error('not a license key');
 }
 
@@ -669,12 +671,13 @@ export class SetuHotel extends DurableObject {
         this.kvSet('account', a);
       }
     });
-    const appv = String((d.settings || {}).appVersion || '').slice(0, 20);
-    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed){
+    const appv = String((d.settings || {}).appVersion || '').slice(0, 20), sub = d.subscription || {};
+    const lic = sub.isLifetime ? 'lifetime' : String(sub.validUntil || '').slice(0, 25);
+    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed || lic !== this.licPushed){
       this.appvPushed = appv;
+      this.licPushed = lic;
       this.seenPushed = now;
-      const iid = String((d.settings || {}).installId || '').slice(0, 20), sub = d.subscription || {};
-      const lic = sub.isLifetime ? 'lifetime' : String(sub.validUntil || '').slice(0, 25);
+      const iid = String((d.settings || {}).installId || '').slice(0, 20);
       this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid, lic, appv }).catch(() => {}));
     }
     this.meta = meta;
@@ -1113,8 +1116,15 @@ export class SetuHotel extends DurableObject {
       if(a.plan !== 'counter') return json(200, { ok: true, paidUntil: a.paidUntil, ignored: true });
       let lic;
       try{ lic = await verifyLicense(this.env, body().key, a.installId); }catch(e){ return json(400, { error: e.message }); }
+      // Each key counts once, with the same rules as activateLicenseKey() on the PC
+      a.licUsed = a.licUsed || [];
+      if(a.licUsed.includes(lic.id)) return json(200, { ok: true, paidUntil: a.paidUntil, lifetime: !!a.lifetime, already: true });
       if(lic.lifetime) a.lifetime = true;
-      if(lic.until > (a.paidUntil || 0)){ a.paidUntil = lic.until; if(a.status !== 'suspended') a.status = 'active'; }
+      else if(lic.set){ a.lifetime = false; a.paidUntil = lic.until; }
+      else if(lic.kind === 1){ if(!a.lifetime) a.paidUntil = Math.max(a.paidUntil || 0, Date.now()) + lic.value * DAY; }
+      else if(lic.until > (a.paidUntil || 0)) a.paidUntil = lic.until;
+      if(a.status !== 'suspended') a.status = 'active';
+      a.licUsed = [...a.licUsed, lic.id].slice(-200);
       this.saveAccount();
       return json(200, { ok: true, paidUntil: a.paidUntil, lifetime: !!a.lifetime });
     }
@@ -1325,6 +1335,8 @@ async function admin(request, env, path){
     let kind, value, label;
     if(KEY_PLANS[body.plan]) [kind, value, label] = KEY_PLANS[body.plan];
     else { value = Math.round(+body.days || 0); if(value < 1 || value > 3650) return json(400, { error: 'Din 1 se 3650 ke beech' }); kind = 1; label = value + ' Days'; }
+    // "set": the licence becomes exactly this many days from today (also shortens a longer one); needs Setu v1.0.16+
+    if(body.set && kind === 1){ kind = 5; label += ' (date set)'; }
     const key = await makeLicenseKey(env, iid, value, kind, lp.pem);
     // Send it to the hotel's counter PC through the cloud (it activates on its next sync)
     let sentTo = '';

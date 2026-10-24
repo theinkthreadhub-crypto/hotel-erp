@@ -33,7 +33,8 @@ ISSUED_CSV = os.path.join(BASE_DIR, 'Activation_Keys', 'Setu_Issued_Keys.csv')
 EPOCH = datetime.date(2026, 1, 1)
 B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
-# kind: 1 = days, 2 = minutes (demo), 3 = lifetime, 4 = owner password reset (one use, 2 days)
+# kind: 1 = days (added to the running licence), 2 = minutes (demo), 3 = lifetime,
+#       4 = owner password reset (one use, 2 days), 5 = days from today (replaces the date; Setu v1.0.16+)
 PLANS = {
     '1m':      (1, 30,  '1 Month (30 Days)'),
     '2m':      (1, 60,  '2 Months (60 Days)'),
@@ -44,6 +45,9 @@ PLANS = {
     'demo1h':  (2, 60,  'Demo (1 Hour)'),
     'demo24h': (2, 1440, 'Demo (24 Hours)'),
     'reset':   (4, 0,   'Owner Password Reset'),
+    'set1m':   (5, 30,  'Set: 30 Days from today'),
+    'set3m':   (5, 90,  'Set: 90 Days from today'),
+    'set1y':   (5, 365, 'Set: 1 Year from today'),
 }
 
 
