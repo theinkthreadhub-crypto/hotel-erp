@@ -315,17 +315,18 @@ function urgency(h){
   if(h.tickets) u = Math.max(u, 90);
   if(staleH(h) > 48 && h.seen) u = Math.max(u, 50);
   if(notUsing(h)) u = Math.max(u, 60);
+  if(+h.errs) u = Math.max(u, 55);
   return u;
 }
 let KF = 'all';
 const KFS = {all: ['Sab', () => true], need: ['Dhyan do', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
-  tk: ['Tickets', h => h.tickets > 0], idle: ['Bill band (3+ din)', notUsing], stale: ['Backup nahi', h => staleH(h) > 48]};
+  tk: ['Tickets', h => h.tickets > 0], idle: ['Bill band (3+ din)', notUsing], err: ['Errors (24 ghante)', h => +h.errs > 0], stale: ['Backup nahi', h => staleH(h) > 48]};
 function setKF(k){ KF = k; drawHotelsBody(); }
 async function drawHotels(){
   await loadHotels();
   const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
   $('#main').innerHTML = `<div class="card" style="display:flex;gap:10px;align-items:center;padding:12px 14px">${ic('chart')}<div style="flex:1"><b>Aaj sab hotels: ${today} bill</b>
-      <div class="muted" style="font-size:12px">${using} / ${live.length} hotels ne aaj bill banaye${HOTELS.filter(notUsing).length ? ` · <span class="err">${HOTELS.filter(notUsing).length} hotel 3+ din se band</span>` : ''}</div></div></div>
+      <div class="muted" style="font-size:12px">${using} / ${live.length} hotels ne aaj bill banaye${HOTELS.filter(notUsing).length ? ` · <span class="err">${HOTELS.filter(notUsing).length} hotel 3+ din se band</span>` : ''}${HOTELS.filter(h => +h.errs).length ? ` · <span class="err" style="cursor:pointer" onclick="setKF('err')">${HOTELS.filter(h => +h.errs).length} hotel mein error</span>` : ''}</div></div></div>
     <div class="search">${ic('search')}<input id="q" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
   $('#q').oninput = drawCards;
   drawHotelsBody();
@@ -339,6 +340,7 @@ function hotelAlert(h){
   if(d !== null && d !== Infinity && d < 0) return ['bad', 'Licence ' + d8(Date.parse(h.lic)) + ' ko khatam ho gaya'];
   if(d !== null && d !== Infinity && d <= 5) return ['warn', 'Licence ' + d + ' din mein khatam (' + d8(Date.parse(h.lic)) + ')'];
   if(h.tickets) return ['warn', h.tickets + ' naya ticket message'];
+  if(+h.errs){ const e = lastErr(h); return ['bad', `${h.errs} error (24 ghante)${e ? ' · ' + e.kya : ''}`]; }
   if(notUsing(h)) return ['bad', idleDays(h) === null ? 'Abhi tak ek bhi bill nahi bana' : `${idleDays(h)} din se koi bill nahi (aakhri ${d8(Date.parse(h.lastbill))}) — client se baat karein`];
   if(h.seen && staleH(h) > 48) return ['warn', 'PC se ' + ago(h.seen) + ' se data nahi aaya'];
   return null;
@@ -353,6 +355,9 @@ function licTag(h){
 const verNum = v => String(v || '').split('.').map(n => +n || 0).reduce((a, n) => a * 10000 + n, 0);
 const newestVer = () => HOTELS.reduce((m, h) => verNum(h.appv) > verNum(m) ? h.appv : m, '');
 const verTag = h => !h.appv ? '<span class="tag">Version -</span>' : `<span class="tag ${verNum(h.appv) < verNum(newestVer()) ? 'warn' : ''}">v${esc(h.appv)}${verNum(h.appv) < verNum(newestVer()) ? ' · purana' : ''}</span>`;
+// Error Log from the hotel's devices (D.errSync): count in 24 hours + the newest error
+const lastErr = h => { try{ return h.lasterr ? JSON.parse(h.lasterr) : null; }catch(e){ return null; } };
+const errTag = h => +h.errs ? `<span class="tag bad">${h.errs} error</span>` : '';
 const seenTag = h => `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Abhi sync nahi'}</span>`;
 function drawCards(){
   const q = ($('#q').value || '').trim().toLowerCase();
@@ -362,7 +367,7 @@ function drawCards(){
     const [sl, sc] = appState(h), al = hotelAlert(h);
     return `<div class="hc" onclick="hotelSheet('${esc(h.code)}')"><div class="top">${avatar(h)}
         <div class="mid"><b class="nm">${esc(h.name)}</b><small>${esc(h.code)}${h.owner ? ' · ' + esc(h.owner) : ''}</small></div><span class="st ${sc}">${sl}</span></div>
-      <div class="tags">${billTag(h)}${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
+      <div class="tags">${errTag(h)}${billTag(h)}${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
       ${al ? `<div class="strip ${al[0]}">${esc(al[1])}</div>` : ''}</div>`;
   }).join('') || `<div class="card muted" style="text-align:center">${KF === 'all' && !q ? 'Abhi koi hotel nahi. Naye PC par EXE install karke Keygen se activate karein.' : 'Is list mein kuch nahi'}</div>`;
 }
@@ -381,6 +386,7 @@ function hotelSheet(code){
       <div><span>Licence</span><b class="${d === Infinity ? 'ok' : d !== null && d <= 5 ? 'err' : ''}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + (d < 0 ? ' · khatam' : ' · ' + d + ' din')}</b></div>
       <div><span>Bill</span><b>Aaj ${billsToday(h)} · 7 din ${bills7(h)} · kul ${(+h.ball || 0).toLocaleString('en-IN')}</b></div>
       <div><span>Aakhri bill</span><b class="${notUsing(h) ? 'err' : ''}">${h.lastbill ? d8(Date.parse(h.lastbill)) + (idleDays(h) ? ` · ${idleDays(h)} din pehle` : ' · aaj') : 'Abhi tak nahi'}</b></div>
+      <div><span>Error</span><b class="${+h.errs ? 'err' : ''}">${lastErr(h) ? `${+h.errs || 0} (24 ghante) · ${esc(lastErr(h).kya)} · ${ago(lastErr(h).at)}` : 'Koi nahi'}</b></div>
       <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Abhi nahi'}</b></div>
       <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(naya: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
       <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
@@ -393,6 +399,7 @@ function hotelSheet(code){
       ${lk === 1 ? tile('warn', 'Warning hatao', 'abhi dikh rahi', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu chalta rahe', `warnAsk('${C}')`, 'amber')}
       ${sus ? tile('play', 'Activate', 'account chalu', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account band', `suspendAsk('${C}')`, 'red')}
       ${tile('msg', 'Message', h.notice ? 'dikh raha' : 'popup bhejo', `noticeBox('${C}')`)}
+      ${tile('warn', 'Error Log', +h.errs ? h.errs + ' (24 ghante)' : 'sab dekho', `hotelErrors('${C}')`, +h.errs ? 'red' : '')}
       ${tile('ticket', 'Tickets', h.tickets ? h.tickets + ' naye' : '', `hotelTickets('${C}')`)}
       ${tile('download', 'Backup', 'download', `dlBackup('${C}')`)}
       ${tile('user', 'Password', 'owner ka', `pwAsk('${C}')`)}
@@ -690,6 +697,25 @@ async function drawTickets(code){
     ${TICKETS.map(t => `<div class="hcard" style="cursor:pointer" onclick="ticketBox('${esc(t.id)}')"><b>${esc(t.subject)}</b> ${t.unread_admin ? '<span class="badge">new</span>' : ''} ${pill(t.status === 'resolved' ? 'active' : 'pending').replace(/>(active|pending)</, '>' + (t.status === 'resolved' ? 'resolved' : 'open') + '<')}
       <div class="muted" style="font-size:12px">${esc(t.hotel_name || hotelBy(t.code).name)} · <code>${esc(t.code)}</code> · ${dt(t.updated)}</div>
       <div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(((t.msgs || []).slice(-1)[0] || {}).text || '')}</div></div>`).join('') || '<p class="muted">No tickets yet.</p>'}</div>`;
+}
+// One hotel's Error Log: every device (counter PC, phones), what went wrong, where, how often
+let ERRS = [];
+const hotelErrors = run(async code => {
+  const h = hotelBy(code);
+  sheet(`<h2>Error Log — ${esc(h.name)}</h2><p class="muted">Load ho raha hai...</p>`);
+  ERRS = (await api('/api/admin/errors', {code})).errors || [];
+  sheet(`<h2>Error Log — ${esc(h.name)}</h2>
+    <p class="muted" style="margin-top:0">Hotel ke har device (counter PC, phone) ki galtiyan, pichhle 7 din. Har minute update hoti hain jab device online ho.</p>
+    ${ERRS.map(e => `<div class="card" style="border-left:4px solid ${Date.now() - e.at < DAYMS ? 'var(--bad)' : 'var(--line, #cbd5e1)'};padding:10px 12px;margin:8px 0">
+      <b style="word-break:break-word">${esc(e.kya)}</b>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(e.dev || '-')}${e.user ? ' · ' + esc(e.user) : ''} · ${ago(e.at)} (${dt(e.at)})${+e.n > 1 ? ` · <b>${e.n} baar</b>` : ''}${e.ver && e.ver !== 'dev' ? ' · v' + esc(e.ver) : ''}</div>
+      ${e.kahan ? `<div style="font-size:13px;margin-top:4px"><b>Kahan:</b> ${esc(e.kahan)}</div>` : ''}
+      ${e.kaise ? `<details style="margin-top:4px"><summary class="muted" style="font-size:12px">Technical detail</summary><code style="display:block;white-space:pre-wrap;font-size:11px">${esc(e.kaise)}</code></details>` : ''}
+    </div>`).join('') || '<div class="card muted" style="text-align:center">Koi error nahi. Sab theek chal raha hai.</div>'}
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button>${ERRS.length ? `<button onclick="errsCopy('${esc(code)}')">Copy</button>` : ''}</div>`);
+});
+function errsCopy(code){
+  copyText([`Setu Error Log · ${hotelBy(code).name} (${code})`].concat(ERRS.map(e => `${dt(e.at)} | ${e.dev} | ${e.kya} | ${e.kahan || ''}${+e.n > 1 ? ' | ' + e.n + 'x' : ''}`)).join('\n'), 'Error Log');
 }
 const hotelTickets = run(async code => { closeAll(); VIEW = 'tickets'; nav(); await drawTickets(code); });
 function ticketBox(id){

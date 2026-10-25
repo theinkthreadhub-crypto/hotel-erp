@@ -339,3 +339,12 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 - **Cloud join errors**: `_net_reason()` turns the failure into plain words (SSL / date-time, DNS, timeout, blocked); `_urlopen()`
   retries SSL errors with the bundled certifi CA list.
 
+
+## Error Log in Super Admin
+- Every device copies its Error Log into the synced data as `D.errSync` (`errSyncFlush()`, every minute, 15 s after boot): one entry
+  per device + error (`id` = hash of device + kya + kahan, so repeats only bump `n` / `at`), newest 60, kept 7 days. The main counter also
+  adds error lines from `setu-server.log` (printer, cloud, save). Device names: Main Counter PC / Phone (WiFi) / Phone (cloud) / LAN device.
+- Worker `errUsage(d)` writes registry columns `errs` (errors in 24 hours) and `lasterr` (JSON of the newest) on each commit;
+  `POST /api/admin/errors {code}` returns the hotel's list (`/internal/errors`).
+- Super Admin: red "N error" tag and strip on the hotel card, chip "Errors (24 ghante)", an "Error" row and an "Error Log" tile in the
+  hotel sheet (`hotelErrors()`), with Copy.

@@ -156,6 +156,15 @@ function billUsage(d, now = Date.now()){
   return { bdays, ball, lastbill, key: bdays + '|' + ball + '|' + lastbill };
 }
 
+// Errors the hotel's devices reported (D.errSync, kept by the app): count in the last 24 hours + the newest one
+function errUsage(d, now = Date.now()){
+  const list = (Array.isArray(d.errSync) ? d.errSync : []).filter(e => e && +e.at);
+  const errs = list.filter(e => now - e.at < DAY).reduce((n, e) => n + (+e.n || 1), 0);
+  const last = list.reduce((m, e) => !m || e.at > m.at ? e : m, null);
+  const lasterr = last ? JSON.stringify({ at: last.at, kya: String(last.kya || '').slice(0, 160), dev: String(last.dev || '').slice(0, 30) }) : '';
+  return { errs, lasterr, key: errs + '|' + lasterr };
+}
+
 // What the hotel's devices see in D.saas
 function saasView(a){
   const c = a.config || newConfig('restaurant');
@@ -404,6 +413,9 @@ export class SetuRegistry extends DurableObject {
     if(!cols.includes('bdays')) this.sql.exec('ALTER TABLE hotel ADD COLUMN bdays TEXT');
     if(!cols.includes('ball')) this.sql.exec('ALTER TABLE hotel ADD COLUMN ball INTEGER DEFAULT 0');
     if(!cols.includes('lastbill')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lastbill TEXT');
+    // Error Log from the hotels: errors in the last 24 hours and the newest one (JSON)
+    if(!cols.includes('errs')) this.sql.exec('ALTER TABLE hotel ADD COLUMN errs INTEGER DEFAULT 0');
+    if(!cols.includes('lasterr')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lasterr TEXT');
     // Help & Support tickets from the hotels, and Install IDs the vendor blocked
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ticket (id TEXT PRIMARY KEY, code TEXT NOT NULL, subject TEXT, status TEXT, msgs TEXT,
       created INTEGER, updated INTEGER, unread_admin INTEGER DEFAULT 0, unread_hotel INTEGER DEFAULT 0)`);
@@ -525,7 +537,7 @@ export class SetuRegistry extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/update'){
-      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill'].filter(c => c in body);
+      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill', 'errs', 'lasterr'].filter(c => c in body);
       if(cols.length) this.sql.exec(`UPDATE hotel SET ${cols.map(c => c + ' = ?').join(', ')} WHERE code = ?`, ...cols.map(c => body[c]), body.code);
       return json(200, { ok: true });
     }
@@ -705,15 +717,17 @@ export class SetuHotel extends DurableObject {
     });
     const appv = String((d.settings || {}).appVersion || '').slice(0, 20), sub = d.subscription || {};
     const lic = sub.isLifetime ? 'lifetime' : String(sub.validUntil || '').slice(0, 25);
-    const use = billUsage(d, now);
-    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed || lic !== this.licPushed || use.key !== this.usePushed){
+    const use = billUsage(d, now), eu = errUsage(d, now);
+    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed || lic !== this.licPushed || use.key !== this.usePushed
+      || eu.key !== this.errPushed){
+      this.errPushed = eu.key;
       this.appvPushed = appv;
       this.licPushed = lic;
       this.usePushed = use.key;
       this.seenPushed = now;
       const iid = String((d.settings || {}).installId || '').slice(0, 20);
       this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid, lic, appv,
-        bdays: use.bdays, ball: use.ball, lastbill: use.lastbill }).catch(() => {}));
+        bdays: use.bdays, ball: use.ball, lastbill: use.lastbill, errs: eu.errs, lasterr: eu.lasterr }).catch(() => {}));
     }
     this.meta = meta;
     this.raw = raw;
@@ -1024,6 +1038,12 @@ export class SetuHotel extends DurableObject {
       const syncKey = this.issuedSyncKey;
       this.issuedSyncKey = '';
       return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', storedOwnerPass: this.account.ownerPass || '' });
+    }
+    if(path === '/internal/errors'){
+      let d = null;
+      try{ d = JSON.parse(this.data()); }catch(e){}
+      const list = (d && Array.isArray(d.errSync) ? d.errSync : []).slice().sort((x, y) => (+y.at || 0) - (+x.at || 0));
+      return json(200, { errors: list.slice(0, 100) });
     }
     if(path === '/internal/backup') return rawJson(200, this.dbText(`"hotel": ${JSON.stringify(this.account.code)}, `));
     if(path === '/internal/delete'){
@@ -1433,6 +1453,7 @@ async function admin(request, env, path){
     if(r.ok) await log('Ticket reply', code, str(body.reply || body.status, 120));
     return r;
   }
+  if(path === '/api/admin/errors') return hotelCall(code, '/internal/errors', {});
   if(path === '/api/admin/backup'){
     const r = await hotelCall(code, '/internal/backup', {});
     if(!r.ok) return r;

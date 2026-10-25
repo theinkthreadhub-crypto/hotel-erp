@@ -1001,6 +1001,41 @@ function logError(kya, kahan, kaise){
     lsSet(ERRLOG_KEY, JSON.stringify(list.slice(0, 200)));
   }catch(e){}
 }
+// Errors also go to the vendor's Super Admin (D.errSync, synced like other data): one entry per device + error,
+// newest 60, kept 7 days. The main counter adds its server log errors (printer, cloud, save) too.
+const errDev = () => SRV.cloud ? (/Android/i.test(navigator.userAgent) ? 'Phone (cloud)' : 'Browser (cloud)')
+  : SRV.local ? 'Main Counter PC' : /Android|iPhone/i.test(navigator.userAgent) ? 'Phone (WiFi)' : 'LAN device';
+const errId = t => { let h = 0; for(const c of t) h = (h * 31 + c.charCodeAt(0)) | 0; return 'e' + (h >>> 0).toString(36); };
+async function errSyncFlush(){
+  try{
+    if(!SRV.on || SRV.readOnly || typeof D === 'undefined' || !D || !D.settings || !activeUser) return;
+    const dev = errDev(), now = Date.now(), ver = APP_VERSION;
+    const found = errList().slice(0, 40).map(x => ({id: errId(dev + '|' + x.kya + '|' + x.kahan), at: x.at, kya: x.kya, kahan: x.kahan,
+      kaise: String(x.kaise || '').split('\n')[0].slice(0, 300), n: x.n || 1, dev, user: x.user || '', ver}));
+    if(SRV.local){
+      let lines = [];
+      try{ lines = ((await (await srvFetch('/api/log')).json()).lines || []).filter(srvErrLine).slice(-80); }catch(e){}
+      const byText = {};
+      lines.forEach(l => {
+        const m = l.match(/^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (.*)$/), text = (m ? m[2] : l).slice(0, 300);
+        const at = m ? new Date(m[1].replace(' ', 'T')).getTime() || now : now, k = text.replace(/\d+/g, '#');
+        const e = byText[k] || (byText[k] = {id: errId('srv|' + k), at, kya: text, kahan: 'Main Counter server (setu-server.log)', kaise: '', n: 0, dev: 'Main Counter PC', user: '', ver});
+        e.n++; if(at > e.at){ e.at = at; e.kya = text; }
+      });
+      found.push(...Object.values(byText));
+    }
+    const list = Array.isArray(D.errSync) ? D.errSync : [], map = new Map(list.map(e => [e.id, e]));
+    let changed = false;
+    found.forEach(e => {
+      const o = map.get(e.id);
+      if(!o || o.at !== e.at || o.n !== e.n){ map.set(e.id, e); changed = true; }
+    });
+    const keep = [...map.values()].filter(e => now - e.at < 7 * 864e5).sort((a, b) => b.at - a.at).slice(0, 60);
+    if(keep.length !== list.length) changed = true;
+    if(changed){ D.errSync = keep; save(); }
+  }catch(e){}
+}
+setInterval(errSyncFlush, 60000);
 window.addEventListener('error', e => logError(e.message, `${(e.filename || '').split('/').pop()}:${e.lineno || ''} · screen: ${typeof cur !== 'undefined' ? cur : ''}`, e.error && e.error.stack));
 window.addEventListener('unhandledrejection', e => { const r = e.reason || {}; logError(r.message || String(r), `screen: ${typeof cur !== 'undefined' ? cur : ''}`, r.stack || ''); });
 
@@ -8199,6 +8234,7 @@ async function autoPrinterSetup(){
   autoPrinterSetup();
   setTimeout(cloudPill, 3000);
   setTimeout(footerHotel, 3000);
+  setTimeout(errSyncFlush, 15000);
 })();
 
 // Register Service Worker for 100% offline computer execution

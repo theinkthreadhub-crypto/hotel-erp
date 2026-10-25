@@ -323,3 +323,10 @@ flowchart LR
 - **WhatsApp** messages ek-ek karke jaate hain (bulk auto-send ke liye WhatsApp Business API chahiye).
 - Har PC ki apni Install ID aur apni key. Master Key sirf vendor ki pendrive mein.
 - `setu-license-private.pem` aur Admin Key kabhi kisi ko nahi. Kho gayi to turant vendor / developer ko batayein.
+
+### Hotels ke errors Admin app mein
+- Har hotel ke har device (counter PC, phone) ki galti apne aap Admin app mein aati hai (internet par, har minute).
+- Hotels list: laal **"N error"** tag, aur upar **"Errors (24 ghante)"** chip se sirf wahi hotels.
+- Hotel kholo → **Error Log** tile: kya galti hui, kis device par, kahan, kitni baar, kab. **Copy** se WhatsApp par bhej sakte hain.
+- Printer ki galti → client ko Printer Health (4) dekhne ko kahein.
+
