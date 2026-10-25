@@ -38,6 +38,7 @@ Read it fully before changing anything: licensing, sync and printing carry real 
 | `cloud/static/admin.html` | Super Admin page (served at `/admin.html`). `cloud/static/_headers` = no-cache for pages. |
 | `cloud/scripts/copy-assets.mjs` | Allow-list copy of public files into `cloud/public` before deploy (never `app_main.py`, `keygen.py`, keys). |
 | `cloud/wrangler.toml` | Worker config (`keep_vars = true`, assets binding). |
+| `android-pos/` | **Setu POS** APK (`com.aghanya.setupos`): first screen `assets/start.html` picks the counter PC on the WiFi (`http://<IP>:8000`, cleartext allowed) or Hotel Setu Cloud; choice in SharedPreferences. `SA` bridge: `open/saved/change`, `save` (files), `print` (WebView has no `window.print`; the page calls `appPrint()`), `copy`, `share`. Built by `build-pos-apk.yml` → `SetuPOS.apk`. |
 | `android-admin/` | **Setu Hotel Admin** APK (`com.aghanya.setuadmin`): WebView of `/admin.html` + `SA` bridge (save/share file, copy, share text), WebChromeClient (dialogs, file pick). |
 | `.github/workflows/` | `build-exe.yml`, `build-admin-apk.yml`, `setu-cloud-deploy.yml`, `setu-cloud-check.yml` (see §5). |
 | `DB-STRUCTURE.md`, `DB-CRASH-RISKS.md`, `WORKFLOW.md`, `README.md`, `cloud/README-HINDI.md` | Older notes; this file wins where they differ. |
