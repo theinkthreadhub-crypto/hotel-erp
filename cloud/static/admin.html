@@ -388,7 +388,7 @@ function hotelSheet(code){
     </div>
     <div class="muted" style="font-size:12px;margin:-6px 0 4px">Pichhle 7 din ke bill</div>${billBars(h)}
     <div class="tiles">
-      ${tile('key', 'Activate', 'Key bhejo', `keygenFor('${C}')`, 'blue')}
+      ${h.plan === 'counter' ? tile('key', 'Activate', 'Key bhejo', `keygenFor('${C}')`, 'blue') : tile('key', 'Activate', 'Din do (mobile)', `cloudDays('${C}')`, 'blue')}
       ${lk === 2 ? tile('unlock', 'Unlock', 'Setu chalu karo', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Setu band karo', `lockAsk('${C}')`, 'red')}
       ${lk === 1 ? tile('warn', 'Warning hatao', 'abhi dikh rahi', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu chalta rahe', `warnAsk('${C}')`, 'amber')}
       ${sus ? tile('play', 'Activate', 'account chalu', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account band', `suspendAsk('${C}')`, 'red')}
@@ -407,6 +407,34 @@ const adminUpdate = async (code, update, msg) => {
   if(VIEW === 'hotels') drawHotelsBody();
   if($('#sheet').classList.contains('open')) hotelSheet(code);
 };
+// Phone-only hotel (no counter PC, plan is not 'counter'): its licence is the cloud period, no key needed
+let CD = {days: 30, set: true, life: false};
+function cloudDays(code){
+  const h = hotelBy(code), old = h.lic === 'lifetime' ? null : h.paid_until;
+  const plans = [[30, '1 Month'], [90, '3 Months'], [180, '6 Months'], [365, '1 Year']];
+  const base = CD.set || !old || old < Date.now() ? Date.now() : old;
+  sheet(`<h2>Activate — ${esc(h.name)}</h2>
+    <p class="muted" style="margin-top:0">Ye hotel bina computer (mobile / cloud) chalta hai. Yahan din dete hi phone par turant lag jaate hain, key nahi chahiye.</p>
+    <div class="plans">${plans.map(([d, l]) => `<button class="plan ${!CD.life && CD.days === d ? 'on' : ''}" onclick="CD.days=${d};CD.life=false;cloudDays('${esc(code)}')">${l}<small>${d} din</small></button>`).join('')}
+      <button class="plan ${CD.life ? 'on' : ''}" onclick="CD.life=true;cloudDays('${esc(code)}')">Lifetime<small>hamesha</small></button>
+      <button class="plan ${!CD.life && !plans.some(p => p[0] === CD.days) ? 'on' : ''}" onclick="CD.days=0;CD.life=false;cloudDays('${esc(code)}')">Apne din<small>kitne bhi</small></button></div>
+    ${!CD.life && !plans.some(p => p[0] === CD.days) ? `<label>Din</label><input id="cd_days" type="number" min="1" max="3650" value="${CD.days || 30}" oninput="CD.days=+this.value">` : ''}
+    ${CD.life ? '' : `<label>Date kaise lage?</label>
+      <div class="plans"><button class="plan ${CD.set ? 'on' : ''}" onclick="CD.set=true;cloudDays('${esc(code)}')">Aaj se ${CD.days || '?'} din<small>purani date hat jayegi</small></button>
+        <button class="plan ${CD.set ? '' : 'on'}" onclick="CD.set=false;cloudDays('${esc(code)}')">Purani date mein jodo<small>bache din + naye</small></button></div>
+      <p class="muted" style="font-size:13px">Licence chalegi: <b>${CD.days ? d8(base + CD.days * DAYMS) : '-'}</b> tak · abhi: <b>${h.lic === 'lifetime' ? 'Lifetime' : old ? d8(old) : '-'}</b></p>`}
+    <label>Paisa mila (₹, optional)</label><input id="cd_amt" type="number" min="0" placeholder="jaise 999">
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button><button onclick="cloudDaysSave('${esc(code)}')">Lagao</button></div>`);
+}
+const cloudDaysSave = run(async code => {
+  if($('#cd_days')) CD.days = +$('#cd_days').value;
+  const amt = +($('#cd_amt') || {}).value || 0;
+  if(!CD.life && !(CD.days >= 1)) return toast('Din likhiye', true);
+  const u = CD.life ? {lifetime: true} : CD.set ? {setDays: CD.days} : {days: CD.days, amount: amt};
+  await adminUpdate(code, u, CD.life ? 'Lifetime de diya' : 'Din lag gaye. Phone par turant.');
+  hotelSheet(code);
+});
+
 const msgField = (ph, val) => `<label>Message (Setu mein dikhega)</label><textarea id="lm" rows="3" maxlength="300" placeholder="${ph}">${esc(val || '')}</textarea>`;
 const lockAsk = run(async code => {
   const v = await ask('Setu lock karein?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)} ke saare devices par Setu band ho jayega, sirf aapka message dikhega. Data safe rahega. Unlock dabate hi chalu.</p>${msgField('Jaise: Payment due hai. Aghanya Devanya Enterprises se sampark karein.')}`, 'Lock karo', true);
@@ -746,10 +774,12 @@ function drawAdd(){
     try{ j = await api('/api/admin/create', f); }catch(err){ $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err; }
     if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
     $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
-      <p>Send this to the owner (WhatsApp):</p>
-      <div class="card" style="background:var(--soft)">Link: <code>${esc(location.origin)}/hotel_erp.html</code><br>Hotel Code: <b>${esc(j.code)}</b><br>Password: the one you set<br>
-        Counter PC Sync Key: <code>${esc(j.syncKey)}</code> <span class="muted">(will not be shown again)</span></div>
-      <div class="row"><button onclick="openHotel('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Add Another</button></div></div>`;
+      <p>Owner ko WhatsApp par bhejiye:</p>
+      <div class="card" style="background:var(--soft)" id="newmsg">Setu POS (mobile) — ${esc(f.name)}<br>1. <b>SetuPOS.apk</b> install karein.<br>2. App kholein → <b>Internet se (Hotel Setu Cloud)</b> → Cloud se kholo.<br>
+        3. Hotel Code: <b>${esc(j.code)}</b><br>4. Password: <b>${esc(f.password)}</b><br>(Browser se bhi: ${esc(location.origin)}/hotel_erp.html)</div>
+      <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText($('#newmsg').innerText)">WhatsApp / Share</button><button class="g" onclick="copyText($('#newmsg').innerText, 'Message')">Copy</button></div>
+      <details class="muted" style="font-size:12px;margin-bottom:10px"><summary>Baad mein computer lagaye to (Counter PC Sync Key)</summary><code>${esc(j.syncKey)}</code> (dobara nahi dikhegi)</details>
+      <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Hotel kholo</button><button class="g" onclick="show('add')">Ek aur banao</button></div></div>`;
   });
 }
 

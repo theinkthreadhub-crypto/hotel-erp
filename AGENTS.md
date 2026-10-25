@@ -186,6 +186,11 @@ cd cloud && node scripts/copy-assets.mjs && npx wrangler dev --port 8787 --local
 - `prepare(d)` makes `D.saas` from the account (`saasView`: tier, features, billing template, rules, `notice`, `lock`; a suspended
   hotel gets `lock.lv 2`). Clients only read `D.saas`; the counter's merge always takes `saas` from the cloud. Off modules keep the
   server's copy of their keys (`FEATURES`). Catalogue: `FEATURES`, `TIERS` (basic / premium / diamond), `TEMPLATES`.
+- **Phone-only hotels (no computer):** made in Super Admin → More → Naya Hotel (plan is not `counter`), used from the Setu POS app
+  (Internet se) or a browser with Hotel Code + password. `prepare()` writes their `d.subscription` from the cloud period
+  (`validUntil` = `paidUntil` day, `isLifetime`, `cloud: true`, no `lastSeen`), so no key is needed; the app skips the clock-rollback
+  check for `cloud` and re-checks the lock on every refresh. Super Admin → Activate on such a hotel opens `cloudDays()`
+  (`setDays` = N days from today, `days` = add, `lifetime`). Printing = Android print; direct thermal printing needs a counter PC.
 - `blocked()`: suspended, or paid period + `GRACE_DAYS` over → saves get 402 (reading still works). The counter keeps billing locally
   and still applies the vendor's `saas` (lock screen) on 402.
 - **Counter sync** (`CloudSync` in `app_main.py`): counter = master; Python port of `merge3` with the cloud as "mine" so printed bill

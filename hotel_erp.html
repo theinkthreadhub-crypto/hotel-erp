@@ -1220,6 +1220,8 @@ async function srvPoll(){
 const LIVE_SCREENS = ['gateway', 'kitchen', 'online', 'bills', 'captain', 'tokens', 'reservations', 'daybook', 'settlement'];
 function srvRefreshScreen(){
   saasNotices();
+  // A new date from the cloud (renewed / shortened by the vendor) shows or lifts the licence lock at once
+  if(activeUser && D.subscription && D.subscription.cloud) checkExpiryLock();
   updateOnlinePills();
   updateSubscriptionUI();
   if(!activeUser || isModal()) return;
@@ -1993,8 +1995,8 @@ function getSubscriptionInfo(){
     };
   }
 
-  // Clock turned back by more than a day since Setu last ran: treat as expired
-  if((+D.subscription.lastSeen || 0) - Date.now() > 86400000){
+  // Clock turned back by more than a day since Setu last ran: treat as expired (a cloud-only hotel's date is set by the cloud)
+  if(!D.subscription.cloud && (+D.subscription.lastSeen || 0) - Date.now() > 86400000){
     return { ...D.subscription, daysLeft: 0, isExpired: true, isExpiring: false, isLifetime: false, status: 'expired', clockTampered: true };
   }
 
@@ -2115,7 +2117,7 @@ function checkExpiryLock(){
   if(!lockEl) return false;
 
   // Remember the latest time seen, so turning the PC clock back cannot extend a license
-  if(!s.clockTampered && Date.now() > (+D.subscription.lastSeen || 0) + 600000){
+  if(!s.clockTampered && !D.subscription.cloud && Date.now() > (+D.subscription.lastSeen || 0) + 600000){
     D.subscription.lastSeen = Date.now();
     save();
   }
@@ -2125,8 +2127,10 @@ function checkExpiryLock(){
     drawLockPay();
     const why = $('#lock-reason');
     if(why){
-      why.style.display = s.clockTampered ? 'block' : 'none';
-      why.textContent = s.clockTampered ? 'The computer date/time has been set back. Please correct it or obtain a new key from your vendor.' : '';
+      const cloud = D.subscription && D.subscription.cloud;
+      why.style.display = s.clockTampered || cloud ? 'block' : 'none';
+      why.textContent = cloud ? 'Hotel Setu Cloud ka samay khatam ho gaya. Aghanya Devanya Enterprises se renew karwaiye — key ki zarurat nahi, renew hote hi Setu yahin khul jayega.'
+        : s.clockTampered ? 'The computer date/time has been set back. Please correct it or obtain a new key from your vendor.' : '';
     }
     lockEl.style.display = 'flex';
     document.body.style.overflow = 'hidden';

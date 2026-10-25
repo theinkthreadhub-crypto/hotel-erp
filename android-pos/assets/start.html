@@ -24,17 +24,17 @@
   <div class="head"><img src="logo.png" alt=""><h1>Setu POS</h1><p>Setu kahan se chalana hai?</p></div>
 
   <div class="card">
-    <h2>Restaurant ke WiFi par</h2>
+    <h2>Internet se (Hotel Setu Cloud)</h2>
+    <p>Bina computer wale hotel, aur owner kahin se bhi. Vendor se mila <b>Hotel Code</b> aur password / PIN chahiye. Internet (WiFi ya mobile data) chahiye.</p>
+    <button class="g" onclick="SA.open('cloud', '')">Cloud se kholo</button>
+  </div>
+
+  <div class="card">
+    <h2>Restaurant ke WiFi par (counter PC wala hotel)</h2>
     <p>Waiter, cashier, kitchen ke liye. Counter PC chalu ho aur phone usi WiFi par ho. Counter PC ka address Setu → Settings (G) → "Phone / Tablet Connect" mein likha hota hai (jaise 192.168.1.6).</p>
     <input id="ip" inputmode="decimal" placeholder="Counter PC ka IP, jaise 192.168.1.6" autocomplete="off">
     <div class="err" id="err"></div>
     <button onclick="lan()">Counter PC se jodein</button>
-  </div>
-
-  <div class="card">
-    <h2>Internet se (Hotel Setu Cloud)</h2>
-    <p>Owner ke liye, kahin se bhi. Hotel Code aur owner password / PIN chahiye.</p>
-    <button class="g" onclick="SA.open('cloud', '')">Cloud se kholo</button>
   </div>
 
   <div class="foot">Ye choice yaad rahegi. Badalni ho to Setu mein <b>Back</b> dabate rahiye, ye screen wapas aa jayegi.<br>Powered by Aghanya Devanya Enterprises</div>

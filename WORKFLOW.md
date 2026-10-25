@@ -80,6 +80,15 @@ flowchart TD
 3. Client: Sign Up ya **License (K)** mein key paste → Activate. Internet aate hi cloud se jud jayega.
    (PC par bhi bana sakte hain: `Generate-Activation-Keys.bat` → Install ID → plan.)
 
+### 2.6 Bina computer wala hotel (sirf mobile)
+1. Admin app → **More → Naya Hotel banao** → hotel, owner, mobile, type, plan, din, owner password → **Create**.
+2. Jo message bane use **WhatsApp / Share** se owner ko bhejein (Hotel Code + password + app ka tareeka).
+3. Owner phone mein **SetuPOS.apk** install kare → **Internet se (Hotel Setu Cloud)** → Hotel Code + password → billing shuru.
+4. Din dena / renew: Admin app → hotel → **Activate (Din do)** → plan → **Aaj se N din** ya **Purani date mein jodo** → **Lagao**.
+   Phone par turant lag jaata hai, key nahi chahiye. Lock / Suspend / Message / Bill count sab waise hi.
+5. Internet chahiye (WiFi ya mobile data). Print phone ke print se hota hai (Bluetooth thermal printer ke liye RawBT jaisa
+   print-service app). Data cloud par rehta hai, phone kho jaye to bhi safe.
+
 ---
 
 ## Bhaag 3 — Pehli Baar Setup (Restaurant Owner)

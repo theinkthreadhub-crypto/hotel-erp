@@ -655,6 +655,14 @@ export class SetuHotel extends DurableObject {
       a.initialKey = k;
       addKey(k);
     }
+    // Hotel without a counter PC (made in Super Admin, used on phones): its licence is the cloud period, set only
+    // here (the cloud's clock decides; phones never write it)
+    if(a.plan !== 'counter'){
+      const sub = { validUntil: a.lifetime ? '2099-12-31' : istDay(a.paidUntil || 0), isLifetime: !!a.lifetime, cloud: true,
+        planName: a.lifetime ? 'Lifetime (Hotel Setu Cloud)' : 'Hotel Setu Cloud', status: a.lifetime ? 'lifetime' : 'active' };
+      Object.keys(sub).forEach(k => { if(d.subscription[k] !== sub[k]){ d.subscription[k] = sub[k]; changed = true; } });
+      if('lastSeen' in d.subscription){ delete d.subscription.lastSeen; changed = true; }
+    }
     // Modules that are off: their data stays as the server has it
     const view = saasView(a);
     const off = Object.keys(FEATURES).filter(k => !view.features[k]).flatMap(k => FEATURES[k].keys);
@@ -883,6 +891,15 @@ export class SetuHotel extends DurableObject {
     const a = this.account, c = a.config;
     const notes = [];
     if(b.days){ await this.credit('manual-' + Date.now(), 'manual', +b.days, +b.amount ? Math.round(+b.amount * 100) : 0); notes.push(`+${b.days} days`); }
+    // Phone-only (cloud) hotel: set the period to exactly N days from today (also shortens it; ends a lifetime)
+    if(b.setDays){
+      const n = Math.round(+b.setDays);
+      if(!(n >= 1 && n <= 3650)) throw new Error('Din 1 se 3650 ke beech');
+      a.paidUntil = Date.now() + n * DAY;
+      a.lifetime = false;
+      if(a.status !== 'suspended') a.status = 'active';
+      notes.push(`date set: ${n} days`);
+    }
     if(['active', 'suspended'].includes(b.status)){
       a.status = b.status;
       if(b.status === 'suspended') a.suspendedAt = Date.now();
