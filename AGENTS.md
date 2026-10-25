@@ -326,3 +326,16 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 - Every feature usable by keyboard (Enter, Esc, hotkeys). Short Hinglish UI copy. No emojis in the app UI or printed bills.
 - Work branch for this effort: `ccr-89eaafa4-mxbfj2` (deploys too); long-lived branch `hotel-software`; leave `main` alone unless asked.
 - Commit messages: imperative summary line, then a body that explains why.
+
+## Printer Health (4), print guard, Hotel Code in footer
+- **Printer Health (hotkey 4, `scrPrinters`)**: main counter only. `GET /api/printer-health` (`printer_health()` in app_main.py) lists Windows
+  printers (state flags from `PRINTER_INFO_2`, port, driver), their queue (`EnumJobsW` level 1) and Setu's last 100 print results
+  (`print_history`, filled in `/api/print`). `POST /api/printer-jobs {printer, ids|all}` deletes jobs (`SetJobW` JOB_CONTROL_DELETE),
+  main counter or Manager device only, logged and audited. It never changes `print_raw()` / printer setup.
+- **Print guard (`printOnce`)**: the same bill / KOT / kaccha print within 8 seconds is ignored, so many clicks do not make
+  "DUPLICATE COPY" bills or a long queue.
+- **Online order handover** refuses an order already billed (status completed, or a bill with the same orderId + channel).
+- **Footer** shows the version (`.app-ver`) and the cloud Hotel Code (`footerHotel()`: `/api/cloud` on the counter, `SRV.hotel` on cloud).
+- **Cloud join errors**: `_net_reason()` turns the failure into plain words (SSL / date-time, DNS, timeout, blocked); `_urlopen()`
+  retries SSL errors with the bundled certifi CA list.
+

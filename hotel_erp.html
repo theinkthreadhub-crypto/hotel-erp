@@ -636,6 +636,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
     <span>Setu — Hotel & Restaurant Management POS</span>
     <span class="footer-sep">|</span>
     <span class="app-ver"></span>
+    <span id="footer-hotel" style="display:none"></span>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <span id="footer-lic-text" style="color:#38bdf8;cursor:pointer" onclick="openSubscriptionModal()">License: Active</span>
@@ -2556,6 +2557,7 @@ const MENU = [
   ['1','Help & Support (Setu Pro)','support','Utilities'],
   ['2','Error Log (Galti ki report)','errors','Utilities'],
   ['3','Setu AI (Gemini)','ai','Utilities'],
+  ['4','Printer Health (Queue)','printers','Utilities'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -2578,6 +2580,7 @@ const SCREENS = {
   support: scrSupport,
   errors: scrErrors,
   ai: scrAI,
+  printers: scrPrinters,
   kitchen: scrKitchen,
   qr: scrQR,
   customers: scrCustomers,
@@ -3236,6 +3239,12 @@ function markOnlineReady(id){
 function handoverOnlineOrder(id){
   const o = (D.onlineOrders || []).find(x => x.id === id);
   if(!o) return;
+  // A second click (or another device) must not bill the same Zomato / Swiggy order again
+  if(o.status === 'completed' || D.bills.some(b => o.orderId && b.orderId === o.orderId && b.channel === o.channel && !b.cancelled)){
+    toast('Ye order pehle hi bill ho chuka hai');
+    scrOnline();
+    return;
+  }
 
   const used = {};
   o.items.forEach(c => {
@@ -4374,9 +4383,20 @@ function printDoc(parts){
   printStatus('busy', 'Preparing print…');
   setTimeout(() => { appPrint(); printStatus('ok', 'Print sent'); }, 60);
 }
+// Many quick clicks on Print (or a held Enter key) must not print the same receipt again and again
+const PRINT_GAP = 8000, printSent = {};
+function printOnce(key){
+  const now = Date.now();
+  if(now - (printSent[key] || 0) < PRINT_GAP){
+    toast('Ye print abhi bheja hai. 8 second ruk kar dobara dabayein. Atka ho to Printer Health (4) dekhein.');
+    return false;
+  }
+  printSent[key] = now;
+  return true;
+}
 function printBill(id, what){
   const b = getBill(id);
-  if(!b) return;
+  if(!b || !printOnce(`bill:${id}:${what}`)) return;
   if(what !== 'kot'){
     // Second and later customer copies are marked and logged (re-using old bills is a common fraud)
     b.prints = (b.prints || 0) + 1;
@@ -4398,6 +4418,7 @@ function printKacchaDoc(tbl){
     toast('Please add an item first');
     return;
   }
+  if(!printOnce('kaccha:' + (k.table || '') + ':' + JSON.stringify(k.cart).length)) return;
   if(directPrint()){ sendToPrinter(D.settings.billPrinter, escKaccha(k)); return; }
   printDoc([kacchaHTML(k)]);
 }
@@ -7301,6 +7322,83 @@ let ERR_SRV = [];
 const errAgo = t => new Date(t).toLocaleString('en-IN', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'});
 // Server lines worth showing: failures, cloud problems, recoveries
 const srvErrLine = l => /FAIL|ERROR|CLOUD|damaged|not found|could not|blocked|denied/i.test(l);
+/* ================= PRINTER HEALTH (4) ================= */
+// Main counter only: Windows printers, their state and print queue. Stuck or repeated jobs can be removed.
+const PR_STATE = {paused: ['Paused (ruka hua)', 'bad'], error: ['Error', 'bad'], jam: ['Kagaz phansa (jam)', 'bad'], paperout: ['Kagaz khatam', 'bad'],
+  paper: ['Kagaz ki dikkat', 'bad'], offline: ['Offline (band / cable nikla)', 'bad'], workoffline: ['"Use Printer Offline" laga hai', 'bad'],
+  notavailable: ['Printer nahi mil raha', 'bad'], intervention: ['Printer dekhiye (button / dhakkan)', 'bad'], dooropen: ['Dhakkan khula hai', 'bad'],
+  binfull: ['Tray bhari hai', 'warn'], tonerlow: ['Ink / toner kam', 'warn'], notoner: ['Ink / toner khatam', 'bad'], printing: ['Print ho raha hai', 'ok'],
+  waiting: ['Intezaar', 'warn'], powersave: ['Power save', 'warn'], deleting: ['Hat raha hai', 'warn'], spooling: ['Bhej raha hai', 'ok'],
+  printed: ['Print ho gaya', 'ok'], blocked: ['Ruka hua', 'bad'], restart: ['Dobara', 'warn']};
+const prChip = k => { const [t, c] = PR_STATE[k] || [k, 'warn']; return `<span class="pr-chip ${c}">${esc(t)}</span>`; };
+let PRH = null;
+async function scrPrinters(){
+  const local = SRV.on && !SRV.cloud;
+  const st = D.settings, mode = directPrint() ? 'Direct (thermal, bina dialog)' : 'Browser print dialog';
+  const role = name => [name === st.billPrinter ? 'Bill' : '', name === st.kotPrinter ? 'KOT' : '',
+    Object.entries(st.catPrinters || {}).filter(([, v]) => v === name).map(([c]) => c).join(', ')].filter(Boolean).join(' · ');
+  if(local){
+    try{ const r = await srvFetch('/api/printer-health'); PRH = r.ok ? await r.json() : {error: (await r.json().catch(() => ({}))).error || 'HTTP ' + r.status}; }
+    catch(e){ PRH = {error: 'Main Counter se connection nahi'}; }
+  }
+  if(cur !== 'printers') return;
+  const jobsBad = p => p.jobs.filter(j => j.state.some(x => ['error', 'paused', 'offline', 'paperout', 'blocked', 'intervention'].includes(x))).length;
+  const health = p => p.state.some(x => (PR_STATE[x] || [])[1] === 'bad') || jobsBad(p) ? 'bad' : p.jobs.length > 3 ? 'warn' : 'ok';
+  const printers = (PRH && PRH.printers) || [];
+  main.innerHTML = `<style>.pr-chip{display:inline-block;font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;margin:2px 4px 2px 0}
+    .pr-chip.ok{background:#dcfce7;color:#166534}.pr-chip.warn{background:#fef3c7;color:#92400e}.pr-chip.bad{background:#fee2e2;color:#991b1b}
+    .pr-card{border-left:6px solid #16a34a}.pr-card.warn{border-left-color:#f59e0b}.pr-card.bad{border-left-color:#dc2626}</style>
+  <div class="title">Printer Health (Queue)</div>
+  <div class="card"><p style="margin-top:0">Printer ka haal aur print ki line (queue). Galti se bahut baar Print dab gaya ho ya print atka ho, to yahan se hata dein.</p>
+    <div style="font-size:13px">Print tareeka: <b>${esc(mode)}</b> · Bill printer: <b>${esc(st.billPrinter || '-')}</b> · KOT printer: <b>${esc(st.kotPrinter || st.billPrinter || '-')}</b> · Paper: <b>${esc(String(st.width || 80))} mm</b></div>
+    <div class="btns"><button class="btn g" onclick="scrPrinters()">Refresh</button>
+      ${local && st.billPrinter ? '<button class="btn g" onclick="testPrint(\'bill\')">Bill printer test</button>' : ''}
+      ${local && st.kotPrinter ? '<button class="btn g" onclick="testPrint(\'kot\')">KOT printer test</button>' : ''}
+      <button class="btn g" onclick="go('settings')">Printer Setup (Settings)</button></div></div>
+  ${!local ? `<div class="card"><p style="margin:0">Printer ki queue sirf <b>Main Counter PC</b> (Setu Desktop App) par dikhti hai. Wahan Setu kholkar <b>4</b> dabayein.</p></div>`
+  : PRH && PRH.error ? `<div class="card"><p style="margin:0;color:#dc2626"><b>Printer ki jaankari nahi mili:</b> ${esc(PRH.error)}</p></div>`
+  : PRH && PRH.supported === false ? '<div class="card"><p style="margin:0">Printer queue sirf Windows par dikhti hai.</p></div>'
+  : printers.length ? printers.map((p, i) => { const h = health(p); return `<div class="card pr-card ${h}">
+      <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+        <h3 style="margin:0">${esc(p.name)} ${p.default ? '<span class="muted" style="font-size:12px">(Windows default)</span>' : ''}</h3>
+        <span>${role(p.name) ? `<span class="pr-chip ok">Setu: ${esc(role(p.name))}</span>` : ''}${p.state.length ? p.state.map(prChip).join('') : `<span class="pr-chip ${h}">${h === 'ok' ? 'Theek hai' : h === 'warn' ? 'Line lambi hai' : 'Dikkat'}</span>`}</span></div>
+      <div class="muted" style="font-size:12px;margin-top:4px">Port: ${esc(p.port || '-')} · Driver: ${esc(p.driver || '-')}</div>
+      <div style="margin-top:8px"><b>Queue mein: ${p.jobs.length}</b>${p.jobs.length ? `
+        <table style="margin-top:6px"><tr><th></th><th>#</th><th>Document</th><th>Kisne</th><th>Haal</th><th>Kab</th><th></th></tr>
+        ${p.jobs.map(j => `<tr><td><input type="checkbox" class="prj" data-p="${i}" value="${j.id}"></td><td>${j.id}</td><td>${esc(j.doc)}</td><td>${esc(j.user)}</td>
+          <td>${j.state.length ? j.state.map(prChip).join('') : esc(j.text || 'Line mein')}</td><td>${esc(new Date(j.at).toLocaleTimeString('en-IN'))}</td>
+          <td><button class="btn bad" style="padding:4px 10px" onclick="prDel(${i},[${j.id}])">Hatao</button></td></tr>`).join('')}</table>
+        <div class="btns">${p.jobs.length > 1 ? `<button class="btn bad" onclick="prDel(${i},'extra')">Pehla chhod kar baaki hatao (duplicate)</button>` : ''}
+          <button class="btn bad" onclick="prDel(${i},'checked')">Tick wale hatao</button>
+          <button class="btn bad" onclick="prDel(${i},'all')">Poori queue saaf karein</button></div>` : ' <span class="muted">(khali)</span>'}</div>
+      ${h === 'bad' ? `<div style="font-size:13px;margin-top:8px;background:#fef2f2;border-radius:6px;padding:6px 8px"><b>Kaise theek karein:</b> printer chalu karein, USB / LAN cable check karein, kagaz daalein, dhakkan band karein. Windows mein printer par right-click → "Use Printer Offline" hata dein. Phir yahan Refresh.</div>` : ''}
+    </div>`; }).join('') : '<div class="card"><p style="margin:0">Is computer par koi printer nahi mila. Printer lagakar Windows mein driver install karein.</p></div>'}
+  ${local && PRH && PRH.history && PRH.history.length ? `<div class="card"><h3 style="margin-top:0">Setu ne abhi kya print bheja (${PRH.history.length})</h3>
+    ${PRH.history.slice().reverse().map(x => `<div style="border-bottom:1px solid var(--border);padding:5px 0;font-size:13px">${esc(new Date(x.at).toLocaleTimeString('en-IN'))} · <b>${esc(x.printer)}</b> · ${x.ok ? '<span class="green">Bhej diya</span>' : `<span style="color:#dc2626">Fail: ${esc(x.error || '')}</span>`}</div>`).join('')}</div>` : ''}`;
+  clearTimeout(scrPrinters.t);
+  if(local) scrPrinters.t = setTimeout(() => { if(cur === 'printers' && !document.querySelector('.prj:checked')) scrPrinters(); }, 5000);
+}
+async function prDel(i, which){
+  const p = PRH && PRH.printers && PRH.printers[i];
+  if(!p) return;
+  let body;
+  if(which === 'all') body = {all: true};
+  else if(which === 'extra') body = {ids: p.jobs.slice(1).map(j => j.id)};
+  else if(which === 'checked') body = {ids: [...document.querySelectorAll(`.prj[data-p="${i}"]:checked`)].map(x => +x.value)};
+  else body = {ids: which};
+  if(body.ids && !body.ids.length){ toast('Pehle job par tick lagayein'); return; }
+  const n = body.all ? p.jobs.length : body.ids.length;
+  if(!confirm(`${p.name}: ${n} print job hatayein? Ye kagaz par nahi chhapenge.`)) return;
+  try{
+    const r = await srvFetch('/api/printer-jobs', {method: 'POST', body: JSON.stringify({printer: p.name, ...body})});
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+    toast(`${j.done} job hata diye${j.failed ? `, ${j.failed} nahi hate (Windows admin chahiye)` : ''}`);
+    audit('Printer Queue Clear', `${p.name} · ${j.done} job`);
+  }catch(e){ toast('Hata nahi paye: ' + e.message); }
+  scrPrinters();
+}
+
 async function scrErrors(){
   const list = errList();
   ERR_SRV = [];
@@ -7775,6 +7873,19 @@ async function cloudPill(){
   el.textContent = txt;
   el.style.display = txt ? '' : 'none';
 }
+// Footer: this hotel's cloud Hotel Code (the ID the vendor sees in Super Admin)
+async function footerHotel(){
+  const el = $('#footer-hotel');
+  if(!el) return;
+  let code = SRV.cloud ? SRV.hotel || '' : '';
+  if(SRV.on && SRV.local){
+    try{ const c = await (await srvFetch('/api/cloud')).json(); code = c.hotel || (c.auto && c.auto.code) || ''; }catch(e){}
+  }
+  el.innerHTML = code ? `<span class="footer-sep">|</span> Hotel Code: <b style="font-family:'JetBrains Mono',monospace;letter-spacing:1px">${esc(code)}</b>`
+    : SRV.on && SRV.local ? '<span class="footer-sep">|</span> Hotel Code: <span style="color:#f87171">cloud se nahi juda</span>' : '';
+  el.style.display = el.innerHTML ? '' : 'none';
+}
+setInterval(footerHotel, 60000);
 setInterval(cloudPill, 60000);
 
 async function drawCloudCard(){
@@ -8087,6 +8198,7 @@ async function autoPrinterSetup(){
   try{ saasNotices(); }catch(e){}   // vendor warning / lock shows before anyone signs in
   autoPrinterSetup();
   setTimeout(cloudPill, 3000);
+  setTimeout(footerHotel, 3000);
 })();
 
 // Register Service Worker for 100% offline computer execution

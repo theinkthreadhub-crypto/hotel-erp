@@ -149,6 +149,116 @@ def print_raw(printer, data):
         ws.ClosePrinter(h)
 
 
+# ---------------- Printer Health (read the Windows queue, remove stuck / repeated jobs) ----------------
+# Separate from the printing code above: it only looks at the queue and deletes jobs on request.
+PRINTER_FLAGS = {0x1: 'paused', 0x2: 'error', 0x8: 'jam', 0x10: 'paperout', 0x40: 'paper', 0x80: 'offline', 0x400: 'printing',
+                 0x800: 'binfull', 0x1000: 'notavailable', 0x2000: 'waiting', 0x20000: 'tonerlow', 0x40000: 'notoner',
+                 0x100000: 'intervention', 0x400000: 'dooropen', 0x1000000: 'powersave'}
+JOB_FLAGS = {0x1: 'paused', 0x2: 'error', 0x4: 'deleting', 0x8: 'spooling', 0x10: 'printing', 0x20: 'offline', 0x40: 'paperout',
+             0x80: 'printed', 0x200: 'blocked', 0x400: 'intervention', 0x800: 'restart'}
+print_history = []   # newest last: Setu's own jobs on this counter, for Printer Health
+
+
+def _flags(value, table):
+    return [name for bit, name in table.items() if value & bit]
+
+
+def _printer_handles():
+    ctypes, wintypes, ws = _winspool()
+    ws.GetPrinterW.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    ws.EnumJobsW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD,
+                             ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD)]
+    ws.SetJobW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
+    return ctypes, wintypes, ws
+
+
+def _printer_jobs(ctypes, wintypes, ws, h):
+    class SYSTEMTIME(ctypes.Structure):
+        _fields_ = [(n, wintypes.WORD) for n in ('y', 'mo', 'dow', 'd', 'h', 'mi', 's', 'ms')]
+
+    class JOB_INFO_1(ctypes.Structure):
+        _fields_ = [('JobId', wintypes.DWORD), ('pPrinterName', wintypes.LPWSTR), ('pMachineName', wintypes.LPWSTR),
+                    ('pUserName', wintypes.LPWSTR), ('pDocument', wintypes.LPWSTR), ('pDatatype', wintypes.LPWSTR),
+                    ('pStatus', wintypes.LPWSTR), ('Status', wintypes.DWORD), ('Priority', wintypes.DWORD),
+                    ('Position', wintypes.DWORD), ('TotalPages', wintypes.DWORD), ('PagesPrinted', wintypes.DWORD),
+                    ('Submitted', SYSTEMTIME)]
+
+    needed, count = wintypes.DWORD(), wintypes.DWORD()
+    ws.EnumJobsW(h, 0, 500, 1, None, 0, ctypes.byref(needed), ctypes.byref(count))
+    if not needed.value:
+        return []
+    buf = ctypes.create_string_buffer(needed.value)
+    if not ws.EnumJobsW(h, 0, 500, 1, buf, needed, ctypes.byref(needed), ctypes.byref(count)):
+        return []
+    arr = ctypes.cast(buf, ctypes.POINTER(JOB_INFO_1))
+    out = []
+    for i in range(count.value):
+        j, t = arr[i], arr[i].Submitted
+        out.append({'id': j.JobId, 'doc': j.pDocument or '', 'user': j.pUserName or '', 'pc': j.pMachineName or '',
+                    'state': _flags(j.Status, JOB_FLAGS), 'text': j.pStatus or '', 'pages': j.TotalPages,
+                    'at': f'{t.y:04d}-{t.mo:02d}-{t.d:02d}T{t.h:02d}:{t.mi:02d}:{t.s:02d}Z'})
+    return out
+
+
+def printer_health():
+    if os.name != 'nt':
+        return {'supported': False, 'printers': [], 'default': '', 'history': print_history[-40:]}
+    ctypes, wintypes, ws = _printer_handles()
+
+    class PRINTER_INFO_2(ctypes.Structure):
+        _fields_ = [(n, wintypes.LPWSTR) for n in ('pServerName', 'pPrinterName', 'pShareName', 'pPortName', 'pDriverName',
+                                                   'pComment', 'pLocation')] + [('pDevMode', ctypes.c_void_p)] + \
+                   [(n, wintypes.LPWSTR) for n in ('pSepFile', 'pPrintProcessor', 'pDatatype', 'pParameters')] + \
+                   [('pSecurityDescriptor', ctypes.c_void_p)] + \
+                   [(n, wintypes.DWORD) for n in ('Attributes', 'Priority', 'DefaultPriority', 'StartTime', 'UntilTime',
+                                                  'Status', 'cJobs', 'AveragePPM')]
+
+    names, default = list_printers()
+    printers = []
+    for name in names:
+        p = {'name': name, 'default': name == default, 'state': [], 'jobs': [], 'port': '', 'driver': ''}
+        h = wintypes.HANDLE()
+        if not ws.OpenPrinterW(name, ctypes.byref(h), None):
+            p['state'] = ['notavailable']
+            printers.append(p)
+            continue
+        try:
+            needed = wintypes.DWORD()
+            ws.GetPrinterW(h, 2, None, 0, ctypes.byref(needed))
+            if needed.value:
+                buf = ctypes.create_string_buffer(needed.value)
+                if ws.GetPrinterW(h, 2, buf, needed, ctypes.byref(needed)):
+                    info = ctypes.cast(buf, ctypes.POINTER(PRINTER_INFO_2))[0]
+                    p['state'] = _flags(info.Status, PRINTER_FLAGS) + (['workoffline'] if info.Attributes & 0x400 else [])
+                    p['port'], p['driver'] = info.pPortName or '', info.pDriverName or ''
+            p['jobs'] = _printer_jobs(ctypes, wintypes, ws, h)
+        finally:
+            ws.ClosePrinter(h)
+        printers.append(p)
+    return {'supported': True, 'printers': printers, 'default': default, 'history': print_history[-40:]}
+
+
+def delete_print_jobs(printer, job_ids):
+    # job_ids: list of job numbers, or None for every job in that printer's queue
+    if os.name != 'nt':
+        raise OSError('Windows only')
+    ctypes, wintypes, ws = _printer_handles()
+    h = wintypes.HANDLE()
+    if not ws.OpenPrinterW(printer, ctypes.byref(h), None):
+        raise OSError(f'Printer "{printer}" not found')
+    try:
+        ids = [j['id'] for j in _printer_jobs(ctypes, wintypes, ws, h)] if job_ids is None else [int(x) for x in job_ids]
+        done, failed = 0, 0
+        for jid in ids:
+            if ws.SetJobW(h, jid, 0, None, 5):   # JOB_CONTROL_DELETE
+                done += 1
+            else:
+                failed += 1
+        return done, failed
+    finally:
+        ws.ClosePrinter(h)
+
+
 class SetuStore:
     """Single shared database file with optimistic versioning."""
 
@@ -885,6 +995,11 @@ def make_handler(base_dir, store, port, cloud=None):
             if path == '/api/db':
                 with store.lock:
                     return self.send_db()
+            if path == '/api/printer-health':
+                try:
+                    return self.send_json(200, printer_health())
+                except Exception as e:
+                    return self.send_json(500, {'error': str(e)})
             if path == '/api/printers':
                 try:
                     names, default = list_printers()
@@ -969,6 +1084,21 @@ def make_handler(base_dir, store, port, cloud=None):
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
                 return self.send_json(200, cloud.public())
+            if path == '/api/printer-jobs':
+                # Printer Health: remove stuck or repeated jobs (main counter or a Manager device)
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'Sirf Manager ya Main Counter PC se'})
+                try:
+                    body = self.read_json()
+                    printer = str(body.get('printer') or '')
+                    ids = None if body.get('all') else [int(x) for x in body.get('ids') or []]
+                    if not printer or (ids is not None and not ids):
+                        return self.send_json(400, {'error': 'bad request'})
+                    done, failed = delete_print_jobs(printer, ids)
+                    store.log(f'Printer Health: removed {done} job(s) from {printer!r}' + (f', {failed} failed' if failed else ''))
+                    return self.send_json(200, {'done': done, 'failed': failed})
+                except Exception as e:
+                    return self.send_json(500, {'error': str(e)})
             if path == '/api/print':
                 if not self.role():
                     return self.send_json(401, {'error': 'pin required'})
@@ -980,9 +1110,13 @@ def make_handler(base_dir, store, port, cloud=None):
                         return self.send_json(400, {'error': 'bad request'})
                     with print_lock:
                         print_raw(printer, data)
+                    print_history.append({'at': int(time.time() * 1000), 'printer': printer, 'bytes': len(data), 'ok': True})
+                    del print_history[:-100]
                     return self.send_json(200, {'ok': True})
                 except Exception as e:
                     store.log(f'PRINT FAILED on {printer!r}: {e}')
+                    print_history.append({'at': int(time.time() * 1000), 'printer': printer, 'ok': False, 'error': str(e)[:200]})
+                    del print_history[:-100]
                     return self.send_json(500, {'error': str(e)})
             if path == '/api/db':
                 role = self.role()
