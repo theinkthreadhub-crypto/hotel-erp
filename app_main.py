@@ -24,6 +24,7 @@ import threading
 import http.server
 import urllib.request
 import urllib.error
+import ssl
 import base64
 import copy
 
@@ -405,6 +406,36 @@ def merge3(base, mine, theirs):
     return out
 
 
+def _urlopen(req, timeout):
+    # Old or un-updated Windows may lack the root certificate the cloud uses: retry with the bundled certifi list
+    try:
+        return urllib.request.urlopen(req, timeout=timeout)
+    except urllib.error.URLError as e:
+        if not isinstance(getattr(e, 'reason', None), ssl.SSLError):
+            raise
+        try:
+            import certifi
+        except ImportError:
+            raise e
+        return urllib.request.urlopen(req, timeout=timeout, context=ssl.create_default_context(cafile=certifi.where()))
+
+
+def _net_reason(e):
+    # Plain-language reason a cloud call failed, shown in Settings so the owner (or vendor) can fix it
+    why = getattr(e, 'reason', e)
+    text = str(why)
+    if isinstance(why, ssl.SSLError) or 'CERTIFICATE' in text.upper():
+        return ('ssl', 'Computer ki date / time galat hai ya Windows purana hai (SSL). Date-time sahi karein, phir Abhi Jodein.')
+    if isinstance(why, socket.gaierror) or 'getaddrinfo' in text:
+        return ('dns', 'Cloud ka address nahi mila (DNS). Internet band hai, ya ye internet/WiFi cloud ko rok raha hai. '
+                       'Mobile hotspot se try karein.')
+    if isinstance(why, (socket.timeout, TimeoutError)) or 'timed out' in text:
+        return ('timeout', 'Cloud ne time par jawab nahi diya. Internet slow hai ya firewall / antivirus rok raha hai.')
+    if isinstance(why, (ConnectionRefusedError, ConnectionResetError)) or 'refused' in text or 'reset' in text:
+        return ('blocked', 'Connection ruk gaya. Antivirus / firewall / proxy Setu ko rok raha hai. Mobile hotspot se try karein.')
+    return ('offline', f'Internet nahi mila ({text[:120]})')
+
+
 def _write_json(path, obj):
     tmp = path + '.tmp'
     with open(tmp, 'w', encoding='utf-8') as f:
@@ -483,7 +514,7 @@ class CloudSync:
             headers['X-Setu-Hotel'] = hotel
         req = urllib.request.Request(url + path, data=json.dumps(obj).encode('utf-8'), method='POST', headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with _urlopen(req, 30) as r:
                 return r.status, json.loads(r.read().decode('utf-8') or '{}')
         except urllib.error.HTTPError as e:
             try:
@@ -527,8 +558,10 @@ class CloudSync:
             code, j = self._post(DEFAULT_CLOUD_URL, '/api/counter/link', {
                 'installId': iid, 'key': key, 'name': st.get('name') or '', 'owner': auth.get('ownerName') or '',
                 'phone': st.get('phone') or auth.get('phone') or ''})
-        except Exception:
-            self.auto = {'state': 'offline', 'code': '', 'at': int(time.time() * 1000)}
+        except Exception as e:
+            kind, why = _net_reason(e)
+            self.store.log(f'Hotel Setu Cloud: auto-join failed ({kind}): {e}')
+            self.auto = {'state': 'offline', 'code': '', 'at': int(time.time() * 1000), 'kind': kind, 'error': why}
             return
         now = int(time.time() * 1000)
         if code == 200 and j.get('code') and j.get('syncKey'):
@@ -551,8 +584,8 @@ class CloudSync:
         _, iid, _ = self._license()
         try:
             code, j = self._post(DEFAULT_CLOUD_URL, '/api/counter/restore', {'password': password, 'installId': iid or ''}, hotel=hotel)
-        except Exception:
-            raise ValueError('Cloud se jud nahi paye. Internet check karein.')
+        except Exception as e:
+            raise ValueError(_net_reason(e)[1])
         if code == 404:
             raise ValueError('Ye Hotel Code cloud par nahi mila')
         if code != 200 or not j.get('syncKey'):
@@ -626,7 +659,7 @@ class CloudSync:
                      'Content-Type': 'application/json',
                      'User-Agent': 'Setu-Main-Counter/1.0'})
         try:
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with _urlopen(req, 60) as r:
                 return r.status, r.read().decode('utf-8')
         except urllib.error.HTTPError as e:
             return e.code, e.read().decode('utf-8', 'replace')

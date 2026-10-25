@@ -7814,7 +7814,7 @@ async function drawCloudCard(){
   const joinMsg = c.enabled === false ? 'Cloud aapne band kiya hai. Chalu karne ke liye neeche button dabayein.'
     : a.state === 'waiting' ? 'Menu ya pehla bill banate hi ye PC khud cloud se jud jayega. Naya computer hai? Neeche Hotel Code + owner password se purana data laayein.'
     : a.state === 'nolicense' ? 'Pehle activation key lagayein (K). Uske baad internet milte hi ye PC khud cloud se jud jayega.'
-    : a.state === 'offline' ? 'Internet nahi mila. Internet aate hi PC khud jud jayega (30 minute mein dobara koshish).'
+    : a.state === 'offline' ? `${esc(a.error || 'Internet nahi mila.')} Theek hote hi PC khud jud jayega, ya <b>Abhi Jodein</b> dabayein.`
     : a.state === 'error' ? `Cloud se judne mein dikkat: ${esc(a.error || '')}. Apne vendor ko batayein.`
     : 'Cloud se jud raha hai...';
   const restoreForm = (code, title) => `<h4 style="margin:14px 0 6px">${title}</h4>
