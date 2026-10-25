@@ -186,6 +186,10 @@ cd cloud && node scripts/copy-assets.mjs && npx wrangler dev --port 8787 --local
 - `prepare(d)` makes `D.saas` from the account (`saasView`: tier, features, billing template, rules, `notice`, `lock`; a suspended
   hotel gets `lock.lv 2`). Clients only read `D.saas`; the counter's merge always takes `saas` from the cloud. Off modules keep the
   server's copy of their keys (`FEATURES`). Catalogue: `FEATURES`, `TIERS` (basic / premium / diamond), `TEMPLATES`.
+- **Phone-only self sign-up:** Setu POS app / cloud page → Sign Up sends `key` (vendor Master Key or any genuine key) to `/api/signup`.
+  The Worker verifies it (`verifyLicense`, kind 6 is not tied to a device), refuses a blocked or already-linked Install ID (409 with the
+  code), and calls `createHotel` with the key's days, `status: 'active'`, `iid` saved in the registry and `noKey` (no trial key is
+  signed, so it works without `LICENSE_PRIVATE_KEY`). Without `key` the old free trial runs only if `LICENSE_PRIVATE_KEY` is set.
 - **Phone-only hotels (no computer):** made in Super Admin → More → Naya Hotel (plan is not `counter`), used from the Setu POS app
   (Internet se) or a browser with Hotel Code + password. `prepare()` writes their `d.subscription` from the cloud period
   (`validUntil` = `paidUntil` day, `isLifetime`, `cloud: true`, no `lastSeen`), so no key is needed; the app skips the clock-rollback

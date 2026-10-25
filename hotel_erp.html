@@ -1296,7 +1296,7 @@ function showConnectScreen(msg, view){
 
   if(SRV.saas && view === 'signup'){
     el.innerHTML = `<div class="login-card" style="max-width:440px">
-      ${head('Hotel Setu Cloud — New Hotel', 'Start with a free trial. No card required.')}
+      ${head('Setu — Naya Hotel (Mobile)', 'Bina computer, phone se billing. Vendor se mili Master Key chahiye.')}
       <form id="signup-form" style="text-align:left">
         <div class="login-field"><label>Hotel / Restaurant Name *</label><input id="su_hotel" required maxlength="80"></div>
         <div class="login-field"><label>Business type *</label><select id="su_type"><option value="restaurant">Restaurant</option><option value="cafe">Cafe / QSR</option><option value="hotel">Hotel (Rooms + Restaurant)</option><option value="cloudkitchen">Cloud Kitchen</option></select></div>
@@ -1305,8 +1305,9 @@ function showConnectScreen(msg, view){
         <div class="login-field"><label>Email</label><input id="su_email" type="email" maxlength="100"></div>
         <div class="login-field"><label>Password / Manager PIN (min. 6 characters) *</label><input id="su_pass" type="password" required minlength="6" autocomplete="new-password"></div>
         <div class="login-field"><label>Confirm Password *</label><input id="su_pass2" type="password" required minlength="6" autocomplete="new-password"></div>
+        <div class="login-field"><label>Master Key / Activation Key *</label><input id="su_key" required placeholder="SETU-XXXXXXXX-... (poori key paste karein)" autocomplete="off" style="font-family:monospace"></div>
         ${errBox}
-        <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">Start Free Trial</button>
+        <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">Sign Up &amp; Activate</button>
       </form>
       <p style="font-size:12px;margin:12px 0 0">Already have an account? <a href="#" id="to-login">Sign in</a></p>
       ${foot}</div>`;
@@ -1321,31 +1322,33 @@ function showConnectScreen(msg, view){
       try{
         const fresh = ensureGrowth(seed());
         const r = await fetch('/api/signup', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({
-          hotelName: v('su_hotel'), businessType: $('#su_type').value, ownerName: v('su_owner'), phone: v('su_phone'), email: v('su_email'), password: v('su_pass'), installId: fresh.settings.installId})});
+          hotelName: v('su_hotel'), businessType: $('#su_type').value, ownerName: v('su_owner'), phone: v('su_phone'), email: v('su_email'), password: v('su_pass'),
+          key: v('su_key'), installId: fresh.settings.installId})});
         const j = await r.json().catch(() => ({}));
         if(!r.ok){ fail(j.error || 'Sign-up failed'); return; }
         D = fresh;
         D.auth = {isRegistered: true, userId: v('su_phone'), password: v('su_pass'), ownerName: v('su_owner'), phone: v('su_phone'), registeredAt: Date.now()};
         Object.assign(D.settings, {name: v('su_hotel'), owner: v('su_phone'), phone: v('su_phone'), adminPin: v('su_pass')});
+        // Phone-only hotel: the cloud sets the licence date (the first upload brings the exact one)
+        Object.assign(D.subscription, {validUntil: addDays(today(), +j.trialDays || 7), cloud: true, planName: 'Hotel Setu Cloud', status: 'active'});
         Object.assign(SRV, {hotel: j.code, token: j.token, version: 0, base: null, signup: true});
         lsSet(HOTEL_KEY, j.code);
         lsSet(TOKEN_KEY, j.token);
         activeUser = {name: v('su_owner'), role: 'admin', access: 'manager', time: Date.now()};
         lsSet(AUTH_KEY, JSON.stringify(activeUser));
-        const act = await activateLicenseKey(j.trialKey, 'Hotel Setu Cloud Free Trial');   // also saves = first upload
+        const act = j.trialKey ? await activateLicenseKey(j.trialKey, 'Hotel Setu Cloud Free Trial') : {success: false};   // also saves = first upload
         if(!act.success) save();
         el.style.display = 'none';
         audit('Sign Up', `Hotel Setu Cloud · ${j.code}`);
         startUI();
         srvStartPolling();
-        modal('Welcome! Your hotel account is ready', `
-          <p>Your <b>Hotel Code</b> (used to sign in on every device):</p>
+        modal('Hotel ban gaya!', `
+          <p>Aapka <b>Hotel Code</b> (likh kar rakhein):</p>
           <div style="font:800 28px 'JetBrains Mono',monospace;letter-spacing:2px;margin:6px 0 14px">${esc(j.code)}</div>
-          <p>Your <b>${j.trialDays}-day free trial</b> has started. After that, renew online from Settings (G) → Hotel Setu Cloud.</p>
-          <p style="margin-top:12px"><b>Counter PC Sync Key</b> (for the Setu Desktop App only. Keep it safe; it will not be shown again):</p>
-          <code style="display:block;word-break:break-all;background:#f1f5f9;padding:8px;border-radius:6px">${esc(j.syncKey)}</code>
-          <p class="muted" style="margin-top:12px">Create cashier / staff PINs in Settings (G). Simple PINs such as 1234 or 1111 are not accepted on the cloud.</p>
-          <div class="btns"><button class="btn ok" onclick="closeModal()">Get Started</button></div>`);
+          <p>Setu <b>${j.trialDays} din</b> ke liye chalu hai. Aage ke din Aghanya Devanya Enterprises denge — wo yahin apne aap lag jayenge.</p>
+          <p>Kisi aur phone par login: <b>Hotel Code</b> + mobile number + password.</p>
+          <p class="muted" style="margin-top:12px">Staff ke PIN Settings (G) mein banayein. 1234 / 1111 jaise aasaan PIN cloud par nahi chalte.</p>
+          <div class="btns"><button class="btn ok" onclick="closeModal()">Shuru Karein</button></div>`);
       }catch(e){ fail('Could not connect to the internet / cloud'); }
       finally{ if(btn) btn.disabled = false; }
     };
@@ -1364,7 +1367,7 @@ function showConnectScreen(msg, view){
         ${errBox}
         <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">${SRV.saas ? 'Login' : 'Connect'}</button>
       </form>
-      ${SRV.saas && !SRV.hostLocked && SRV.signupOpen ? '<p style="font-size:12px;margin:12px 0 0">New hotel? <a href="#" id="to-signup"><b>Sign up free</b></a></p>' : ''}
+      ${SRV.saas && !SRV.hostLocked && SRV.signupOpen ? '<p style="font-size:13px;margin:12px 0 0">Naya hotel? <a href="#" id="to-signup"><b>Sign Up (Master Key se)</b></a></p>' : ''}
       ${foot}
     </div>`;
   el.style.display = 'flex';

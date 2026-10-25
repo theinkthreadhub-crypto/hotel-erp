@@ -81,6 +81,14 @@ flowchart TD
    (PC par bhi bana sakte hain: `Generate-Activation-Keys.bat` → Install ID → plan.)
 
 ### 2.6 Bina computer wala hotel (sirf mobile)
+**Tareeka A — Owner khud Sign Up kare (EXE jaisa, Master Key se):**
+1. Owner phone mein **SetuPOS.apk** install kare → **Cloud se kholo** → **Naya hotel? Sign Up (Master Key se)**.
+2. Hotel naam, type, owner naam, mobile, password aur aapki **Master Key** (pendrive / WhatsApp wali) daale → **Sign Up & Activate**.
+3. Hotel turant ban jaata hai (Master Key ke din, jaise 7) aur **Admin app mein dikh jaata hai**. Hotel Code screen par aata hai.
+4. Aap Admin app → hotel → **Activate (Din do)** → jitne din dene hain → **Lagao**. Phone par turant.
+   Ek phone se ek hi hotel banta hai. Galat / purani key par sign-up nahi hota.
+
+**Tareeka B — Aap khud banao:**
 1. Admin app → **More → Naya Hotel banao** → hotel, owner, mobile, type, plan, din, owner password → **Create**.
 2. Jo message bane use **WhatsApp / Share** se owner ko bhejein (Hotel Code + password + app ka tareeka).
 3. Owner phone mein **SetuPOS.apk** install kare → **Internet se (Hotel Setu Cloud)** → Hotel Code + password → billing shuru.

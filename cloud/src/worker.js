@@ -1002,7 +1002,7 @@ export class SetuHotel extends DurableObject {
         syncHash: await sha256(syncKey), syncKey, pendingKeys: [], config: newConfig(b.businessType, b.tier),
         ...(b.password ? { ownerHash: await sha256(b.password), ownerPass: b.password, initialDays: b.days } : {}) };
       let trialKey = '';
-      if(b.installId){
+      if(b.installId && !b.noKey){
         trialKey = await makeLicenseKey(this.env, b.installId, b.days);
         this.sql.exec('INSERT INTO payment (id, plan, days, amount, at, lic) VALUES (?, ?, ?, 0, ?, ?)', 'trial', 'trial', b.days, Date.now(), trialKey);
       } else {
@@ -1226,14 +1226,14 @@ async function createHotel(env, input, opts){
   const paidUntil = Date.now() + opts.days * DAY;
   const tier = opts.tier || (TEMPLATES[input.businessType] || TEMPLATES.restaurant).tier;
   const r = await regCall(env, '/reserve', { name: input.name, owner: input.owner, phone: input.phone, email: input.email, paidUntil,
-    ip: opts.ip, admin: opts.admin, status: opts.status, plan: opts.plan, tier, btype: input.businessType, iid: opts.counterId || '' });
+    ip: opts.ip, admin: opts.admin, status: opts.status, plan: opts.plan, tier, btype: input.businessType, iid: opts.counterId || opts.iid || '' });
   if(r.status === 429) return json(429, { error: 'Too many sign-ups from this network. Please try again in an hour.' });
   if(!r.ok) return json(500, { error: 'Could not create the hotel. Please try again.' });
   const { code } = await r.json();
   const h = await hotelStub(env, code).fetch('https://hotel/internal/create', { method: 'POST', body: JSON.stringify({
     code, name: input.name, owner: input.owner, phone: input.phone, email: input.email, businessType: input.businessType, tier,
     installId: opts.installId || '', password: opts.installId ? '' : input.password, days: opts.days, paidUntil,
-    status: opts.status, plan: opts.plan, counterId: opts.counterId || '', lifetime: !!opts.lifetime }) });
+    status: opts.status, plan: opts.plan, counterId: opts.counterId || '', lifetime: !!opts.lifetime, noKey: !!opts.noKey }) });
   if(!h.ok){
     await regCall(env, '/release', { code });
     return json(500, { error: 'Could not create the hotel. Please try again.' });
@@ -1248,9 +1248,22 @@ async function signup(request, env){
   if(input.error) return json(400, input);
   const installId = String(b.installId || '').toUpperCase();
   if(!/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(installId)) return json(400, { error: 'install id' });
-  if(!env.LICENSE_PRIVATE_KEY) return json(503, { error: 'Sign-up is not available yet (vendor setup pending)' });
-  return createHotel(env, input, { days: +env.TRIAL_DAYS || 14, installId, ip: request.headers.get('CF-Connecting-IP') || 'unknown',
-    tier: TIERS[env.TRIAL_TIER] ? env.TRIAL_TIER : 'premium' });
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown', tier = TIERS[env.TRIAL_TIER] ? env.TRIAL_TIER : 'premium';
+  // Phone-only hotel signing up in the Setu POS app: the vendor's Master Key (or another key the vendor made) is the proof,
+  // like the counter PC's sign-up. One hotel per phone (Install ID); the vendor then gives the real days from Super Admin.
+  if(b.key){
+    let lic;
+    try{ lic = await verifyLicense(env, b.key, installId); }catch(e){
+      return json(403, { error: /expired/.test(e.message) ? 'Ye Master Key purani ho gayi. Vendor se nayi lein.' : 'Key sahi nahi hai. Vendor se mili Master Key poori paste karein.' });
+    }
+    if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'Ye phone Setu Pro ne block kiya hai. Vendor se baat karein.' });
+    const have = (await regJson(env, '/byiid', { iid: installId })).code;
+    if(have) return json(409, { error: `Is phone se pehle hi hotel bana hai (Hotel Code ${have}). Login karein.`, code: have });
+    const days = lic.lifetime ? 3650 : Math.max(1, Math.ceil((lic.until - Date.now()) / DAY));
+    return createHotel(env, input, { days, installId, iid: installId, noKey: true, ip, tier, status: 'active', lifetime: lic.lifetime });
+  }
+  if(!env.LICENSE_PRIVATE_KEY) return json(400, { error: 'Vendor se mili Master Key daaliye.' });
+  return createHotel(env, input, { days: +env.TRIAL_DAYS || 14, installId, ip, tier });
 }
 
 // Library-ERP style: a licensed counter PC joins the cloud by itself, no codes to type.
@@ -1529,7 +1542,7 @@ export default {
     const byHost = await hostHotel(env, url.hostname);
     const code = byHost || String(request.headers.get('X-Setu-Hotel') || '').toUpperCase();
     if(!code){
-      if(path === '/api/ping' || path === '/api/info') return json(200, { setu: true, cloud: true, saas: true, local: false, ips: [], signup: !!env.LICENSE_PRIVATE_KEY });
+      if(path === '/api/ping' || path === '/api/info') return json(200, { setu: true, cloud: true, saas: true, local: false, ips: [], signup: true });
       return json(400, { error: 'hotel code required' });
     }
     if(!/^[A-Z0-9]{4,12}$/.test(code)) return json(404, { error: 'hotel not found' });
