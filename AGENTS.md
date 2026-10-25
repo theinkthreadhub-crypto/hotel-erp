@@ -204,6 +204,9 @@ cd cloud && node scripts/copy-assets.mjs && npx wrangler dev --port 8787 --local
 ## 10. Super Admin (web + Setu Hotel Admin APK)
 
 - Login with `ADMIN_KEY` (optional "remember on this phone"); wrong tries lock. Bottom tabs: **Hotels · Keygen · Tickets · More**.
+- **Usage (is the client using Setu?):** on every save the Worker computes `billUsage(d)` (bills per IST day for 8 days, all
+  bills, last bill date; cancelled bills not counted) into registry `bdays` / `ball` / `lastbill`. Hotels shows "Aaj N bill · 7 din N",
+  a 7-day bar chart, a total for all hotels today, and the chip **Bill band** (no bill for 3+ days, hotel older than 3 days).
 - **Hotels:** search, chips (Sab / Dhyan do / Locked-Suspended / Tickets / Backup nahi), cards sorted by urgency (licence or payment
   ≤ 5 days, tickets, stale sync), tags: licence, last sync, version. Tap → sheet: Call, WhatsApp, facts (owner, licence, sync,
   version, Install ID), tiles: **Activate** (Keygen for this hotel), **Lock / Unlock**, **Warning**, **Suspend / Activate**, **Message**,

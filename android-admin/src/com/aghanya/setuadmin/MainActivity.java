@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         s.setDatabaseEnabled(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setSupportMultipleWindows(false);
-        s.setUserAgentString(s.getUserAgentString() + " SetuHotelAdminApp/1.1");
+        s.setUserAgentString(s.getUserAgentString() + " SetuHotelAdminApp/1.2");
         web.addJavascriptInterface(new Bridge(), "SA");
         web.setWebViewClient(new WebViewClient() {
             @Override

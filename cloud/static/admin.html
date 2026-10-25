@@ -287,6 +287,25 @@ function appState(h){
   if(+h.lockv === 1) return ['Warning', 'warn'];
   return ['Chal raha', 'ok'];
 }
+// Usage: bills per day from the counter (registry bdays / ball / lastbill), days in IST like the bills
+const istDay = (ms = Date.now()) => new Date(ms + 330 * 60000).toISOString().slice(0, 10);
+const bdays = h => { try{ return JSON.parse(h.bdays || '{}') || {}; }catch(e){ return {}; } };
+const billsToday = h => +bdays(h)[istDay()] || 0;
+const bills7 = h => { const b = bdays(h), from = istDay(Date.now() - 6 * DAYMS); return Object.keys(b).filter(k => k >= from).reduce((a, k) => a + (+b[k] || 0), 0); };
+// Days since the last bill (null = no bill ever); a hotel joined less than 3 days ago is not "idle" yet
+const idleDays = h => h.lastbill ? Math.floor((Date.parse(istDay()) - Date.parse(h.lastbill)) / DAYMS) : null;
+const notUsing = h => state(h) !== 'suspended' && Date.now() - h.created > 3 * DAYMS && (idleDays(h) === null || idleDays(h) >= 3);
+// Last 7 days as small bars (oldest left, today right)
+function billBars(h){
+  const b = bdays(h), days = [...Array(7)].map((_, i) => istDay(Date.now() - (6 - i) * DAYMS)), max = Math.max(1, ...days.map(d => +b[d] || 0));
+  const wd = d => ['Ra', 'So', 'Ma', 'Bu', 'Gu', 'Sh', 'Sa'][new Date(d + 'T12:00:00Z').getUTCDay()];
+  return `<div style="display:flex;gap:6px;align-items:flex-end;height:74px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card)">
+    ${days.map(d => { const n = +b[d] || 0; return `<div style="flex:1;text-align:center;font-size:10px;color:var(--muted)"><div style="font-weight:700;color:var(--ink)">${n}</div>
+      <div style="height:${Math.round(34 * n / max) + 2}px;border-radius:4px;background:${n ? 'var(--pri)' : 'var(--line)'};margin:2px 0"></div>${wd(d)}</div>`; }).join('')}</div>`;
+}
+const billTag = h => { const t = billsToday(h), w = bills7(h);
+  return `<span class="tag ${t ? 'ok' : notUsing(h) ? 'bad' : ''}">Aaj ${t} bill · 7 din ${w}</span>`; };
+
 // Hotels that need you come first: licence running out, no backup, open tickets
 function urgency(h){
   const d = licDays(h), p = payDays(h);
@@ -295,15 +314,19 @@ function urgency(h){
   if(p !== null && state(h) !== 'suspended' && h.plan !== 'counter'){ if(p < 0) u = Math.max(u, 120); else if(p <= 5) u = Math.max(u, 100 - p); }
   if(h.tickets) u = Math.max(u, 90);
   if(staleH(h) > 48 && h.seen) u = Math.max(u, 50);
+  if(notUsing(h)) u = Math.max(u, 60);
   return u;
 }
 let KF = 'all';
 const KFS = {all: ['Sab', () => true], need: ['Dhyan do', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
-  tk: ['Tickets', h => h.tickets > 0], stale: ['Backup nahi', h => staleH(h) > 48]};
+  tk: ['Tickets', h => h.tickets > 0], idle: ['Bill band (3+ din)', notUsing], stale: ['Backup nahi', h => staleH(h) > 48]};
 function setKF(k){ KF = k; drawHotelsBody(); }
 async function drawHotels(){
   await loadHotels();
-  $('#main').innerHTML = `<div class="search">${ic('search')}<input id="q" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
+  const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
+  $('#main').innerHTML = `<div class="card" style="display:flex;gap:10px;align-items:center;padding:12px 14px">${ic('chart')}<div style="flex:1"><b>Aaj sab hotels: ${today} bill</b>
+      <div class="muted" style="font-size:12px">${using} / ${live.length} hotels ne aaj bill banaye${HOTELS.filter(notUsing).length ? ` · <span class="err">${HOTELS.filter(notUsing).length} hotel 3+ din se band</span>` : ''}</div></div></div>
+    <div class="search">${ic('search')}<input id="q" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
   $('#q').oninput = drawCards;
   drawHotelsBody();
 }
@@ -316,6 +339,7 @@ function hotelAlert(h){
   if(d !== null && d !== Infinity && d < 0) return ['bad', 'Licence ' + d8(Date.parse(h.lic)) + ' ko khatam ho gaya'];
   if(d !== null && d !== Infinity && d <= 5) return ['warn', 'Licence ' + d + ' din mein khatam (' + d8(Date.parse(h.lic)) + ')'];
   if(h.tickets) return ['warn', h.tickets + ' naya ticket message'];
+  if(notUsing(h)) return ['bad', idleDays(h) === null ? 'Abhi tak ek bhi bill nahi bana' : `${idleDays(h)} din se koi bill nahi (aakhri ${d8(Date.parse(h.lastbill))}) — client se baat karein`];
   if(h.seen && staleH(h) > 48) return ['warn', 'PC se ' + ago(h.seen) + ' se data nahi aaya'];
   return null;
 }
@@ -338,7 +362,7 @@ function drawCards(){
     const [sl, sc] = appState(h), al = hotelAlert(h);
     return `<div class="hc" onclick="hotelSheet('${esc(h.code)}')"><div class="top">${avatar(h)}
         <div class="mid"><b class="nm">${esc(h.name)}</b><small>${esc(h.code)}${h.owner ? ' · ' + esc(h.owner) : ''}</small></div><span class="st ${sc}">${sl}</span></div>
-      <div class="tags">${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
+      <div class="tags">${billTag(h)}${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
       ${al ? `<div class="strip ${al[0]}">${esc(al[1])}</div>` : ''}</div>`;
   }).join('') || `<div class="card muted" style="text-align:center">${KF === 'all' && !q ? 'Abhi koi hotel nahi. Naye PC par EXE install karke Keygen se activate karein.' : 'Is list mein kuch nahi'}</div>`;
 }
@@ -355,11 +379,14 @@ function hotelSheet(code){
     <div class="facts">
       <div><span>Owner</span><b>${esc(h.owner || '-')} ${h.phone ? '· ' + esc(h.phone) : ''}</b></div>
       <div><span>Licence</span><b class="${d === Infinity ? 'ok' : d !== null && d <= 5 ? 'err' : ''}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + (d < 0 ? ' · khatam' : ' · ' + d + ' din')}</b></div>
+      <div><span>Bill</span><b>Aaj ${billsToday(h)} · 7 din ${bills7(h)} · kul ${(+h.ball || 0).toLocaleString('en-IN')}</b></div>
+      <div><span>Aakhri bill</span><b class="${notUsing(h) ? 'err' : ''}">${h.lastbill ? d8(Date.parse(h.lastbill)) + (idleDays(h) ? ` · ${idleDays(h)} din pehle` : ' · aaj') : 'Abhi tak nahi'}</b></div>
       <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Abhi nahi'}</b></div>
       <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(naya: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
       <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
       <div><span>Juda</span><b>${d8(h.created)}</b></div>
     </div>
+    <div class="muted" style="font-size:12px;margin:-6px 0 4px">Pichhle 7 din ke bill</div>${billBars(h)}
     <div class="tiles">
       ${tile('key', 'Activate', 'Key bhejo', `keygenFor('${C}')`, 'blue')}
       ${lk === 2 ? tile('unlock', 'Unlock', 'Setu chalu karo', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Setu band karo', `lockAsk('${C}')`, 'red')}

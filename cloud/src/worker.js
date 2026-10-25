@@ -141,6 +141,21 @@ function newConfig(type, tier){
     billing: cleanBilling(t.billing), rules: cleanRules({}), ver: 1 };
 }
 
+// Is the hotel really using Setu? Bills (not cancelled) per day for the last 8 days (IST), all bills, last bill date
+function billUsage(d, now = Date.now()){
+  const days = {}, from = istDay(now - 7 * DAY);
+  let ball = 0, lastbill = '';
+  (Array.isArray(d.bills) ? d.bills : []).forEach(b => {
+    if(!b || b.cancelled) return;
+    ball++;
+    const day = String(b.date || '').slice(0, 10);
+    if(day > lastbill) lastbill = day;
+    if(day >= from) days[day] = (days[day] || 0) + 1;
+  });
+  const bdays = JSON.stringify(days);
+  return { bdays, ball, lastbill, key: bdays + '|' + ball + '|' + lastbill };
+}
+
 // What the hotel's devices see in D.saas
 function saasView(a){
   const c = a.config || newConfig('restaurant');
@@ -385,6 +400,10 @@ export class SetuRegistry extends DurableObject {
     if(!cols.includes('notice')) this.sql.exec('ALTER TABLE hotel ADD COLUMN notice TEXT');
     if(!cols.includes('lockv')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lockv INTEGER DEFAULT 0');
     if(!cols.includes('appv')) this.sql.exec('ALTER TABLE hotel ADD COLUMN appv TEXT');
+    // Usage for Super Admin: bills per day (last 8 days, JSON), all bills, date of the last bill
+    if(!cols.includes('bdays')) this.sql.exec('ALTER TABLE hotel ADD COLUMN bdays TEXT');
+    if(!cols.includes('ball')) this.sql.exec('ALTER TABLE hotel ADD COLUMN ball INTEGER DEFAULT 0');
+    if(!cols.includes('lastbill')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lastbill TEXT');
     // Help & Support tickets from the hotels, and Install IDs the vendor blocked
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ticket (id TEXT PRIMARY KEY, code TEXT NOT NULL, subject TEXT, status TEXT, msgs TEXT,
       created INTEGER, updated INTEGER, unread_admin INTEGER DEFAULT 0, unread_hotel INTEGER DEFAULT 0)`);
@@ -506,7 +525,7 @@ export class SetuRegistry extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/update'){
-      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv'].filter(c => c in body);
+      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill'].filter(c => c in body);
       if(cols.length) this.sql.exec(`UPDATE hotel SET ${cols.map(c => c + ' = ?').join(', ')} WHERE code = ?`, ...cols.map(c => body[c]), body.code);
       return json(200, { ok: true });
     }
@@ -678,12 +697,15 @@ export class SetuHotel extends DurableObject {
     });
     const appv = String((d.settings || {}).appVersion || '').slice(0, 20), sub = d.subscription || {};
     const lic = sub.isLifetime ? 'lifetime' : String(sub.validUntil || '').slice(0, 25);
-    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed || lic !== this.licPushed){
+    const use = billUsage(d, now);
+    if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed || lic !== this.licPushed || use.key !== this.usePushed){
       this.appvPushed = appv;
       this.licPushed = lic;
+      this.usePushed = use.key;
       this.seenPushed = now;
       const iid = String((d.settings || {}).installId || '').slice(0, 20);
-      this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid, lic, appv }).catch(() => {}));
+      this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid, lic, appv,
+        bdays: use.bdays, ball: use.ball, lastbill: use.lastbill }).catch(() => {}));
     }
     this.meta = meta;
     this.raw = raw;
