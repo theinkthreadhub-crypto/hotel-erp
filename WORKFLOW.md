@@ -243,7 +243,7 @@ flowchart TD
 | Haalat | Kya karein |
 |---|---|
 | Owner password bhool gaya | Admin app → hotel → **Password**, ya Keygen → **Password Reset** key → Sign-in par "Password bhool gaye?" |
-| PC kharab / Windows format / naya PC | Naye PC par Setup.exe → Sign-up screen par **Restore** (Hotel Code + owner password) ya **Restore from Backup File (.json)**. Naye PC ki key alag (Install ID nayi). |
+| PC kharab / Windows format / naya PC | Naye PC par Setup.exe → (a) Sign-up screen par **Restore from Backup File (.json)**, ya (b) Master Key se Sign Up → Settings (G) → Hotel Setu Cloud → **"Naya computer? Purana hotel ka data cloud se laayein"** → purana Hotel Code + owner password. Naye PC ka licence apna rehta hai (Install ID nayi); sign-up se bana khaali naya hotel Super Admin se Delete kar dein. |
 | Licence khatam, screen lock | Admin se **Activate** bhejein (PC online), ya License (K) / lock screen par nayi key. Data safe rehta hai. |
 | PC ki date peeche ki | Setu lock ho jaata hai; sahi date lagayein ya nayi key. |
 | Hotel Super Admin mein nahi dikh raha | PC par internet? Settings → Hotel Setu Cloud "Status: On"? Admin app mein **↻** aur "Sab" chip. |
