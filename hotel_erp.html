@@ -7831,6 +7831,7 @@ async function drawCloudCard(){
     html = headT + `
     <p style="margin:0 0 10px">Status: ${stat}</p>
     <p style="margin:0 0 10px;font-size:15px">Hotel Code: <b style="font-size:18px;letter-spacing:1px">${esc(c.hotel || '')}</b></p>
+    ${!(D.menu || []).length && !(D.bills || []).length ? restoreForm('', 'Naya computer? Purana hotel ka data cloud se laayein') + `<p class="muted" style="margin:4px 0 10px">Ye PC sign-up par naye Hotel Code ${esc(c.hotel || '')} se juda hai. Purana data laane par ye PC purane Hotel Code par chala jayega (khaali naya code vendor hata dega).</p>` : ''}
     <details style="margin:0 0 10px"><summary class="muted" style="cursor:pointer">Advanced: Cloud URL / Sync Key</summary>
     <div style="margin:8px 0">${installIdHTML()}</div>
     <div class="grid">`;

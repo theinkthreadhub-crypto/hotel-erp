@@ -193,7 +193,8 @@ cd cloud && node scripts/copy-assets.mjs && npx wrangler dev --port 8787 --local
   menu, bills, or a completed sign-up (hotel name + owner login). A save retries a local "nolicense / waiting" state at once; real
   network retries are at most once a minute / every 30 minutes. One hotel per Install ID (registry `iid`); a second join → 409 →
   **Restore** (`/api/counter/restore`, Hotel Code + owner password, new Sync Key; first sync takes the cloud copy but keeps this
-  PC's Install ID and licence; `/claimiid`). Deleted hotel → counter gets 404 and joins again unless the Install ID is **blocked**.
+  PC's Install ID and licence; `/claimiid`). Because a signed-up PC joins at once, Settings keeps showing the
+  Restore form while the PC has no menu and no bills (the empty new hotel is left for the vendor to delete). Deleted hotel → counter gets 404 and joins again unless the Install ID is **blocked**.
 - Cloud login (phone): Hotel Code + PIN or the hotel's own domain; weak PINs refused; 5 wrong tries lock an IP for 15 min.
   Support links `#support=CODE.TOKEN` = read-only session (`SRV.readOnly`).
 - **Help & Support tickets:** registry `ticket`; app → `/api/support/*` (counter proxies via the cloud link); replies from Super Admin.
