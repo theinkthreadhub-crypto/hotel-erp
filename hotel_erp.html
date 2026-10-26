@@ -494,7 +494,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
       <div id="login-admin-fields">
         <div class="login-field">
           <label>Personal User ID / Mobile</label>
-          <input id="login_user_id" required placeholder="User ID ya Mobile number" autocomplete="username">
+          <input id="login_user_id" required placeholder="User ID or mobile number" autocomplete="username">
         </div>
         <div class="login-field">
           <label>Personal Password / PIN</label>
@@ -9057,7 +9057,7 @@ async function scrSupport(){
   }
   SUP = j.tickets || [];
   el.innerHTML = `<h3 style="margin-top:0">New complaint / question</h3>
-    <div class="grid"><div style="grid-column:1/-1"><label>Vishay (Subject)</label><input id="sup_sub" maxlength="100" placeholder="e.g. Printer se bill nahi nikal raha"></div>
+    <div class="grid"><div style="grid-column:1/-1"><label>Vishay (Subject)</label><input id="sup_sub" maxlength="100" placeholder="e.g. The printer is not printing bills"></div>
       <div style="grid-column:1/-1"><label>Describe the problem</label><textarea id="sup_txt" rows="3" maxlength="2000" style="width:100%"></textarea></div></div>
     <div class="btns"><button class="btn ok" onclick="supSend()">Send</button><button class="btn g" onclick="scrSupport()">Refresh</button></div>
     <h3>Your tickets</h3>

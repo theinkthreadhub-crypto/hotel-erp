@@ -327,7 +327,7 @@ async function drawHotels(){
   const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
   $('#main').innerHTML = `<div class="card" style="display:flex;gap:10px;align-items:center;padding:12px 14px">${ic('chart')}<div style="flex:1"><b>All hotels today: ${today} bills</b>
       <div class="muted" style="font-size:12px">${using} / ${live.length} hotels billed today${HOTELS.filter(notUsing).length ? ` · <span class="err">${HOTELS.filter(notUsing).length} hotels with no bills for 3+ days</span>` : ''}${HOTELS.filter(h => +h.errs).length ? ` · <span class="err" style="cursor:pointer" onclick="setKF('err')">${HOTELS.filter(h => +h.errs).length} hotels with errors</span>` : ''}</div></div></div>
-    <div class="search">${ic('search')}<input id="q" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
+    <div class="search">${ic('search')}<input id="q" placeholder="Name, code, mobile or Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
   $('#q').oninput = drawCards;
   drawHotelsBody();
 }
