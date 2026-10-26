@@ -25,17 +25,17 @@ cancelled bills never count as sales. Money is added in paise.
 | 14 | table-turnover | Table Turnover | ⏳ Pending | Needs order start time on the bill |
 | 15 | reservations | Reservations | ✅ Built | |
 | 16 | delivery | Delivery | ⏳ Pending | No own delivery module |
-| 17 | waste | Waste | ⏳ Pending | Needs Waste entry feature |
+| 17 | waste | Waste | ✅ Built, tested | Stock → Waste entries |
 | 18 | inventory-valuation | Inventory Valuation | ✅ Built, tested | Point-in-time (today) |
 | 19 | bill-register | Bill Register | ✅ Built, tested | Click a row = bill details |
 | 20 | refund-cancellation | Cancelled Bills | ✅ Built, tested | Refund feature does not exist |
 | 21 | purchase-register | Purchase Register | ✅ Built | No invoice no. / purchase GST yet |
 | 22 | supplier-ledger | Supplier Ledger | ✅ Built, tested | Opening balance + running balance |
-| 23 | supplier-payments-due | Supplier Dues | ✅ Built (supplier-wise), tested | Invoice-wise pending |
-| 24 | stock-movement | Stock Movement Ledger | ⏳ Pending | Needs stock movement log |
-| 25 | stock-opening-closing | Opening & Closing Stock | ⏳ Pending | After movement log |
+| 23 | supplier-payments-due + supplier-invoices | Supplier Dues + Invoice-wise Dues | ✅ Built, tested | FIFO payment matching |
+| 24 | stock-movement | Stock In/Out Register | ✅ Built, tested | Running balance per item |
+| 25 | stock-opening-closing | Opening & Closing Stock | ✅ Built, tested | Closing = current stock (tested) |
 | 26 | stock-alerts | Low Stock Alerts | ✅ Built | No expiry / batch in Setu |
-| 27 | recipe-consumption | Recipe Variance | ⏳ Pending | Physical count + movement log |
+| 27 | recipe-consumption | Stock Variance | ✅ Built | Needs physical counts in the period |
 | 28 | regular-expenses | Expenses (entry-wise) | ✅ Built | Supplier Payment excluded |
 | 29 | expense-category | Expense Category | ✅ Built, tested | Purchase / Supplier Payment not double counted |
 | 30 | day-book-cash-close | Cash & Day Close | ✅ Built | Expected vs counted cash |
@@ -65,3 +65,25 @@ CSV / Excel keep numbers as numbers and put `'` before text starting with = + - 
 | CSV / Excel / PDF same totals | ✅ |
 | Waste test | ⏳ Waste feature pending |
 | Refund test | n/a (no refund feature) |
+
+## Inventory, purchase & expense upgrade (26 Oct 2026)
+
+New reports: item-lifetime, regular-purchase, supplier-invoices, stock-movement, stock-opening-closing, waste, recipe-consumption
+(stock variance), misc-expense, maintenance, gas-history, monthly-purchase-expense, fixed-assets. Supplier ledger now includes
+expenses saved as "baaki" and merged supplier names; inventory valuation uses weighted average cost.
+
+| Mandatory test | Result |
+|---|---|
+| 25 kg Atta on 4 dates | ✅ 100 kg, 4 dated entries |
+| Different rates stay as saved | ✅ ₹800 / 850 / 900 / 875 kept |
+| 50 Butter Tikki bought, 10 sold | ✅ 40 |
+| Bulb bought and installed | ✅ expense ₹250 (Kitchen), no stock item made |
+| 10 spare bulbs, 1 issued | ✅ 9 |
+| ₹5,000 credit invoice, ₹3,000 paid | ✅ ₹2,000 due, invoice INV-77 shows ₹2,000 |
+| LPG refilled 3 times | ✅ 3 entries, 5 cylinders, ₹9,000, monthly spend in report |
+| Same bulk import twice | ✅ second time skipped (125 → 125) |
+| Restart + cloud sync, two devices selling at once | ✅ 35 − 5 = 30 (old version lost sales here) |
+| Reports vs source | ✅ closing stock = item stock for every item, 0 report errors |
+| Repeat Last does not mark paid | ✅ payment left empty |
+| Old bill (before update) cancelled | ✅ stock comes back (7 → 8) |
+| Item merge (Aata → Atta) | ✅ stock and history combined, old entries unchanged |

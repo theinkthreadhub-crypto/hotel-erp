@@ -812,6 +812,8 @@ function ensureGrowth(s){
   if(!s.monthlySent || typeof s.monthlySent !== 'object') s.monthlySent = {};
   if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
   if(!s.salarySheets || typeof s.salarySheets !== 'object') s.salarySheets = {};
+  ['moves', 'orders', 'assets', 'gasLog', 'expTpl'].forEach(k => { if(!Array.isArray(s[k])) s[k] = []; });
+  ['stockAlias', 'supAlias', 'supInfo'].forEach(k => { if(!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {}; });
   if(!s.seq) s.seq = { bill: 0, kot: 0 };
   if(!s.seq.token) s.seq.token = 0;
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
@@ -819,6 +821,7 @@ function ensureGrowth(s){
   if(!s.settings.installId) s.settings.installId = newInstallId();
   if(!s.settings.thermal58Fix){ s.settings.thermal58Fix = true; s.settings.width = 58; s.settings.billPaper = 'thermal'; s.settings.kotPaper = 'thermal'; }
   applySaas(s);
+  try{ stockRecalc(s); }catch(e){}
   return s;
 }
 
@@ -933,6 +936,7 @@ function mirrorToIndexedDB(data){
 }
 
 function save(){
+  try{ stockRecalc(D); }catch(e){ logError('Stock hisaab nahi bana', 'stockRecalc', e.stack || e.message); }
   if(SRV.on && SRV.readOnly){
     // Setu Support view: nothing is saved
   } else if(SRV.on){
@@ -2604,7 +2608,7 @@ const SCREENS = {
   online: scrOnline,
   bills: scrBills,
   purchase: scrPurchase,
-  expense: () => scrVoucher('Expense'),
+  expense: scrExpense,
   income: () => scrVoucher('Receipt'),
   daybook: scrDaybook,
   cash: scrCash,
@@ -2776,9 +2780,53 @@ function summary(d){
     dineSales, takeawaySales, zomatoSales, swiggySales
   };
 }
-const lowStock = () => D.stock.filter(s => +s.qty <= +s.min);
+const lowStock = () => D.stock.filter(s => !s.merged && s.active !== false && +s.qty <= +s.min);
 
 /* ================= MODERN EXECUTIVE GATEWAY / DASHBOARD ================= */
+/* ================= DASHBOARD CHARTS (inline SVG, no library) ================= */
+let chartDays = 14;
+const CH = {bar: '#2563eb', bar2: '#f59e0b', grid: '#e5e7eb', text: '#64748b', pal: ['#2563eb', '#16a34a', '#f59e0b', '#db2777', '#7c3aed', '#0891b2', '#64748b']};
+const shortMoney = v => v >= 1e5 ? '₹' + (v / 1e5).toFixed(v >= 1e6 ? 0 : 1) + 'L' : v >= 1e3 ? '₹' + (v / 1e3).toFixed(v >= 1e4 ? 0 : 1) + 'k' : '₹' + Math.round(v);
+// Vertical bars: data = [[label, value, value2?]]
+function svgBars(data, h = 170, two){
+  const W = 560, P = 34, max = Math.max(1, ...data.flatMap(d => [d[1], two ? d[2] : 0])), bw = (W - P - 6) / Math.max(1, data.length);
+  const y = v => h - 22 - (v / max) * (h - 34);
+  const grid = [0, .5, 1].map(f => `<line x1="${P}" x2="${W}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="${CH.grid}"/><text x="${P - 4}" y="${y(max * f) + 4}" font-size="10" text-anchor="end" fill="${CH.text}">${shortMoney(max * f)}</text>`).join('');
+  const bars = data.map((d, i) => { const x = P + 3 + i * bw, w = two ? (bw - 6) / 2 : bw - 6;
+    return `<rect x="${x}" y="${y(d[1])}" width="${Math.max(1, w)}" height="${h - 22 - y(d[1])}" rx="2" fill="${CH.bar}"><title>${esc(d[0])}: ${money(d[1])}</title></rect>`
+      + (two ? `<rect x="${x + w + 2}" y="${y(d[2])}" width="${Math.max(1, w)}" height="${h - 22 - y(d[2])}" rx="2" fill="${CH.bar2}"><title>${esc(d[0])}: ${money(d[2])}</title></rect>` : '')
+      + ((data.length <= 16 || i % Math.ceil(data.length / 12) === 0) ? `<text x="${x + (bw - 6) / 2}" y="${h - 6}" font-size="10" text-anchor="middle" fill="${CH.text}">${esc(d[0])}</text>` : ''); }).join('');
+  return `<svg viewBox="0 0 ${W} ${h}" style="width:100%;height:auto;display:block" role="img">${grid}${bars}</svg>`;
+}
+// Horizontal bars with labels: data = [[label, value, text]]
+function svgHBars(data){
+  const max = Math.max(1, ...data.map(d => d[1]));
+  return data.length ? data.map((d, i) => `<div style="display:flex;align-items:center;gap:8px;margin:5px 0;font-size:12px">
+    <span style="width:110px;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d[0])}">${esc(d[0])}</span>
+    <span style="flex:1;background:#f1f5f9;border-radius:4px;height:14px"><span style="display:block;height:14px;border-radius:4px;width:${Math.max(2, d[1] / max * 100)}%;background:${CH.pal[i % CH.pal.length]}"></span></span>
+    <span style="width:80px;flex:none;text-align:right;font-weight:700">${esc(d[2])}</span></div>`).join('') : '<p class="muted" style="font-size:12px">Abhi data nahi</p>';
+}
+function dashCharts(){
+  const t = today(), from = addDays(t, -(chartDays - 1)), bills = D.bills.filter(b => !b.cancelled && b.date >= from && b.date <= t);
+  const day = {}; for(let i = chartDays - 1; i >= 0; i--) day[addDays(t, -i)] = 0;
+  bills.forEach(b => { day[b.date] = (day[b.date] || 0) + (+b.total || 0); });
+  const pay = {}; bills.forEach(b => payParts(b).forEach(p => { pay[p.mode] = (pay[p.mode] || 0) + (+p.amt || 0); }));
+  const items = {}; bills.forEach(b => (b.items || []).forEach(i => { items[i.name] = (items[i.name] || 0) + (+i.qty || 0); }));
+  const months = []; for(let i = 5; i >= 0; i--){ const d = new Date(t.slice(0, 7) + '-01T00:00'); d.setMonth(d.getMonth() - i); months.push(d.getFullYear() + '-' + pad(d.getMonth() + 1)); }
+  const mSales = k => sum(D.bills.filter(b => !b.cancelled && b.date.startsWith(k)), 'total');
+  const mCost = k => sum(D.txns.filter(x => x.date.startsWith(k) && (x.type === 'Purchase' || (x.type === 'Expense' && !NON_EXPENSE_HEADS.includes(x.head)))), 'amount');
+  const tot = Object.values(day).reduce((a, v) => a + v, 0);
+  return `<div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Business Charts</h3>
+      <span class="cats" style="margin:0">${[7, 14, 30].map(n => `<button class="cat ${chartDays === n ? 'on' : ''}" onclick="chartDays=${n};scrGateway()">${n} din</button>`).join('')}</span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-top:10px">
+      <div><div class="muted" style="font-size:12px;margin-bottom:4px">Roz ki sale · ${chartDays} din: <b>${money(tot)}</b> · avg ${money(tot / chartDays)}/din</div>${svgBars(Object.entries(day).map(([d, v]) => [d.slice(8) + '/' + d.slice(5, 7), v]))}</div>
+      <div><div class="muted" style="font-size:12px;margin-bottom:4px">Sale (neela) vs Purchase + Kharcha (peela) · 6 mahine</div>${svgBars(months.map(k => [MONTH_NAMES[+k.slice(5) - 1].slice(0, 3), mSales(k), mCost(k)]), 170, true)}</div>
+      <div><div class="muted" style="font-size:12px;margin-bottom:4px">Payment mode · ${chartDays} din</div>${svgHBars(Object.entries(pay).sort((a, b) => b[1] - a[1]).map(([k, v]) => [k, v, shortMoney(v)]))}</div>
+      <div><div class="muted" style="font-size:12px;margin-bottom:4px">Top items (qty) · ${chartDays} din</div>${svgHBars(Object.entries(items).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, v]) => [k, v, fq(v)]))}</div>
+    </div></div>`;
+}
+
 function scrGateway(){
   const s = summary(today());
   const low = lowStock();
@@ -2794,7 +2842,7 @@ function scrGateway(){
   const tiles = dashTiles();
   const kpis = ['kpiSales', 'kpiTables', 'kpiOnline', 'kpiCash', 'kpiMargin'].filter(on);
   const leftOn = on('channels') || on('top'), rightOn = on('recent') || on('waReport'), anyCol = leftOn || rightOn;
-  const shown = ['welcome', 'license', 'alerts', 'launchpad', 'channels', 'top', 'recent', 'waReport'].some(on) || kpis.length;
+  const shown = ['welcome', 'license', 'alerts', 'launchpad', 'charts', 'channels', 'top', 'recent', 'waReport'].some(on) || kpis.length;
 
   main.innerHTML = `
     ${isManager() ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn g sm" onclick="dashSetup()">Customize Dashboard</button></div>` : ''}
@@ -2919,6 +2967,7 @@ function scrGateway(){
         <button class="btn wa" onclick="mrMonth=prevMonth(today().slice(0,7));go('monthly')">Send Monthly Report</button>
       </div>` : ''}
 
+    ${on('charts') ? dashCharts() : ''}
     <!-- Quick Action Launchpad Tiles -->
     ${on('launchpad') && tiles.length ? `<div class="section-title">
       <span>Quick Action Launchpad</span>
@@ -3042,6 +3091,7 @@ function scrGateway(){
 // Saved per hotel in settings.dashHide (hidden sections) and settings.dashTiles (launchpad tiles;
 // missing = all). Every device of the hotel shows the same dashboard.
 const DASH_PARTS = [
+  ['charts', 'Business charts (sale, payment, top items, kharcha)'],
   ['welcome', 'Welcome banner with New Bill / Zomato / Swiggy buttons'],
   ['license', 'License / plan card'],
   ['kpiSales', 'Total sales today'],
@@ -3291,6 +3341,7 @@ function handoverOnlineOrder(id){
 
   const bill = {
     id: uid(),
+    mv: 1,
     no: ++D.seq.bill,
     kot: ++D.seq.kot,
     date: today(),
@@ -3982,6 +4033,7 @@ function finalizePakkaBill(approvedDisc){
 
   const bill = {
     id: uid(),
+    mv: 1,
     no: ++D.seq.bill,
     kot: ++D.seq.kot,
     date: today(),
@@ -4048,6 +4100,80 @@ function applyStock(used, sign){
   });
 }
 
+/* ================= STOCK MOVEMENTS (every in / out of every item) ================= */
+// Stock is not a number that devices overwrite: it is worked out from movements, so two devices selling at
+// the same time can never lose a sale in sync. Movements come from:
+//   D.moves      — opening stock, waste, internal issue, return, physical count, merge, deleted old entries
+//   D.txns       — Purchase lines saved by this version (mv: 1): goods received (+qty)
+//   D.bills      — bills saved by this version (mv: 1): recipe / direct-sale consumption (−used); a cancelled bill shows sale + reversal
+// Records from before this version are inside the "Opening Stock" movement made once per item.
+const MOVE_TYPES = {open: 'Opening Stock', purchase: 'Goods Received', sale: 'Sale (recipe)', cancel: 'Bill Cancel (wapas)', waste: 'Waste',
+  issue: 'Internal Issue', return: 'Return to Supplier', adjust: 'Physical Count', del: 'Entry Deleted', merge: 'Item Merge'};
+const r3 = n => Math.round((+n || 0) * 1000) / 1000;
+const curUser = () => activeUser ? activeUser.name : '';
+function sidOf(sid, s = D){ let x = sid, n = 0; while(s.stockAlias && s.stockAlias[x] && n++ < 6) x = s.stockAlias[x]; return x; }
+function stockMoves(s = D){
+  const out = [];
+  (s.moves || []).forEach(m => out.push({...m, sid: sidOf(m.sid, s)}));
+  (s.txns || []).forEach(t => { if(t.type === 'Purchase' && t.mv && t.sid && +t.qty) out.push({id: 'p-' + t.id, date: t.date, time: t.time || '', sid: sidOf(t.sid, s), qty: +t.qty, type: 'purchase', ref: t.id, by: t.by || '', note: [t.party, t.inv && t.inv.no ? 'Inv ' + t.inv.no : ''].filter(Boolean).join(' · ')}); });
+  (s.bills || []).forEach(b => { if(!b.mv) return; (b.used || []).forEach(u => {
+    const base = {date: b.date, time: b.time || '', sid: sidOf(u.sid, s), ref: b.id, by: b.by || ''};
+    out.push({...base, id: 's-' + b.id + '-' + u.sid, qty: -(+u.qty || 0), type: 'sale', note: 'Bill #' + b.no});
+    if(b.cancelled) out.push({...base, id: 'x-' + b.id + '-' + u.sid, qty: +u.qty || 0, type: 'cancel', note: 'Bill #' + b.no + ' cancel'});
+  }); });
+  const ord = {open: 0};
+  return out.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')) || (ord[a.type] ?? 1) - (ord[b.type] ?? 1));
+}
+// Current stock of every item = sum of its movements. Items without an opening movement get one now (their stock today).
+function stockRecalc(s = D){
+  if(!s || !Array.isArray(s.stock)) return;
+  if(!Array.isArray(s.moves)) s.moves = [];
+  const tot = {};
+  stockMoves(s).forEach(m => { tot[m.sid] = (tot[m.sid] || 0) + m.qty; });
+  const opened = new Set(s.moves.filter(m => m.type === 'open').map(m => m.sid));
+  s.stock.forEach(x => {
+    if(x.merged) return;
+    if(!opened.has(x.id)){
+      const q = r3((+x.qty || 0) - (tot[x.id] || 0));
+      s.moves.push({id: 'open-' + x.id, at: Date.now(), date: today(), time: nowTime(), sid: x.id, qty: q, type: 'open', by: curUser(), note: 'Shuruaat ka stock'});
+      tot[x.id] = (tot[x.id] || 0) + q;
+    }
+    x.qty = r3(tot[x.id] || 0);
+  });
+}
+function addMove(sid, qty, type, note, extra){
+  const m = {id: uid(), at: Date.now(), date: today(), time: nowTime(), sid, qty: r3(qty), type, by: curUser(), note: note || '', ...(extra || {})};
+  D.moves.push(m);
+  return m;
+}
+const stockItem = id => D.stock.find(x => x.id === sidOf(id));
+const activeStock = () => D.stock.filter(s => !s.merged && s.active !== false);
+// Units: the item's own unit plus any "1 bag = 25 kg" conversions
+const unitList = s => [[s.unit || 'pcs', 1]].concat((s.conv || []).filter(c => c.u && +c.f > 0).map(c => [c.u, +c.f]));
+// Weighted average purchase cost per unit (all purchases saved with quantity), else the last rate
+function avgCost(sid){
+  const ps = D.txns.filter(t => t.type === 'Purchase' && t.sid && sidOf(t.sid) === sid && +t.qty > 0 && +t.amount > 0);
+  const q = sum(ps, 'qty'), a = sum(ps, 'amount');
+  return q ? r2(a / q) : +(stockItem(sid) || {}).rate || 0;
+}
+// Same item typed differently: "Atta" / "Aata" / "Wheat Flour"
+const ITEM_SYN = [['atta', 'aata', 'wheatflour', 'gehuatta', 'gehunatta'], ['chawal', 'rice'], ['tel', 'oil', 'refined'], ['cheeni', 'sugar', 'shakkar'],
+  ['namak', 'salt'], ['doodh', 'milk'], ['pyaz', 'pyaaz', 'onion'], ['aloo', 'alu', 'potato'], ['tamatar', 'tomato'], ['maida', 'refinedflour'], ['besan', 'gramflour'], ['ghee', 'desighee']];
+const nameKey = n => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '').replace(/aa/g, 'a').replace(/ee/g, 'i').replace(/oo/g, 'u').replace(/w/g, 'v').replace(/(.)\1+/g, '$1');
+function similarItems(name, exceptId){
+  const k = nameKey(name), raw = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const grp = ITEM_SYN.find(g => g.some(x => nameKey(x) === k || x === raw));
+  return D.stock.filter(s => s.id !== exceptId && !s.merged).filter(s => {
+    const k2 = nameKey(s.name), r2x = s.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return k2 === k || (k.length >= 4 && k2.length >= 4 && (k2.includes(k) || k.includes(k2))) || (grp && grp.some(x => nameKey(x) === k2 || x === r2x));
+  });
+}
+
+// A bill from before stock movements: its stock comes back as a movement (newer bills reverse by themselves)
+function billCancelMoves(b){
+  if(b.mv) return;
+  (b.used || []).forEach(u => { if(+u.qty && !D.moves.some(m => m.id === 'c-' + b.id + '-' + u.sid)) D.moves.push({id: 'c-' + b.id + '-' + u.sid, at: Date.now(), date: today(), time: nowTime(), sid: u.sid, qty: r3(+u.qty), type: 'cancel', ref: b.id, by: curUser(), note: 'Bill #' + b.no + ' cancel'}); });
+}
 const getBill = id => D.bills.find(b => b.id === id);
 
 /* ================= DIRECT PRINTING (thermal ESC/POS, no print dialog) ================= */
@@ -4638,6 +4764,7 @@ function remakeBill(id){
     b.cancelled = true;
     b.cancelledBy = by;
     applyStock(b.used, +1);
+    billCancelMoves(b);
     audit('Bill Cancel', `Bill #${b.no} (re-make) · ${b.items.map(i => i.name + '×' + i.qty).join(', ')}`, b.total, b.id, by);
     save();
     closeModal();
@@ -4656,6 +4783,7 @@ function cancelBill(id){
     b.cancelled = true;
     b.cancelledBy = by;
     applyStock(b.used, +1);
+    billCancelMoves(b);
     audit('Bill Cancel', `Bill #${b.no} · ${b.table || ''} · ${b.items.map(i => i.name + '×' + i.qty).join(', ')}`, b.total, b.id, by);
     save();
     toast('Bill cancelled');
@@ -4689,57 +4817,147 @@ function txList(type){
   </div>`;
 }
 
+
+
+
+
+/* ================= PURCHASE (P): supplier invoice with many items, part payment, order vs goods received ================= */
+const PAY_MODES = ['Cash', 'UPI', 'Card', 'Bank'];
+let PF = null, purView = 'month';
+const pfNew = () => ({date: today(), party: '', no: '', due: '', status: 'received', disc: '', tax: '', paid: '', mode: 'Cash', remark: '', lines: [{sid: '', qty: '', f: 1, rate: ''}], order: ''});
+const supDatalist = id => `<datalist id="${id}">${suppliers().map(s => `<option>${esc(s.name)}</option>`).join('')}</datalist>`;
+const pfLineAmt = l => r2((+l.qty || 0) * (+l.rate || 0));
+const pfTotals = () => { const items = r2(sum(PF.lines, pfLineAmt)), total = r2(items - (+PF.disc || 0) + (+PF.tax || 0)); const paid = PF.paid === '' ? total : Math.min(+PF.paid || 0, total); return {items, total, paid: r2(paid), pending: r2(total - paid)}; };
+function scrPurchase(){
+  if(!PF) PF = pfNew();
+  const t = pfTotals(), opts = sel => `<option value="">— item chunein —</option>${activeStock().map(s => `<option value="${s.id}" ${s.id === sel ? 'selected' : ''}>${esc(s.name)} (${fq(s.qty)} ${esc(s.unit)})</option>`).join('')}`;
+  const orders = (D.orders || []).filter(o => o.status === 'open');
+  main.innerHTML = `
+  <div class="title"><span>Purchase — Supplier Invoice / Goods In</span><span class="r">${PF.order ? '<b>Order se maal aa raha hai</b>' : ''}</span></div>
+  <div class="card">
+    <div class="grid">
+      <div><label>Date</label><input type="date" value="${PF.date}" max="${today()}" onchange="PF.date=this.value"></div>
+      <div><label>Supplier</label><input list="pf_sups" value="${esc(PF.party)}" placeholder="e.g. Gupta Traders" onchange="PF.party=this.value.trim();pfDefaults()">${supDatalist('pf_sups')}</div>
+      <div><label>Invoice / Bill No.</label><input value="${esc(PF.no)}" onchange="PF.no=this.value.trim()" placeholder="optional"></div>
+      <div><label>Status</label><select onchange="PF.status=this.value;scrPurchase()"><option value="received" ${PF.status === 'received' ? 'selected' : ''}>Maal aa gaya (stock badhega)</option><option value="order" ${PF.status === 'order' ? 'selected' : ''}>Sirf order diya (stock nahi)</option></select></div>
+    </div>
+    <div style="overflow:auto;margin-top:10px"><table>
+      <thead><tr><th>Item</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate (per unit)</th><th class="n">Amount</th><th></th></tr></thead>
+      <tbody>${PF.lines.map((l, i) => { const s = stockItem(l.sid); return `<tr>
+        <td><select onchange="pfSet(${i},'sid',this.value)">${opts(l.sid)}</select></td>
+        <td class="n"><input type="number" step="any" value="${l.qty}" style="width:90px" oninput="pfSet(${i},'qty',this.value,1)"></td>
+        <td><select style="width:auto" onchange="pfSet(${i},'f',+this.value)">${s ? unitList(s).map(([u, f]) => `<option value="${f}" ${+l.f === f ? 'selected' : ''}>${esc(u)}</option>`).join('') : '<option>-</option>'}</select></td>
+        <td class="n"><input type="number" step="any" value="${l.rate}" style="width:100px" oninput="pfSet(${i},'rate',this.value,1)"></td>
+        <td class="n" id="pf_a${i}">${money(pfLineAmt(l))}</td>
+        <td>${PF.lines.length > 1 ? `<button class="btn bad sm" onclick="PF.lines.splice(${i},1);scrPurchase()">×</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>
+    <div class="btns" style="margin-top:6px"><button class="btn g sm" onclick="PF.lines.push({sid:'',qty:'',f:1,rate:''});scrPurchase()">+ Item</button><button class="btn g sm" onclick="editStock()">+ Naya item banayein</button></div>
+    <div class="grid" style="margin-top:8px">
+      <div><label>Discount (₹)</label><input type="number" step="any" value="${PF.disc}" oninput="PF.disc=this.value;pfTot()"></div>
+      <div><label>GST / Tax on bill (₹)</label><input type="number" step="any" value="${PF.tax}" oninput="PF.tax=this.value;pfTot()"></div>
+      ${PF.status === 'received' ? `<div><label>Abhi diya (₹) — khaali = poora</label><input type="number" step="any" value="${PF.paid}" placeholder="${t.total}" oninput="PF.paid=this.value;pfTot()"></div>
+      <div><label>Payment Mode</label><select onchange="PF.mode=this.value">${PAY_MODES.map(m => `<option ${PF.mode === m ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
+      <div><label>Due Date (baaki ke liye)</label><input type="date" value="${PF.due}" onchange="PF.due=this.value"></div>` : ''}
+      <div><label>Remarks</label><input value="${esc(PF.remark)}" onchange="PF.remark=this.value"></div>
+    </div>
+    <div id="pf_tot" style="margin-top:10px;font-size:15px">${pfTotText(t)}</div>
+    <div class="btns">
+      <button class="btn ok" onclick="savePurchase()">${PF.status === 'order' ? 'Order save karein' : 'Save Purchase'}</button>
+      <button class="btn g" onclick="PF=pfNew();scrPurchase()">Clear</button>
+      <button class="btn" onclick="bulkUpload('purchase')">Bulk Purchase (Excel)</button>
+      <button class="btn g" onclick="go('stock')">Stock (S)</button>
+    </div>
+    <p class="muted" style="margin-top:8px;font-size:12px">Poora paisa abhi nahi diya to baaki supplier ke udhaar (U) mein judega. Baad mein U → Pay se chukayein — ye kharcha dobara nahi ginta.</p>
+  </div>
+  ${orders.length ? `<div class="card" style="padding:0;overflow:auto"><h3 style="margin:10px 12px">Pending Orders (maal abhi nahi aaya)</h3><table><thead><tr><th>Date</th><th>Supplier</th><th>Items</th><th class="n">Approx ₹</th><th></th></tr></thead>
+    <tbody>${orders.map(o => `<tr><td>${dmy(o.date)}</td><td>${esc(o.party)}</td><td>${o.lines.map(l => esc((stockItem(l.sid) || {}).name || '?') + ' × ' + fq(l.qty)).join(', ')}</td><td class="n">${money(sum(o.lines, pfLineAmt))}</td>
+      <td style="white-space:nowrap"><button class="btn ok sm" onclick="receiveOrder('${o.id}')">Maal aaya</button> <button class="btn bad sm" onclick="cancelOrder('${o.id}')">Cancel</button></td></tr>`).join('')}</tbody></table></div>` : ''}
+  ${purList()}`;
+}
+const pfTotText = t => `Items ${money(t.items)} − Discount ${money(+PF.disc || 0)} + GST ${money(+PF.tax || 0)} = <b>Total ${money(t.total)}</b>${PF.status === 'received' ? ` · Abhi diya <b>${money(t.paid)}</b> · <span class="${t.pending ? 'red' : 'green'}">Baaki (udhaar) <b>${money(t.pending)}</b></span>` : ''}`;
+function pfTot(){ const el = $('#pf_tot'); if(el) el.innerHTML = pfTotText(pfTotals()); }
+function pfSet(i, k, v, soft){
+  const l = PF.lines[i];
+  l[k] = v;
+  if(k === 'sid'){ const s = stockItem(v); l.f = 1; l.rate = s ? s.rate || '' : ''; if(s && s.sup && !PF.party) PF.party = s.sup; }
+  if(k === 'f'){ const s = stockItem(l.sid); if(s && s.rate) l.rate = r2(s.rate * v); }
+  if(soft){ const a = $('#pf_a' + i); if(a) a.textContent = money(pfLineAmt(l)); pfTot(); return; }
+  scrPurchase();
+}
+function pfDefaults(){ scrPurchase(); }
+function savePurchase(){
+  const lines = PF.lines.filter(l => l.sid && +l.qty > 0);
+  if(!lines.length){ toast('Kam se kam ek item aur qty likhiye'); return; }
+  if(PF.lines.some(l => l.sid && !(+l.qty > 0))){ toast('Har item ki qty likhiye'); return; }
+  const t = pfTotals(), party = PF.party.trim();
+  if(PF.status === 'order'){
+    if(!party){ toast('Order ke liye supplier ka naam likhiye'); return; }
+    D.orders.push({id: uid(), date: PF.date, party, no: PF.no, lines: lines.map(l => ({...l})), disc: +PF.disc || 0, tax: +PF.tax || 0, remark: PF.remark, status: 'open', by: curUser(), at: Date.now()});
+    save(); PF = pfNew(); toast('Order save hua. Maal aane par "Maal aaya" dabayein (tab stock badhega).'); scrPurchase(); return;
+  }
+  if(t.pending > 0 && !party){ toast('Udhaar (baaki) ke liye supplier ka naam zaroori hai'); return; }
+  if(t.total < 0){ toast('Total minus nahi ho sakta'); return; }
+  const invId = uid(), time = PF.date === today() ? nowTime() : '12:00', credit = t.pending > 0, adj = r2(t.total - t.items);
+  let left = adj;
+  lines.forEach((l, i) => {
+    const s = stockItem(l.sid), base = r3(+l.qty * (+l.f || 1)), amt0 = pfLineAmt(l);
+    const share = i === lines.length - 1 ? left : (t.items ? r2(adj * amt0 / t.items) : 0);
+    left = r2(left - share);
+    const amount = r2(amt0 + share), unitName = (unitList(s).find(([, f]) => f === (+l.f || 1)) || [s.unit])[0];
+    D.txns.push({id: uid(), type: 'Purchase', date: PF.date, time, head: s.name, desc: `${fq(l.qty)} ${unitName}${+l.f !== 1 ? ` (${fq(base)} ${s.unit})` : ''} @ ₹${l.rate}`,
+      party, amount, mode: credit ? 'Credit' : PF.mode, sid: s.id, qty: base, mv: 1, by: curUser(), at: Date.now(),
+      inv: {id: invId, no: PF.no, disc: +PF.disc || 0, tax: +PF.tax || 0, due: credit ? PF.due : '', total: t.total, paid: t.paid, n: lines.length}, ...(PF.remark ? {remark: PF.remark} : {})});
+    if(base) s.rate = r2(+l.rate / (+l.f || 1));
+    if(party && !s.sup) s.sup = party;
+  });
+  // Part paid now: the paid part is a supplier payment against this invoice (not a second expense)
+  if(credit && t.paid > 0) D.txns.push({id: uid(), type: 'Expense', date: PF.date, time, head: 'Supplier Payment', desc: `Invoice ${PF.no || ''} par payment`.replace('  ', ' '), party, amount: t.paid, mode: PF.mode, by: curUser(), inv: {id: invId, no: PF.no}});
+  if(PF.order){ const o = D.orders.find(x => x.id === PF.order); if(o){ o.status = 'received'; o.inv = invId; o.recvDate = PF.date; } }
+  audit('Purchase', `${party || '-'}${PF.no ? ' · Inv ' + PF.no : ''} · ${lines.length} item · ${dmy(PF.date)}${credit ? ` · baaki ${money(t.pending)}` : ''}`, t.total, invId);
+  save(); PF = pfNew(); toast('Purchase save hua, stock badh gaya'); scrPurchase();
+}
+function receiveOrder(id){
+  const o = D.orders.find(x => x.id === id);
+  if(!o) return;
+  PF = {...pfNew(), party: o.party, no: o.no, disc: o.disc || '', tax: o.tax || '', remark: o.remark || '', lines: o.lines.map(l => ({...l})), order: o.id};
+  toast('Qty / rate check karein, phir Save Purchase');
+  scrPurchase();
+}
+function cancelOrder(id){
+  const o = D.orders.find(x => x.id === id);
+  if(!o || !confirm('Ye order cancel karein?')) return;
+  o.status = 'cancelled'; o.cancelledBy = curUser();
+  save(); scrPurchase();
+}
+// Purchase invoices of a period (lines of one invoice together)
+function purList(){
+  const t = today(), R = {today: [t, t], d7: [addDays(t, -6), t], month: [t.slice(0, 8) + '01', t]}, [from, to] = R[purView];
+  const ps = D.txns.filter(x => x.type === 'Purchase' && x.date >= from && x.date <= to);
+  const g = {};
+  ps.forEach(x => { const k = (x.inv && x.inv.id) || x.id, y = g[k] || (g[k] = {id: x.id, date: x.date, time: x.time, party: x.party, no: (x.inv || {}).no || '', lines: [], amount: 0, mode: x.mode, paid: (x.inv || {}).paid}); y.lines.push(x); y.amount += +x.amount || 0; });
+  const list = Object.values(g).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  return `<div class="card" style="padding:0;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Purchases</h3>
+      <span class="cats" style="margin:0">${[['today', 'Aaj'], ['d7', '7 din'], ['month', 'Is mahine']].map(([k, l]) => `<button class="cat ${purView === k ? 'on' : ''}" onclick="purView='${k}';scrPurchase()">${l}</button>`).join('')}</span></div>
+    <table><thead><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th>Items</th><th>Mode</th><th class="n">Amount</th><th></th></tr></thead>
+    <tbody>${list.map(y => `<tr><td style="cursor:pointer" onclick="txnView('${y.id}')">${dmy(y.date)} ${esc(y.time || '')}</td><td>${esc(y.party || '')}</td><td>${esc(y.no)}</td>
+      <td style="cursor:pointer" onclick="txnView('${y.id}')">${y.lines.map(l => esc(l.head) + ' ' + esc((l.desc || '').split(' @')[0])).join(', ')}</td><td>${esc(y.mode)}${y.mode === 'Credit' && y.paid ? ` (${money(y.paid)} diya)` : ''}</td><td class="n font-bold">${money(y.amount)}</td>
+      <td><button class="btn bad sm" onclick="delTx('${y.id}')">Delete</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:18px">Is period mein purchase nahi</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="5">Total</td><td class="n">${money(sum(ps, 'amount'))}</td><td></td></tr></tfoot></table></div>`;
+}
+// Delete a voucher (a purchase invoice goes with all its lines and its payment). Old entries give their stock back as a movement.
 function delTx(id){
   const t = D.txns.find(x => x.id === id);
-  if(!t || !confirm('Delete this entry?')) return;
+  if(!t) return;
+  const group = t.inv && t.inv.id ? D.txns.filter(x => x.inv && x.inv.id === t.inv.id) : [t];
+  if(!confirm(group.length > 1 ? `Is invoice ki ${group.length} entries delete karein?` : 'Delete this entry?')) return;
   withManager(`${t.type} entry delete`, by => {
-    if(t.type === 'Purchase' && t.sid) applyStock([{sid: t.sid, qty: t.qty}], -1);
-    D.txns = D.txns.filter(x => x.id !== id);
-    audit('Voucher Delete', `${t.type}: ${t.head || ''} ${t.desc || ''} ${t.party ? '· ' + t.party : ''}`, t.amount, id, by);
+    group.forEach(x => { if(x.type === 'Purchase' && x.sid && !x.mv && +x.qty) addMove(x.sid, -x.qty, 'del', `Purane purchase ki entry delete (${x.party || ''})`, {ref: x.id}); });
+    const ids = new Set(group.map(x => x.id));
+    D.txns = D.txns.filter(x => !ids.has(x.id));
+    audit('Voucher Delete', `${t.type}: ${group.map(x => (x.head || '') + ' ' + (x.desc || '')).join(', ')} ${t.party ? '· ' + t.party : ''}`, sum(group, 'amount'), id, by);
     save();
     go(cur);
   });
-}
-
-function scrPurchase(){
-  main.innerHTML = `
-  <div class="title"><span>Purchase Voucher — Stock In</span><span class="r">${dmy(today())}</span></div>
-  <div class="card">
-    <div class="grid">
-      <div><label>Stock Item</label><select id="p_item" onchange="const s=D.stock.find(x=>x.id===this.value);$('#p_rate').value=s?s.rate:'';pAmt()">${stockOpts()}</select></div>
-      <div><label>Qty (Inward)</label><input id="p_qty" type="number" step="any" oninput="pAmt()"></div>
-      <div><label>Rate (₹ per unit)</label><input id="p_rate" type="number" step="any" value="${D.stock[0]?.rate||''}" oninput="pAmt()"></div>
-      <div><label>Total Amount (₹)</label><input id="p_amt" type="number" step="any"></div>
-      <div><label>Supplier / Vendor</label><input id="p_party" placeholder="e.g. Shyam Dairy"></div>
-      <div><label>Payment Mode</label><select id="p_mode">${MODES.filter(m=>!m.includes('Pay') && m !== 'Wallet').map(m => `<option>${m}</option>`).join('')}</select></div>
-    </div>
-    <div class="btns">
-      <button class="btn ok" onclick="savePurchase()">Save Purchase</button>
-      <button class="btn" onclick="bulkUpload('purchase')">Bulk Purchase (Excel)</button>
-      <button class="btn g" onclick="go('stock')">View Stock Summary</button>
-    </div>
-    <p class="muted" style="margin-top:8px">Credit = payable to the supplier later (not deducted from the cash counter).</p>
-  </div>${txList('Purchase')}`;
-  $('#p_qty').focus();
-}
-
-function pAmt(){
-  $('#p_amt').value = r2((+$('#p_qty').value || 0) * (+$('#p_rate').value || 0)) || '';
-}
-
-function savePurchase(){
-  const s = D.stock.find(x => x.id === $('#p_item').value), qty = +$('#p_qty').value, amt = +$('#p_amt').value;
-  if(!s || !(qty > 0)){ toast('Please enter the item and quantity'); return; }
-  applyStock([{sid: s.id, qty}], +1);
-  if(+$('#p_rate').value) s.rate = +$('#p_rate').value;
-  D.txns.push({
-    id: uid(), type: 'Purchase', date: today(), time: nowTime(), head: s.name,
-    desc: `${fq(qty)} ${s.unit} @ ₹${$('#p_rate').value||0}`, party: $('#p_party').value.trim(),
-    amount: amt || 0, mode: $('#p_mode').value, sid: s.id, qty
-  });
-  save();
-  toast('Purchase saved and stock updated');
-  scrPurchase();
 }
 
 const HEADS = {
@@ -4777,6 +4995,228 @@ function saveVoucher(type){
   save();
   toast('Entry saved');
   scrVoucher(type);
+}
+
+/* ================= EXPENSE (E): regular, misc / maintenance, gas register, fixed assets ================= */
+// Heads that move money but are not running costs (kept out of expense totals and P&L)
+const DEPOSIT_HEAD = 'Gas Deposit (refundable)', DEPOSIT_BACK = 'Gas Deposit Refund', ASSET_HEAD = 'Asset Purchase';
+NON_EXPENSE_HEADS.push(DEPOSIT_HEAD, ASSET_HEAD);
+NON_INCOME_HEADS.push(DEPOSIT_BACK);
+const MISC_CATS = ['Maintenance', 'Repair', 'Emergency', 'Small Purchase', 'Other'];
+const MISC_SUBS = ['Electrical', 'Plumbing', 'Carpentry', 'Kitchen Equipment', 'Furniture', 'Cleaning', 'Painting', 'Other'];
+const GAS_SIZES = ['14.2 kg (Domestic)', '19 kg (Commercial)', '47.5 kg', '5 kg'];
+let expTab = 'regular', expView = 'today', EF = {};
+function scrExpense(){
+  const tabs = [['regular', 'Regular Kharcha'], ['misc', 'Misc / Maintenance'], ['gas', 'Gas Register'], ['assets', 'Fixed Assets']];
+  main.innerHTML = `<div class="title"><span>Expense / Payment Out</span><span class="r">${dmy(today())}</span></div>
+    <div class="cats" style="margin-bottom:10px">${tabs.map(([k, l]) => `<button class="cat ${expTab === k ? 'on' : ''}" onclick="expTab='${k}';EF={};scrExpense()">${l}</button>`).join('')}</div>
+    <div id="exp_body"></div>`;
+  ({regular: expRegular, misc: expMisc, gas: expGas, assets: expAssets})[expTab]();
+}
+const payPick = (id, need) => `<div><label>Payment ${need ? '*' : ''}</label><select id="${id}"><option value="">— chunein —</option>${PAY_MODES.map(m => `<option value="${m}" ${EF.mode === m ? 'selected' : ''}>Paid · ${m}</option>`).join('')}<option value="Credit" ${EF.mode === 'Credit' ? 'selected' : ''}>Abhi nahi diya (baaki / udhaar)</option></select></div>`;
+const dateIn = (id, v) => `<div><label>Date</label><input id="${id}" type="date" max="${today()}" value="${v || EF.date || today()}"></div>`;
+// One expense voucher. Credit (not paid yet) needs the payee: it shows as their due in Suppliers (U).
+function pushExpense(o){
+  if(!(o.amount > 0)){ toast('Amount likhiye'); return null; }
+  if(!o.mode){ toast('Payment chunein: paid (kis mode se) ya abhi nahi diya'); return null; }
+  if(o.mode === 'Credit' && !String(o.party || '').trim()){ toast('Baaki (udhaar) ke liye "Kisko" ka naam zaroori hai'); return null; }
+  const t = {id: uid(), type: 'Expense', time: o.date === today() ? nowTime() : '12:00', by: curUser(), at: Date.now(), ...o, party: String(o.party || '').trim()};
+  D.txns.push(t);
+  return t;
+}
+function expList(filter, cols){
+  const t = today(), R = {today: [t, t], month: [t.slice(0, 8) + '01', t], all: ['0000', '9999']}, [from, to] = R[expView];
+  const list = D.txns.filter(x => x.date >= from && x.date <= to && filter(x)).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
+  return `<div class="card" style="padding:0;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;gap:8px;flex-wrap:wrap"><h3 style="margin:0">Entries</h3>
+      <span class="cats" style="margin:0">${[['today', 'Aaj'], ['month', 'Is mahine'], ['all', 'Shuru se']].map(([k, l]) => `<button class="cat ${expView === k ? 'on' : ''}" onclick="expView='${k}';scrExpense()">${l}</button>`).join('')}</span></div>
+    <table><thead><tr><th>Date</th><th>Category</th><th>Details</th><th>Kisko</th><th>Mode</th><th class="n">Amount</th><th></th></tr></thead>
+    <tbody>${list.map(x => `<tr><td>${dmy(x.date)} ${esc(x.time || '')}</td><td>${esc(x.head || '')}${x.sub ? ' · ' + esc(x.sub) : ''}</td><td>${esc([x.desc, x.qty ? 'qty ' + fq(x.qty) : '', x.loc, x.remark].filter(Boolean).join(' · '))}</td><td>${esc(x.party || '')}</td>
+      <td>${x.mode === 'Credit' ? '<span class="red">Baaki</span>' : esc(x.mode)}</td><td class="n font-bold">${money(x.amount)}</td><td><button class="btn bad sm" onclick="delTx('${x.id}')">Delete</button></td></tr>`).join('') || '<tr><td colspan="7" class="muted" style="text-align:center;padding:18px">Koi entry nahi</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="5">Total</td><td class="n">${money(sum(list, 'amount'))}</td><td></td></tr></tfoot></table></div>`;
+}
+const isMisc = x => x.type === 'Expense' && x.kind === 'misc';
+const isRegularExp = x => x.type === 'Expense' && x.kind !== 'misc' && ![...NON_EXPENSE_HEADS].includes(x.head) && !x.gas;
+
+function expRegular(){
+  const tpl = D.expTpl || [];
+  $('#exp_body').innerHTML = `<div class="card">
+    ${tpl.length ? `<div style="margin-bottom:8px"><span class="muted" style="font-size:12px">Saved templates: </span>${tpl.map((x, i) => `<button class="btn g sm" onclick="useTpl(${i})">${esc(x.head)}${x.party ? ' · ' + esc(x.party) : ''}</button> `).join('')}</div>` : ''}
+    <div class="grid">
+      ${dateIn('e_date')}
+      <div><label>Category *</label><input id="e_head" list="heads" value="${esc(EF.head || '')}" placeholder="Gas, Bijli, Kiraya..." onchange="EF.head=this.value"><datalist id="heads">${HEADS.Expense.filter(h => h !== 'Supplier Payment').concat(optList(D.txns.filter(isRegularExp).map(x => x.head))).filter((v, i, a) => a.indexOf(v) === i).map(h => `<option>${esc(h)}</option>`).join('')}</datalist></div>
+      <div><label>Kisko (Payee / Supplier)</label><input id="e_party" list="e_sups" value="${esc(EF.party || '')}">${supDatalist('e_sups')}</div>
+      <div><label>Details</label><input id="e_desc" value="${esc(EF.desc || '')}" placeholder="e.g. October ka bill"></div>
+      <div><label>Amount (₹) *</label><input id="e_amt" type="number" step="any" value="${EF.amount || ''}"></div>
+      ${payPick('e_mode', true)}
+    </div>
+    <div class="btns"><button class="btn ok" onclick="saveRegular()">Save Kharcha</button><button class="btn g" onclick="repeatLast()">Pichhli entry dobara (Repeat Last)</button><button class="btn g" onclick="saveTpl()">Template banayein</button></div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">"Repeat Last" sirf form bharta hai. Paid hai ya nahi, wo aap khud chunein. Baaki wala kharcha U (Suppliers) mein dikhega aur wahin se chukega.</p></div>
+  ${expList(isRegularExp)}`;
+}
+function efRead(p){ EF = {date: $('#' + p + '_date').value || today(), head: ($('#' + p + '_head') || {}).value?.trim?.() || EF.head, party: ($('#' + p + '_party') || {}).value || '', desc: ($('#' + p + '_desc') || {}).value?.trim?.() || '', amount: +($('#' + p + '_amt') || {}).value || 0, mode: ($('#' + p + '_mode') || {}).value || ''}; return EF; }
+function saveRegular(){
+  const f = efRead('e');
+  if(!f.head){ toast('Category likhiye'); return; }
+  if(!pushExpense({type: 'Expense', kind: 'regular', date: f.date, head: f.head, desc: f.desc, party: f.party, amount: f.amount, mode: f.mode})) return;
+  save(); EF = {}; toast('Kharcha save hua'); scrExpense();
+}
+function repeatLast(){
+  const h = ($('#e_head') || {}).value.trim();
+  const last = D.txns.filter(x => isRegularExp(x) && (!h || x.head === h)).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time))[0];
+  if(!last){ toast(h ? `"${h}" ki pehle koi entry nahi` : 'Pehle koi kharcha nahi'); return; }
+  EF = {date: today(), head: last.head, party: last.party, desc: last.desc, amount: last.amount, mode: ''};
+  toast(`Pichhli ${last.head} entry bhar di (${dmy(last.date)}). Payment chunein.`);
+  scrExpense();
+}
+function saveTpl(){
+  const f = efRead('e');
+  if(!f.head){ toast('Pehle category likhiye'); return; }
+  D.expTpl = (D.expTpl || []).filter(x => !(x.head === f.head && x.party === f.party)).concat([{head: f.head, party: f.party, desc: f.desc, amount: f.amount}]).slice(-20);
+  save(); toast('Template save hua'); scrExpense();
+}
+function useTpl(i){ const x = (D.expTpl || [])[i]; if(!x) return; EF = {...x, date: today(), mode: ''}; expTab = 'regular'; scrExpense(); }
+
+function expMisc(){
+  $('#exp_body').innerHTML = `<div class="card">
+    <p class="muted" style="margin-top:0;font-size:13px">Achanak ka kharcha: bulb, board, repair. Ye stock mein nahi jaata (turant laga). Store mein rakhne wala saman (spare bulbs) Purchase (P) se lein.</p>
+    <div class="grid">
+      ${dateIn('m_date')}
+      <div><label>Category *</label><select id="m_head">${MISC_CATS.map(c => `<option ${EF.head === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
+      <div><label>Sub-category</label><input id="m_sub" list="m_subs" value="${esc(EF.sub || '')}"><datalist id="m_subs">${MISC_SUBS.map(c => `<option>${c}</option>`).join('')}</datalist></div>
+      <div><label>Item / Kaam *</label><input id="m_desc" value="${esc(EF.desc || '')}" placeholder="e.g. LED Bulb"></div>
+      <div><label>Qty</label><input id="m_qty" type="number" step="any" value="${EF.qty || ''}"></div>
+      <div><label>Amount (₹) *</label><input id="m_amt" type="number" step="any" value="${EF.amount || ''}"></div>
+      ${payPick('m_mode', true)}
+      <div><label>Location</label><input id="m_loc" list="locs2" value="${esc(EF.loc || '')}" placeholder="Kitchen"><datalist id="locs2"><option>Kitchen</option><option>Hall</option><option>Counter</option><option>Washroom</option><option>Store</option><option>Outside</option></datalist></div>
+      <div><label>Kisko (optional)</label><input id="m_party" list="m_sups" value="${esc(EF.party || '')}">${supDatalist('m_sups')}</div>
+      <div><label>Equipment (repair ho to)</label><select id="m_asset"><option value="">—</option>${(D.assets || []).filter(a => a.status !== 'disposed').map(a => `<option value="${a.id}" ${EF.assetId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
+      <div style="grid-column:1/-1"><label>Remarks</label><input id="m_rem" value="${esc(EF.remark || '')}" placeholder="e.g. Bulb replacement"></div>
+    </div>
+    <div class="btns"><button class="btn ok" onclick="saveMisc()">Save Expense</button><button class="btn g" onclick="miscToTpl()">Ye baar baar hota hai → Regular template</button></div></div>
+  ${expList(isMisc)}`;
+}
+function miscRead(){ return {date: $('#m_date').value || today(), head: $('#m_head').value, sub: $('#m_sub').value.trim(), desc: $('#m_desc').value.trim(), qty: +$('#m_qty').value || 0,
+  amount: +$('#m_amt').value || 0, mode: $('#m_mode').value, loc: $('#m_loc').value.trim(), party: $('#m_party').value, assetId: $('#m_asset').value, remark: $('#m_rem').value.trim()}; }
+function saveMisc(){
+  const f = miscRead();
+  if(!f.desc){ EF = f; toast('Item / kaam likhiye'); return; }
+  const o = {type: 'Expense', kind: 'misc', ...f};
+  if(!f.qty) delete o.qty; if(!f.assetId) delete o.assetId; if(!f.sub) delete o.sub; if(!f.loc) delete o.loc; if(!f.remark) delete o.remark;
+  EF = f;
+  if(!pushExpense(o)) return;
+  save(); EF = {}; toast('Expense save hua (stock mein nahi gaya)'); scrExpense();
+}
+function miscToTpl(){
+  const f = miscRead();
+  if(!f.desc){ toast('Pehle item / kaam likhiye'); return; }
+  D.expTpl = (D.expTpl || []).concat([{head: f.sub ? `${f.head}: ${f.sub}` : f.head, party: f.party, desc: f.desc, amount: f.amount}]).slice(-20);
+  save(); toast('Regular template ban gaya (Regular Kharcha tab mein)');
+}
+
+// Gas: every refill is an expense (money); in "count" mode full / empty cylinders are tracked too. Deposits are not expenses.
+const gasRefills = () => D.txns.filter(x => x.type === 'Expense' && x.gas);
+function expGas(){
+  const rf = gasRefills(), ev = D.gasLog || [], mode = D.settings.gasMode || 'expense', m = today().slice(0, 7);
+  const got = sum(rf, x => +x.gas.n || 0), used = sum(ev.filter(e => e.type === 'empty'), 'n'), back = sum(rf, x => +x.gas.empty || 0);
+  const dep = sum(D.txns.filter(x => x.head === DEPOSIT_HEAD), 'amount') - sum(D.txns.filter(x => x.head === DEPOSIT_BACK), 'amount');
+  const mon = rf.filter(x => x.date.startsWith(m));
+  const card = (l, v) => `<div class="card" style="margin:0;padding:10px 12px"><div class="muted" style="font-size:12px">${l}</div><div style="font-size:18px;font-weight:800">${v}</div></div>`;
+  $('#exp_body').innerHTML = `
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:10px">
+    ${card('Is mahine refill', sum(mon, x => +x.gas.n || 0) + ' cylinder')}${card('Is mahine kharcha', money(sum(mon, 'amount')))}${card('Kul refill (shuru se)', got + ' cylinder')}${card('Kul kharcha', money(sum(rf, 'amount')))}
+    ${mode === 'qty' ? card('Bhare (full) paas mein', got - used) + card('Khaali (empty) paas mein', used - back) : ''}${card('Deposit jama (wapas milega)', money(dep))}
+  </div>
+  <div class="card">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px"><b>Tareeka:</b>
+      <select style="width:auto" onchange="D.settings.gasMode=this.value;save();scrExpense()"><option value="expense" ${mode === 'expense' ? 'selected' : ''}>Sirf kharcha (refill + payment)</option><option value="qty" ${mode === 'qty' ? 'selected' : ''}>Cylinder ginti bhi (full / empty)</option></select>
+      ${mode === 'qty' ? '<button class="btn g sm" onclick="gasEmpty()">1 cylinder khatam hua (empty)</button>' : ''}
+      <button class="btn g sm" onclick="gasDeposit(1)">Deposit diya</button><button class="btn g sm" onclick="gasDeposit(-1)">Deposit wapas mila</button></div>
+    <div class="grid">
+      ${dateIn('g_date')}
+      <div><label>Gas Supplier *</label><input id="g_party" list="g_sups" value="${esc(EF.party || (rf[rf.length - 1] || {}).party || '')}">${supDatalist('g_sups')}</div>
+      <div><label>Kitne cylinder refill *</label><input id="g_n" type="number" step="1" value="${EF.n || 1}" oninput="gasTot()"></div>
+      <div><label>Size</label><select id="g_size">${GAS_SIZES.map(z => `<option ${(EF.size || ((rf[rf.length - 1] || {}).gas || {}).size) === z ? 'selected' : ''}>${z}</option>`).join('')}</select></div>
+      <div><label>Rate per cylinder (₹) *</label><input id="g_rate" type="number" step="any" value="${EF.rate || ((rf[rf.length - 1] || {}).gas || {}).rate || ''}" oninput="gasTot()"></div>
+      <div><label>Total (₹)</label><input id="g_amt" type="number" step="any"></div>
+      ${payPick('g_mode', true)}
+      ${mode === 'qty' ? '<div><label>Khaali cylinder wapas diye</label><input id="g_empty" type="number" step="1" value="0"></div>' : ''}
+      <div style="grid-column:1/-1"><label>Remarks</label><input id="g_rem"></div>
+    </div>
+    <div class="btns"><button class="btn ok" onclick="saveGas()">Save Refill</button></div>
+    <p class="muted" style="font-size:12px;margin:6px 0 0">LPG kitni jali, iska andaaza Setu khud nahi lagata. Deposit kharche mein nahi ginta.</p></div>
+  <div class="card" style="padding:0;overflow:auto"><h3 style="margin:10px 12px">Refill History</h3><table><thead><tr><th>Date</th><th>Supplier</th><th class="n">Cylinders</th><th>Size</th><th class="n">Rate</th><th class="n">Amount</th><th>Payment</th>${mode === 'qty' ? '<th class="n">Empty diye</th>' : ''}<th></th></tr></thead>
+    <tbody>${rf.slice().sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)).map(x => `<tr><td>${dmy(x.date)}</td><td>${esc(x.party)}</td><td class="n">${x.gas.n}</td><td>${esc(x.gas.size || '')}</td><td class="n">${money(x.gas.rate)}</td><td class="n">${money(x.amount)}</td><td>${x.mode === 'Credit' ? '<span class="red">Baaki</span>' : esc(x.mode)}</td>${mode === 'qty' ? `<td class="n">${x.gas.empty || 0}</td>` : ''}<td><button class="btn bad sm" onclick="delTx('${x.id}')">Delete</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">Abhi koi refill nahi</td></tr>'}</tbody></table></div>`;
+  gasTot();
+}
+function gasTot(){ const n = +($('#g_n') || {}).value || 0, r = +($('#g_rate') || {}).value || 0, a = $('#g_amt'); if(a) a.value = r2(n * r) || ''; }
+function saveGas(){
+  const n = Math.round(+$('#g_n').value || 0), rate = +$('#g_rate').value || 0, amount = +$('#g_amt').value || r2(n * rate);
+  EF = {date: $('#g_date').value, party: $('#g_party').value.trim(), n, rate, size: $('#g_size').value, mode: $('#g_mode').value};
+  if(!(n > 0) || !EF.party){ toast('Supplier aur cylinder ki ginti likhiye'); return; }
+  const empty = Math.round(+($('#g_empty') || {}).value || 0), rem = $('#g_rem').value.trim();
+  if(!pushExpense({type: 'Expense', kind: 'regular', date: EF.date || today(), head: 'Gas Cylinder', desc: `${n} × ${EF.size} @ ₹${rate}`, party: EF.party, amount, mode: EF.mode,
+    gas: {n, size: EF.size, rate, ...(empty ? {empty} : {})}, ...(rem ? {remark: rem} : {})})) return;
+  save(); EF = {}; toast('Gas refill save hua'); scrExpense();
+}
+function gasEmpty(){
+  const sz = ((gasRefills().slice(-1)[0] || {}).gas || {}).size || '';
+  D.gasLog.push({id: uid(), date: today(), time: nowTime(), type: 'empty', n: 1, size: sz, by: curUser()});
+  save(); toast('1 cylinder khaali likha'); scrExpense();
+}
+function gasDeposit(dir){
+  const v = prompt(dir > 0 ? 'Kitna deposit diya (₹)? Ye kharcha nahi, wapas milega.' : 'Kitna deposit wapas mila (₹)?');
+  if(!v || !(+v > 0)) return;
+  const party = prompt('Gas agency ka naam', (gasRefills().slice(-1)[0] || {}).party || '') || '';
+  D.txns.push({id: uid(), type: dir > 0 ? 'Expense' : 'Receipt', date: today(), time: nowTime(), head: dir > 0 ? DEPOSIT_HEAD : DEPOSIT_BACK, desc: 'Cylinder deposit', party, amount: +v, mode: 'Cash', by: curUser()});
+  save(); toast('Deposit entry save'); scrExpense();
+}
+
+// Fixed assets: long-life equipment, kept apart from stock and running expenses
+function expAssets(){
+  const list = D.assets || [];
+  const rep = a => D.txns.filter(x => x.type === 'Expense' && x.assetId === a.id);
+  $('#exp_body').innerHTML = `<div class="card"><p class="muted" style="margin-top:0;font-size:13px">Fridge, oven, deep freezer jaisi badi cheezein. Ye stock ya roz ke kharche mein nahi ginti. Repair "Misc / Maintenance" se karein (Equipment chunein). Depreciation ka hisaab CA ke hisaab se.</p>
+    <div class="btns" style="margin:0"><button class="btn ok" onclick="editAsset()">+ Naya Asset</button></div></div>
+  <div class="card" style="padding:0;overflow:auto"><table><thead><tr><th>Asset</th><th>Category</th><th>Location</th><th>Purchase</th><th class="n">Value</th><th>Supplier</th><th>Warranty</th><th>Serial</th><th class="n">Repairs</th><th>Status</th><th></th></tr></thead>
+    <tbody>${list.map(a => `<tr${a.status === 'disposed' ? ' style="opacity:.55"' : ''}><td><b>${esc(a.name)}</b></td><td>${esc(a.cat || '')}</td><td>${esc(a.loc || '')}</td><td>${dmy(a.date)}</td><td class="n">${money(a.value)}</td><td>${esc(a.party || '')}</td>
+      <td class="${a.warranty && a.warranty < today() ? 'muted' : ''}">${a.warranty ? dmy(a.warranty) : '-'}</td><td>${esc(a.serial || '')}</td><td class="n">${money(sum(rep(a), 'amount'))} (${rep(a).length})</td><td>${a.status === 'disposed' ? 'Hata diya' : 'In use'}</td>
+      <td style="white-space:nowrap"><button class="btn g sm" onclick="expTab='misc';EF={head:'Repair',assetId:'${a.id}',desc:'${esc(a.name).replace(/'/g, '')} repair'};scrExpense()">Repair</button> <button class="btn g sm" onclick="editAsset('${a.id}')">Edit</button></td></tr>`).join('') || '<tr><td colspan="11" class="muted" style="text-align:center;padding:18px">Abhi koi asset nahi</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="4">Total (in use)</td><td class="n">${money(sum(list.filter(a => a.status !== 'disposed'), 'value'))}</td><td colspan="6"></td></tr></tfoot></table></div>`;
+}
+function editAsset(id){
+  const a = (D.assets || []).find(x => x.id === id) || {date: today()};
+  modal(id ? 'Edit Asset' : 'Naya Fixed Asset', `<div class="grid">
+    <div><label>Naam *</label><input id="a_name" value="${esc(a.name || '')}" placeholder="e.g. Deep Freezer"></div>
+    <div><label>Category</label><input id="a_cat" list="a_cats" value="${esc(a.cat || '')}"><datalist id="a_cats"><option>Kitchen Equipment</option><option>Refrigeration</option><option>Furniture</option><option>Electrical</option><option>Computer / POS</option><option>Vehicle</option></datalist></div>
+    <div><label>Purchase Date</label><input id="a_date" type="date" value="${a.date || ''}"></div>
+    <div><label>Value (₹)</label><input id="a_value" type="number" step="any" value="${a.value || ''}"></div>
+    <div><label>Supplier</label><input id="a_party" list="a_sups" value="${esc(a.party || '')}">${supDatalist('a_sups')}</div>
+    <div><label>Location</label><input id="a_loc" value="${esc(a.loc || '')}"></div>
+    <div><label>Warranty tak</label><input id="a_war" type="date" value="${a.warranty || ''}"></div>
+    <div><label>Serial No.</label><input id="a_serial" value="${esc(a.serial || '')}"></div>
+    <div><label>Depreciation % (CA bataye)</label><input id="a_dep" type="number" step="any" value="${a.dep || ''}"></div>
+    <div><label>Status</label><select id="a_status"><option value="use">In use</option><option value="disposed" ${a.status === 'disposed' ? 'selected' : ''}>Hata diya / bech diya</option></select></div>
+    <div style="grid-column:1/-1"><label>Notes</label><input id="a_notes" value="${esc(a.notes || '')}"></div>
+    ${id ? '' : `<div style="grid-column:1/-1"><label style="display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0"><input id="a_pay" type="checkbox" style="width:auto;margin:0" onchange="$('#a_payrow').style.display=this.checked?'':'none'"> Abhi kharida — paisa ki entry bhi banao (kharcha nahi, capital)</label></div>
+      <div id="a_payrow" style="display:none">${payPick('a_mode', true)}</div>`}
+  </div><div class="btns"><button class="btn ok" onclick="saveAsset('${id || ''}')">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function saveAsset(id){
+  const v = {name: $('#a_name').value.trim(), cat: $('#a_cat').value.trim(), date: $('#a_date').value, value: +$('#a_value').value || 0, party: $('#a_party').value.trim(), loc: $('#a_loc').value.trim(),
+    warranty: $('#a_war').value, serial: $('#a_serial').value.trim(), dep: +$('#a_dep').value || 0, status: $('#a_status').value, notes: $('#a_notes').value.trim()};
+  if(!v.name){ toast('Naam likhiye'); return; }
+  if(id){ Object.assign(D.assets.find(x => x.id === id), v); }
+  else {
+    const a = {id: uid(), ...v, by: curUser(), at: Date.now()};
+    if($('#a_pay').checked){
+      EF = {};
+      if(!pushExpense({type: 'Expense', date: v.date || today(), head: ASSET_HEAD, desc: v.name, party: v.party, amount: v.value, mode: $('#a_mode').value, assetId: a.id})) return;
+    }
+    D.assets.push(a);
+  }
+  audit('Fixed Asset', `${v.name} · ${money(v.value)}`, v.value);
+  save(); closeModal(); scrExpense();
 }
 
 /* ================= DAY BOOK ================= */
@@ -5080,49 +5520,6 @@ function scrReport(){
 }
 
 /* ================= STOCK SUMMARY ================= */
-function scrStock(){
-  const low = lowStock();
-  main.innerHTML = `
-  <div class="title">
-    <span>Stock Summary & Kitchen Inventory</span>
-    <span class="r">${D.stock.length} items · Low Stock: <b class="${low.length?'red':'green'}">${low.length}</b></span>
-  </div>
-  <div class="btns" style="margin:0 0 14px">
-    <button class="btn ok" onclick="editStock()">New Stock Item</button>
-    <button class="btn" onclick="bulkUpload('stock')">Bulk Upload (Excel)</button>
-    <button class="btn g" onclick="go('purchase')">Purchase / Inward Entry (P)</button>
-  </div>
-  <div class="card" style="padding:0;overflow:auto">
-    <table>
-      <thead>
-        <tr><th>Stock Item</th><th class="n">Closing Qty</th><th>Unit</th><th class="n">Min Alert</th><th class="n">Rate</th><th class="n">Value</th><th>Status</th><th>Actions</th></tr>
-      </thead>
-      <tbody>
-        ${D.stock.map(s => {
-          const l = +s.qty <= +s.min;
-          return `
-            <tr>
-              <td><b>${esc(s.name)}</b></td>
-              <td class="n ${l?'red font-bold':''}">${fq(s.qty)}</td>
-              <td>${esc(s.unit)}</td>
-              <td class="n">${fq(s.min)}</td>
-              <td class="n">${r2(s.rate)}</td>
-              <td class="n font-bold">${money(s.qty*s.rate)}</td>
-              <td>${l ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Low</span>' : '<span class="status-pill">OK</span>'}</td>
-              <td style="white-space:nowrap">
-                <button class="btn sm g" onclick="editStock('${s.id}')">Edit</button>
-                <button class="btn sm g" onclick="adjStock('${s.id}')">Physical Count</button>
-              </td>
-            </tr>`;
-        }).join('')}
-      </tbody>
-      <tfoot>
-        <tr><td colspan="5">Total Stock Valuation</td><td class="n font-bold">${money(sum(D.stock, s => s.qty * s.rate))}</td><td colspan="2"></td></tr>
-      </tfoot>
-    </table>
-  </div>
-  <p class="muted">Stock is deducted automatically on every bill according to each menu item recipe.</p>`;
-}
 
 /* Bulk upload: many stock items or purchases at once, from an Excel (CSV) file or pasted lines */
 const BULK = {
@@ -5203,7 +5600,7 @@ function bulkSave(kind){
   const {ok, bad} = bulkParse(kind);
   if(bad.length){ bulkPreview(kind); toast('Pehle laal wali lines theek kijiye'); return; }
   if(!ok.length){ toast('Koi line nahi mili'); return; }
-  const find = n => D.stock.find(s => s.name.toLowerCase() === n.toLowerCase());
+  const find = n => D.stock.find(s => !s.merged && s.name.toLowerCase() === n.toLowerCase());
   let added = 0, updated = 0;
   if(kind === 'stock'){
     ok.forEach(x => {
@@ -5214,71 +5611,285 @@ function bulkSave(kind){
     audit('Stock Bulk Upload', `${added} new, ${updated} updated`);
     toast(`${added} stock item bane${updated ? `, ${updated} update hue` : ''}`);
   } else {
+    let skipped = 0;
     ok.forEach(x => {
+      if(D.txns.some(t => t.type === 'Purchase' && t.date === x.date && (t.head || '').toLowerCase() === x.name.toLowerCase() && +t.qty === +x.qty && Math.abs((+t.amount || 0) - r2(x.qty * x.rate)) < 0.01 && supKey(t.party) === supKey(x.party))){ skipped++; return; }
       let s = find(x.name);
       if(!s){ s = {id: uid(), name: x.name, unit: x.unit, qty: 0, min: 0, rate: x.rate}; D.stock.push(s); added++; }
       applyStock([{sid: s.id, qty: x.qty}], +1);
       if(x.rate) s.rate = x.rate;
       D.txns.push({id: uid(), type: 'Purchase', date: x.date, time: nowTime(), head: s.name, desc: `${fq(x.qty)} ${s.unit} @ ₹${x.rate}`,
-        party: x.party, amount: r2(x.qty * x.rate), mode: x.mode, sid: s.id, qty: x.qty});
+        party: x.party, amount: r2(x.qty * x.rate), mode: x.mode, sid: s.id, qty: x.qty, mv: 1, by: curUser(), at: Date.now()});
     });
     audit('Purchase Bulk Upload', `${ok.length} purchases${added ? `, ${added} new stock items` : ''}`, r2(sum(ok, x => x.qty * x.rate)));
-    toast(`${ok.length} purchase save hue, stock badh gaya`);
+    toast(`${ok.length - skipped} purchase save hue, stock badh gaya${skipped ? ` · ${skipped} pehle se the (dobara nahi jode)` : ''}`);
   }
   save();
   closeModal();
   go(cur);
 }
 
+
+
+
+
+/* ================= STOCK (S): item master, waste, issue, count, history ================= */
+const STOCK_TYPES = {stock: 'Regular Stock', spare: 'Spare / Consumable', gas: 'Gas'};
+let stockView = {type: '', q: '', inactive: false};
+function scrStock(){
+  const low = lowStock(), list = D.stock.filter(s => !s.merged && (stockView.inactive || s.active !== false) && (!stockView.type || (s.type || 'stock') === stockView.type)
+    && (!stockView.q || (s.name + ' ' + (s.cat || '')).toLowerCase().includes(stockView.q.toLowerCase())));
+  main.innerHTML = `
+  <div class="title">
+    <span>Stock Summary & Inventory</span>
+    <span class="r">${activeStock().length} items · Low Stock: <b class="${low.length?'red':'green'}">${low.length}</b></span>
+  </div>
+  <div class="btns" style="margin:0 0 10px">
+    <button class="btn ok" onclick="editStock()">+ New Item</button>
+    <button class="btn" onclick="go('purchase')">Purchase / Goods In (P)</button>
+    <button class="btn" onclick="bulkUpload('stock')">Bulk Upload (Excel)</button>
+    <button class="btn g" onclick="expTab='gas';go('expense')">Gas Register</button>
+    <button class="btn g" onclick="expTab='assets';go('expense')">Fixed Assets</button>
+    <button class="btn g" onclick="AN.id='stock-movement';go('analytics')">Stock In/Out Report</button>
+  </div>
+  <div class="card" style="padding:10px 12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input placeholder="Search item..." value="${esc(stockView.q)}" style="width:200px" oninput="stockView.q=this.value;clearTimeout(scrStock.t);scrStock.t=setTimeout(()=>{scrStock();const q=document.querySelector('#main input');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},300)">
+    <select style="width:auto" onchange="stockView.type=this.value;scrStock()"><option value="">Sab type</option>${Object.entries(STOCK_TYPES).map(([k, l]) => `<option value="${k}" ${stockView.type === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+    <label style="display:flex;gap:6px;align-items:center;margin:0;text-transform:none;letter-spacing:0;font-weight:500"><input type="checkbox" style="width:auto;margin:0" ${stockView.inactive ? 'checked' : ''} onchange="stockView.inactive=this.checked;scrStock()"> Band (inactive) items bhi</label>
+  </div>
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead>
+        <tr><th>Item</th><th>Type / Category</th><th class="n">Stock</th><th>Unit</th><th class="n">Min</th><th class="n">Avg Cost</th><th class="n">Value</th><th>Status</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        ${list.map(s => {
+          const l = +s.qty <= +s.min, neg = +s.qty < 0, ac = avgCost(s.id);
+          return `
+            <tr${s.active === false ? ' style="opacity:.55"' : ''}>
+              <td><a href="#" onclick="itemHistory('${s.id}');return false"><b>${esc(s.name)}</b></a></td>
+              <td>${esc(STOCK_TYPES[s.type || 'stock'])}${s.cat ? ` <span class="muted">· ${esc(s.cat)}</span>` : ''}</td>
+              <td class="n ${l?'red font-bold':''}">${fq(s.qty)}</td>
+              <td>${esc(s.unit)}</td>
+              <td class="n">${fq(s.min)}</td>
+              <td class="n">${r2(ac)}</td>
+              <td class="n font-bold">${money(Math.max(0, s.qty) * ac)}</td>
+              <td>${s.active === false ? '<span class="status-pill">Band</span>' : neg ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Minus!</span>' : l ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Low</span>' : '<span class="status-pill">OK</span>'}</td>
+              <td style="white-space:nowrap">
+                <button class="btn sm g" onclick="itemHistory('${s.id}')">History</button>
+                <button class="btn sm g" onclick="stockOut('${s.id}','waste')">Waste</button>
+                <button class="btn sm g" onclick="stockOut('${s.id}','issue')">Issue</button>
+                <button class="btn sm g" onclick="adjStock('${s.id}')">Count</button>
+                <button class="btn sm g" onclick="editStock('${s.id}')">Edit</button>
+              </td>
+            </tr>`;
+        }).join('') || '<tr><td colspan="9" class="muted" style="text-align:center;padding:18px">Koi item nahi. "+ New Item" se banayein.</td></tr>'}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="6">Total Stock Value (avg cost)</td><td class="n font-bold">${money(sum(list, s => Math.max(0, s.qty) * avgCost(s.id)))}</td><td colspan="2"></td></tr>
+      </tfoot>
+    </table>
+  </div>
+  <p class="muted" style="font-size:12px">Item ke naam par click = poori history. Waste = kharab / gira / expire. Issue = andar ke kaam ke liye nikala (bulb, cleaning). Count = physical ginti (farak Audit Log mein).</p>`;
+}
+
 function editStock(id){
-  const s = D.stock.find(x => x.id === id) || {name: '', unit: 'kg', qty: 0, min: 0, rate: 0};
-  modal(id ? 'Edit Stock Item' : 'New Stock Item', `
+  const s = D.stock.find(x => x.id === id) || {name: '', unit: 'kg', qty: 0, min: 0, rate: 0, type: 'stock'};
+  const sups = suppliers().map(x => x.name);
+  const conv = (s.conv || [])[0] || {};
+  modal(id ? 'Edit Item' : 'New Item (ek baar banayein, hamesha use karein)', `
     <div class="grid">
-      <div><label>Name</label><input id="s_name" value="${esc(s.name)}" autofocus placeholder="e.g. Paneer"></div>
-      <div><label>Unit</label><input id="s_unit" list="units" value="${esc(s.unit)}"><datalist id="units"><option>kg</option><option>gm</option><option>ltr</option><option>pcs</option><option>pkt</option><option>dozen</option></datalist></div>
-      <div><label>${id ? 'Current Qty' : 'Opening Qty'}</label><input id="s_qty" type="number" step="any" value="${s.qty}"></div>
-      <div><label>Min Level (Alert Level)</label><input id="s_min" type="number" step="any" value="${s.min}"></div>
-      <div><label>Rate (₹/unit)</label><input id="s_rate" type="number" step="any" value="${s.rate}"></div>
+      <div><label>Name</label><input id="s_name" value="${esc(s.name)}" autofocus placeholder="e.g. Atta" oninput="stockDupHint('${id || ''}')"></div>
+      <div><label>Type</label><select id="s_type">${Object.entries(STOCK_TYPES).map(([k, l]) => `<option value="${k}" ${(s.type || 'stock') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div><label>Category</label><input id="s_cat" list="s_cats" value="${esc(s.cat || '')}" placeholder="e.g. Grocery, Dairy, Electrical"><datalist id="s_cats">${optList(D.stock.map(x => x.cat)).concat(['Grocery', 'Vegetables', 'Dairy', 'Meat', 'Beverages', 'Packaging', 'Cleaning', 'Electrical', 'Fuel']).filter((v, i, a) => a.indexOf(v) === i).map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
+      <div><label>Unit</label><input id="s_unit" list="units" value="${esc(s.unit)}"><datalist id="units">${['kg', 'gm', 'ltr', 'ml', 'pcs', 'pkt', 'bag', 'box', 'dozen', 'cylinder', 'bottle'].map(u => `<option>${u}</option>`).join('')}</datalist></div>
+      <div><label>${id ? 'Current Stock (Count se badlein)' : 'Opening Stock'}</label><input id="s_qty" type="number" step="any" value="${id ? fq(s.qty) : ''}" ${id ? 'disabled' : ''} placeholder="0"></div>
+      <div><label>Min Level (Alert)</label><input id="s_min" type="number" step="any" value="${s.min}"></div>
+      <div><label>Last Purchase Rate (₹/unit)</label><input id="s_rate" type="number" step="any" value="${s.rate}"></div>
+      <div><label>Default Supplier</label><input id="s_sup" list="s_sups" value="${esc(s.sup || '')}"><datalist id="s_sups">${sups.map(n => `<option>${esc(n)}</option>`).join('')}</datalist></div>
+      <div><label>Bada unit (optional)</label><div style="display:flex;gap:6px;align-items:center">1 <input id="s_cu" value="${esc(conv.u || '')}" placeholder="bag" style="width:80px"> = <input id="s_cf" type="number" step="any" value="${conv.f || ''}" placeholder="25" style="width:80px"> <span class="muted">${esc(s.unit || 'unit')}</span></div></div>
+      <div style="grid-column:1/-1"><label>Notes</label><input id="s_notes" value="${esc(s.notes || '')}"></div>
     </div>
+    <div id="s_dup" class="red" style="font-size:13px;margin-top:6px"></div>
     <div class="btns">
-      <button class="btn ok" onclick="saveStock('${id||''}')">Save Stock Item</button>
-      ${id ? `<button class="btn bad" onclick="delStock('${id}')">Delete</button>` : ''}
+      <button class="btn ok" onclick="saveStock('${id||''}')">Save Item</button>
+      ${id ? `<button class="btn g" onclick="toggleStock('${id}')">${s.active === false ? 'Chalu karein (Active)' : 'Band karein (Inactive)'}</button>
+        <button class="btn g" onclick="mergeStock('${id}')">Doosre item mein milayein (Merge)</button>` : ''}
       <button class="btn g" onclick="closeModal()">Cancel</button>
-    </div>`);
+    </div>
+    <p class="muted" style="font-size:12px">Delete ki jagah "Band karein": purani purchase aur history safe rahti hai. Stock badalna ho to Stock list mein "Count" dabayein.</p>`);
+  stockDupHint(id || '');
+}
+function stockDupHint(id){
+  const el = $('#s_dup'), n = ($('#s_name') || {}).value || '';
+  if(!el) return;
+  const sim = n.trim().length >= 3 ? similarItems(n, id) : [];
+  el.textContent = sim.length ? `Milta-julta item pehle se hai: ${sim.map(x => x.name).join(', ')}. Wahi use karein, ya alag hai to Save.` : '';
 }
 
 function saveStock(id){
   const name = $('#s_name').value.trim();
   if(!name){ toast('Please enter a name'); return; }
+  const same = D.stock.find(x => x.id !== id && !x.merged && x.name.trim().toLowerCase() === name.toLowerCase());
+  if(same){ toast(`"${same.name}" naam ka item pehle se hai`); return; }
+  const sim = similarItems(name, id);
+  if(!id && sim.length && !confirm(`Milta-julta item pehle se hai: ${sim.map(x => x.name).join(', ')}.\nPhir bhi naya item banayein?`)) return;
+  const cu = $('#s_cu').value.trim(), cf = +$('#s_cf').value;
   const v = {
-    name, unit: $('#s_unit').value.trim() || 'pcs',
-    qty: +$('#s_qty').value || 0, min: +$('#s_min').value || 0, rate: +$('#s_rate').value || 0
+    name, type: $('#s_type').value, cat: $('#s_cat').value.trim(), unit: $('#s_unit').value.trim() || 'pcs',
+    min: +$('#s_min').value || 0, rate: +$('#s_rate').value || 0, sup: $('#s_sup').value.trim(), notes: $('#s_notes').value.trim(),
+    conv: cu && cf > 0 ? [{u: cu, f: cf}] : []
   };
   if(id) Object.assign(D.stock.find(x => x.id === id), v);
-  else D.stock.push({id: uid(), ...v});
+  else {
+    const nid = uid(), q = +$('#s_qty').value || 0;
+    D.stock.push({id: nid, ...v, qty: 0, active: true});
+    D.moves.push({id: 'open-' + nid, at: Date.now(), date: today(), time: nowTime(), sid: nid, qty: r3(q), type: 'open', by: curUser(), note: 'Opening stock'});
+  }
   save();
   closeModal();
   go(cur);
 }
-
-function delStock(id){
-  if(!confirm('Delete this stock item? It will also be removed from recipes.')) return;
-  D.stock = D.stock.filter(x => x.id !== id);
-  D.menu.forEach(m => m.recipe = (m.recipe || []).filter(r => r.sid !== id));
-  save();
-  closeModal();
-  go(cur);
-}
-
-function adjStock(id){
+function toggleStock(id){
   const s = D.stock.find(x => x.id === id);
-  const v = prompt(`${s.name} — physical count (${s.unit})\nCurrent system stock: ${fq(s.qty)}`, fq(s.qty));
-  if(v === null || v === '' || isNaN(+v)) return;
-  if(+v !== +s.qty) audit('Stock Adjust', `${s.name}: ${fq(s.qty)} → ${fq(+v)} ${s.unit}`, r2((+v - s.qty) * (+s.rate || 0)), id);
-  s.qty = +v;
-  save();
-  toast('Stock updated');
-  scrStock();
+  if(!s) return;
+  s.active = s.active === false;
+  audit('Stock Item ' + (s.active ? 'Active' : 'Inactive'), s.name);
+  save(); closeModal(); go(cur);
+}
+// Merge "Aata" into "Atta": old purchases, sales and movements stay as they are, but count under the target item
+function mergeStock(id){
+  const s = D.stock.find(x => x.id === id);
+  const others = activeStock().filter(x => x.id !== id);
+  if(!s || !others.length){ toast('Milane ke liye doosra item nahi'); return; }
+  modal(`Merge: ${s.name}`, `
+    <p style="margin-top:0">"${esc(s.name)}" ki saari purchase, sale aur stock (${fq(s.qty)} ${esc(s.unit)}) is item mein jud jayegi. Purani entries nahi badlengi.</p>
+    <label>Kis item mein milayein?</label><select id="mg_to">${others.map(x => `<option value="${x.id}" ${similarItems(s.name, s.id).some(y => y.id === x.id) ? 'selected' : ''}>${esc(x.name)} (${esc(x.unit)})</option>`).join('')}</select>
+    <p class="muted" style="font-size:12px">Dono ka unit same hona chahiye (jaise kg aur kg).</p>
+    <div class="btns"><button class="btn bad" onclick="doMerge('${id}')">Merge karein</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function doMerge(id){
+  const s = D.stock.find(x => x.id === id), t = D.stock.find(x => x.id === $('#mg_to').value);
+  if(!s || !t) return;
+  if((s.unit || '').toLowerCase() !== (t.unit || '').toLowerCase() && !confirm(`Unit alag hai (${s.unit} / ${t.unit}). Phir bhi milayein?`)) return;
+  withManager(`Item merge: ${s.name} → ${t.name}`, by => {
+    D.stockAlias[s.id] = t.id;
+    s.merged = t.id; s.active = false;
+    D.menu.forEach(m => (m.recipe || []).forEach(r => { if(r.sid === s.id) r.sid = t.id; }));
+    audit('Stock Item Merge', `${s.name} → ${t.name}`, 0, s.id, by);
+    save(); closeModal(); toast(`${s.name} ab ${t.name} mein gina jayega`); go(cur);
+  });
+}
+
+// Waste / internal issue / return: a movement out of stock with the reason
+const OUT_KIND = {waste: ['Waste entry', ['Kharab ho gaya', 'Expire', 'Gir gaya / toota', 'Jal gaya', 'Chuha / keede', 'Other']],
+  issue: ['Internal Issue (andar use)', ['Repair / replacement', 'Cleaning', 'Kitchen use', 'Staff use', 'Other']],
+  return: ['Return to Supplier', ['Kharab maal', 'Galat maal', 'Zyada aa gaya', 'Other']]};
+function stockOut(id, kind){
+  const s = stockItem(id);
+  if(!s) return;
+  const [title, reasons] = OUT_KIND[kind];
+  modal(`${title} — ${esc(s.name)}`, `
+    <p class="muted" style="margin-top:0">Abhi stock: <b>${fq(s.qty)} ${esc(s.unit)}</b> · avg cost ₹${r2(avgCost(s.id))}/${esc(s.unit)}</p>
+    <div class="grid">
+      <div><label>Qty</label><div style="display:flex;gap:6px"><input id="so_q" type="number" step="any" autofocus><select id="so_u" style="width:auto">${unitList(s).map(([u, f]) => `<option value="${f}">${esc(u)}</option>`).join('')}</select></div></div>
+      <div><label>Reason</label><select id="so_r">${reasons.map(r => `<option>${r}</option>`).join('')}</select></div>
+      ${kind === 'issue' ? '<div><label>Kahan laga (Location)</label><input id="so_loc" list="locs" placeholder="Kitchen, Hall, Washroom"><datalist id="locs"><option>Kitchen</option><option>Hall</option><option>Counter</option><option>Washroom</option><option>Store</option></datalist></div>' : ''}
+      ${kind === 'return' ? `<div><label>Supplier</label><input id="so_sup" list="so_sups" value="${esc(s.sup || '')}"><datalist id="so_sups">${suppliers().map(x => `<option>${esc(x.name)}</option>`).join('')}</datalist></div>` : ''}
+      <div style="grid-column:1/-1"><label>Note</label><input id="so_n" placeholder="Details"></div>
+    </div>
+    ${kind === 'return' ? '<p class="muted" style="font-size:12px">Ye sirf stock ghatata hai. Supplier se paisa wapas mile to Receipt voucher (I) se, udhaar kam ho to Suppliers (U) mein Pay se entry karein.</p>' : ''}
+    <div class="btns"><button class="btn ok" onclick="saveStockOut('${s.id}','${kind}')">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function saveStockOut(id, kind){
+  const s = stockItem(id), q = r3((+$('#so_q').value || 0) * (+$('#so_u').value || 1));
+  if(!s || !(q > 0)){ toast('Qty likhiye'); return; }
+  if(q > +s.qty && !confirm(`Stock sirf ${fq(s.qty)} ${s.unit} hai. Phir bhi ${fq(q)} nikalein? (stock minus ho jayega)`)) return;
+  const reason = $('#so_r').value, loc = ($('#so_loc') || {}).value || '', sup = ($('#so_sup') || {}).value || '', note = $('#so_n').value.trim();
+  const cost = r2(q * avgCost(s.id));
+  addMove(s.id, -q, kind, [reason, note].filter(Boolean).join(' · '), {reason, ...(loc ? {loc} : {}), ...(sup ? {party: sup} : {}), cost});
+  audit(kind === 'waste' ? 'Stock Waste' : kind === 'issue' ? 'Stock Issue' : 'Stock Return', `${s.name}: ${fq(q)} ${s.unit} · ${reason}${loc ? ' · ' + loc : ''}${note ? ' · ' + note : ''}`, cost, s.id);
+  if(q > +s.qty) audit('Minus Stock', `${s.name}: ${fq(s.qty)} → ${fq(s.qty - q)} ${s.unit}`, 0, s.id);
+  save(); closeModal(); toast(`${fq(q)} ${s.unit} ${s.name} — ${OUT_KIND[kind][0]} save`); go(cur);
+}
+// Physical count: the difference becomes a movement with a reason (Audit Log too)
+function adjStock(id){
+  const s = stockItem(id);
+  if(!s) return;
+  modal(`Physical Count — ${esc(s.name)}`, `
+    <p class="muted" style="margin-top:0">System stock: <b>${fq(s.qty)} ${esc(s.unit)}</b></p>
+    <div class="grid"><div><label>Ginti mein kitna mila (${esc(s.unit)})</label><input id="pc_q" type="number" step="any" value="${fq(s.qty)}" autofocus></div>
+      <div><label>Reason</label><select id="pc_r"><option>Physical count</option><option>Pehle galat entry</option><option>Chori / gum</option><option>Other</option></select></div>
+      <div style="grid-column:1/-1"><label>Note</label><input id="pc_n"></div></div>
+    <div class="btns"><button class="btn ok" onclick="saveCount('${s.id}')">Save Count</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function saveCount(id){
+  const s = stockItem(id), v = $('#pc_q').value;
+  if(!s || v === '' || isNaN(+v)) return;
+  const diff = r3(+v - s.qty);
+  if(diff){
+    const reason = $('#pc_r').value, note = $('#pc_n').value.trim();
+    addMove(s.id, diff, 'adjust', [reason, note].filter(Boolean).join(' · '), {reason, counted: +v, cost: r2(diff * avgCost(s.id))});
+    audit('Stock Adjust', `${s.name}: ${fq(s.qty)} → ${fq(+v)} ${s.unit} · ${reason}`, r2(diff * avgCost(s.id)), s.id);
+    save();
+  }
+  closeModal(); toast(diff ? `Stock ${fq(+v)} ${s.unit} kiya (farak ${fq(diff)})` : 'Stock wahi hai'); go(cur);
+}
+
+// Item details: lifetime purchase history, suppliers, use, waste and every movement
+let ihRange = 'all', ihFrom = '', ihTo = '';
+function itemHistory(id){
+  const s = stockItem(id);
+  if(!s) return;
+  const t = today();
+  const R = {today: [t, t], month: [t.slice(0, 8) + '01', t], year: [t.slice(0, 5) + '01-01', t], all: ['0000', '9999'], custom: [ihFrom || t, ihTo || t]};
+  const [from, to] = R[ihRange], inR = d => d >= from && d <= to;
+  const allPur = D.txns.filter(x => x.type === 'Purchase' && x.sid && sidOf(x.sid) === s.id).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const pur = allPur.filter(x => inR(x.date)), qtyP = sum(pur, 'qty'), valP = sum(pur, 'amount');
+  const moves = stockMoves().filter(m => m.sid === s.id);
+  let bal = 0; const withBal = moves.map(m => ({...m, bal: (bal = r3(bal + m.qty))})).filter(m => inR(m.date));
+  const byType = k => r3(-sum(withBal.filter(m => m.type === k), 'qty'));
+  const sup = {};
+  pur.forEach(x => { const k = x.party || '(naam nahi)', y = sup[k] || (sup[k] = {n: 0, q: 0, a: 0, last: ''}); y.n++; y.q += +x.qty || 0; y.a += +x.amount || 0; if(x.date > y.last) y.last = x.date; });
+  const last = allPur[allPur.length - 1];
+  const card = (l, v) => `<div class="card" style="margin:0;padding:10px 12px"><div class="muted" style="font-size:12px">${l}</div><div style="font-size:17px;font-weight:800">${v}</div></div>`;
+  main.innerHTML = `
+  <div class="title"><span><button class="btn g sm" onclick="scrStock()">‹</button> ${esc(s.name)} <span class="muted" style="font-size:13px">${esc(STOCK_TYPES[s.type || 'stock'])}${s.cat ? ' · ' + esc(s.cat) : ''}</span></span>
+    <span class="r"><button class="btn sm g" onclick="editStock('${s.id}')">Edit</button> <button class="btn sm ok" onclick="go('purchase')">+ Purchase</button></span></div>
+  <div class="cats" style="margin-bottom:10px">${[['today', 'Aaj'], ['month', 'Is mahine'], ['year', 'Is saal'], ['all', 'Shuru se (All time)'], ['custom', 'Custom']].map(([k, l]) => `<button class="cat ${ihRange === k ? 'on' : ''}" onclick="ihRange='${k}';itemHistory('${s.id}')">${l}</button>`).join('')}
+    ${ihRange === 'custom' ? `<input type="date" value="${from}" onchange="ihFrom=this.value;itemHistory('${s.id}')"> to <input type="date" value="${to}" onchange="ihTo=this.value;itemHistory('${s.id}')">` : ''}</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:10px">
+    ${card('Pehli purchase', allPur.length ? dmy(allPur[0].date) : '-')}${card('Aakhri purchase', last ? dmy(last.date) : '-')}
+    ${card('Kul kharida (qty)', fq(qtyP) + ' ' + esc(s.unit))}${card('Kul value', money(valP))}${card('Kitni baar', pur.length)}
+    ${card('Latest rate', last && +last.qty ? money(last.amount / last.qty) + '/' + esc(s.unit) : money(s.rate))}${card('Weighted avg cost', money(avgCost(s.id)) + '/' + esc(s.unit))}
+    ${card('Bika / recipe mein laga', fq(r3(byType('sale') - sum(withBal.filter(m => m.type === 'cancel'), 'qty'))) + ' ' + esc(s.unit))}${card('Waste', fq(byType('waste')) + ' ' + esc(s.unit))}
+    ${card('Andar use (issue)', fq(byType('issue')) + ' ' + esc(s.unit))}${card('Abhi bacha', `<span class="${+s.qty <= +s.min ? 'red' : ''}">${fq(s.qty)} ${esc(s.unit)}</span>`)}
+  </div>
+  <div class="card" style="padding:0;overflow:auto"><h3 style="margin:10px 12px">Supplier-wise</h3>
+    <table><thead><tr><th>Supplier</th><th class="n">Purchases</th><th class="n">Qty</th><th class="n">Value</th><th class="n">Avg Rate</th><th>Aakhri</th></tr></thead>
+    <tbody>${Object.entries(sup).sort((a, b) => b[1].a - a[1].a).map(([k, y]) => `<tr><td>${esc(k)}</td><td class="n">${y.n}</td><td class="n">${fq(y.q)}</td><td class="n">${money(y.a)}</td><td class="n">${y.q ? money(y.a / y.q) : '-'}</td><td>${dmy(y.last)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Is period mein purchase nahi</td></tr>'}</tbody></table></div>
+  <div class="card" style="padding:0;overflow:auto"><h3 style="margin:10px 12px">Purchase History (click = poori entry)</h3>
+    <table><thead><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th><th>Mode</th></tr></thead>
+    <tbody>${pur.slice().reverse().map(x => `<tr style="cursor:pointer" onclick="txnView('${x.id}')"><td>${dmy(x.date)} ${esc(x.time || '')}</td><td>${esc(x.party || '')}</td><td>${esc((x.inv || {}).no || '')}</td><td class="n">${fq(x.qty)}</td><td class="n">${+x.qty ? money(x.amount / x.qty) : '-'}</td><td class="n">${money(x.amount)}</td><td>${esc(x.mode)}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Koi purchase nahi</td></tr>'}</tbody>
+    <tfoot><tr><td colspan="3">Total</td><td class="n">${fq(qtyP)}</td><td></td><td class="n">${money(valP)}</td><td></td></tr></tfoot></table></div>
+  <div class="card" style="padding:0;overflow:auto"><h3 style="margin:10px 12px">Stock In / Out (running balance)</h3>
+    <table><thead><tr><th>Date</th><th>Type</th><th>Reference / Note</th><th class="n">In</th><th class="n">Out</th><th class="n">Balance</th><th>User</th></tr></thead>
+    <tbody>${withBal.slice().reverse().slice(0, 300).map(m => `<tr${m.ref ? ` style="cursor:pointer" onclick="${m.type === 'purchase' ? `txnView('${m.ref}')` : `anBill('${m.ref}')`}"` : ''}><td>${dmy(m.date)} ${esc(m.time || '')}</td><td>${esc(MOVE_TYPES[m.type] || m.type)}</td><td>${esc([m.note, m.loc].filter(Boolean).join(' · '))}</td><td class="n">${m.qty > 0 ? fq(m.qty) : ''}</td><td class="n">${m.qty < 0 ? fq(-m.qty) : ''}</td><td class="n">${fq(m.bal)}</td><td>${esc(m.by || '')}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Is period mein koi movement nahi</td></tr>'}</tbody></table></div>`;
+}
+// Any voucher with its invoice siblings and linked payment
+function txnView(id){
+  const t = D.txns.find(x => x.id === id);
+  if(!t) return;
+  const inv = t.inv && t.inv.id, lines = inv ? D.txns.filter(x => x.inv && x.inv.id === inv) : [t];
+  const pays = inv ? lines.filter(x => x.type !== 'Purchase') : [];
+  const items = lines.filter(x => x.type === 'Purchase' || !inv);
+  modal(`${t.type}${inv && t.inv.no ? ' · Invoice ' + esc(t.inv.no) : ''} — ${dmy(t.date)}`, `
+    <div class="muted" style="font-size:13px;margin-bottom:8px">${esc(t.party || '')} ${t.time ? '· ' + esc(t.time) : ''}${t.by ? ' · entry: ' + esc(t.by) : ''}${t.inv && t.inv.due ? ' · Due: ' + dmy(t.inv.due) : ''}</div>
+    <table><thead><tr><th>Item / Head</th><th>Details</th><th class="n">Qty</th><th class="n">Amount</th><th>Mode</th></tr></thead>
+    <tbody>${items.map(x => `<tr><td>${esc(x.head || '')}</td><td>${esc([x.desc, x.sub, x.loc, x.remark].filter(Boolean).join(' · '))}</td><td class="n">${x.qty ? fq(x.qty) : ''}</td><td class="n">${money(x.amount)}</td><td>${esc(x.mode)}</td></tr>`).join('')}
+      ${t.inv && (+t.inv.disc || +t.inv.tax) ? `<tr><td colspan="5" class="muted">Invoice discount ${money(t.inv.disc || 0)} · GST ${money(t.inv.tax || 0)} (lines mein baant diya)</td></tr>` : ''}
+      ${pays.map(p => `<tr><td colspan="3">Payment (${esc(p.mode)})</td><td class="n">${money(p.amount)}</td><td></td></tr>`).join('')}</tbody></table>
+    <div class="btns"><button class="btn g" onclick="closeModal()">Close</button></div>`);
 }
 
 /* ================= MENU ITEMS ================= */
@@ -6744,76 +7355,122 @@ function scrTokens(){
 }
 
 /* ================= SUPPLIERS & PAYABLES ================= */
+
+
+
+
+
 const supKey = n => String(n || '').trim().toLowerCase();
+// "Gupta" merged into "Gupta Traders": old entries keep their text but count under one supplier
+const supKeyA = n => { let x = supKey(n), i = 0; while(D.supAlias && D.supAlias[x] && i++ < 6) x = D.supAlias[x]; return x; };
+const isSupPay = t => t.type === 'Expense' && t.head === 'Supplier Payment';
+// Owed to a supplier: purchases and expenses saved as Credit (not paid yet)
+const isSupCredit = t => (t.type === 'Purchase' || (t.type === 'Expense' && !isSupPay(t))) && t.mode === 'Credit';
 
 function suppliers(){
   const m = {};
   D.txns.forEach(t => {
-    const isPur = t.type === 'Purchase', isPay = t.type === 'Expense' && t.head === 'Supplier Payment';
-    if((!isPur && !isPay) || !String(t.party || '').trim()) return;
-    const k = supKey(t.party);
-    const s = m[k] || (m[k] = {key: k, name: t.party.trim(), purchases: 0, credit: 0, paid: 0, last: t.date, count: 0});
-    if(isPur){ s.purchases += +t.amount || 0; s.count++; if(t.mode === 'Credit') s.credit += +t.amount || 0; }
-    else s.paid += +t.amount || 0;
-    if(t.date > s.last) s.last = t.date;
+    const isPur = t.type === 'Purchase', isPay = isSupPay(t), cr = isSupCredit(t);
+    if((!isPur && !isPay && !cr) || !String(t.party || '').trim()) return;
+    const k = supKeyA(t.party), info = (D.supInfo || {})[k] || {};
+    const s = m[k] || (m[k] = {key: k, name: info.name || t.party.trim(), mobile: info.mobile || '', purchases: 0, credit: 0, paid: 0, last: '', lastPay: '', count: 0});
+    if(isPur){ s.purchases += +t.amount || 0; s.count++; if(t.date > s.last) s.last = t.date; }
+    if(cr) s.credit += +t.amount || 0;
+    if(isPay){ s.paid += +t.amount || 0; if(t.date > s.lastPay) s.lastPay = t.date; }
   });
-  return Object.values(m).map(s => ({...s, due: r2(s.credit - s.paid)})).sort((a,b) => b.due - a.due);
+  Object.entries(D.supInfo || {}).forEach(([k, info]) => { if(!m[k] && !(D.supAlias || {})[k]) m[k] = {key: k, name: info.name || k, mobile: info.mobile || '', purchases: 0, credit: 0, paid: 0, last: '', lastPay: '', count: 0}; });
+  return Object.values(m).map(s => ({...s, due: r2(s.credit - s.paid)})).sort((a,b) => b.due - a.due || b.purchases - a.purchases);
 }
 
 function scrSuppliers(){
   const list = suppliers();
   main.innerHTML = `
   <div class="title"><span>Suppliers & Payables</span><span class="r">Total due: <b class="red">${money(sum(list, 'due'))}</b></span></div>
+  <div class="btns" style="margin:0 0 10px"><button class="btn ok" onclick="editSupplier()">+ Naya Supplier</button><button class="btn g" onclick="AN.id='supplier-ledger';go('analytics')">Supplier Ledger Report</button><button class="btn g" onclick="AN.id='supplier-invoices';go('analytics')">Invoice-wise Baaki</button></div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
-      <thead><tr><th>Supplier</th><th class="n">Purchases</th><th class="n">Total Purchased</th><th class="n">On Credit</th><th class="n">Paid</th><th class="n">Due</th><th>Last</th><th></th></tr></thead>
+      <thead><tr><th>Supplier</th><th>Mobile</th><th class="n">Purchases</th><th class="n">Total Purchased</th><th class="n">On Credit</th><th class="n">Paid</th><th class="n">Due</th><th>Last Purchase</th><th>Last Payment</th><th></th></tr></thead>
       <tbody>
-        ${list.map(s => `
-          <tr>
-            <td><b>${esc(s.name)}</b></td>
+        ${list.map(s => {
+          const k = JSON.stringify(s.key).replace(/"/g, '&quot;');
+          return `<tr>
+            <td><b>${esc(s.name)}</b></td><td>${s.mobile ? `<a href="tel:${esc(s.mobile)}">${esc(s.mobile)}</a>` : ''}</td>
             <td class="n">${s.count}</td>
             <td class="n">${money(s.purchases)}</td>
             <td class="n">${money(s.credit)}</td>
             <td class="n">${money(s.paid)}</td>
             <td class="n ${s.due > 0 ? 'red' : 'green'}"><b>${money(s.due)}</b></td>
-            <td>${dmy(s.last)}</td>
+            <td>${dmy(s.last)}</td><td>${dmy(s.lastPay)}</td>
             <td style="white-space:nowrap">
-              ${s.due > 0 ? `<button class="btn ok sm" onclick="paySupplier(${JSON.stringify(s.key).replace(/"/g, '&quot;')})">Pay</button>` : ''}
-              <button class="btn g sm" onclick="supLedger(${JSON.stringify(s.key).replace(/"/g, '&quot;')})">Ledger</button>
+              ${s.due > 0 ? `<button class="btn ok sm" onclick="paySupplier(${k})">Pay</button>` : ''}
+              <button class="btn g sm" onclick="supLedger(${k})">Ledger</button>
+              <button class="btn g sm" onclick="editSupplier(${k})">Edit</button>
             </td>
-          </tr>`).join('') || '<tr><td colspan="8" class="muted" style="text-align:center;padding:18px">Suppliers appear here when entered on a purchase (P). Choose payment mode "Credit" for purchases on credit.</td></tr>'}
+          </tr>`; }).join('') || '<tr><td colspan="10" class="muted" style="text-align:center;padding:18px">Suppliers purchase (P) ya kharche (E) mein naam likhne se yahan aate hain, ya "+ Naya Supplier".</td></tr>'}
       </tbody>
     </table>
   </div>
-  <p class="muted">Supplier payments are recorded as "Supplier Payment" vouchers: they reduce cash but are not counted again as an expense (the purchase is already counted).</p>`;
+  <p class="muted">Supplier ko payment "Supplier Payment" voucher banta hai: cash ghatata hai, lekin kharcha dobara nahi ginta (kharid pehle hi gin chuki hai).</p>`;
+}
+// One supplier profile: name, mobile, GSTIN; or merge a duplicate name into another supplier
+function editSupplier(key){
+  const s = key ? suppliers().find(x => x.key === key) : null, info = (key && D.supInfo[key]) || {};
+  const others = suppliers().filter(x => x.key !== key);
+  modal(key ? 'Supplier: ' + esc(s ? s.name : key) : 'Naya Supplier', `<div class="grid">
+    <div><label>Naam</label><input id="su_n" value="${esc(info.name || (s && s.name) || '')}"></div>
+    <div><label>Mobile</label><input id="su_m" inputmode="tel" value="${esc(info.mobile || '')}"></div>
+    <div><label>GSTIN</label><input id="su_g" value="${esc(info.gstin || '')}"></div>
+    <div><label>Notes</label><input id="su_x" value="${esc(info.notes || '')}"></div>
+    ${key && others.length ? `<div style="grid-column:1/-1"><label>Duplicate hai? Is supplier mein milayein</label><select id="su_to"><option value="">— nahi —</option>${others.map(x => `<option value="${esc(x.key)}">${esc(x.name)}</option>`).join('')}</select></div>` : ''}
+  </div><div class="btns"><button class="btn ok" onclick="saveSupplier(${key ? JSON.stringify(key).replace(/"/g, '&quot;') : "''"})">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function saveSupplier(key){
+  const name = $('#su_n').value.trim();
+  if(!name){ toast('Naam likhiye'); return; }
+  const k = key || supKey(name), to = ($('#su_to') || {}).value;
+  if(to){
+    if(!confirm('Dono supplier ka hisaab ek ho jayega. Purani entries nahi badlengi. Theek?')) return;
+    D.supAlias[k] = to;
+    audit('Supplier Merge', `${name} → ${(suppliers().find(x => x.key === to) || {}).name || to}`);
+  } else D.supInfo[k] = {name, mobile: $('#su_m').value.trim(), gstin: $('#su_g').value.trim(), notes: $('#su_x').value.trim()};
+  save(); closeModal(); scrSuppliers();
 }
 
 function paySupplier(key){
   const s = suppliers().find(x => x.key === key);
   if(!s) return;
-  const v = +prompt(`${s.name} — due ${money(s.due)}\nAmount paid (₹)`, s.due);
-  if(!(v > 0)) return;
-  const mode = confirm('Paid in cash? (Cancel = UPI)') ? 'Cash' : 'UPI';
-  D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Supplier Payment', desc: 'Credit settled', party: s.name, amount: v, mode});
-  save();
+  modal(`Payment — ${esc(s.name)}`, `<p style="margin-top:0">Baaki: <b class="red">${money(s.due)}</b></p><div class="grid">
+    <div><label>Kitna diya (₹)</label><input id="sp_a" type="number" step="any" value="${s.due}"></div>
+    <div><label>Mode</label><select id="sp_m">${PAY_MODES.map(m => `<option>${m}</option>`).join('')}</select></div>
+    <div><label>Date</label><input id="sp_d" type="date" max="${today()}" value="${today()}"></div>
+    <div><label>Note</label><input id="sp_n" placeholder="e.g. Invoice 123"></div></div>
+    <div class="btns"><button class="btn ok" onclick="savePaySupplier(${JSON.stringify(key).replace(/"/g, '&quot;')})">Save Payment</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function savePaySupplier(key){
+  const s = suppliers().find(x => x.key === key), v = +$('#sp_a').value, d = $('#sp_d').value || today();
+  if(!s || !(v > 0)) return;
+  if(v > s.due + 0.01 && !confirm(`Baaki sirf ${money(s.due)} hai. Phir bhi ${money(v)} likhein (advance)?`)) return;
+  D.txns.push({id: uid(), type: 'Expense', date: d, time: d === today() ? nowTime() : '12:00', head: 'Supplier Payment', desc: $('#sp_n').value.trim() || 'Credit settled', party: s.name, amount: v, mode: $('#sp_m').value, by: curUser()});
+  save(); closeModal();
   toast(`Payment of ${money(v)} to ${s.name} saved`);
   scrSuppliers();
 }
 
 function supLedger(key){
   const s = suppliers().find(x => x.key === key);
-  const rows = D.txns.filter(t => supKey(t.party) === key && (t.type === 'Purchase' || t.head === 'Supplier Payment')).sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const rows = D.txns.filter(t => supKeyA(t.party) === key && (t.type === 'Purchase' || isSupPay(t) || isSupCredit(t))).sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time));
   let bal = 0;
   modal(`${s ? s.name : ''} — Ledger`, `
     <table>
-      <thead><tr><th>Date</th><th>Details</th><th>Mode</th><th class="n">Purchased</th><th class="n">Paid</th><th class="n">Balance</th></tr></thead>
+      <thead><tr><th>Date</th><th>Details</th><th>Mode</th><th class="n">Bill / Udhaar</th><th class="n">Paid</th><th class="n">Balance</th></tr></thead>
       <tbody>${rows.map(t => {
-        const isPur = t.type === 'Purchase';
-        if(isPur && t.mode === 'Credit') bal += +t.amount || 0;
-        if(!isPur) bal -= +t.amount || 0;
-        return `<tr><td>${dmy(t.date)}</td><td>${esc(t.head)} ${esc(t.desc || '')}</td><td>${t.mode}</td><td class="n">${isPur ? money(t.amount) : ''}</td><td class="n">${isPur ? '' : money(t.amount)}</td><td class="n">${money(bal)}</td></tr>`;
+        const pay = isSupPay(t);
+        if(isSupCredit(t)) bal += +t.amount || 0;
+        if(pay) bal -= +t.amount || 0;
+        return `<tr style="cursor:pointer" onclick="txnView('${t.id}')"><td>${dmy(t.date)}</td><td>${esc(t.head)} ${esc(t.desc || '')}${t.inv && t.inv.no ? ' · Inv ' + esc(t.inv.no) : ''}</td><td>${t.mode}</td><td class="n">${pay ? '' : money(t.amount)}</td><td class="n">${pay ? money(t.amount) : ''}</td><td class="n">${money(bal)}</td></tr>`;
       }).join('')}</tbody>
     </table>
+    <p class="muted" style="font-size:12px">Balance sirf udhaar (Credit) wali entries se badhta hai. Cash / UPI se turant di gayi purchase baaki nahi banati.</p>
     <div class="btns"><button class="btn g" onclick="closeModal()">Close</button></div>`);
 }
 
@@ -7612,7 +8269,7 @@ const AN_REPORTS = [
   // ---------- Purchase & Suppliers ----------
   {id: 'purchase-register', cat: 'purchase', title: 'Purchase Register', desc: 'Kisse, kab, kya, kitna aur kis rate par khareeda. Udhaar alag.', filters: ['supplier', 'paymode'],
     build(){
-      const list = anTx('Purchase').filter(t => (!AN.f.supplier || supKey(t.party) === AN.f.supplier) && (!AN.f.paymode || t.mode === AN.f.paymode));
+      const list = anTx('Purchase').filter(t => (!AN.f.supplier || supKeyA(t.party) === AN.f.supplier) && (!AN.f.paymode || t.mode === AN.f.paymode));
       const unit = t => (D.stock.find(s => s.id === t.sid) || {}).unit || '';
       const ta = list.reduce((a, t) => a + pz(t.amount), 0), cr = list.filter(t => t.mode === 'Credit').reduce((a, t) => a + pz(t.amount), 0);
       return {cols: [C('Date', 'd'), C('Time'), C('Supplier'), C('Item'), C('Qty', 'q'), C('Unit'), C('Rate', 'm'), C('Amount', 'm'), C('Mode'), C('Status')],
@@ -7692,10 +8349,11 @@ const AN_REPORTS = [
       const staffH = ['Staff Salary / Wages', 'Staff Advance'];
       const staff = exp.filter(t => staffH.includes(t.head)).reduce((a, t) => a + pz(t.amount), 0);
       const opex = exp.filter(t => !NON_EXPENSE_HEADS.includes(t.head) && !staffH.includes(t.head)).reduce((a, t) => a + pz(t.amount), 0);
-      const pur = anTx('Purchase').reduce((a, t) => a + pz(t.amount), 0), gp = net - cogs, np = gp + otherInc - opex - staff, cashNp = net + otherInc - pur - opex - staff;
+      const mv = (D.moves || []).filter(m => m.date >= AN.from && m.date <= AN.to), waste = mv.filter(m => m.type === 'waste').reduce((a, m) => a + pz(m.cost), 0), issued = mv.filter(m => m.type === 'issue').reduce((a, m) => a + pz(m.cost), 0);
+      const pur = anTx('Purchase').reduce((a, t) => a + pz(t.amount), 0), gp = net - cogs - waste, np = gp + otherInc - opex - staff - issued, cashNp = net + otherInc - pur - opex - staff;
       const rows = [['Gross Sales (items)', gross, ''], ['− Discounts', -disc, ''], ['Net Sales (GST ke bina)', net, 'Cancel bill shamil nahi'], ['GST collected (sarkar ka, kamai nahi)', tax, 'Sirf jaankari'],
         ['− Cost of food (recipe se)', -cogs, noRecNet ? `Andaaza. ${rs(zr(noRecNet))} ki sale wale items ki recipe nahi — unki cost shamil nahi` : 'Andaaza, aaj ke stock rate se'],
-        ['= Gross Profit', gp, ''], ['+ Other Income', otherInc, 'Wallet topup / settlement shamil nahi'], ['− Operating Expenses', -opex, 'Gas, bijli, kiraya... (Supplier Payment nahi)'], ['− Staff Salary + Advance', -staff, 'Jo is period mein diya'],
+        ['− Waste (stock kharab)', -waste, 'Waste entry ki avg cost'], ['= Gross Profit', gp, ''], ['+ Other Income', otherInc, 'Wallet topup / settlement shamil nahi'], ['− Operating Expenses', -opex, 'Gas, bijli, kiraya... (Supplier Payment nahi)'], ['− Staff Salary + Advance', -staff, 'Jo is period mein diya'], ['− Spare / consumable use (issue)', -issued, 'Store se nikla saman (bulb, cleaning)'],
         ['= Net Profit / Loss (andaaza)', np, np < 0 ? 'Nuksaan' : 'Faayda'], ['Purchases is period mein', pur, 'Stock khareed. Poora kharcha nahi maana gaya, bacha stock abhi pada hai'], ['Cash basis profit (purchase = kharcha)', cashNp, 'Doosra nazariya: saari khareed kharcha maan kar']];
       return {cols: [C('Line'), C('Amount', 'm'), C('Note')], rows, fixed: true, cards: [['Net Sales', net, 'm'], ['Gross Profit', gp, 'm'], ['Net Profit (andaaza)', np, 'm']],
         note: 'Food cost recipe ke hisaab se hai, kyunki Setu abhi stock ka opening / closing record nahi rakhta (Phase 2). Isliye ye andaaza hai — CA ke final P&L se milayein.'};
@@ -7722,10 +8380,197 @@ const AN_PENDING = [['table-turnover', 'operations', 'Table Turnover', 'Order sh
   ['recipe-consumption', 'inventory', 'Recipe Consumption & Variance', 'Physical count workflow + movement log'], ['supplier-invoices', 'purchase', 'Invoice-wise Dues', 'Purchase par invoice no. / due date chahiye'],
   ['scheduled', 'sales', 'Scheduled Email Reports', 'Email service set karni hogi']];
 
+/* ---------- Reports & Analytics: inventory, purchase and expense reports ---------- */
+const anItemOk = sid => !AN.f.item || sidOf(sid) === AN.f.item;
+const itemName = sid => (stockItem(sid) || {}).name || '(item hata diya)';
+const itemUnit = sid => (stockItem(sid) || {}).unit || '';
+// Balance of each item before a date, and the movements inside the range
+function anMoves(){
+  const all = stockMoves(), before = {}, inR = [];
+  all.forEach(m => { if(m.date < AN.from) before[m.sid] = r3((before[m.sid] || 0) + m.qty); else if(m.date <= AN.to) inR.push(m); });
+  return {all, before, inR};
+}
+// Supplier invoices still owed: payments go first to the invoice they were made on, then to the oldest one
+function supInvoices(){
+  const inv = {}, pays = {};
+  D.txns.filter(isSupCredit).filter(t => String(t.party || '').trim()).forEach(t => {
+    const k = (t.inv && t.inv.id) || t.id, x = inv[k] || (inv[k] = {id: k, txn: t.id, key: supKeyA(t.party), party: t.party.trim(), no: (t.inv || {}).no || '', date: t.date, due: (t.inv || {}).due || '', amount: 0, paid: 0, head: t.head});
+    x.amount += +t.amount || 0;
+  });
+  D.txns.filter(isSupPay).filter(t => String(t.party || '').trim()).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).forEach(p => {
+    let left = +p.amount || 0;
+    const own = p.inv && inv[p.inv.id];
+    const list = (own ? [own] : []).concat(Object.values(inv).filter(x => x.key === supKeyA(p.party) && x !== own).sort((a, b) => a.date.localeCompare(b.date)));
+    list.forEach(x => { const take = Math.min(left, r2(x.amount - x.paid)); if(take > 0){ x.paid = r2(x.paid + take); left = r2(left - take); x.lastPay = p.date; } });
+    pays[supKeyA(p.party)] = p.date;
+  });
+  return Object.values(inv).map(x => ({...x, out: r2(x.amount - x.paid), lastPayAny: pays[x.key] || ''}));
+}
+const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00') - new Date(a + 'T00:00')) / 864e5);
+
+AN_REPORTS.push(
+  {id: 'item-lifetime', cat: 'inventory', title: 'Item Purchase History', desc: 'Har item: pehli / aakhri purchase, kitni baar, kul qty, value, sabse kam / zyada / aakhri rate. "Shuru se" = lifetime.', filters: ['item', 'stype'],
+    build(){
+      const m = {};
+      D.txns.filter(t => t.type === 'Purchase' && t.sid && t.date >= AN.from && t.date <= AN.to && anItemOk(t.sid)).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).forEach(t => {
+        const sid = sidOf(t.sid), s = stockItem(sid);
+        if(AN.f.stype && (s && s.type || 'stock') !== AN.f.stype) return;
+        const x = m[sid] || (m[sid] = {first: t.date, last: '', n: 0, q: 0, a: 0, lo: Infinity, hi: 0, lr: 0});
+        const rate = +t.qty ? pz(t.amount) / +t.qty : 0;
+        x.n++; x.q += +t.qty || 0; x.a += pz(t.amount); x.last = t.date; if(rate){ x.lo = Math.min(x.lo, rate); x.hi = Math.max(x.hi, rate); x.lr = rate; }
+      });
+      const list = Object.entries(m);
+      return {cols: [C('Item'), C('Unit'), C('First Purchase', 'd'), C('Last Purchase', 'd'), C('Times', 'n'), C('Total Qty', 'q'), C('Total Value', 'm'), C('Avg Rate', 'm'), C('Lowest Rate', 'm'), C('Highest Rate', 'm'), C('Last Rate', 'm'), C('Abhi Stock', 'q')],
+        rows: list.map(([sid, x]) => [itemName(sid), itemUnit(sid), x.first, x.last, x.n, r3(x.q), x.a, x.q ? Math.round(x.a / x.q) : '', x.lo === Infinity ? '' : Math.round(x.lo), Math.round(x.hi), Math.round(x.lr), +(stockItem(sid) || {}).qty || 0]),
+        total: ['TOTAL', '', '', '', list.reduce((a, [, x]) => a + x.n, 0), '', list.reduce((a, [, x]) => a + x.a, 0), '', '', '', '', ''], sort: [6, -1],
+        note: 'Har purchase entry apni date aur rate ke saath save hai; rate badalne se purani entry nahi badalti.'};
+    }},
+  {id: 'regular-purchase', cat: 'purchase', title: 'Regular Purchase (mahine-wise)', desc: 'Kaunsa item kis supplier se har mahine kitna aaya.', filters: ['item', 'supplier'],
+    build(){
+      const m = {};
+      D.txns.filter(t => t.type === 'Purchase' && t.date >= AN.from && t.date <= AN.to && (!t.sid || anItemOk(t.sid)) && (!AN.f.supplier || supKeyA(t.party) === AN.f.supplier)).forEach(t => {
+        const k = t.date.slice(0, 7) + '|' + (t.sid ? sidOf(t.sid) : t.head) + '|' + supKeyA(t.party);
+        const x = m[k] || (m[k] = {mo: t.date.slice(0, 7), item: t.sid ? itemName(t.sid) : t.head, unit: t.sid ? itemUnit(t.sid) : '', sup: t.party || '', n: 0, q: 0, a: 0}); x.n++; x.q += +t.qty || 0; x.a += pz(t.amount);
+      });
+      const list = Object.values(m).sort((a, b) => a.mo.localeCompare(b.mo) || b.a - a.a);
+      return {cols: [C('Month'), C('Item'), C('Supplier'), C('Entries', 'n'), C('Qty', 'q'), C('Unit'), C('Value', 'm'), C('Avg Rate', 'm')], fixed: true,
+        rows: list.map(x => [monthLabel(x.mo), x.item, x.sup, x.n, r3(x.q), x.unit, x.a, x.q ? Math.round(x.a / x.q) : '']), total: ['TOTAL', '', '', list.reduce((a, x) => a + x.n, 0), '', '', list.reduce((a, x) => a + x.a, 0), '']};
+    }},
+  {id: 'supplier-invoices', cat: 'purchase', title: 'Invoice-wise Dues', desc: 'Udhaar wali har invoice: kitna diya, kitna baaki, due date, kitne din late.', filters: ['supplier', 'dues'], now: true,
+    build(){
+      const t = today(), list = supInvoices().filter(x => (!AN.f.supplier || x.key === AN.f.supplier) && (AN.f.dues !== 'all' ? x.out > 0.009 : true));
+      return {cols: [C('Supplier'), C('Invoice No'), C('Invoice Date', 'd'), C('Details'), C('Invoice Amount', 'm'), C('Paid', 'm'), C('Outstanding', 'm'), C('Due Date', 'd'), C('Days Overdue', 'n'), C('Last Payment', 'd')],
+        rows: list.sort((a, b) => a.date.localeCompare(b.date)).map(x => [x.party, x.no, x.date, x.head, pz(x.amount), pz(x.paid), pz(x.out), x.due, x.due && x.out > 0 && x.due < t ? daysBetween(x.due, t) : '', x.lastPay || x.lastPayAny]),
+        total: ['TOTAL', '', '', list.length + ' invoices', list.reduce((a, x) => a + pz(x.amount), 0), list.reduce((a, x) => a + pz(x.paid), 0), list.reduce((a, x) => a + pz(x.out), 0), '', '', ''], fixed: true,
+        note: 'Payment pehle usi invoice par lagta hai jis par diya gaya, phir sabse purani invoice par (FIFO). Supplier ka kul baaki U (Suppliers) se milta hai.'};
+    }},
+  {id: 'stock-movement', cat: 'inventory', title: 'Stock In/Out Register', desc: 'Har item ka har in / out (purchase, sale, waste, issue, count) running balance ke saath.', filters: ['item', 'mtype'],
+    build(){
+      const bal = {}, rows = [];
+      stockMoves().forEach(m => { bal[m.sid] = r3((bal[m.sid] || 0) + m.qty);
+        if(m.date < AN.from || m.date > AN.to || !anItemOk(m.sid) || (AN.f.mtype && m.type !== AN.f.mtype)) return;
+        rows.push([m.date, m.time || '', itemName(m.sid), MOVE_TYPES[m.type] || m.type, [m.note, m.loc].filter(Boolean).join(' · '), m.qty > 0 ? m.qty : '', m.qty < 0 ? -m.qty : '', itemUnit(m.sid), bal[m.sid], m.by || '']); });
+      return {cols: [C('Date', 'd'), C('Time'), C('Item'), C('Type'), C('Reference / Note'), C('In', 'q'), C('Out', 'q'), C('Unit'), C('Balance', 'q'), C('User')], rows, fixed: true,
+        note: 'Balance us item ka us entry ke baad ka stock hai. Setu ke is version se pehle ki entries "Opening Stock" mein shamil hain.'};
+    }},
+  {id: 'stock-opening-closing', cat: 'inventory', title: 'Opening & Closing Stock', desc: 'Period ki shuruaat ka stock, aaya, bika, waste, issue, count ka farak aur closing.', filters: ['item', 'stype'],
+    build(){
+      const {before, inR} = anMoves(), m = {};
+      const row = sid => m[sid] || (m[sid] = {in: 0, sale: 0, waste: 0, issue: 0, ret: 0, adj: 0, other: 0});
+      inR.forEach(x => { const r = row(x.sid);
+        if(x.type === 'purchase') r.in += x.qty; else if(x.type === 'sale' || x.type === 'cancel') r.sale -= x.qty; else if(x.type === 'waste') r.waste -= x.qty;
+        else if(x.type === 'issue') r.issue -= x.qty; else if(x.type === 'return') r.ret -= x.qty; else if(x.type === 'adjust') r.adj += x.qty; else r.other += x.qty; });
+      const items = D.stock.filter(s => !s.merged && anItemOk(s.id) && (!AN.f.stype || (s.type || 'stock') === AN.f.stype) && (s.active !== false || before[s.id] || m[s.id]));
+      let tv = 0;
+      const rows = items.map(s => { const r = row(s.id), op = before[s.id] || 0, cl = r3(op + r.in - r.sale - r.waste - r.issue - r.ret + r.adj + r.other), v = Math.round(Math.max(0, cl) * pz(avgCost(s.id))); tv += v;
+        return [s.name, s.unit, r3(op), r3(r.in), r3(r.sale), r3(r.waste), r3(r.issue), r3(r.ret), r3(r.adj + r.other), cl, v]; });
+      return {cols: [C('Item'), C('Unit'), C('Opening', 'q'), C('Received', 'q'), C('Sold / Recipe', 'q'), C('Waste', 'q'), C('Issued', 'q'), C('Returned', 'q'), C('Adjust (+/−)', 'q'), C('Closing', 'q'), C('Closing Value', 'm')],
+        rows, total: ['TOTAL', '', '', '', '', '', '', '', '', '', tv],
+        note: 'Closing = Opening + Received − Sold − Waste − Issued − Returned ± Adjust (physical count, opening entry, merge). Value = closing × weighted avg cost.'};
+    }},
+  {id: 'waste', cat: 'inventory', title: 'Waste Report', desc: 'Kya kharab / waste hua, kyun, kitne ka, kisne likha.', filters: ['item'],
+    build(){
+      const list = (D.moves || []).filter(m => m.type === 'waste' && m.date >= AN.from && m.date <= AN.to && anItemOk(m.sid));
+      const by = {}; list.forEach(m => { by[m.reason || 'Other'] = (by[m.reason || 'Other'] || 0) + pz(m.cost); });
+      return {cols: [C('Date', 'd'), C('Item'), C('Qty', 'q'), C('Unit'), C('Reason'), C('Note'), C('Cost', 'm'), C('Recorded By')],
+        rows: list.map(m => [m.date, itemName(m.sid), -m.qty, itemUnit(m.sid), m.reason || '', m.note || '', pz(m.cost), m.by || '']),
+        total: ['TOTAL', list.length + ' entries', '', '', '', '', list.reduce((a, m) => a + pz(m.cost), 0), ''],
+        cards: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, v]) => [k, v, 'm']), note: 'Cost = qty × us waqt ka weighted avg cost.'};
+    }},
+  {id: 'recipe-consumption', cat: 'inventory', title: 'Stock Variance (Recipe vs Count)', desc: 'Recipe ke hisaab se kitna lagna chahiye tha, aur physical count mein kitna farak nikla.', filters: ['item'],
+    build(){
+      const {before, inR} = anMoves(), m = {};
+      inR.forEach(x => { const r = m[x.sid] || (m[x.sid] = {in: 0, rec: 0, out: 0, adj: 0, cnt: 0, other: 0});
+        if(x.type === 'purchase') r.in += x.qty; else if(x.type === 'sale' || x.type === 'cancel') r.rec -= x.qty; else if(['waste', 'issue', 'return'].includes(x.type)) r.out -= x.qty;
+        else if(x.type === 'adjust'){ r.adj += x.qty; r.cnt++; } else r.other += x.qty; });
+      const rows = Object.entries(m).filter(([sid, r]) => anItemOk(sid) && r.cnt).map(([sid, r]) => { const op = before[sid] || 0, exp = r3(op + r.in - r.rec - r.out + r.other);
+        return [itemName(sid), itemUnit(sid), r3(op), r3(r.in), r3(r.rec), r3(r.out), exp, r3(exp + r.adj), r3(r.adj), Math.round(r.adj * pz(avgCost(sid)))]; });
+      return {cols: [C('Ingredient'), C('Unit'), C('Opening', 'q'), C('Received', 'q'), C('Recipe Use (sales)', 'q'), C('Waste / Issue / Return', 'q'), C('Expected Closing', 'q'), C('Physical Count', 'q'), C('Variance', 'q'), C('Variance Cost', 'm')],
+        rows, total: ['TOTAL', '', '', '', '', '', '', '', '', rows.reduce((a, r) => a + r[9], 0)], sort: [9, 1],
+        note: 'Sirf wahi items jinki is period mein physical count (S → Count) hui. Minus variance = recipe se zyada laga (chori, galat recipe, ya waste likha nahi). Bina count ke ye report sahi khapat nahi bata sakti.'};
+    }},
+  {id: 'misc-expense', cat: 'expenses', title: 'Misc / One-time Expenses', desc: 'Achanak ke kharche: bulb, board, emergency repair.', filters: ['paymode'],
+    build(){
+      const list = anTx('Expense').filter(t => t.kind === 'misc' && (!AN.f.paymode || t.mode === AN.f.paymode));
+      return {cols: [C('Date', 'd'), C('Category'), C('Sub-category'), C('Item / Kaam'), C('Qty', 'q'), C('Location'), C('Equipment'), C('Paid To'), C('Mode'), C('Amount', 'm')],
+        rows: list.map(t => [t.date, t.head || '', t.sub || '', t.desc || '', t.qty || '', t.loc || '', ((D.assets || []).find(a => a.id === t.assetId) || {}).name || '', t.party || '', t.mode === 'Credit' ? 'Baaki' : t.mode, pz(t.amount)]),
+        total: ['TOTAL', '', '', list.length + ' entries', '', '', '', '', '', list.reduce((a, t) => a + pz(t.amount), 0)]};
+    }},
+  {id: 'maintenance', cat: 'expenses', title: 'Maintenance & Repairs', desc: 'Repair / maintenance ke kharche aur store se nikle spare parts (bulb, wire).', filters: [],
+    build(){
+      const ex = anTx('Expense').filter(t => t.kind === 'misc' && (/maint|repair/i.test(t.head || '') || t.assetId || /electric|plumb|carpent|equip/i.test(t.sub || '')));
+      const iss = (D.moves || []).filter(m => m.type === 'issue' && m.date >= AN.from && m.date <= AN.to);
+      const rows = ex.map(t => [t.date, 'Expense', t.desc || t.head, t.sub || '', t.loc || '', ((D.assets || []).find(a => a.id === t.assetId) || {}).name || '', t.party || '', pz(t.amount)])
+        .concat(iss.map(m => [m.date, 'Spare issued', `${itemName(m.sid)} × ${fq(-m.qty)} ${itemUnit(m.sid)}`, m.reason || '', m.loc || '', '', m.by || '', pz(m.cost)]));
+      return {cols: [C('Date', 'd'), C('Type'), C('Item / Kaam'), C('Sub / Reason'), C('Location'), C('Equipment'), C('Paid To / By'), C('Amount', 'm')], rows, sort: [0, 1],
+        total: ['TOTAL', rows.length + ' entries', '', '', '', '', '', rows.reduce((a, r) => a + r[7], 0)],
+        note: 'Spare issue ka amount us item ki avg cost hai (paisa purchase ke waqt hi gin chuka hai, ye sirf use ka hisaab hai).'};
+    }},
+  {id: 'gas-history', cat: 'expenses', title: 'Gas Refill History', desc: 'Kab, kitne cylinder, kis rate, kisse, kitna paid / baaki.', filters: [],
+    build(){
+      const list = anTx('Expense').filter(t => t.gas), n = list.reduce((a, t) => a + (+t.gas.n || 0), 0), a = list.reduce((s, t) => s + pz(t.amount), 0);
+      const mon = new Set(list.map(t => t.date.slice(0, 7))).size || 1;
+      return {cols: [C('Date', 'd'), C('Supplier'), C('Cylinders', 'n'), C('Size'), C('Rate', 'm'), C('Amount', 'm'), C('Payment'), C('Empty Returned', 'n')],
+        rows: list.map(t => [t.date, t.party || '', +t.gas.n || 0, t.gas.size || '', pz(t.gas.rate), pz(t.amount), t.mode === 'Credit' ? 'Baaki' : t.mode, t.gas.empty || '']),
+        total: ['TOTAL', list.length + ' refills', n, '', '', a, '', ''],
+        cards: [['Refill entries', list.length, 'n'], ['Cylinders', n, 'n'], ['Kul kharcha', a, 'm'], ['Mahine ka average', Math.round(a / mon), 'm']]};
+    }},
+  {id: 'monthly-purchase-expense', cat: 'expenses', title: 'Monthly Purchase & Expense', desc: 'Har mahine: purchase, roz ka kharcha, misc, gas, staff, asset, supplier ko payment.', filters: [],
+    build(){
+      const m = {}, row = k => m[k] || (m[k] = {pur: 0, run: 0, misc: 0, gas: 0, staff: 0, asset: 0, dep: 0, sp: 0});
+      D.txns.filter(t => t.date >= AN.from && t.date <= AN.to).forEach(t => { const r = row(t.date.slice(0, 7)), a = pz(t.amount);
+        if(t.type === 'Purchase') r.pur += a;
+        else if(t.type !== 'Expense') return;
+        else if(t.head === 'Supplier Payment') r.sp += a; else if(t.head === ASSET_HEAD) r.asset += a; else if(t.head === DEPOSIT_HEAD) r.dep += a;
+        else if(t.gas) r.gas += a; else if(t.kind === 'misc') r.misc += a; else if(['Staff Salary / Wages', 'Staff Advance'].includes(t.head)) r.staff += a; else r.run += a; });
+      const keys = Object.keys(m).sort(), t = k => keys.reduce((a, x) => a + m[x][k], 0);
+      return {cols: [C('Month'), C('Purchases (stock)', 'm'), C('Running Expenses', 'm'), C('Misc / Maintenance', 'm'), C('Gas', 'm'), C('Staff', 'm'), C('Kharcha Total', 'm'), C('Asset Buy', 'm'), C('Gas Deposit', 'm'), C('Supplier Payments', 'm')], fixed: true,
+        rows: keys.map(k => { const x = m[k]; return [monthLabel(k), x.pur, x.run, x.misc, x.gas, x.staff, x.run + x.misc + x.gas + x.staff, x.asset, x.dep, x.sp]; }),
+        total: ['TOTAL', t('pur'), t('run'), t('misc'), t('gas'), t('staff'), t('run') + t('misc') + t('gas') + t('staff'), t('asset'), t('dep'), t('sp')],
+        note: 'Kharcha Total = running + misc + gas + staff. Purchase stock mein jaati hai (bika hua hi food cost bante). Asset aur deposit kharcha nahi. Supplier payment pehle ki udhaar chukana hai, dobara kharcha nahi.'};
+    }},
+  {id: 'fixed-assets', cat: 'expenses', title: 'Fixed Asset Register', desc: 'Badi equipment: value, supplier, warranty, serial, repair ka kharcha.', filters: [], now: true,
+    build(){
+      const list = D.assets || [], rep = a => D.txns.filter(x => x.type === 'Expense' && x.assetId === a.id && x.head !== ASSET_HEAD);
+      return {cols: [C('Asset'), C('Category'), C('Location'), C('Purchase Date', 'd'), C('Value', 'm'), C('Supplier'), C('Warranty Till', 'd'), C('Serial'), C('Depreciation % (CA)', 'n'), C('Repairs', 'n'), C('Repair Cost', 'm'), C('Status')],
+        rows: list.map(a => [a.name, a.cat || '', a.loc || '', a.date || '', pz(a.value), a.party || '', a.warranty || '', a.serial || '', a.dep || '', rep(a).length, rep(a).reduce((s, x) => s + pz(x.amount), 0), a.status === 'disposed' ? 'Hata diya' : 'In use']),
+        total: ['TOTAL', '', '', '', list.filter(a => a.status !== 'disposed').reduce((s, a) => s + pz(a.value), 0), '', '', '', '', '', list.reduce((s, a) => s + rep(a).reduce((t, x) => t + pz(x.amount), 0), 0), ''],
+        note: 'Depreciation aur accounting CA ke hisaab se. Asset purchase kharcha (P&L) mein nahi ginti.'};
+    }}
+);
+// Pending list: these are now built
+['waste', 'stock-movement', 'stock-opening-closing', 'recipe-consumption', 'supplier-invoices'].forEach(id => { const i = AN_PENDING.findIndex(p => p[0] === id); if(i >= 0) AN_PENDING.splice(i, 1); });
+// Supplier ledger: also expenses saved as "baaki", and merged supplier names
+(r => r.build = function(){
+  const key = AN.f.supplier, isSup = t => (t.type === 'Purchase' || isSupPay(t) || isSupCredit(t)) && String(t.party || '').trim();
+  const all = D.txns.filter(t => isSup(t) && (!key || supKeyA(t.party) === key)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  const name = k => (suppliers().find(s => s.key === k) || {}).name || k;
+  const bal = {}, rows = [], dr = t => isSupCredit(t) ? pz(t.amount) : 0, cr = t => isSupPay(t) ? pz(t.amount) : 0;
+  all.filter(t => t.date < AN.from).forEach(t => { const k = supKeyA(t.party); bal[k] = (bal[k] || 0) + dr(t) - cr(t); });
+  Object.entries(bal).filter(([, v]) => v).forEach(([k, v]) => rows.push([AN.from, name(k), 'Opening Balance', '', '', '', v]));
+  let td = 0, tc = 0;
+  all.filter(t => t.date >= AN.from && t.date <= AN.to).forEach(t => { const k = supKeyA(t.party), d = dr(t), c = cr(t); bal[k] = (bal[k] || 0) + d - c; td += d; tc += c;
+    rows.push([t.date, name(k), isSupPay(t) ? `Payment (${t.mode})` : t.type === 'Purchase' ? (t.mode === 'Credit' ? 'Purchase (Udhaar)' : `Purchase (${t.mode} — paid)`) : 'Expense (Baaki)',
+      [t.head, t.desc, t.inv && t.inv.no ? 'Inv ' + t.inv.no : ''].filter(Boolean).join(' · '), d || '', c || '', bal[k]]); });
+  const due = Object.values(bal).reduce((a, v) => a + v, 0);
+  return {cols: [C('Date', 'd'), C('Supplier'), C('Type'), C('Details'), C('Udhaar (Debit)', 'm'), C('Payment (Credit)', 'm'), C('Balance', 'm')], rows, fixed: true,
+    total: ['TOTAL', '', '', '', td, tc, due], cards: [['Udhaar liya', td, 'm'], ['Chukaya', tc, 'm'], ['Baaki (to date)', due, 'm']],
+    note: 'Balance = udhaar wali purchase / kharcha − Supplier Payment. Cash / UPI se turant di gayi purchase baaki nahi badhati. Payment kharche mein dobara nahi ginta.'};
+})(AN_REPORTS.find(r => r.id === 'supplier-ledger'));
+// Inventory valuation at weighted average cost
+(r => r.build = function(){
+  const rows = activeStock().filter(s => !AN.f.stype || (s.type || 'stock') === AN.f.stype).map(s => { const ac = avgCost(s.id); return [s.name, STOCK_TYPES[s.type || 'stock'], s.unit || '', +s.qty || 0, pz(s.rate), pz(ac), Math.round(Math.max(0, +s.qty || 0) * pz(ac)), +s.qty < 0 ? 'Minus stock!' : +s.qty <= +s.min ? 'Low' : '']; });
+  const tv = rows.reduce((a, r) => a + r[6], 0);
+  return {cols: [C('Stock Item'), C('Type'), C('Unit'), C('Current Stock', 'q'), C('Last Rate', 'm'), C('Avg Cost', 'm'), C('Stock Value', 'm'), C('Alert')], rows, sort: [6, -1],
+    total: ['TOTAL', '', '', '', '', '', tv, ''], cards: [['Items', rows.length, 'n'], ['Stock Value', tv, 'm']],
+    note: 'Aaj ka value = stock × weighted average purchase cost. Purani date ka value: "Opening & Closing Stock" report.'};
+})(AN_REPORTS.find(r => r.id === 'inventory-valuation'));
+AN_REPORTS.find(r => r.id === 'inventory-valuation').filters = ['stype'];
+
 const anDef = () => AN_REPORTS.find(r => r.id === AN.id);
 function anRange(k){
   const t = today(), m1 = t.slice(0, 8) + '01';
-  const R = {today: [t, t], yday: [addDays(t, -1), addDays(t, -1)], d7: [addDays(t, -6), t], month: [m1, t], lmonth: [addDays(m1, -1).slice(0, 8) + '01', addDays(m1, -1)]};
+  const R = {today: [t, t], yday: [addDays(t, -1), addDays(t, -1)], d7: [addDays(t, -6), t], month: [m1, t], lmonth: [addDays(m1, -1).slice(0, 8) + '01', addDays(m1, -1)], year: [t.slice(0, 5) + '01-01', t], all: ['2000-01-01', t]};
   [AN.from, AN.to] = R[k];
   AN.page = 0; scrAnalytics();
 }
@@ -7761,6 +8606,10 @@ function anFilterHTML(d){
     supplier: () => sel('supplier', 'Supplier', suppliers().map(s => [s.key, s.name])),
     head: () => sel('head', 'Category', optList(D.txns.filter(t => t.type === 'Expense' && !NON_EXPENSE_HEADS.includes(t.head)).map(t => t.head))),
     status: () => sel('status', 'Status', ['Paid', 'Cancelled']),
+    item: () => sel('item', 'Item', activeStock().map(s => [s.id, s.name])),
+    stype: () => sel('stype', 'Type', Object.entries(STOCK_TYPES)),
+    mtype: () => sel('mtype', 'Movement', Object.entries(MOVE_TYPES)),
+    dues: () => sel('dues', 'Dikhayein', [['', 'Sirf baaki wali'], ['all', 'Sab invoice']]).replace('<option value="">Dikhayein: Sab</option>', ''),
     top: () => `<select style="width:auto" onchange="AN.top=+this.value;scrAnalytics()">${[10, 25, 50].map(n => `<option value="${n}" ${AN.top === n ? 'selected' : ''}>Top ${n}</option>`).join('')}</select>`
   };
   return (d.filters || []).map(k => F[k] ? F[k]() : '').join('');
@@ -7797,7 +8646,7 @@ function scrAnalytics(){
   main.innerHTML = `
   <div class="title"><span><button class="btn g sm" onclick="AN.id='';scrAnalytics()">‹</button> ${esc(d.title)}${r.title2 ? ' · ' + esc(r.title2) : ''}</span><span class="r muted" style="font-size:12px">${sync} · ${nowTime()}</span></div>
   <div class="card" style="padding:10px 12px"><div class="muted" style="font-size:13px">${esc(d.desc)}</div>
-    ${d.now ? '' : `<div class="cats" style="margin:8px 0 0">${[['today', 'Aaj'], ['yday', 'Kal'], ['d7', '7 din'], ['month', 'Is mahine'], ['lmonth', 'Pichhle mahine']].map(([k, l]) => `<button class="cat" onclick="anRange('${k}')">${l}</button>`).join('')}
+    ${d.now ? '' : `<div class="cats" style="margin:8px 0 0">${[['today', 'Aaj'], ['yday', 'Kal'], ['d7', '7 din'], ['month', 'Is mahine'], ['lmonth', 'Pichhle mahine'], ['year', 'Is saal'], ['all', 'Shuru se']].map(([k, l]) => `<button class="cat" onclick="anRange('${k}')">${l}</button>`).join('')}
       <span style="display:inline-flex;gap:6px;align-items:center">From <input type="date" value="${AN.from}" onchange="AN.from=this.value;AN.page=0;scrAnalytics()"> To <input type="date" value="${AN.to}" onchange="AN.to=this.value;AN.page=0;scrAnalytics()"></span></div>`}
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">${anFilterHTML(d)}
       <input id="an_q" placeholder="Search..." value="${esc(AN.q)}" style="width:220px" oninput="AN.q=this.value;AN.page=0;clearTimeout(scrAnalytics.t);scrAnalytics.t=setTimeout(()=>{scrAnalytics();const q=$('#an_q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},300)"></div></div>

@@ -356,3 +356,24 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 - Shared definitions are at the top of the block (Gross / Discount / Net / GST / Total; cancelled bills excluded). Item-level
   revenue uses `billLines()` (bill discount and taxable shared by item value). Zomato/Swiggy = `isEco()` (GST 9(5), separate).
 - Pending reports are listed in `AN_PENDING`; status table in `REPORTS-CHECKLIST.md`. Old Reports (F) and Monthly CA (J) are untouched.
+
+## Inventory, purchase & expense (stock movements)
+- **Stock is derived, not overwritten.** `stockMoves()` lists every movement: `D.moves` (open, waste, issue, return, adjust, cancel of
+  pre-movement bills, del, merge), Purchase txns with `mv: 1` (+qty) and bills with `mv: 1` (−used; a cancelled one adds a reversal).
+  `stockRecalc()` sets `stock.qty` from them in `ensureGrowth()` (every load / merge) and in `save()`. Items without an `open-<id>`
+  movement get one = their qty minus derived movements (this is the one-time migration). Records from before have no `mv` and live
+  inside the opening. Ids of derived movements come from the bill / txn id, so retries and sync can never double them. This fixed the
+  bug where two devices selling at once lost one device's stock deduction (scalar `qty` merged three-way).
+- `applyStock()` still runs for the instant screen value; the recalc overrides it. Never set `stock.qty` directly: add a movement.
+- Item master fields on `D.stock[]`: `type` (stock / spare / gas), `cat`, `sup`, `notes`, `conv: [{u, f}]` (1 bag = 25 kg),
+  `active: false` (instead of delete), `merged: <id>` + `D.stockAlias` (merge keeps old entries). `similarItems()` warns about Atta / Aata.
+- Purchase (P): `PF` form, many lines per invoice; each line a Purchase txn with `inv: {id, no, disc, tax, due, total, paid}`, invoice
+  discount / GST shared into line amounts. Part payment = lines in Credit + one "Supplier Payment" with the same `inv.id`.
+  "Sirf order diya" saves to `D.orders` (no stock) until "Maal aaya".
+- Expense (E) tabs: regular (`kind: 'regular'`, templates `D.expTpl`, Repeat Last leaves payment empty), misc / maintenance
+  (`kind: 'misc'`, `sub`, `qty`, `loc`, `assetId`), Gas register (Expense with `gas: {n, size, rate, empty}`, `D.gasLog` empties,
+  `D.settings.gasMode`), Fixed assets (`D.assets`). Mode "Credit" on an expense = not paid yet, shows in Suppliers (U).
+- Not expenses: `Gas Deposit (refundable)`, `Asset Purchase` (added to `NON_EXPENSE_HEADS`); `Gas Deposit Refund` is not income.
+- Suppliers: `supKeyA()` (with `D.supAlias` merges), profile `D.supInfo[key] = {name, mobile, gstin, notes}`; dues = Credit purchases
+  and Credit expenses − Supplier Payments. Invoice-wise dues: `supInvoices()` (payment to its own invoice first, then FIFO).
+- Dashboard "Business Charts" (`dashCharts()`, inline SVG, can be hidden in Customize Dashboard).

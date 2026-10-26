@@ -338,3 +338,15 @@ flowchart LR
 - Profit & Loss, Food Cost aur Salary sirf Manager / Owner. Cashier ko Manager PIN chahiye.
 - Profit & Loss andaaza hai (food cost recipe se). Final hisaab CA se milayein.
 - Purani Reports (F) aur Monthly CA Report (J) waise hi hain.
+
+### Stock, Purchase, Kharcha (naya)
+- **Item ek baar banayein** (S → + New Item): type (Regular / Spare / Gas), category, unit, "1 bag = 25 kg", default supplier.
+  Milta-julta naam (Atta / Aata) par Setu chetavni deta hai. Galti se do ban gaye to Edit → Merge.
+- **Purchase (P):** date, supplier, invoice no., kai items ek saath, discount / GST, "Abhi diya" (baaki apne aap udhaar).
+  Sirf order diya ho to Status "Sirf order diya" — maal aane par "Maal aaya" dabayein, tab stock badhega.
+- **Item ki poori history:** S → item ke naam par click: kab, kitna, kis rate, kisse, kitna bika, waste, bacha.
+- **Waste / Issue / Count:** S → item ke saamne. Issue = andar ke kaam ke liye nikala (bulb). Count = ginti ke baad stock theek.
+- **Kharcha (E):** Regular (gas, bijli, kiraya; Repeat Last), Misc / Maintenance (bulb, board, repair — stock mein nahi jaata),
+  Gas Register (refill, full / empty, deposit), Fixed Assets (fridge, oven).
+- **Suppliers (U):** mobile, Edit, Merge, Pay (date + mode), Ledger. Baaki wala kharcha bhi yahin chukta hai.
+- Dashboard par **Business Charts** (7 / 14 / 30 din).
