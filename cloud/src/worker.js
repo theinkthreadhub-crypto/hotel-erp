@@ -42,7 +42,7 @@ const FEATURES = {
   inventory:    { label: 'Stock, Purchase & Suppliers', keys: ['stock'] },
   qr:           { label: 'QR Menu & Table Orders', keys: [] },
   loyalty:      { label: 'Customers, Loyalty & Wallet', keys: [] },
-  staff:        { label: 'Staff Salary & Haaziri', keys: ['att'] },
+  staff:        { label: 'Staff Salary & Attendance', keys: ['att'] },
   captain:      { label: 'Captain App (Waiter Mobile)', keys: [] },
   reservations: { label: 'Table Reservations', keys: ['reservations'] },
   tokens:       { label: 'Token Display (TV)', keys: [] },
@@ -173,7 +173,7 @@ function saasView(a){
   Object.keys(FEATURES).forEach(k => features[k] = k in (c.overrides || {}) ? !!c.overrides[k] : TIERS[tier].features.includes(k));
   return { hotel: a.code, tier, tierLabel: TIERS[tier].label, businessType: c.businessType, features, billing: c.billing, rules: c.rules, ver: c.ver || 1,
     notice: a.notice || null,
-    lock: a.status === 'suspended' ? { lv: 2, msg: 'Aapka Setu account suspend hai. Kripya Aghanya Devanya Enterprises se sampark karein.', at: a.suspendedAt || 0 } : a.lock || null };
+    lock: a.status === 'suspended' ? { lv: 2, msg: 'Your Setu account is suspended. Please contact Aghanya Devanya Enterprises.', at: a.suspendedAt || 0 } : a.lock || null };
 }
 
 // ---------- License keys (same format as keygen.py / getActivationKeyInfo in the app) ----------
@@ -289,19 +289,19 @@ async function gemini(env, c, prompt, system){
       const j = await r.json().catch(() => ({}));
       if(r.ok){
         const out = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map(p => p.text || '').join('').trim();
-        if(!out) throw new Error('Gemini ne khaali jawab diya. Sawaal thoda badal kar poochhiye.');
+        if(!out) throw new Error('Gemini gave an empty answer. Please rephrase the question.');
         c.usedModel = m;
         return out;
       }
       last = { status: r.status, msg: (j.error && j.error.message) || ('HTTP ' + r.status), model: m };
-      if(r.status === 429) throw new Error('Gemini ki free limit abhi poori ho gayi. Thodi der baad poochhiye.');
+      if(r.status === 429) throw new Error('The Gemini free limit is used up for now. Please ask again a little later.');
       if(r.status === 404) continue;                 // this model is not available: try the next one
       if([400, 401, 403].includes(r.status)) break;   // the key does not work here: try the other route
       throw new Error('Gemini: ' + last.msg);
     }
   }
-  if(last && last.status === 404) throw new Error(`Is key par koi Gemini model nahi mila (${models.join(', ')}). Google ka jawab: ${last.msg}`);
-  if(last && /API key|api_key|credential|unauth/i.test(last.msg)) throw new Error('Gemini key galat hai ya band hai. Super Admin → AI mein sahi key daaliye. Google ka jawab: ' + last.msg);
+  if(last && last.status === 404) throw new Error(`No Gemini model is available for this key (${models.join(', ')}). Google said: ${last.msg}`);
+  if(last && /API key|api_key|credential|unauth/i.test(last.msg)) throw new Error('The Gemini key is wrong or disabled. Enter a valid key in Super Admin → AI. Google said: ' + last.msg);
   throw new Error('Gemini: ' + (last ? last.msg : 'no answer'));
 }
 // A model that worked after the saved one failed becomes the saved model
@@ -332,26 +332,26 @@ function aiContext(d){
     });
   });
   const r0 = n => Math.round(n);
-  const top = Object.entries(items).sort((a, b) => b[1].qty - a[1].qty).slice(0, 25).map(([k, v]) => `${k}: ${v.qty} (7 din: ${v.last7}), ₹${r0(v.amt)}`);
+  const top = Object.entries(items).sort((a, b) => b[1].qty - a[1].qty).slice(0, 25).map(([k, v]) => `${k}: ${v.qty} (7 days: ${v.last7}), ₹${r0(v.amt)}`);
   const menu = (Array.isArray(d.menu) ? d.menu : []).slice(0, 120).map(m => `${String(m.name || '').slice(0, 40)} ₹${+m.price || 0} [${String(m.cat || '').slice(0, 20)}]`);
   const stock = (Array.isArray(d.stock) ? d.stock : []).slice(0, 80).map(x => `${String(x.name || '').slice(0, 30)}: ${+x.qty || 0} ${x.unit || ''}${+x.min ? ' (min ' + x.min + ')' : ''}`);
   const tx = (Array.isArray(d.txns) ? d.txns : []).filter(t => t && String(t.date || '') >= from && t.type === 'Expense');
   const exp = {}; tx.forEach(t => exp[t.head || 'Other'] = (exp[t.head || 'Other'] || 0) + (+t.amount || 0));
   return [
-    `Restaurant: ${String(st.name || '').slice(0, 60)} · Aaj ki tareekh: ${today} · GST: ${st.gstScheme || 'regular'} ${+st.gst || 0}%`,
-    `Roz ki sale (pichhle 6 hafte, ₹): ${Object.entries(days).sort().map(([k, v]) => k + '=' + r0(v)).join(', ') || 'koi bill nahi'}`,
-    `Hafte ke din ke hisaab se sale: ${Object.entries(wk).map(([k, v]) => k + '=' + r0(v)).join(', ')}`,
-    `Ghante ke hisaab se sale: ${Object.entries(hours).sort((a, b) => a[0] - b[0]).map(([k, v]) => k + ':00=' + r0(v)).join(', ')}`,
+    `Restaurant: ${String(st.name || '').slice(0, 60)} · Today: ${today} · GST: ${st.gstScheme || 'regular'} ${+st.gst || 0}%`,
+    `Daily sales (last 6 weeks, ₹): ${Object.entries(days).sort().map(([k, v]) => k + '=' + r0(v)).join(', ') || 'no bills'}`,
+    `Sales by weekday: ${Object.entries(wk).map(([k, v]) => k + '=' + r0(v)).join(', ')}`,
+    `Sales by hour: ${Object.entries(hours).sort((a, b) => a[0] - b[0]).map(([k, v]) => k + ':00=' + r0(v)).join(', ')}`,
     `Channel: ${Object.entries(chan).map(([k, v]) => k + '=' + r0(v)).join(', ')} · Payment: ${Object.entries(modes).map(([k, v]) => k + '=' + r0(v)).join(', ')}`,
-    `Sabse zyada bikne wale (6 hafte qty): ${top.join('; ')}`,
+    `Best sellers (6 weeks, qty): ${top.join('; ')}`,
     `Menu: ${menu.join('; ')}`,
-    stock.length ? `Stock abhi: ${stock.join('; ')}` : 'Stock: daala nahi gaya',
-    `Kharche (6 hafte): ${Object.entries(exp).map(([k, v]) => k + '=' + r0(v)).join(', ') || 'nahi'}`
+    stock.length ? `Stock now: ${stock.join('; ')}` : 'Stock: not entered',
+    `Expenses (6 weeks): ${Object.entries(exp).map(([k, v]) => k + '=' + r0(v)).join(', ') || 'none'}`
   ].join('\n');
 }
-const AI_SYSTEM = 'Tum "Setu AI" ho, ek Indian restaurant / hotel ke owner ke madadgaar. Hamesha saral Hinglish (Roman Hindi + English) mein, chhote points mein jawab do. ' +
-  'Sirf diye gaye hisaab (data) par bharosa karo; jo data mein nahi hai wo mat banao, saaf bolo ki data nahi hai. Paise ₹ mein likho. ' +
-  'Aakhir mein 1-2 line ki seedhi salah do. Grahakon ke naam ya number kabhi mat maango ya likho.';
+const AI_SYSTEM = 'You are "Setu AI", an assistant to the owner of an Indian restaurant / hotel. Always answer in simple English, in short points. ' +
+  'Rely only on the figures given (data); never invent what is not in the data, and say clearly when data is missing. Write money in ₹. ' +
+  'End with 1-2 lines of direct advice. Never ask for or write customer names or numbers.';
 
 // ---------- Razorpay / Cloudflare APIs ----------
 async function razorpay(env, method, path, body){
@@ -889,7 +889,7 @@ export class SetuHotel extends DurableObject {
       return json(403, { error: 'Wrong owner password' });
     }
     this.kvDel('fail:' + ip);
-    if(isWeak(pw)) return json(403, { error: 'Owner password bahut aasaan hai. Purane PC par Settings mein password badlein, ya vendor se reset karwayein.' });
+    if(isWeak(pw)) return json(403, { error: 'The owner password is too simple. Change it in Settings on the old PC, or ask the vendor to reset it.' });
     const syncKey = randomHex(20);
     a.syncHash = await sha256(syncKey);
     a.syncKey = syncKey;
@@ -908,7 +908,7 @@ export class SetuHotel extends DurableObject {
     // Phone-only (cloud) hotel: set the period to exactly N days from today (also shortens it; ends a lifetime)
     if(b.setDays){
       const n = Math.round(+b.setDays);
-      if(!(n >= 1 && n <= 3650)) throw new Error('Din 1 se 3650 ke beech');
+      if(!(n >= 1 && n <= 3650)) throw new Error('Days must be between 1 and 3650');
       a.paidUntil = Date.now() + n * DAY;
       a.lifetime = false;
       if(a.status !== 'suspended') a.status = 'active';
@@ -1147,18 +1147,18 @@ export class SetuHotel extends DurableObject {
 
     // Setu AI: owner / manager (or the counter PC) asks; the Worker adds the hotel's totals and asks Gemini
     if(method === 'POST' && path === '/api/ai'){
-      if(!isAdmin) return json(403, { error: 'Setu AI sirf owner / manager ke liye hai' });
-      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI aapke plan mein chalu nahi hai. Vendor se baat karein.' });
+      if(!isAdmin) return json(403, { error: 'Setu AI is for the owner / manager only' });
+      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Talk to your vendor.' });
       const q = str(body().question, 500);
-      if(q.length < 3) return json(400, { error: 'Sawaal likhiye' });
+      if(q.length < 3) return json(400, { error: 'Type a question' });
       const c = await aiConf(this.env);
-      if(!c.key) return json(503, { error: 'Setu AI abhi chalu nahi hua (vendor ne key nahi daali).' });
+      if(!c.key) return json(503, { error: 'Setu AI is not set up yet (the vendor has not added a key).' });
       const u = await regJson(this.env, '/ai/use', { code: this.account.code, take: true, limit: c.limit });
-      if(!u.ok) return json(429, { error: `Aaj ke ${c.limit} AI sawaal poore ho gaye. Kal phir poochhiye.` });
+      if(!u.ok) return json(429, { error: `Today’s ${c.limit} AI questions are used up. Please ask again tomorrow.` });
       let d = {};
       try{ d = JSON.parse(this.data()) || {}; }catch(e){}
       try{
-        const answer = await gemini(this.env, c, `Hotel ka hisaab:\n${aiContext(d)}\n\nOwner ka sawaal: ${q}`, AI_SYSTEM);
+        const answer = await gemini(this.env, c, `Hotel figures:\n${aiContext(d)}\n\nOwner's question: ${q}`, AI_SYSTEM);
         await aiKeepModel(this.env, c).catch(() => {});
         return json(200, { answer, used: u.n, limit: c.limit });
       }catch(e){ return json(502, { error: e.message, used: u.n, limit: c.limit }); }
@@ -1274,15 +1274,15 @@ async function signup(request, env){
   if(b.key){
     let lic;
     try{ lic = await verifyLicense(env, b.key, installId); }catch(e){
-      return json(403, { error: /expired/.test(e.message) ? 'Ye Master Key purani ho gayi. Vendor se nayi lein.' : 'Key sahi nahi hai. Vendor se mili Master Key poori paste karein.' });
+      return json(403, { error: /expired/.test(e.message) ? 'This Master Key has expired. Get a new one from your vendor.' : 'The key is not valid. Paste the full Master Key from your vendor.' });
     }
-    if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'Ye phone Setu Pro ne block kiya hai. Vendor se baat karein.' });
+    if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This phone has been blocked. Talk to your vendor.' });
     const have = (await regJson(env, '/byiid', { iid: installId })).code;
-    if(have) return json(409, { error: `Is phone se pehle hi hotel bana hai (Hotel Code ${have}). Login karein.`, code: have });
+    if(have) return json(409, { error: `A hotel was already created from this phone (Hotel Code ${have}). Please sign in.`, code: have });
     const days = lic.lifetime ? 3650 : Math.max(1, Math.ceil((lic.until - Date.now()) / DAY));
     return createHotel(env, input, { days, installId, iid: installId, noKey: true, ip, tier, status: 'active', lifetime: lic.lifetime });
   }
-  if(!env.LICENSE_PRIVATE_KEY) return json(400, { error: 'Vendor se mili Master Key daaliye.' });
+  if(!env.LICENSE_PRIVATE_KEY) return json(400, { error: 'Enter the Master Key from your vendor.' });
   return createHotel(env, input, { days: +env.TRIAL_DAYS || 14, installId, ip, tier });
 }
 
@@ -1295,7 +1295,7 @@ async function counterLink(request, env){
   if(!/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(installId)) return json(400, { error: 'install id' });
   let lic;
   try{ lic = await verifyLicense(env, b.key, installId); }catch(e){ return json(403, { error: e.message }); }
-  if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'Ye computer Setu Pro ne block kiya hai. Vendor se baat karein.' });
+  if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This computer has been blocked. Talk to your vendor.' });
   // Already joined (setu-cloud.json lost, Windows reinstalled): only the owner password may take it over
   const have = (await regJson(env, '/byiid', { iid: installId })).code;
   if(have) return json(409, { error: 'linked', code: have });
@@ -1384,7 +1384,7 @@ async function admin(request, env, path){
     if(body.set){
       const v = (await regJson(env, '/conf/get', { k: 'gemini' })).v || {};
       const key = String(body.key || '').trim();
-      if(key && !/^[A-Za-z0-9_.\-]{20,200}$/.test(key)) return json(400, { error: 'Ye Gemini API key jaisi nahi lag rahi' });
+      if(key && !/^[A-Za-z0-9_.\-]{20,200}$/.test(key)) return json(400, { error: 'This does not look like a Gemini API key' });
       const nv = { key: key || v.key || '', model: str(body.model, 60) || v.model || AI_DEFAULTS.model, limit: Math.max(1, Math.min(1000, +body.limit || v.limit || AI_DEFAULTS.limit)) };
       await regCall(env, '/conf/set', { k: 'gemini', v: nv });
       await log('Setu AI settings', '', `model ${nv.model}, limit ${nv.limit}${key ? ', new key' : ''}`);
@@ -1392,7 +1392,7 @@ async function admin(request, env, path){
     }
     let test = null;
     if(body.test){
-      if(!c.key) test = { ok: false, error: 'Pehle key daaliye' };
+      if(!c.key) test = { ok: false, error: 'Enter the key first' };
       else { try{ test = { ok: true, answer: (await gemini(env, c, 'Sirf "OK" likho.', 'Short reply.')).slice(0, 80) }; await aiKeepModel(env, c); }catch(e){ test = { ok: false, error: e.message }; } }
     }
     return json(200, { hasKey: !!c.key, keyEnd: c.key ? c.key.slice(-4) : '', model: c.model, limit: c.limit, today: u.total || 0, hotelsToday: u.hotels || 0, test });
@@ -1400,27 +1400,27 @@ async function admin(request, env, path){
   if(path === '/api/admin/keygen'){
     if(body.setKey !== undefined){
       const pem = String(body.setKey || '').trim();
-      if(pem && !await licPrivMatches(env, pem)) return json(400, { error: 'Ye Setu ki asli key file (setu-license-private.pem) nahi hai' });
+      if(pem && !await licPrivMatches(env, pem)) return json(400, { error: 'This is not the real Setu key file (setu-license-private.pem)' });
       await regCall(env, '/conf/set', { k: 'licpriv', v: pem.replace(/-----[^-]+-----|\s/g, '') });
       await log('Keygen setup', '', pem ? 'signing key saved' : 'signing key removed');
     }
     const lp = await licPriv(env);
     // Master Key for the vendor's pendrive: any new PC, a few days, until the real key is sent from Super Admin
     if(body.master){
-      if(!lp.pem) return json(400, { error: 'Keygen abhi set nahi hai. Pehle Keygen → Setup mein key file daaliye.' });
+      if(!lp.pem) return json(400, { error: 'Keygen is not set up yet. First add the key file in Keygen → Setup.' });
       const d = Math.round(+body.days || 7);
-      if(d < 1 || d > 30) return json(400, { error: 'Master Key 1 se 30 din ki ho sakti hai' });
+      if(d < 1 || d > 30) return json(400, { error: 'A Master Key can be for 1 to 30 days' });
       const key = await makeLicenseKey(env, '', d, 6, lp.pem);
       await log('Master Key banayi', '', `${d} days, usable ${MASTER_KEY_LIFE} days`);
       return json(200, { key, label: `Master Key (${d} din)`, days: d, usableTill: Date.now() + MASTER_KEY_LIFE * DAY });
     }
     if(!body.installId) return json(200, { ready: !!lp.pem, from: lp.from, plans: Object.fromEntries(Object.entries(KEY_PLANS).map(([k, v]) => [k, v[2]])) });
-    if(!lp.pem) return json(400, { error: 'Keygen abhi set nahi hai. Pehle Keygen → Setup mein key file daaliye.' });
+    if(!lp.pem) return json(400, { error: 'Keygen is not set up yet. First add the key file in Keygen → Setup.' });
     const iid = String(body.installId).toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 30);
-    if(iid.replace(/-/g, '').length < 8) return json(400, { error: 'Install ID sahi nahi hai (jaise SETU-AB12-CD34)' });
+    if(iid.replace(/-/g, '').length < 8) return json(400, { error: 'The Install ID is not valid (e.g. SETU-AB12-CD34)' });
     let kind, value, label;
     if(KEY_PLANS[body.plan]) [kind, value, label] = KEY_PLANS[body.plan];
-    else { value = Math.round(+body.days || 0); if(value < 1 || value > 3650) return json(400, { error: 'Din 1 se 3650 ke beech' }); kind = 1; label = value + ' Days'; }
+    else { value = Math.round(+body.days || 0); if(value < 1 || value > 3650) return json(400, { error: 'Days must be between 1 and 3650' }); kind = 1; label = value + ' Days'; }
     // "set": the licence becomes exactly this many days from today (also shortens a longer one); needs Setu v1.0.16+
     if(body.set && kind === 1){ kind = 5; label += ' (date set)'; }
     const key = await makeLicenseKey(env, iid, value, kind, lp.pem);
@@ -1428,9 +1428,9 @@ async function admin(request, env, path){
     let sentTo = '';
     if(body.send && kind !== 4){
       const to = validCode(String(body.code || '').toUpperCase()) ? String(body.code).toUpperCase() : (await regJson(env, '/byiid', { iid })).code;
-      if(!to) return json(200, { key, label, sentTo: '', note: 'Ye computer abhi cloud se juda nahi hai. Key PC par khud daaliye.' });
+      if(!to) return json(200, { key, label, sentTo: '', note: 'This computer is not connected to the cloud yet. Enter the key on the PC yourself.' });
       const r = await hotelCall(to, '/internal/admin', { pushKey: key });
-      if(!r.ok) return json(200, { key, label, sentTo: '', note: 'Hotel tak nahi bhej paye. Key PC par khud daaliye.' });
+      if(!r.ok) return json(200, { key, label, sentTo: '', note: 'Could not send it to the hotel. Enter the key on the PC yourself.' });
       sentTo = to;
     }
     await log('Key banayi', sentTo || '', `${label} · ${iid}${sentTo ? ' · sent to PC' : ''}`);

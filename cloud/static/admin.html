@@ -125,10 +125,10 @@
 <div id="login">
   <div style="text-align:center"><img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:18px;box-shadow:0 8px 24px #1e3a8a33">
     <h2 style="margin:14px 0 2px;font-size:21px">Setu Hotel Admin</h2>
-    <p class="muted" style="margin:0 0 18px">Sab hotels ek jagah se chalaiye</p></div>
+    <p class="muted" style="margin:0 0 18px">Run all your hotels from one place</p></div>
   <div class="card"><form id="lf"><label style="margin-top:0">Admin Key</label><input id="key" type="password" placeholder="Apni Admin Key daaliye" autocomplete="off" required>
-    <label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13px;color:var(--ink);font-weight:500"><input id="remember" type="checkbox" style="width:20px;height:20px" checked> Is phone par yaad rakho</label>
-    <button class="big">Kholo</button></form>
+    <label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13px;color:var(--ink);font-weight:500"><input id="remember" type="checkbox" style="width:20px;height:20px" checked> Remember on this phone</label>
+    <button class="big">Open</button></form>
   <p id="lerr" class="err"></p></div>
   <p class="muted" style="text-align:center;font-size:12px">Aghanya Devanya Enterprises</p>
 </div>
@@ -157,7 +157,7 @@ const dt = ms => ms ? new Date(ms).toLocaleString('en-IN', {day:'2-digit', month
 const rs = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
 const state = h => h.status === 'suspended' ? 'suspended' : ((h.paid_until ?? h.paidUntil) < Date.now() && !h.lifetime ? 'expired' : h.status);
 const pill = s => `<span class="pill p-${esc(s)}">${esc(s)}</span>`;
-const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'abhi' : m < 60 ? m + ' min pehle' : m < 1440 ? Math.round(m / 60) + ' ghante pehle' : Math.round(m / 1440) + ' din pehle'; };
+const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; };
 // Backup health = when the hotel's data last reached the cloud
 const health = ms => !ms ? '<span class="pill h-bad">No backup yet</span>'
   : Date.now() - ms < 26 * 36e5 ? `<span class="pill h-ok">OK · ${ago(ms)}</span>`
@@ -199,10 +199,10 @@ document.querySelector('header button').innerHTML = ic('refresh');
 function toast(t, bad){ const e = $('#toast'); e.textContent = t; e.className = bad ? 'err' : ''; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', bad ? 5000 : 2600); }
 // Copy / share work in a browser and in the Setu Hotel Admin phone app (SA bridge)
 function copyText(t, label){
-  if(window.SA && SA.copy){ SA.copy(t); return toast((label || 'Text') + ' copy ho gaya'); }
-  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast((label || 'Text') + ' copy ho gaya'), () => {
+  if(window.SA && SA.copy){ SA.copy(t); return toast((label || 'Text') + ' copied'); }
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast((label || 'Text') + ' copied'), () => {
     const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select();
-    try{ document.execCommand('copy'); toast((label || 'Text') + ' copy ho gaya'); }catch(e){ toast('Copy nahi hua, haath se select karein', true); }
+    try{ document.execCommand('copy'); toast((label || 'Text') + ' copied'); }catch(e){ toast('Could not copy; please select it by hand', true); }
     a.remove(); });
 }
 function shareText(t){
@@ -253,7 +253,7 @@ function askDone(v){ $('#ask').classList.remove('open'); const r = ASK; ASK = nu
 
 // ---------------- navigation ----------------
 const VIEWS = {hotels: ['Hotels', 'hotels'], keygen: ['Keygen', 'key'], tickets: ['Tickets', 'ticket'], more: ['More', 'more']};
-const SUB = {dash: 'Dashboard', add: 'Naya Hotel', ai: 'Setu AI', audit: 'Activity Log', blocked: 'Blocked computers'};
+const SUB = {dash: 'Dashboard', add: 'New Hotel', ai: 'Setu AI', audit: 'Activity Log', blocked: 'Blocked computers'};
 let UNREAD = 0;
 function nav(){
   const top = SUB[VIEW] ? 'more' : VIEW;
@@ -263,7 +263,7 @@ function nav(){
 }
 const show = run(async v => { VIEW = v; nav(); window.scrollTo(0, 0);
   await ({hotels: drawHotels, keygen: drawKeygen, tickets: drawTickets, more: drawMore, dash: drawDash, add: drawAdd, ai: drawAI, audit: drawAudit, blocked: drawBlocked})[v](); nav(); });
-const backBtn = () => `<button class="g" style="margin-bottom:12px" onclick="show('more')">‹ Wapas</button>`;
+const backBtn = () => `<button class="g" style="margin-bottom:12px" onclick="show('more')">‹ Back</button>`;
 
 async function loadHotels(){ const j = await api('/api/admin/hotels'); HOTELS = j.hotels; UNREAD = j.ticketsUnread || 0; }
 
@@ -275,7 +275,7 @@ const payDays = h => h.paid_until ? Math.ceil((h.paid_until - Date.now()) / DAYM
 const staleH = h => h.seen ? (Date.now() - h.seen) / 36e5 : 1e9;
 const telHref = p => 'tel:' + String(p || '').replace(/[^\d+]/g, '');
 const waHref = (p, name) => { let d = String(p || '').replace(/\D/g, ''); if(d.length === 10) d = '91' + d;
-  return 'https://wa.me/' + d + '?text=' + encodeURIComponent('Namaste ' + (name || '') + ' ji, Aghanya Devanya Enterprises (Setu POS) se baat ho rahi hai.'); };
+  return 'https://wa.me/' + d + '?text=' + encodeURIComponent('Hello ' + (name || '') + ', this is Aghanya Devanya Enterprises (Setu POS).'); };
 const AVC = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#0d9488', '#4f46e5', '#0891b2', '#65a30d'];
 const avatar = h => `<div class="av" style="background:${AVC[[...String(h.code)].reduce((a, c) => a + c.charCodeAt(0), 0) % AVC.length]}">${esc((h.name || h.code || '?').trim()[0].toUpperCase())}</div>`;
 // One plain word for how the hotel's Setu is right now
@@ -283,9 +283,9 @@ function appState(h){
   const d = licDays(h);
   if(state(h) === 'suspended') return ['Suspended', 'off'];
   if(+h.lockv === 2) return ['Locked', 'bad'];
-  if(d !== null && d !== Infinity && d < 0) return ['Licence khatam', 'bad'];
+  if(d !== null && d !== Infinity && d < 0) return ['Licence expired', 'bad'];
   if(+h.lockv === 1) return ['Warning', 'warn'];
-  return ['Chal raha', 'ok'];
+  return ['Running', 'ok'];
 }
 // Usage: bills per day from the counter (registry bdays / ball / lastbill), days in IST like the bills
 const istDay = (ms = Date.now()) => new Date(ms + 330 * 60000).toISOString().slice(0, 10);
@@ -304,7 +304,7 @@ function billBars(h){
       <div style="height:${Math.round(34 * n / max) + 2}px;border-radius:4px;background:${n ? 'var(--pri)' : 'var(--line)'};margin:2px 0"></div>${wd(d)}</div>`; }).join('')}</div>`;
 }
 const billTag = h => { const t = billsToday(h), w = bills7(h);
-  return `<span class="tag ${t ? 'ok' : notUsing(h) ? 'bad' : ''}">Aaj ${t} bill · 7 din ${w}</span>`; };
+  return `<span class="tag ${t ? 'ok' : notUsing(h) ? 'bad' : ''}">Today ${t} bills · 7 days ${w}</span>`; };
 
 // Hotels that need you come first: licence running out, no backup, open tickets
 function urgency(h){
@@ -319,14 +319,14 @@ function urgency(h){
   return u;
 }
 let KF = 'all';
-const KFS = {all: ['Sab', () => true], need: ['Dhyan do', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
-  tk: ['Tickets', h => h.tickets > 0], idle: ['Bill band (3+ din)', notUsing], err: ['Errors (24 ghante)', h => +h.errs > 0], stale: ['Backup nahi', h => staleH(h) > 48]};
+const KFS = {all: ['All', () => true], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
+  tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
 function setKF(k){ KF = k; drawHotelsBody(); }
 async function drawHotels(){
   await loadHotels();
   const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
-  $('#main').innerHTML = `<div class="card" style="display:flex;gap:10px;align-items:center;padding:12px 14px">${ic('chart')}<div style="flex:1"><b>Aaj sab hotels: ${today} bill</b>
-      <div class="muted" style="font-size:12px">${using} / ${live.length} hotels ne aaj bill banaye${HOTELS.filter(notUsing).length ? ` · <span class="err">${HOTELS.filter(notUsing).length} hotel 3+ din se band</span>` : ''}${HOTELS.filter(h => +h.errs).length ? ` · <span class="err" style="cursor:pointer" onclick="setKF('err')">${HOTELS.filter(h => +h.errs).length} hotel mein error</span>` : ''}</div></div></div>
+  $('#main').innerHTML = `<div class="card" style="display:flex;gap:10px;align-items:center;padding:12px 14px">${ic('chart')}<div style="flex:1"><b>All hotels today: ${today} bills</b>
+      <div class="muted" style="font-size:12px">${using} / ${live.length} hotels billed today${HOTELS.filter(notUsing).length ? ` · <span class="err">${HOTELS.filter(notUsing).length} hotels with no bills for 3+ days</span>` : ''}${HOTELS.filter(h => +h.errs).length ? ` · <span class="err" style="cursor:pointer" onclick="setKF('err')">${HOTELS.filter(h => +h.errs).length} hotels with errors</span>` : ''}</div></div></div>
     <div class="search">${ic('search')}<input id="q" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
   $('#q').oninput = drawCards;
   drawHotelsBody();
@@ -337,19 +337,19 @@ function drawHotelsBody(){
 }
 function hotelAlert(h){
   const d = licDays(h);
-  if(d !== null && d !== Infinity && d < 0) return ['bad', 'Licence ' + d8(Date.parse(h.lic)) + ' ko khatam ho gaya'];
-  if(d !== null && d !== Infinity && d <= 5) return ['warn', 'Licence ' + d + ' din mein khatam (' + d8(Date.parse(h.lic)) + ')'];
-  if(h.tickets) return ['warn', h.tickets + ' naya ticket message'];
-  if(+h.errs){ const e = lastErr(h); return ['bad', `${h.errs} error (24 ghante)${e ? ' · ' + e.kya : ''}`]; }
-  if(notUsing(h)) return ['bad', idleDays(h) === null ? 'Abhi tak ek bhi bill nahi bana' : `${idleDays(h)} din se koi bill nahi (aakhri ${d8(Date.parse(h.lastbill))}) — client se baat karein`];
-  if(h.seen && staleH(h) > 48) return ['warn', 'PC se ' + ago(h.seen) + ' se data nahi aaya'];
+  if(d !== null && d !== Infinity && d < 0) return ['bad', 'Licence ' + d8(Date.parse(h.lic)) + ' — expired'];
+  if(d !== null && d !== Infinity && d <= 5) return ['warn', 'Licence ends in ' + d + ' days (' + d8(Date.parse(h.lic)) + ')'];
+  if(h.tickets) return ['warn', h.tickets + ' new ticket messages'];
+  if(+h.errs){ const e = lastErr(h); return ['bad', `${h.errs} errors (24 hours)${e ? ' · ' + e.kya : ''}`]; }
+  if(notUsing(h)) return ['bad', idleDays(h) === null ? 'No bill made yet' : `No bills for ${idleDays(h)} days (last ${d8(Date.parse(h.lastbill))}) — talk to the client`];
+  if(h.seen && staleH(h) > 48) return ['warn', 'No data from the PC since ' + ago(h.seen)];
   return null;
 }
 function licTag(h){
   const d = licDays(h);
   if(d === Infinity) return '<span class="tag ok">Lifetime</span>';
   if(d === null) return '<span class="tag">Licence -</span>';
-  return `<span class="tag ${d < 0 ? 'bad' : d <= 5 ? 'warn' : 'ok'}">Licence ${d < 0 ? 'khatam' : d + ' din'}</span>`;
+  return `<span class="tag ${d < 0 ? 'bad' : d <= 5 ? 'warn' : 'ok'}">Licence ${d < 0 ? 'expired' : d + ' days'}</span>`;
 }
 // Setu version on the hotel's counter PC; older than the newest one seen = needs the new EXE
 const verNum = v => String(v || '').split('.').map(n => +n || 0).reduce((a, n) => a * 10000 + n, 0);
@@ -358,7 +358,7 @@ const verTag = h => !h.appv ? '<span class="tag">Version -</span>' : `<span clas
 // Error Log from the hotel's devices (D.errSync): count in 24 hours + the newest error
 const lastErr = h => { try{ return h.lasterr ? JSON.parse(h.lasterr) : null; }catch(e){ return null; } };
 const errTag = h => +h.errs ? `<span class="tag bad">${h.errs} error</span>` : '';
-const seenTag = h => `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Abhi sync nahi'}</span>`;
+const seenTag = h => `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Not synced yet'}</span>`;
 function drawCards(){
   const q = ($('#q').value || '').trim().toLowerCase();
   const list = HOTELS.filter(KFS[KF][1]).filter(h => !q || [h.name, h.code, h.phone, h.owner, h.iid || ''].join(' ').toLowerCase().includes(q))
@@ -367,9 +367,9 @@ function drawCards(){
     const [sl, sc] = appState(h), al = hotelAlert(h);
     return `<div class="hc" onclick="hotelSheet('${esc(h.code)}')"><div class="top">${avatar(h)}
         <div class="mid"><b class="nm">${esc(h.name)}</b><small>${esc(h.code)}${h.owner ? ' · ' + esc(h.owner) : ''}</small></div><span class="st ${sc}">${sl}</span></div>
-      <div class="tags">${errTag(h)}${billTag(h)}${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message dikh raha</span>' : ''}</div>
+      <div class="tags">${errTag(h)}${billTag(h)}${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message showing</span>' : ''}</div>
       ${al ? `<div class="strip ${al[0]}">${esc(al[1])}</div>` : ''}</div>`;
-  }).join('') || `<div class="card muted" style="text-align:center">${KF === 'all' && !q ? 'Abhi koi hotel nahi. Naye PC par EXE install karke Keygen se activate karein.' : 'Is list mein kuch nahi'}</div>`;
+  }).join('') || `<div class="card muted" style="text-align:center">${KF === 'all' && !q ? 'No hotels yet. Install the EXE on a new PC and activate it with Keygen.' : 'Nothing in this list'}</div>`;
 }
 
 // ---------------- one hotel: big simple actions ----------------
@@ -383,29 +383,29 @@ function hotelSheet(code){
     ${h.phone ? `<div class="quick"><a href="${telHref(h.phone)}">${ic('phone')}Call</a><a class="wa" href="${waHref(h.phone, h.owner)}" target="_blank" rel="noopener">${ic('msg')}WhatsApp</a></div>` : ''}
     <div class="facts">
       <div><span>Owner</span><b>${esc(h.owner || '-')} ${h.phone ? '· ' + esc(h.phone) : ''}</b></div>
-      <div><span>Licence</span><b class="${d === Infinity ? 'ok' : d !== null && d <= 5 ? 'err' : ''}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + (d < 0 ? ' · khatam' : ' · ' + d + ' din')}</b></div>
-      <div><span>Bill</span><b>Aaj ${billsToday(h)} · 7 din ${bills7(h)} · kul ${(+h.ball || 0).toLocaleString('en-IN')}</b></div>
-      <div><span>Aakhri bill</span><b class="${notUsing(h) ? 'err' : ''}">${h.lastbill ? d8(Date.parse(h.lastbill)) + (idleDays(h) ? ` · ${idleDays(h)} din pehle` : ' · aaj') : 'Abhi tak nahi'}</b></div>
-      <div><span>Error</span><b class="${+h.errs ? 'err' : ''}">${lastErr(h) ? `${+h.errs || 0} (24 ghante) · ${esc(lastErr(h).kya)} · ${ago(lastErr(h).at)}` : 'Koi nahi'}</b></div>
-      <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Abhi nahi'}</b></div>
-      <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(naya: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
+      <div><span>Licence</span><b class="${d === Infinity ? 'ok' : d !== null && d <= 5 ? 'err' : ''}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + (d < 0 ? ' · expired' : ' · ' + d + ' days')}</b></div>
+      <div><span>Bill</span><b>Today ${billsToday(h)} · 7 days ${bills7(h)} · total ${(+h.ball || 0).toLocaleString('en-IN')}</b></div>
+      <div><span>Last bill</span><b class="${notUsing(h) ? 'err' : ''}">${h.lastbill ? d8(Date.parse(h.lastbill)) + (idleDays(h) ? ` · ${idleDays(h)} days ago` : ' · today') : 'None yet'}</b></div>
+      <div><span>Error</span><b class="${+h.errs ? 'err' : ''}">${lastErr(h) ? `${+h.errs || 0} (24 hours) · ${esc(lastErr(h).kya)} · ${ago(lastErr(h).at)}` : 'None'}</b></div>
+      <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Not yet'}</b></div>
+      <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(newest: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
       <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
       <div><span>Juda</span><b>${d8(h.created)}</b></div>
     </div>
-    <div class="muted" style="font-size:12px;margin:-6px 0 4px">Pichhle 7 din ke bill</div>${billBars(h)}
+    <div class="muted" style="font-size:12px;margin:-6px 0 4px">Bills in the last 7 days</div>${billBars(h)}
     <div class="tiles">
-      ${h.plan === 'counter' ? tile('key', 'Activate', 'Key bhejo', `keygenFor('${C}')`, 'blue') : tile('key', 'Activate', 'Din do (mobile)', `cloudDays('${C}')`, 'blue')}
-      ${lk === 2 ? tile('unlock', 'Unlock', 'Setu chalu karo', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Setu band karo', `lockAsk('${C}')`, 'red')}
-      ${lk === 1 ? tile('warn', 'Warning hatao', 'abhi dikh rahi', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu chalta rahe', `warnAsk('${C}')`, 'amber')}
-      ${sus ? tile('play', 'Activate', 'account chalu', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account band', `suspendAsk('${C}')`, 'red')}
-      ${tile('msg', 'Message', h.notice ? 'dikh raha' : 'popup bhejo', `noticeBox('${C}')`)}
-      ${tile('warn', 'Error Log', +h.errs ? h.errs + ' (24 ghante)' : 'sab dekho', `hotelErrors('${C}')`, +h.errs ? 'red' : '')}
-      ${tile('ticket', 'Tickets', h.tickets ? h.tickets + ' naye' : '', `hotelTickets('${C}')`)}
+      ${h.plan === 'counter' ? tile('key', 'Activate', 'Send key', `keygenFor('${C}')`, 'blue') : tile('key', 'Activate', 'Give days (mobile)', `cloudDays('${C}')`, 'blue')}
+      ${lk === 2 ? tile('unlock', 'Unlock', 'Turn Setu on', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Turn Setu off', `lockAsk('${C}')`, 'red')}
+      ${lk === 1 ? tile('warn', 'Remove warning', 'showing now', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu keeps running', `warnAsk('${C}')`, 'amber')}
+      ${sus ? tile('play', 'Activate', 'account on', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account off', `suspendAsk('${C}')`, 'red')}
+      ${tile('msg', 'Message', h.notice ? 'showing' : 'send a popup', `noticeBox('${C}')`)}
+      ${tile('warn', 'Error Log', +h.errs ? h.errs + ' (24 hours)' : 'see all', `hotelErrors('${C}')`, +h.errs ? 'red' : '')}
+      ${tile('ticket', 'Tickets', h.tickets ? h.tickets + ' new' : '', `hotelTickets('${C}')`)}
       ${tile('download', 'Backup', 'download', `dlBackup('${C}')`)}
-      ${tile('user', 'Password', 'owner ka', `pwAsk('${C}')`)}
-      ${tile('gear', 'Sab settings', 'plan, bill...', `openHotel('${C}')`)}
+      ${tile('user', 'Password', 'owner', `pwAsk('${C}')`)}
+      ${tile('gear', 'All settings', 'plan, bill...', `openHotel('${C}')`)}
     </div>
-    <button class="g" style="width:100%;margin-top:14px;color:var(--bad)" onclick="delBox('${C}')">${'Hotel delete karein'}</button>`);
+    <button class="g" style="width:100%;margin-top:14px;color:var(--bad)" onclick="delBox('${C}')">${'Delete hotel'}</button>`);
 }
 const adminUpdate = async (code, update, msg) => {
   await api('/api/admin/hotel', {code, update});
@@ -421,58 +421,58 @@ function cloudDays(code){
   const plans = [[30, '1 Month'], [90, '3 Months'], [180, '6 Months'], [365, '1 Year']];
   const base = CD.set || !old || old < Date.now() ? Date.now() : old;
   sheet(`<h2>Activate — ${esc(h.name)}</h2>
-    <p class="muted" style="margin-top:0">Ye hotel bina computer (mobile / cloud) chalta hai. Yahan din dete hi phone par turant lag jaate hain, key nahi chahiye.</p>
-    <div class="plans">${plans.map(([d, l]) => `<button class="plan ${!CD.life && CD.days === d ? 'on' : ''}" onclick="CD.days=${d};CD.life=false;cloudDays('${esc(code)}')">${l}<small>${d} din</small></button>`).join('')}
-      <button class="plan ${CD.life ? 'on' : ''}" onclick="CD.life=true;cloudDays('${esc(code)}')">Lifetime<small>hamesha</small></button>
-      <button class="plan ${!CD.life && !plans.some(p => p[0] === CD.days) ? 'on' : ''}" onclick="CD.days=0;CD.life=false;cloudDays('${esc(code)}')">Apne din<small>kitne bhi</small></button></div>
-    ${!CD.life && !plans.some(p => p[0] === CD.days) ? `<label>Din</label><input id="cd_days" type="number" min="1" max="3650" value="${CD.days || 30}" oninput="CD.days=+this.value">` : ''}
-    ${CD.life ? '' : `<label>Date kaise lage?</label>
-      <div class="plans"><button class="plan ${CD.set ? 'on' : ''}" onclick="CD.set=true;cloudDays('${esc(code)}')">Aaj se ${CD.days || '?'} din<small>purani date hat jayegi</small></button>
-        <button class="plan ${CD.set ? '' : 'on'}" onclick="CD.set=false;cloudDays('${esc(code)}')">Purani date mein jodo<small>bache din + naye</small></button></div>
-      <p class="muted" style="font-size:13px">Licence chalegi: <b>${CD.days ? d8(base + CD.days * DAYMS) : '-'}</b> tak · abhi: <b>${h.lic === 'lifetime' ? 'Lifetime' : old ? d8(old) : '-'}</b></p>`}
-    <label>Paisa mila (₹, optional)</label><input id="cd_amt" type="number" min="0" placeholder="jaise 999">
-    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button><button onclick="cloudDaysSave('${esc(code)}')">Lagao</button></div>`);
+    <p class="muted" style="margin-top:0">This hotel runs without a computer (mobile / cloud). Days given here apply on the phone at once; no key is needed.</p>
+    <div class="plans">${plans.map(([d, l]) => `<button class="plan ${!CD.life && CD.days === d ? 'on' : ''}" onclick="CD.days=${d};CD.life=false;cloudDays('${esc(code)}')">${l}<small>${d} days</small></button>`).join('')}
+      <button class="plan ${CD.life ? 'on' : ''}" onclick="CD.life=true;cloudDays('${esc(code)}')">Lifetime<small>forever</small></button>
+      <button class="plan ${!CD.life && !plans.some(p => p[0] === CD.days) ? 'on' : ''}" onclick="CD.days=0;CD.life=false;cloudDays('${esc(code)}')">Custom days<small>any number</small></button></div>
+    ${!CD.life && !plans.some(p => p[0] === CD.days) ? `<label>Days</label><input id="cd_days" type="number" min="1" max="3650" value="${CD.days || 30}" oninput="CD.days=+this.value">` : ''}
+    ${CD.life ? '' : `<label>How should the date apply?</label>
+      <div class="plans"><button class="plan ${CD.set ? 'on' : ''}" onclick="CD.set=true;cloudDays('${esc(code)}')">${CD.days || '?'} days from today<small>replaces the old date</small></button>
+        <button class="plan ${CD.set ? '' : 'on'}" onclick="CD.set=false;cloudDays('${esc(code)}')">Add to the old date<small>days left + new days</small></button></div>
+      <p class="muted" style="font-size:13px">Licence until: <b>${CD.days ? d8(base + CD.days * DAYMS) : '-'}</b> · now: <b>${h.lic === 'lifetime' ? 'Lifetime' : old ? d8(old) : '-'}</b></p>`}
+    <label>Payment received (₹, optional)</label><input id="cd_amt" type="number" min="0" placeholder="e.g. 999">
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button><button onclick="cloudDaysSave('${esc(code)}')">Apply</button></div>`);
 }
 const cloudDaysSave = run(async code => {
   if($('#cd_days')) CD.days = +$('#cd_days').value;
   const amt = +($('#cd_amt') || {}).value || 0;
-  if(!CD.life && !(CD.days >= 1)) return toast('Din likhiye', true);
+  if(!CD.life && !(CD.days >= 1)) return toast('Enter the days', true);
   const u = CD.life ? {lifetime: true} : CD.set ? {setDays: CD.days} : {days: CD.days, amount: amt};
-  await adminUpdate(code, u, CD.life ? 'Lifetime de diya' : 'Din lag gaye. Phone par turant.');
+  await adminUpdate(code, u, CD.life ? 'Lifetime given' : 'Days applied. On the phone at once.');
   hotelSheet(code);
 });
 
-const msgField = (ph, val) => `<label>Message (Setu mein dikhega)</label><textarea id="lm" rows="3" maxlength="300" placeholder="${ph}">${esc(val || '')}</textarea>`;
+const msgField = (ph, val) => `<label>Message (shown in Setu)</label><textarea id="lm" rows="3" maxlength="300" placeholder="${ph}">${esc(val || '')}</textarea>`;
 const lockAsk = run(async code => {
-  const v = await ask('Setu lock karein?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)} ke saare devices par Setu band ho jayega, sirf aapka message dikhega. Data safe rahega. Unlock dabate hi chalu.</p>${msgField('Jaise: Payment due hai. Aghanya Devanya Enterprises se sampark karein.')}`, 'Lock karo', true);
-  if(v) await adminUpdate(code, {lock: {lv: 2, msg: v.lm.trim()}}, 'Setu lock ho gaya. PC online hote hi lag jayega.');
+  const v = await ask('Lock Setu?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: Setu stops on all devices and only your message shows. Data stays safe. Press Unlock to turn it back on.</p>${msgField('e.g. Payment is due. Please contact Aghanya Devanya Enterprises.')}`, 'Lock', true);
+  if(v) await adminUpdate(code, {lock: {lv: 2, msg: v.lm.trim()}}, 'Setu locked. It applies as soon as the PC is online.');
 });
 const warnAsk = run(async code => {
-  const v = await ask('Warning lagayein?', `<p class="muted" style="margin-top:0">Setu chalta rahega, upar laal patti mein message dikhega.</p>${msgField('Jaise: Payment 3 din mein jama karein.')}`, 'Warning lagao');
-  if(v) await adminUpdate(code, {lock: {lv: 1, msg: v.lm.trim()}}, 'Warning lag gayi');
+  const v = await ask('Show a warning?', `<p class="muted" style="margin-top:0">Setu keeps running; the message shows in a red bar at the top.</p>${msgField('e.g. Please pay within 3 days.')}`, 'Show warning');
+  if(v) await adminUpdate(code, {lock: {lv: 1, msg: v.lm.trim()}}, 'Warning set');
 });
-const setLock = run(async (code, lv) => adminUpdate(code, {lock: {lv}}, lv ? 'Lag gaya' : 'Hata diya. Setu normal chalega.'));
+const setLock = run(async (code, lv) => adminUpdate(code, {lock: {lv}}, lv ? 'Applied' : 'Removed. Setu runs normally.'));
 const suspendAsk = run(async code => {
-  if(await ask('Account suspend karein?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)} ka Setu band ho jayega aur cloud par saving rukegi. Data PC par safe rahega. Activate dabate hi wapas chalu.</p>`, 'Suspend karo', true))
-    await adminUpdate(code, {status: 'suspended'}, 'Suspend ho gaya. PC online hote hi lock dikhega.');
+  if(await ask('Suspend the account?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: Setu stops and cloud saving pauses. Data stays safe on the PC. Press Activate to turn it back on.</p>`, 'Suspend', true))
+    await adminUpdate(code, {status: 'suspended'}, 'Suspended. The lock shows as soon as the PC is online.');
 });
-const setSuspend = run(async (code, on) => adminUpdate(code, {status: on ? 'suspended' : 'active'}, on ? 'Suspend ho gaya' : 'Account chalu ho gaya'));
+const setSuspend = run(async (code, on) => adminUpdate(code, {status: on ? 'suspended' : 'active'}, on ? 'Suspended' : 'Account active again'));
 const pwAsk = run(async code => {
-  const v = await ask('Owner ka naya password', `<p class="muted" style="margin-top:0">Owner password bhool gaye? Naya likhiye. Phone app par turant, counter PC par agle sync ke baad chalega (wahi Manager PIN bhi hai).</p><input id="pw" maxlength="40" placeholder="Kam se kam 6 akshar" autocomplete="off">`, 'Set karo');
+  const v = await ask('New owner password', `<p class="muted" style="margin-top:0">Owner forgot the password? Type a new one. It works on the phone app at once and on the counter PC after the next sync (it is also the Manager PIN).</p><input id="pw" maxlength="40" placeholder="At least 6 characters" autocomplete="off">`, 'Set');
   if(!v) return;
-  if(v.pw.trim().length < 6) return toast('Password kam se kam 6 akshar', true);
-  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'Naya password: ' + v.pw.trim() + ' (owner ko bata dein)');
+  if(v.pw.trim().length < 6) return toast('Password: at least 6 characters', true);
+  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'New password: ' + v.pw.trim() + ' (tell the owner)');
 });
 function noticeBox(code){
   const h = hotelBy(code);
-  sheet(`<h2>Message: ${esc(h.name)}</h2><p class="muted">Hotel ke Setu mein popup dikhega (PC online hote hi). Khaali karke Hatao dabayein to hat jayega.</p>
-    <textarea id="nm" rows="4" maxlength="500" placeholder="Jaise: Payment due hai, kripya jama karein. — Aghanya Devanya Enterprises">${esc(h.notice || '')}</textarea>
-    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button>${h.notice ? `<button class="bad" onclick="saveNotice('${esc(code)}', false)">Hatao</button>` : ''}<button onclick="saveNotice('${esc(code)}', true)">Bhejo</button></div>`);
+  sheet(`<h2>Message: ${esc(h.name)}</h2><p class="muted">A popup shows in the hotel’s Setu (as soon as the PC is online). Clear it and press Remove to take it down.</p>
+    <textarea id="nm" rows="4" maxlength="500" placeholder="e.g. Payment is due, please pay. — Aghanya Devanya Enterprises">${esc(h.notice || '')}</textarea>
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button>${h.notice ? `<button class="bad" onclick="saveNotice('${esc(code)}', false)">Remove</button>` : ''}<button onclick="saveNotice('${esc(code)}', true)">Send</button></div>`);
 }
 const saveNotice = run(async (code, on) => {
   const t = on ? $('#nm').value.trim() : '';
-  if(on && !t) return toast('Message likhiye', true);
-  await adminUpdate(code, {notice: t}, on ? 'Message bhej diya' : 'Message hata diya');
+  if(on && !t) return toast('Type a message', true);
+  await adminUpdate(code, {notice: t}, on ? 'Message sent' : 'Message removed');
 });
 
 // ---------------- Keygen (activation keys from the phone) ----------------
@@ -481,8 +481,8 @@ const KG_DAYS = {'1m': 30, '3m': 90, '6m': 180, '1y': 365};
 // "Set" keys (date from today, replaces the old one) need Setu v1.0.16 or newer on the counter
 const SET_MIN_VER = '1.0.16';
 let KGS = null;
-const KG_PLANS = [['1m', '1 Month', '30 din'], ['3m', '3 Months', '90 din'], ['6m', '6 Months', '180 din'], ['1y', '1 Year', '365 din'],
-  ['life', 'Lifetime', 'hamesha'], ['demo24h', 'Demo', '24 ghante'], ['days', 'Apne din', 'kitne bhi'], ['reset', 'Password Reset', 'owner bhool gaya']];
+const KG_PLANS = [['1m', '1 Month', '30 days'], ['3m', '3 Months', '90 days'], ['6m', '6 Months', '180 days'], ['1y', '1 Year', '365 days'],
+  ['life', 'Lifetime', 'forever'], ['demo24h', 'Demo', '24 hours'], ['days', 'Custom days', 'any number'], ['reset', 'Password Reset', 'owner forgot']];
 function keygenFor(code){
   const h = hotelBy(code);
   KG = {...KG, iid: h.iid || '', code: h.code, send: true, res: null};
@@ -497,42 +497,42 @@ async function drawKeygen(){
   const r = KG.res;
   $('#main').innerHTML = `
     ${r ? `<div class="card" style="border-color:#bbf7d0">
-      <h2 class="ok">Key ban gayi · ${esc(r.label)}</h2>
-      ${r.sentTo ? `<p style="margin-top:0"><b>${esc(hotelBy(r.sentTo).name)}</b> ke PC ko cloud se bhej di. PC online hote hi (kuch second mein) apne aap activate ho jayega.</p>`
-        : `<p style="margin-top:0">${r.note ? esc(r.note) + ' ' : ''}Ye key PC par Setu ke activation box mein daaliye (WhatsApp Web / pendrive se copy-paste).</p>`}
+      <h2 class="ok">Key created · ${esc(r.label)}</h2>
+      ${r.sentTo ? `<p style="margin-top:0"><b>${esc(hotelBy(r.sentTo).name)}</b>: sent to the PC through the cloud. It activates by itself as soon as the PC is online (a few seconds).</p>`
+        : `<p style="margin-top:0">${r.note ? esc(r.note) + ' ' : ''}Enter this key in Setu’s activation box on the PC (copy-paste via WhatsApp Web / pendrive).</p>`}
       <div class="keybox">${esc(r.key)}</div>
       <div class="btns"><button class="g" onclick="copyText(KG.res.key, 'Key')">${'Copy'}</button><button class="okb" onclick="shareText('Setu Activation Key (' + KG.res.label + '):\\n' + KG.res.key)">WhatsApp / Share</button></div>
-      <button class="g" style="width:100%;margin-top:8px" onclick="KG.res=null;drawKeygen()">Nayi key banao</button></div>` : ''}
+      <button class="g" style="width:100%;margin-top:8px" onclick="KG.res=null;drawKeygen()">Make another key</button></div>` : ''}
     <div class="card">
-      <h2>Activation Key banao</h2>
-      <label style="margin-top:0">Install ID (Setu ki activation screen par likha hota hai)</label>
+      <h2>Make an Activation Key</h2>
+      <label style="margin-top:0">Install ID (shown on Setu’s activation screen)</label>
       <input id="kg_iid" value="${esc(KG.iid)}" placeholder="SETU-XXXX-XXXX" autocomplete="off" style="width:100%;text-transform:uppercase;font-family:ui-monospace,Consolas,monospace">
-      ${HOTELS.some(h => h.iid) ? `<select id="kg_pick" style="width:100%;margin-top:8px"><option value="">… ya juda hua hotel chunein</option>${HOTELS.filter(h => h.iid).map(h => `<option value="${esc(h.code)}" ${KG.code === h.code ? 'selected' : ''}>${esc(h.name)} (${esc(h.code)})</option>`).join('')}</select>` : ''}
-      <div id="kg_match" class="muted" style="font-size:13px;margin-top:6px">${match ? `Hotel: <b>${esc(match.name)}</b> (${esc(match.code)}) · cloud se juda hai` : KG.iid ? 'Ye PC abhi cloud se juda nahi (naya PC). Key PC par khud daalni hogi.' : ''}</div>
-      <label>Kitne din ki?</label>
+      ${HOTELS.some(h => h.iid) ? `<select id="kg_pick" style="width:100%;margin-top:8px"><option value="">… or choose a connected hotel</option>${HOTELS.filter(h => h.iid).map(h => `<option value="${esc(h.code)}" ${KG.code === h.code ? 'selected' : ''}>${esc(h.name)} (${esc(h.code)})</option>`).join('')}</select>` : ''}
+      <div id="kg_match" class="muted" style="font-size:13px;margin-top:6px">${match ? `Hotel: <b>${esc(match.name)}</b> (${esc(match.code)}) · connected to the cloud` : KG.iid ? 'This PC is not connected to the cloud yet (new PC). Enter the key on the PC yourself.' : ''}</div>
+      <label>For how many days?</label>
       <div class="plans">${KG_PLANS.map(([k, l, s]) => `<button class="plan ${KG.plan === k ? 'on' : ''}" onclick="kgPlan('${k}')">${l}<small>${s}</small></button>`).join('')}</div>
-      ${KG.plan === 'days' ? `<label>Din</label><input id="kg_days" type="number" min="1" max="3650" value="${+KG.days || 30}" style="width:100%" oninput="KG.days=+this.value;kgDateLine()">` : ''}
-      ${KG_DAYS[KG.plan] || KG.plan === 'days' ? `<label>Date kaise lage?</label>
-        <div class="plans"><button class="plan ${KG.set ? 'on' : ''}" onclick="kgSet(true)">Aaj se ${kgDays()} din<small>purani date hat jayegi (kam bhi kar sakte hain)</small></button>
-          <button class="plan ${KG.set ? '' : 'on'}" onclick="kgSet(false)">Purani date mein jodo<small>bache hue din + ${kgDays()} din</small></button></div>
+      ${KG.plan === 'days' ? `<label>Days</label><input id="kg_days" type="number" min="1" max="3650" value="${+KG.days || 30}" style="width:100%" oninput="KG.days=+this.value;kgDateLine()">` : ''}
+      ${KG_DAYS[KG.plan] || KG.plan === 'days' ? `<label>How should the date apply?</label>
+        <div class="plans"><button class="plan ${KG.set ? 'on' : ''}" onclick="kgSet(true)">${kgDays()} days from today<small>replaces the old date (can also shorten)</small></button>
+          <button class="plan ${KG.set ? '' : 'on'}" onclick="kgSet(false)">Add to the old date<small>days left + ${kgDays()} days</small></button></div>
         <div id="kg_date" class="muted" style="font-size:13px;margin-top:6px"></div>` : ''}
-      ${match && KG.plan !== 'reset' ? `<label class="switch"><input type="checkbox" id="kg_send" ${KG.send ? 'checked' : ''}> Cloud se seedha is hotel ke PC par bhejo</label>` : ''}
-      <button class="big" style="margin-top:14px" onclick="kgMake()">${ic('key')} Key banao</button>
+      ${match && KG.plan !== 'reset' ? `<label class="switch"><input type="checkbox" id="kg_send" ${KG.send ? 'checked' : ''}> Send straight to this hotel’s PC through the cloud</label>` : ''}
+      <button class="big" style="margin-top:14px" onclick="kgMake()">${ic('key')} Make Key</button>
     </div>
-    <div class="card"><h2>Master Key (pendrive ke liye)</h2>
-      <p class="muted" style="margin-top:0">Ek hi key har naye PC par chalegi. Setu sirf utne din chalega (bhool jaayein to bhi apne aap band). PC activate hote hi Hotels mein aa jayega; phir upar se client ke hisaab se asli din bhejiye (<b>Aaj se N din</b>). Ek key 180 din tak naye PC par lag sakti hai, phir nayi banaiye.</p>
-      <div class="row"><input id="mk_days" type="number" min="1" max="30" value="${+KG.mdays || 7}" style="width:90px"> <span>din</span>
-        <button style="flex:1" onclick="kgMaster()">${ic('key')} Master Key banao</button></div>
+    <div class="card"><h2>Master Key (for your pendrive)</h2>
+      <p class="muted" style="margin-top:0">One key works on every new PC. Setu runs only for those days (it stops by itself even if you forget). As soon as the PC activates it appears in Hotels; then send the real days for the client from above (<b>N days from today</b>). A key can be used on new PCs for 180 days; then make a new one.</p>
+      <div class="row"><input id="mk_days" type="number" min="1" max="30" value="${+KG.mdays || 7}" style="width:90px"> <span>days</span>
+        <button style="flex:1" onclick="kgMaster()">${ic('key')} Make Master Key</button></div>
       ${KG.master ? `<div class="keybox" style="margin-top:10px">${esc(KG.master.key)}</div>
-        <p class="muted" style="font-size:12px;margin:6px 0 0">${esc(KG.master.label)} · naye PC par ${d8(KG.master.usableTill)} tak lag sakti hai</p>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">${esc(KG.master.label)} · usable on new PCs until ${d8(KG.master.usableTill)}</p>
         <div class="btns"><button class="g" onclick="copyText(KG.master.key, 'Master Key')">Copy</button><button class="okb" onclick="kgMasterFile()">File save (pendrive)</button></div>` : ''}
     </div>
-    <div class="card"><h2>Naya PC (pehli baar)</h2>
-      <ol class="steps"><li>PC par Setu EXE install karein (pendrive se).</li><li>Sign-up mein <b>Master Key</b> paste karein (ya Install ID ki key yahan banaiye).</li>
-        <li>Internet chalu ho to PC khud cloud se jud jayega aur <b>Hotels</b> mein aa jayega.</li>
-        <li>Hotel kholiye → <b>Activate</b> → din chuniye → <b>Aaj se N din</b> → key seedha PC par chali jayegi.</li>
-        <li>Uske baad ghar baithe yahin se Activate, Lock, Suspend sab.</li></ol>
-      <p class="muted" style="margin-bottom:0;font-size:12px">Keygen: ${KGS.from === 'secret' ? 'Cloudflare secret se' : 'saved key file se'} · <a href="#" onclick="event.preventDefault();drawKeygenSetup()">Setup</a></p></div>`;
+    <div class="card"><h2>New PC (first time)</h2>
+      <ol class="steps"><li>Install the Setu EXE on the PC (from the pendrive).</li><li>Paste the <b>Master Key</b> at sign-up (or make a key for its Install ID here).</li>
+        <li>With internet on, the PC connects to the cloud by itself and appears in <b>Hotels</b>.</li>
+        <li>Open the hotel → <b>Activate</b> → choose days → <b>N days from today</b> → the key goes straight to the PC.</li>
+        <li>After that, Activate, Lock and Suspend everything from here, from anywhere.</li></ol>
+      <p class="muted" style="margin-bottom:0;font-size:12px">Keygen: ${KGS.from === 'secret' ? 'from the Cloudflare secret' : 'from the saved key file'} · <a href="#" onclick="event.preventDefault();drawKeygenSetup()">Setup</a></p></div>`;
   kgDateLine();
   $('#kg_iid').oninput = e => { KG.iid = e.target.value.trim(); KG.code = ''; const s = $('#kg_pick'); if(s) s.value = ''; kgMatchLine(); };
   if($('#kg_pick')) $('#kg_pick').onchange = e => { const h = hotelBy(e.target.value); KG.code = e.target.value; KG.iid = e.target.value ? h.iid : ''; KG.send = true; drawKeygen(); };
@@ -546,14 +546,14 @@ function kgDateLine(){
   const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, '')), d = kgDays();
   const old = m && m.lic && m.lic !== 'lifetime' ? Date.parse(m.lic) : null;
   const base = KG.set || !old || old < Date.now() ? Date.now() : old;
-  let t = `Licence chalegi: <b>${d8(base + d * DAYMS)}</b> tak` + (m ? ` · abhi: <b>${m.lic === 'lifetime' ? 'Lifetime' : m.lic ? d8(Date.parse(m.lic)) : '-'}</b>` : '');
-  if(KG.set && m && verNum(m.appv) < verNum(SET_MIN_VER)) t += `<div class="err">Is hotel par Setu ${m.appv ? 'v' + esc(m.appv) : 'purana'} hai. "Aaj se" wali key ke liye pehle naya EXE (v${SET_MIN_VER}+) install karwaiye, warna key wahan nahi lagegi.</div>`;
+  let t = `Licence until: <b>${d8(base + d * DAYMS)}</b>` + (m ? ` · now: <b>${m.lic === 'lifetime' ? 'Lifetime' : m.lic ? d8(Date.parse(m.lic)) : '-'}</b>` : '');
+  if(KG.set && m && verNum(m.appv) < verNum(SET_MIN_VER)) t += `<div class="err">This hotel has Setu ${m.appv ? 'v' + esc(m.appv) : 'an old version'}. For a "from today" key install the new EXE (v${SET_MIN_VER}+) first, or the key will not apply there.</div>`;
   el.innerHTML = t;
 }
 function kgMatchLine(){
   const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, ''));
   if(!!m !== !!$('#kg_send')) return drawKeygen().then(() => { const i = $('#kg_iid'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
-  $('#kg_match').innerHTML = m ? `Hotel: <b>${esc(m.name)}</b> (${esc(m.code)}) · cloud se juda hai` : KG.iid ? 'Ye PC abhi cloud se juda nahi (naya PC). Key PC par khud daalni hogi.' : '';
+  $('#kg_match').innerHTML = m ? `Hotel: <b>${esc(m.name)}</b> (${esc(m.code)}) · connected to the cloud` : KG.iid ? 'This PC is not connected to the cloud yet (new PC). Enter the key on the PC yourself.' : '';
   kgDateLine();
 }
 function kgPlan(k){ KG.iid = $('#kg_iid').value.trim(); if($('#kg_days')) KG.days = +$('#kg_days').value; if($('#kg_send')) KG.send = $('#kg_send').checked; KG.plan = k; drawKeygen(); }
@@ -561,70 +561,70 @@ const kgMake = run(async () => {
   KG.iid = $('#kg_iid').value.trim().toUpperCase();
   if($('#kg_days')) KG.days = +$('#kg_days').value;
   KG.send = !!($('#kg_send') && $('#kg_send').checked);
-  if(!KG.iid) return toast('Install ID daaliye', true);
-  if(KG.plan === 'life' && !await ask('Lifetime key?', '<p class="muted" style="margin-top:0">Ye PC hamesha ke liye chalega.</p>', 'Haan, banao')) return;
+  if(!KG.iid) return toast('Enter the Install ID', true);
+  if(KG.plan === 'life' && !await ask('Lifetime key?', '<p class="muted" style="margin-top:0">This PC will run forever.</p>', 'Yes, make it')) return;
   const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.replace(/[^A-Z0-9]/g, ''));
   KG.res = await api('/api/admin/keygen', {installId: KG.iid, plan: KG.plan === 'days' ? '' : KG.plan, days: KG.days, set: !!KG.set && !!kgDays(), send: KG.send, code: KG.send && m ? m.code : ''});
-  toast(KG.res.sentTo ? 'Key PC ko bhej di' : 'Key ban gayi');
+  toast(KG.res.sentTo ? 'Key sent to the PC' : 'Key created');
   await drawKeygen();
   window.scrollTo(0, 0);
 });
 function drawKeygenSetup(){
   const ready = KGS && KGS.ready;
   $('#main').innerHTML = `${ready ? '' : `<div class="card" style="border-color:#fecaca;background:#fef2f2">
-      <h2 class="err" style="margin-bottom:6px">Keygen abhi band hai</h2>
-      <p style="margin:0">Ek baar neeche key file save karte hi yahan ye sab chalu ho jayega:</p>
-      <ul class="steps" style="margin-top:6px"><li><b>Master Key</b> (pendrive ke liye, har naye PC par 7 din)</li><li>Hotel ko <b>Activation Key</b> bhejna (Aaj se N din / jodo)</li><li>Password Reset key</li></ul></div>`}
-    <div class="card"><h2>Keygen setup (sirf ek baar)</h2>
-    <p class="muted" style="margin-top:0">Cloud ko aapki <b>setu-license-private.pem</b> file chahiye — wahi file jo humne aapko bheji thi (nayi key file). Ise ek baar yahan save kar dijiye.</p>
-    <ol class="steps"><li>Phone mein woh file save karke rakhiye (Downloads / Files).</li><li>Neeche <b>File chunein</b> → setu-license-private.pem.</li><li><b>Save</b> dabaiye. Galat file ho to cloud mana kar dega.</li></ol>
+      <h2 class="err" style="margin-bottom:6px">Keygen is not set up yet</h2>
+      <p style="margin:0">Save the key file below once and all of this turns on:</p>
+      <ul class="steps" style="margin-top:6px"><li><b>Master Key</b> (for the pendrive, 7 days on any new PC)</li><li>Sending an <b>Activation Key</b> to a hotel (N days from today / add)</li><li>Password Reset key</li></ul></div>`}
+    <div class="card"><h2>Keygen setup (only once)</h2>
+    <p class="muted" style="margin-top:0">The cloud needs your <b>setu-license-private.pem</b> file — the key file we sent you. Save it here once.</p>
+    <ol class="steps"><li>Keep that file on the phone (Downloads / Files).</li><li>Below, <b>choose the file</b> → setu-license-private.pem.</li><li>Press <b>Save</b>. The cloud refuses a wrong file.</li></ol>
     <label>Key file</label><input type="file" id="pem_file" accept=".pem,text/plain,application/x-pem-file,*/*" style="width:100%">
-    <label>… ya file ka text yahan paste karein</label><textarea id="pem_txt" rows="4" placeholder="-----BEGIN PRIVATE KEY-----" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea>
+    <label>… or paste the file’s text here</label><textarea id="pem_txt" rows="4" placeholder="-----BEGIN PRIVATE KEY-----" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea>
     <button class="big" style="margin-top:12px" onclick="kgSetup()">Save</button>
-    <p class="muted" style="font-size:12px">Ye file kisi ko na bhejein. Cloud par sirf Admin Key se hi istemal hoti hai, kisi hotel ke app mein nahi jaati.</p>
-    ${ready ? `<div class="row" style="justify-content:space-between;margin-top:6px"><span class="ok">Keygen chalu hai (${KGS.from === 'secret' ? 'Cloudflare secret' : 'saved file'})</span>
-      <span class="row"><button class="g" onclick="drawKeygen()">‹ Keygen</button>${KGS.from === 'saved' ? `<button class="g" style="color:var(--bad)" onclick="kgRemove()">Hatao</button>` : ''}</span></div>` : ''}</div>`;
+    <p class="muted" style="font-size:12px">Never send this file to anyone. On the cloud it is used only with the Admin Key and never goes to any hotel’s app.</p>
+    ${ready ? `<div class="row" style="justify-content:space-between;margin-top:6px"><span class="ok">Keygen is on (${KGS.from === 'secret' ? 'Cloudflare secret' : 'saved file'})</span>
+      <span class="row"><button class="g" onclick="drawKeygen()">‹ Keygen</button>${KGS.from === 'saved' ? `<button class="g" style="color:var(--bad)" onclick="kgRemove()">Remove</button>` : ''}</span></div>` : ''}</div>`;
   $('#pem_file').onchange = e => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = () => $('#pem_txt').value = String(r.result || ''); r.readAsText(f); };
 }
 const kgMaster = run(async () => {
   KG.mdays = +$('#mk_days').value || 7;
   KG.master = await api('/api/admin/keygen', {master: true, days: KG.mdays});
-  toast('Master Key ban gayi');
+  toast('Master Key created');
   await drawKeygen();
 });
 function kgMasterFile(){
-  const m = KG.master, text = `Setu POS — Master Key (${m.days} din)\r\nAghanya Devanya Enterprises\r\n\r\n${m.key}\r\n\r\nNaye PC par: Setu-POS-Setup.exe install karein → Sign Up mein yeh key paste karein.\r\nNaye PC par ${d8(m.usableTill)} tak lag sakti hai. Kisi ko na dein.\r\n`;
-  if(window.SA && SA.save){ SA.save('Setu-Master-Key.txt', 'text/plain', btoa(unescape(encodeURIComponent(text)))); return toast('File: save ya share karein'); }
+  const m = KG.master, text = `Setu POS — Master Key (${m.days} days)\r\nAghanya Devanya Enterprises\r\n\r\n${m.key}\r\n\r\nOn a new PC: install Setu-POS-Setup.exe → paste this key at Sign Up.\r\nUsable on new PCs until ${d8(m.usableTill)}. Do not share.\r\n`;
+  if(window.SA && SA.save){ SA.save('Setu-Master-Key.txt', 'text/plain', btoa(unescape(encodeURIComponent(text)))); return toast('File: save or share it'); }
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
   a.download = 'Setu-Master-Key.txt';
   a.click();
-  toast('Setu-Master-Key.txt download ho gayi');
+  toast('Setu-Master-Key.txt downloaded');
 }
 const kgSetup = run(async () => {
   const t = $('#pem_txt').value.trim();
-  if(!/PRIVATE KEY|^MI/.test(t)) return toast('Pehle .pem file chunein ya uska text paste karein', true);
+  if(!/PRIVATE KEY|^MI/.test(t)) return toast('Choose the .pem file or paste its text first', true);
   KGS = await api('/api/admin/keygen', {setKey: t});
-  toast('Keygen chalu ho gaya');
+  toast('Keygen is on');
   await drawKeygen();
 });
 const kgRemove = run(async () => {
-  if(!await ask('Keygen file hatayein?', '<p class="muted" style="margin-top:0">Phone se key banana band ho jayega (PC wala Keygen chalta rahega).</p>', 'Hatao', true)) return;
+  if(!await ask('Remove the Keygen file?', '<p class="muted" style="margin-top:0">Making keys from the phone stops (the PC Keygen keeps working).</p>', 'Remove', true)) return;
   KGS = await api('/api/admin/keygen', {setKey: ''});
-  toast('Hata diya'); drawKeygenSetup();
+  toast('Removed'); drawKeygenSetup();
 });
 
 // ---------------- More ----------------
 function drawMore(){
   const row = (icon, t, s, fn) => `<button class="li" onclick="${fn}"><span class="ico">${ic(icon)}</span><span>${t}<small>${s}</small></span>›</button>`;
-  $('#main').innerHTML = row('chart', 'Dashboard', 'Kitne hotel, payment, backup', "show('dash')")
-    + row('plus', 'Naya Hotel banao', 'Bina PC ke, sirf phone app wala hotel', "show('add')")
-    + row('spark', 'Setu AI', 'Gemini key aur roz ki limit', "show('ai')")
-    + row('list', 'Activity Log', 'Aapne kab kya badla', "show('audit')")
-    + row('block', 'Blocked computers', 'Delete karte waqt block kiye PC', "show('blocked')")
-    + row('key', 'Keygen setup', 'Phone se key banane ke liye', "show('keygen').then(() => drawKeygenSetup())")
-    + row('out', 'Logout', 'Is phone se Admin Key hatao', 'logout()')
-    + `<p class="muted" style="text-align:center;font-size:12px">${(navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/) || [])[1] ? 'Setu Hotel Admin app v' + navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/)[1] : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Naya Setu EXE: v' + esc(newestVer()) : ''}</p>`;
+  $('#main').innerHTML = row('chart', 'Dashboard', 'Hotels, payments, backups', "show('dash')")
+    + row('plus', 'Create New Hotel', 'Phone-app hotel without a PC', "show('add')")
+    + row('spark', 'Setu AI', 'Gemini key and daily limit', "show('ai')")
+    + row('list', 'Activity Log', 'What you changed and when', "show('audit')")
+    + row('block', 'Blocked computers', 'PCs blocked when deleting', "show('blocked')")
+    + row('key', 'Keygen setup', 'To make keys from the phone', "show('keygen').then(() => drawKeygenSetup())")
+    + row('out', 'Logout', 'Remove the Admin Key from this phone', 'logout()')
+    + `<p class="muted" style="text-align:center;font-size:12px">${(navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/) || [])[1] ? 'Setu Hotel Admin app v' + navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/)[1] : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Newest Setu EXE: v' + esc(newestVer()) : ''}</p>`;
 }
 
 // ---------------- dashboard ----------------
@@ -675,14 +675,14 @@ const dlBackup = run(async code => {
 function delBox(code){
   const h = hotelBy(code);
   sheet(`<h2 class="err">Delete hotel?</h2><p><b>${esc(h.name)}</b> (${esc(code)})</p>
-    <p class="muted">Cloud ka saara data, backups, domains aur tickets hamesha ke liye hat jayenge. <b>Wapas nahi aayega.</b> Hotel ke PC ka apna data safe rahega, par wo cloud se alag ho jayega (aur khud naye Hotel Code se dobara jud jayega, jab tak block na karein).</p>
-    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;color:var(--ink)"><input type="checkbox" id="dbk" style="width:auto;margin-top:3px"><span><b>Is computer ko Block karein</b> (Install ID ${esc(h.iid || '-')}) — wo dobara cloud se nahi jud payega. Baad mein Blocked se hata sakte hain.</span></label>
-    <label>Confirm: Hotel Code type karein (${esc(code)})</label><input id="dc" autocomplete="off" style="text-transform:uppercase">
-    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button><button class="bad" onclick="doDelete('${esc(code)}')">Haan, delete</button></div>`);
+    <p class="muted">All cloud data, backups, domains and tickets are removed for ever. <b>This cannot be undone.</b> The hotel PC keeps its own data but is disconnected from the cloud (and reconnects by itself with a new Hotel Code unless you block it).</p>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;color:var(--ink)"><input type="checkbox" id="dbk" style="width:auto;margin-top:3px"><span><b>Block this computer</b> (Install ID ${esc(h.iid || '-')}) — it cannot connect to the cloud again. You can unblock it later under Blocked.</span></label>
+    <label>Confirm: type the Hotel Code (${esc(code)})</label><input id="dc" autocomplete="off" style="text-transform:uppercase">
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button><button class="bad" onclick="doDelete('${esc(code)}')">Yes, delete</button></div>`);
 }
 const doDelete = run(async code => {
   await api('/api/admin/delete', {code, confirm: $('#dc').value.trim(), block: $('#dbk').checked});
-  toast(code + ' delete ho gaya');
+  toast(code + ' deleted');
   closeAll();
   await show('hotels');
 });
@@ -702,17 +702,17 @@ async function drawTickets(code){
 let ERRS = [];
 const hotelErrors = run(async code => {
   const h = hotelBy(code);
-  sheet(`<h2>Error Log — ${esc(h.name)}</h2><p class="muted">Load ho raha hai...</p>`);
+  sheet(`<h2>Error Log — ${esc(h.name)}</h2><p class="muted">Loading...</p>`);
   ERRS = (await api('/api/admin/errors', {code})).errors || [];
   sheet(`<h2>Error Log — ${esc(h.name)}</h2>
-    <p class="muted" style="margin-top:0">Hotel ke har device (counter PC, phone) ki galtiyan, pichhle 7 din. Har minute update hoti hain jab device online ho.</p>
+    <p class="muted" style="margin-top:0">Errors from every device of the hotel (counter PC, phones) in the last 7 days. Updated every minute while a device is online.</p>
     ${ERRS.map(e => `<div class="card" style="border-left:4px solid ${Date.now() - e.at < DAYMS ? 'var(--bad)' : 'var(--line, #cbd5e1)'};padding:10px 12px;margin:8px 0">
       <b style="word-break:break-word">${esc(e.kya)}</b>
-      <div class="muted" style="font-size:12px;margin-top:4px">${esc(e.dev || '-')}${e.user ? ' · ' + esc(e.user) : ''} · ${ago(e.at)} (${dt(e.at)})${+e.n > 1 ? ` · <b>${e.n} baar</b>` : ''}${e.ver && e.ver !== 'dev' ? ' · v' + esc(e.ver) : ''}</div>
-      ${e.kahan ? `<div style="font-size:13px;margin-top:4px"><b>Kahan:</b> ${esc(e.kahan)}</div>` : ''}
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(e.dev || '-')}${e.user ? ' · ' + esc(e.user) : ''} · ${ago(e.at)} (${dt(e.at)})${+e.n > 1 ? ` · <b>${e.n} times</b>` : ''}${e.ver && e.ver !== 'dev' ? ' · v' + esc(e.ver) : ''}</div>
+      ${e.kahan ? `<div style="font-size:13px;margin-top:4px"><b>Where:</b> ${esc(e.kahan)}</div>` : ''}
       ${e.kaise ? `<details style="margin-top:4px"><summary class="muted" style="font-size:12px">Technical detail</summary><code style="display:block;white-space:pre-wrap;font-size:11px">${esc(e.kaise)}</code></details>` : ''}
-    </div>`).join('') || '<div class="card muted" style="text-align:center">Koi error nahi. Sab theek chal raha hai.</div>'}
-    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Wapas</button>${ERRS.length ? `<button onclick="errsCopy('${esc(code)}')">Copy</button>` : ''}</div>`);
+    </div>`).join('') || '<div class="card muted" style="text-align:center">No errors. Everything is working.</div>'}
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button>${ERRS.length ? `<button onclick="errsCopy('${esc(code)}')">Copy</button>` : ''}</div>`);
 });
 function errsCopy(code){
   copyText([`Setu Error Log · ${hotelBy(code).name} (${code})`].concat(ERRS.map(e => `${dt(e.at)} | ${e.dev} | ${e.kya} | ${e.kahan || ''}${+e.n > 1 ? ' | ' + e.n + 'x' : ''}`)).join('\n'), 'Error Log');
@@ -743,21 +743,21 @@ const toggleTicket = run(async id => {
 async function drawAI(res){
   const j = res || await api('/api/admin/ai', {});
   $('#main').innerHTML = backBtn() + `<div class="card"><h2>Setu AI (Gemini)</h2>
-    <p class="muted" style="margin-top:-6px">aistudio.google.com → Get API key → Create. Key yahan paste karke Save kijiye. Key sirf Hotel Setu Cloud mein rehti hai, kisi hotel ke app mein nahi jaati.</p>
-    <label>Gemini API Key ${j.hasKey ? `(saved, ...${esc(j.keyEnd)} · badalni ho tabhi daaliye)` : ''}</label>
-    <input id="ai_key" type="password" autocomplete="off" placeholder="${j.hasKey ? '••••••••••••' : 'AIza... ya AQ....'}" style="width:100%">
+    <p class="muted" style="margin-top:-6px">aistudio.google.com → Get API key → Create. Paste the key here and press Save. The key stays only in Hotel Setu Cloud and never goes to any hotel’s app.</p>
+    <label>Gemini API Key ${j.hasKey ? `(saved, ...${esc(j.keyEnd)} · enter only to change it)` : ''}</label>
+    <input id="ai_key" type="password" autocomplete="off" placeholder="${j.hasKey ? '••••••••••••' : 'AIza... or AQ....'}" style="width:100%">
     <div class="grid" style="margin-top:8px">
-      <div><label>Har hotel ki roz ki limit (sawaal)</label><input id="ai_limit" type="number" min="1" max="1000" value="${+j.limit || 30}"></div>
+      <div><label>Daily limit per hotel (questions)</label><input id="ai_limit" type="number" min="1" max="1000" value="${+j.limit || 30}"></div>
       <div><label>Model</label><input id="ai_model" value="${esc(j.model || '')}"></div>
     </div>
     <div class="row" style="margin-top:10px"><button onclick="saveAI(false)">Save</button><button class="g" onclick="saveAI(true)">Save &amp; Test</button></div>
-    ${j.test ? `<p class="${j.test.ok ? 'ok' : 'err'}" style="margin:10px 0 0">${j.test.ok ? '✔ Key chal rahi hai. Gemini ne jawab diya: ' + esc(j.test.answer) : '✖ ' + esc(j.test.error)}</p>` : ''}
-    <p class="muted" style="margin:10px 0 0">Status: ${j.hasKey ? '<b class="ok">Key saved</b>' : '<b class="err">Key nahi hai, AI band hai</b>'} · Aaj ${j.today || 0} sawaal, ${j.hotelsToday || 0} hotels</p>
-    <p class="muted">Kis hotel mein AI chale: hotel kholiye → Plan &amp; Features → "Setu AI (Gemini)" ON / OFF. Premium aur Diamond plan mein apne aap ON.</p></div>`;
+    ${j.test ? `<p class="${j.test.ok ? 'ok' : 'err'}" style="margin:10px 0 0">${j.test.ok ? '✔ The key works. Gemini answered: ' + esc(j.test.answer) : '✖ ' + esc(j.test.error)}</p>` : ''}
+    <p class="muted" style="margin:10px 0 0">Status: ${j.hasKey ? '<b class="ok">Key saved</b>' : '<b class="err">No key, AI is off</b>'} · Today ${j.today || 0} questions, ${j.hotelsToday || 0} hotels</p>
+    <p class="muted">Which hotels get AI: open the hotel → Plan &amp; Features → "Setu AI (Gemini)" ON / OFF. ON by default in Premium and Diamond plans.</p></div>`;
 }
 const saveAI = run(async test => {
   const j = await api('/api/admin/ai', {set: true, key: $('#ai_key').value.trim(), limit: +$('#ai_limit').value, model: $('#ai_model').value.trim(), test});
-  toast(test ? (j.test && j.test.ok ? 'Key chal rahi hai' : 'Test fail hua') : 'Saved');
+  toast(test ? (j.test && j.test.ok ? 'The key works' : 'Test failed') : 'Saved');
   drawAI(j);
 });
 
@@ -800,12 +800,12 @@ function drawAdd(){
     try{ j = await api('/api/admin/create', f); }catch(err){ $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err; }
     if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
     $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
-      <p>Owner ko WhatsApp par bhejiye:</p>
-      <div class="card" style="background:var(--soft)" id="newmsg">Setu POS (mobile) — ${esc(f.name)}<br>1. <b>SetuPOS.apk</b> install karein.<br>2. App kholein → <b>Internet se (Hotel Setu Cloud)</b> → Cloud se kholo.<br>
-        3. Hotel Code: <b>${esc(j.code)}</b><br>4. Password: <b>${esc(f.password)}</b><br>(Browser se bhi: ${esc(location.origin)}/hotel_erp.html)</div>
+      <p>Send this to the owner on WhatsApp:</p>
+      <div class="card" style="background:var(--soft)" id="newmsg">Setu POS (mobile) — ${esc(f.name)}<br>1. Install <b>SetuPOS.apk</b>.<br>2. Open the app → <b>Over the internet (Hotel Setu Cloud)</b> → Open Cloud.<br>
+        3. Hotel Code: <b>${esc(j.code)}</b><br>4. Password: <b>${esc(f.password)}</b><br>(Also in a browser: ${esc(location.origin)}/hotel_erp.html)</div>
       <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText($('#newmsg').innerText)">WhatsApp / Share</button><button class="g" onclick="copyText($('#newmsg').innerText, 'Message')">Copy</button></div>
-      <details class="muted" style="font-size:12px;margin-bottom:10px"><summary>Baad mein computer lagaye to (Counter PC Sync Key)</summary><code>${esc(j.syncKey)}</code> (dobara nahi dikhegi)</details>
-      <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Hotel kholo</button><button class="g" onclick="show('add')">Ek aur banao</button></div></div>`;
+      <details class="muted" style="font-size:12px;margin-bottom:10px"><summary>If a computer is added later (Counter PC Sync Key)</summary><code>${esc(j.syncKey)}</code> (will not be shown again)</details>
+      <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Create Another</button></div></div>`;
   });
 }
 
@@ -918,7 +918,7 @@ function tabFeatures(){
 function saveFeatures(){
   const o = {};
   document.querySelectorAll('[data-f]').forEach(s => { if(s.value) o[s.dataset.f] = s.value === '1'; });
-  update({overrides: o}, 'Features save — hotel par lag gaye');
+  update({overrides: o}, 'Features saved — applied to the hotel');
 }
 
 function tabBilling(){
@@ -929,7 +929,7 @@ function tabBilling(){
       <div><label>Logo URL (https, optional)</label><input id="b_logo" value="${esc(b.logoUrl)}" placeholder="https://..."></div>
       <div><label><input type="checkbox" id="b_showLogo" ${b.showLogo ? 'checked' : ''}> Logo dikhayein (A6 / print box)</label>
         <label><input type="checkbox" id="b_table" ${b.showTable ? 'checked' : ''}> Table No dikhayein</label>
-        <label><input type="checkbox" id="b_cust" ${b.showCustomer ? 'checked' : ''}> Customer naam dikhayein</label></div>
+        <label><input type="checkbox" id="b_cust" ${b.showCustomer ? 'checked' : ''}> Show customer name</label></div>
       <div><label>Header line (below the name)</label><input id="b_head" value="${esc(b.headerNote)}" maxlength="100" placeholder="Pure Veg · Since 1998"></div>
       <div style="grid-column:1/-1"><label>Footer (blank = hotel setting)</label><input id="b_foot" value="${esc(b.footer)}" maxlength="200" style="width:100%"></div>
     </div>

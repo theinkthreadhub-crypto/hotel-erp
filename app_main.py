@@ -536,15 +536,15 @@ def _net_reason(e):
     why = getattr(e, 'reason', e)
     text = str(why)
     if isinstance(why, ssl.SSLError) or 'CERTIFICATE' in text.upper():
-        return ('ssl', 'Computer ki date / time galat hai ya Windows purana hai (SSL). Date-time sahi karein, phir Abhi Jodein.')
+        return ('ssl', 'The computer date / time is wrong or Windows is old (SSL). Correct the date-time, then press Connect Now.')
     if isinstance(why, socket.gaierror) or 'getaddrinfo' in text:
-        return ('dns', 'Cloud ka address nahi mila (DNS). Internet band hai, ya ye internet/WiFi cloud ko rok raha hai. '
-                       'Mobile hotspot se try karein.')
+        return ('dns', 'Could not find the cloud address (DNS). The internet is off, or this internet / Wi-Fi is blocking the cloud. '
+                       'Try a mobile hotspot.')
     if isinstance(why, (socket.timeout, TimeoutError)) or 'timed out' in text:
-        return ('timeout', 'Cloud ne time par jawab nahi diya. Internet slow hai ya firewall / antivirus rok raha hai.')
+        return ('timeout', 'The cloud did not answer in time. The internet is slow or a firewall / antivirus is blocking it.')
     if isinstance(why, (ConnectionRefusedError, ConnectionResetError)) or 'refused' in text or 'reset' in text:
-        return ('blocked', 'Connection ruk gaya. Antivirus / firewall / proxy Setu ko rok raha hai. Mobile hotspot se try karein.')
-    return ('offline', f'Internet nahi mila ({text[:120]})')
+        return ('blocked', 'The connection was stopped. An antivirus / firewall / proxy is blocking Setu. Try a mobile hotspot.')
+    return ('offline', f'No internet ({text[:120]})')
 
 
 def _write_json(path, obj):
@@ -591,7 +591,7 @@ class CloudSync:
         self.state = _read_json(self.state_path, {})
         self.status = {'ok': None, 'at': 0, 'error': '', 'cloudVersion': self.state.get('cv', -1)}
         self.auto = {'state': '', 'code': '', 'at': 0}   # join-by-itself progress, shown in Settings
-        self.link_lock = threading.Lock()                 # the loop and the "Abhi Jodein" button must not both create a hotel
+        self.link_lock = threading.Lock()                 # the loop and the "Connect Now" button must not both create a hotel
         self.wake = threading.Event()
         threading.Thread(target=self._loop, daemon=True).start()
 
@@ -691,14 +691,14 @@ class CloudSync:
     def _restore(self, hotel, password):
         hotel = ''.join(c for c in (hotel or '').upper() if c.isalnum())
         if not hotel or not password:
-            raise ValueError('Hotel Code aur owner password dono bharein')
+            raise ValueError('Enter both the Hotel Code and the owner password')
         _, iid, _ = self._license()
         try:
             code, j = self._post(DEFAULT_CLOUD_URL, '/api/counter/restore', {'password': password, 'installId': iid or ''}, hotel=hotel)
         except Exception as e:
             raise ValueError(_net_reason(e)[1])
         if code == 404:
-            raise ValueError('Ye Hotel Code cloud par nahi mila')
+            raise ValueError('This Hotel Code was not found on the cloud')
         if code != 200 or not j.get('syncKey'):
             raise ValueError(j.get('error') or f'Cloud HTTP {code}')
         self.store.log(f'Hotel Setu Cloud: restored from {hotel}')
@@ -816,7 +816,7 @@ class CloudSync:
     def support(self, method, path, body=None):
         # Help & Support tickets go to the vendor through this PC's cloud link
         if not self.configured():
-            raise ValueError('Help & Support ke liye ye PC Hotel Setu Cloud se juda hona chahiye (Settings → Hotel Setu Cloud)')
+            raise ValueError('Help & Support needs this PC connected to Hotel Setu Cloud (Settings → Hotel Setu Cloud)')
         code, text = self._request(method, path, json.dumps(body) if body is not None else None)
         try:
             return code, json.loads(text or '{}')
@@ -834,7 +834,7 @@ class CloudSync:
             _write_json(self.state_path, self.state)
             self.auto = {'state': '', 'code': '', 'at': 0}
             self.relink_at = time.time()   # join again soon, not after the usual 30 minutes
-            raise OSError('Hotel cloud par nahi mila, dobara jud rahe hain')
+            raise OSError('Hotel not found on the cloud, reconnecting')
         if code != 200:
             raise OSError('Invalid Cloud Sync Key' if code == 401 else f'Cloud HTTP {code}')
         cv = json.loads(text)['version']
@@ -869,7 +869,7 @@ class CloudSync:
             # Cloud as "mine" so bills already printed at this counter keep their numbers
             merged = merge3(base, theirs, local)
         if not isinstance(merged, dict) or 'settings' not in merged:
-            raise OSError('Merge ke baad data galat laga, sync roka gaya')
+            raise OSError('Data looked wrong after merging, sync stopped')
         # The vendor's part (plan, message, warning / lock) always comes from the cloud
         if isinstance(theirs, dict) and 'saas' in theirs:
             merged['saas'] = theirs['saas']
@@ -886,7 +886,7 @@ class CloudSync:
                         cur['saas'] = theirs.get('saas')
                         self.store.write(cur)
                 if 'suspended' in text:
-                    raise OSError('Setu account vendor ne suspend kiya hai. Aghanya Devanya Enterprises se sampark karein.')
+                    raise OSError('The vendor has suspended this Setu account. Please contact Aghanya Devanya Enterprises.')
                 raise OSError('Hotel Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
             if code != 200:
                 raise OSError(f'Cloud save failed (HTTP {code})')
@@ -987,7 +987,7 @@ def make_handler(base_dir, store, port, cloud=None):
                 except ValueError as e:
                     return self.send_json(400, {'error': str(e)})
                 except Exception:
-                    return self.send_json(502, {'error': 'Cloud se jud nahi paye. Internet check karein.'})
+                    return self.send_json(502, {'error': 'Could not reach the cloud. Check the internet.'})
                 return self.send_json(code, j)
             if not self.role():
                 return self.send_json(401, {'error': 'pin required'})
@@ -1034,13 +1034,13 @@ def make_handler(base_dir, store, port, cloud=None):
             if path == '/api/ai':
                 # Setu AI goes through this PC's cloud link (the Gemini key lives only on the cloud)
                 if self.role() not in ('local', 'admin') or not cloud:
-                    return self.send_json(403, {'error': 'Setu AI sirf owner / manager ke liye hai'})
+                    return self.send_json(403, {'error': 'Setu AI is for the owner / manager only'})
                 try:
                     code, j = cloud.support('POST', path, self.read_json())
                 except ValueError as e:
                     return self.send_json(400, {'error': str(e).replace('Help & Support', 'Setu AI')})
                 except Exception:
-                    return self.send_json(502, {'error': 'Cloud se jud nahi paye. Internet check karein.'})
+                    return self.send_json(502, {'error': 'Could not reach the cloud. Check the internet.'})
                 return self.send_json(code, j)
             if path == '/api/support/ticket':
                 if self.role() not in ('local', 'admin') or not cloud:
@@ -1050,7 +1050,7 @@ def make_handler(base_dir, store, port, cloud=None):
                 except ValueError as e:
                     return self.send_json(400, {'error': str(e)})
                 except Exception:
-                    return self.send_json(502, {'error': 'Cloud se jud nahi paye. Internet check karein.'})
+                    return self.send_json(502, {'error': 'Could not reach the cloud. Check the internet.'})
                 return self.send_json(code, j)
             if path == '/api/save-file':
                 # The desktop window blocks downloads: backups / CSV / Tally files go to Downloads\Setu
@@ -1096,7 +1096,7 @@ def make_handler(base_dir, store, port, cloud=None):
             if path == '/api/printer-jobs':
                 # Printer Health: remove stuck or repeated jobs (main counter or a Manager device)
                 if self.role() not in ('local', 'admin'):
-                    return self.send_json(403, {'error': 'Sirf Manager ya Main Counter PC se'})
+                    return self.send_json(403, {'error': 'Only from a Manager device or the Main Counter PC'})
                 try:
                     body = self.read_json()
                     printer = str(body.get('printer') or '')
@@ -1267,10 +1267,10 @@ def main():
         log_line(data_dir, f'Desktop window failed, opening browser: {e!r}')
         import webbrowser
         webbrowser.open(url)
-        msg = ('Setu ki window nahi khul payi, isliye Setu browser mein khula hai.\n\n'
-               'Window ke liye Microsoft Edge WebView2 Runtime install karein '
+        msg = ('The Setu window could not open, so Setu opened in your browser.\n\n'
+               'For the window, install the Microsoft Edge WebView2 Runtime '
                '(go.microsoft.com/fwlink/p/?LinkId=2124703).\n\n'
-               'Billing chalu rakhne ke liye ye message band karein, Setu chalta rahega.')
+               'Close this message to continue billing; Setu keeps running.')
         try:
             import ctypes
             ctypes.windll.user32.MessageBoxW(0, msg, 'Setu', 0x40)

@@ -103,11 +103,11 @@ public class MainActivity extends Activity {
         boolean lan = url.startsWith("http://");
         String html = "<html><head><meta name='viewport' content='width=device-width,initial-scale=1'></head>"
             + "<body style='font-family:sans-serif;background:#0f172a;color:#e2e8f0;text-align:center;padding:60px 24px'>"
-            + "<h2 style='color:#fff'>Setu se jud nahi paye</h2><p>" + (lan
-                ? "Counter PC chalu hai? Ye phone usi restaurant WiFi par hai? Counter PC par Setu khula hona chahiye."
-                : "Internet check karein.") + "</p>"
-            + "<button onclick=\"location.href='" + url + "'\" style='background:#2563eb;color:#fff;border:0;border-radius:10px;padding:14px 28px;font-size:16px;margin:8px'>Dobara koshish</button><br>"
-            + "<button onclick='SA.change()' style='background:transparent;color:#e2e8f0;border:1px solid #475569;border-radius:10px;padding:12px 24px;font-size:15px;margin:8px'>Connection badlo</button>"
+            + "<h2 style='color:#fff'>Could not connect to Setu</h2><p>" + (lan
+                ? "Is the counter PC on? Is this phone on the same restaurant Wi-Fi? Setu must be open on the counter PC."
+                : "Please check the internet.") + "</p>"
+            + "<button onclick=\"location.href='" + url + "'\" style='background:#2563eb;color:#fff;border:0;border-radius:10px;padding:14px 28px;font-size:16px;margin:8px'>Try again</button><br>"
+            + "<button onclick='SA.change()' style='background:transparent;color:#e2e8f0;border:1px solid #475569;border-radius:10px;padding:12px 24px;font-size:15px;margin:8px'>Change connection</button>"
             + "<p style='margin-top:40px;color:#94a3b8;font-size:13px'>Setu POS &middot; Aghanya Devanya Enterprises</p></body></html>";
         web.loadDataWithBaseURL(START, html, "text/html", "utf-8", null);
     }

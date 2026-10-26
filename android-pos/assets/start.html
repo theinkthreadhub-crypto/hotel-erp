@@ -21,25 +21,25 @@
 </style>
 </head>
 <body>
-  <div class="head"><img src="logo.png" alt=""><h1>Setu POS</h1><p>Setu kahan se chalana hai?</p></div>
+  <div class="head"><img src="logo.png" alt=""><h1>Setu POS</h1><p>How do you want to use Setu?</p></div>
 
   <div class="card">
-    <h2>Internet se (Hotel Setu Cloud)</h2>
-    <p>Bina computer wale hotel, phone se billing. Internet (WiFi ya mobile data) chahiye.<br>
-      <b>Naya hotel:</b> Cloud kholo → <b>Sign Up</b> → hotel ka naam, mobile, password aur vendor ki <b>Master Key</b>.<br>
-      <b>Pehle se bana hai:</b> Hotel Code + mobile + password se login.</p>
-    <button class="g" onclick="SA.open('cloud', '')">Cloud se kholo</button>
+    <h2>Over the internet (Hotel Setu Cloud)</h2>
+    <p>For hotels without a computer: billing from the phone. Needs internet (Wi-Fi or mobile data).<br>
+      <b>New hotel:</b> Open Cloud → <b>Sign Up</b> → hotel name, mobile, password and the vendor's <b>Master Key</b>.<br>
+      <b>Already created:</b> sign in with Hotel Code + mobile + password.</p>
+    <button class="g" onclick="SA.open('cloud', '')">Open Cloud</button>
   </div>
 
   <div class="card">
-    <h2>Restaurant ke WiFi par (counter PC wala hotel)</h2>
-    <p>Waiter, cashier, kitchen ke liye. Counter PC chalu ho aur phone usi WiFi par ho. Counter PC ka address Setu → Settings (G) → "Phone / Tablet Connect" mein likha hota hai (jaise 192.168.1.6).</p>
-    <input id="ip" inputmode="decimal" placeholder="Counter PC ka IP, jaise 192.168.1.6" autocomplete="off">
+    <h2>On the restaurant Wi-Fi (hotel with a counter PC)</h2>
+    <p>For waiters, cashiers and the kitchen. The counter PC must be on and the phone on the same Wi-Fi. The counter PC address is shown in Setu → Settings (G) → "Phone / Tablet Connect" (e.g. 192.168.1.6).</p>
+    <input id="ip" inputmode="decimal" placeholder="Counter PC IP, e.g. 192.168.1.6" autocomplete="off">
     <div class="err" id="err"></div>
-    <button onclick="lan()">Counter PC se jodein</button>
+    <button onclick="lan()">Connect to Counter PC</button>
   </div>
 
-  <div class="foot">Ye choice yaad rahegi. Badalni ho to Setu mein <b>Back</b> dabate rahiye, ye screen wapas aa jayegi.<br>Powered by Aghanya Devanya Enterprises</div>
+  <div class="foot">This choice is remembered. To change it, keep pressing <b>Back</b> in Setu and this screen comes back.<br>Powered by Aghanya Devanya Enterprises</div>
 
 <script>
   // Prefill the last counter address
@@ -47,7 +47,7 @@
   function lan(){
     const ip = document.getElementById('ip').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
     if(!/^[0-9]{1,3}(\.[0-9]{1,3}){3}(:[0-9]{2,5})?$/.test(ip) && !/^[a-z0-9.-]+(:[0-9]{2,5})?$/i.test(ip)){
-      document.getElementById('err').textContent = 'Sahi IP likhiye, jaise 192.168.1.6';
+      document.getElementById('err').textContent = 'Enter a valid IP, e.g. 192.168.1.6';
       return;
     }
     document.getElementById('err').textContent = '';
