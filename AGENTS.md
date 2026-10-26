@@ -348,3 +348,11 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
   `POST /api/admin/errors {code}` returns the hotel's list (`/internal/errors`).
 - Super Admin: red "N error" tag and strip on the hotel card, chip "Errors (24 ghante)", an "Error" row and an "Error Log" tile in the
   hotel sheet (`hotelErrors()`), with Copy.
+
+## Reports & Analytics (hotkey 5)
+- Code: `AN_REPORTS` (one object per report: `id`, `cat`, `title`, `desc`, `filters`, `mgr`, `now`, `build()`), screen `scrAnalytics()`,
+  export `anExport(kind)`. `build()` returns `{cols: [{h, t}], rows, total, cards, ids, note}`; money values are paise (`pz`), types
+  `t` d/m/n/q/p format via `anFmt()`. Read-only: never change `D` there (only `audit('Report Export')`).
+- Shared definitions are at the top of the block (Gross / Discount / Net / GST / Total; cancelled bills excluded). Item-level
+  revenue uses `billLines()` (bill discount and taxable shared by item value). Zomato/Swiggy = `isEco()` (GST 9(5), separate).
+- Pending reports are listed in `AN_PENDING`; status table in `REPORTS-CHECKLIST.md`. Old Reports (F) and Monthly CA (J) are untouched.

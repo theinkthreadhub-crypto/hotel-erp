@@ -330,3 +330,11 @@ flowchart LR
 - Hotel kholo → **Error Log** tile: kya galti hui, kis device par, kahan, kitni baar, kab. **Copy** se WhatsApp par bhej sakte hain.
 - Printer ki galti → client ko Printer Health (4) dekhne ko kahein.
 
+
+### Reports & Analytics (5)
+- Setu mein **5** dabayein → category chunein → report.
+- Upar date (Aaj, Kal, 7 din, Is mahine, Pichhle mahine ya apni date), filter aur search. Column par click = sort.
+- Neeche **Print (A4)**, **PDF**, **Excel**, **CSV**. Bill Register mein bill par click = bill ki details.
+- Profit & Loss, Food Cost aur Salary sirf Manager / Owner. Cashier ko Manager PIN chahiye.
+- Profit & Loss andaaza hai (food cost recipe se). Final hisaab CA se milayein.
+- Purani Reports (F) aur Monthly CA Report (J) waise hi hain.

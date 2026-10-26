@@ -776,7 +776,7 @@ const GROWTH_DEFAULTS = {
 const FEATURE_SCREENS = {
   kot: ['kitchen'], online: ['online', 'settlement'], inventory: ['purchase', 'stock', 'suppliers'], qr: ['qr'],
   loyalty: ['customers'], staff: ['staff'], captain: ['captain'], reservations: ['reservations'], tokens: ['tokens'],
-  reports: ['reports'], outlets: ['outlets'], ai: ['ai']
+  reports: ['reports', 'analytics'], outlets: ['outlets'], ai: ['ai']
 };
 function featureOn(k){ return !(typeof D !== 'undefined' && D && D.saas && D.saas.features && D.saas.features[k] === false); }
 function screenOn(s){ return Object.keys(FEATURE_SCREENS).every(k => !FEATURE_SCREENS[k].includes(s) || featureOn(k)); }
@@ -2574,6 +2574,7 @@ const MENU = [
   ['D','Day Book & Ledger','daybook','Reports'],
   ['C','Cash Counter','cash','Reports'],
   ['W','Day Report → WhatsApp','report','Reports'],
+  ['5','Reports & Analytics','analytics','Reports'],
   ['S','Stock Summary','stock','Masters'],
   ['M','Menu Items','menu','Masters'],
   ['T','Kitchen Display (KOT Screen)','kitchen','Growth Add-ons'],
@@ -2616,6 +2617,7 @@ const SCREENS = {
   errors: scrErrors,
   ai: scrAI,
   printers: scrPrinters,
+  analytics: scrAnalytics,
   kitchen: scrKitchen,
   qr: scrQR,
   customers: scrCustomers,
@@ -7357,6 +7359,518 @@ let ERR_SRV = [];
 const errAgo = t => new Date(t).toLocaleString('en-IN', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'});
 // Server lines worth showing: failures, cloud problems, recoveries
 const srvErrLine = l => /FAIL|ERROR|CLOUD|damaged|not found|could not|blocked|denied/i.test(l);
+/* ================= REPORTS & ANALYTICS CENTRE (5) ================= */
+// Read-only reports on the hotel's own data (D): nothing here changes a bill, voucher or stock.
+// One set of definitions for every report (same on the EXE and on the cloud, both run this file):
+//   Gross = items total (bill.sub) · Discount = manual + loyalty (bill.disc) · Net Sales = Gross − Discount, without GST (bill.taxable)
+//   GST = bill.tax · Bill Total = what the customer paid (bill.total, after round-off) · Cancelled bills are never counted as sales.
+// Money is added in paise (whole numbers) so totals do not drift.
+const pz = x => Math.round((+x || 0) * 100);
+const zr = p => p / 100;
+const AN_PAGE = 50;
+let AN = {id: '', from: today(), to: today(), q: '', sort: null, page: 0, f: {}, top: 25};
+const AN_CATS = [['sales', 'Sales'], ['tax', 'Tax & GST'], ['analytics', 'Analytics'], ['customers', 'Customers'], ['staff', 'Staff'],
+  ['operations', 'Operations'], ['inventory', 'Inventory'], ['purchase', 'Purchase & Suppliers'], ['expenses', 'Expenses & Accounts'], ['channels', 'Channels']];
+const isEco = b => b.channel === 'Zomato' || b.channel === 'Swiggy';   // sold through an e-commerce operator
+const anBills = (all, f = AN.f) => D.bills.filter(b => b.date >= AN.from && b.date <= AN.to && (all || !b.cancelled)
+  && (!f.channel || (b.channel || 'Dine-In') === f.channel) && (!f.staff || (b.by || '') === f.staff)
+  && (!f.mode || payParts(b).some(p => p.mode === f.mode)));
+const anTx = type => D.txns.filter(t => t.type === type && t.date >= AN.from && t.date <= AN.to);
+const menuCat = i => ((D.menu.find(m => m.id === i.mid) || D.menu.find(m => m.name === i.name) || {}).cat) || 'Other';
+// A bill's items with the bill discount and Net Sales shared out by item value
+function billLines(b){
+  const sub = pz(b.sub) || 1;
+  return (b.items || []).map(i => {
+    const gross = pz((+i.price || 0) * (+i.qty || 0));
+    return {name: i.name, mid: i.mid, qty: +i.qty || 0, cat: menuCat(i), gross, disc: Math.round(pz(b.disc) * gross / sub), net: Math.round(pz(b.taxable) * gross / sub)};
+  });
+}
+// Ingredient cost of one plate at today's stock rates (estimate: Setu does not keep the cost at the time of sale yet)
+const recipeCost = m => (m && m.recipe || []).reduce((a, r) => a + pz((+r.qty || 0) * (+((D.stock.find(s => s.id === r.sid) || {}).rate) || 0)), 0);
+const optList = a => [...new Set(a.filter(Boolean))].sort();
+const maskPh = p => isManager() ? p : (p ? p.slice(0, 2) + '******' + p.slice(-2) : '');
+// Column types: t = text, d = date, m = money (paise), n = number, q = quantity, p = percent
+const C = (h, t = 't') => ({h, t});
+
+const AN_REPORTS = [
+  // ---------- Sales ----------
+  {id: 'sales-daily', cat: 'sales', title: 'Daily Sales', desc: 'Din-wise orders, gross, discount, net sale, GST aur bill total. Cancel bill alag.', filters: ['channel', 'mode', 'staff'],
+    build(){
+      const m = {}, row = d => m[d] || (m[d] = {n: 0, gross: 0, disc: 0, net: 0, tax: 0, round: 0, total: 0, cn: 0, ct: 0});
+      anBills(true).forEach(b => { const x = row(b.date);
+        if(b.cancelled){ x.cn++; x.ct += pz(b.total); return; }
+        x.n++; x.gross += pz(b.sub); x.disc += pz(b.disc); x.net += pz(b.taxable); x.tax += pz(b.tax); x.round += pz(b.round); x.total += pz(b.total); });
+      const keys = Object.keys(m).sort(), t = k => keys.reduce((a, d) => a + m[d][k], 0);
+      return {cols: [C('Date', 'd'), C('Orders', 'n'), C('Gross', 'm'), C('Discount', 'm'), C('Net Sales', 'm'), C('GST', 'm'), C('Round Off', 'm'), C('Bill Total', 'm'), C('Cancelled', 'n'), C('Cancelled ₹', 'm')],
+        rows: keys.map(d => { const x = m[d]; return [d, x.n, x.gross, x.disc, x.net, x.tax, x.round, x.total, x.cn, x.ct]; }),
+        total: ['TOTAL', t('n'), t('gross'), t('disc'), t('net'), t('tax'), t('round'), t('total'), t('cn'), t('ct')],
+        cards: [['Orders', t('n'), 'n'], ['Net Sales', t('net'), 'm'], ['GST', t('tax'), 'm'], ['Bill Total', t('total'), 'm'], ['Average Bill', t('n') ? Math.round(t('total') / t('n')) : 0, 'm']],
+        note: 'Tips Setu mein nahi hote. Refund ka feature nahi hai, cancel bill alag dikhte hain aur sale mein nahi gine jaate.'};
+    }},
+  {id: 'sales-by-item', cat: 'sales', title: 'Sales by Item', desc: 'Kaunsa item kitna bika: qty, gross, discount ka hissa, net revenue.', filters: ['channel', 'category'],
+    build(){
+      const m = {};
+      anBills(false).forEach(b => billLines(b).forEach(l => { if(AN.f.category && l.cat !== AN.f.category) return;
+        const x = m[l.name] || (m[l.name] = {cat: l.cat, qty: 0, gross: 0, disc: 0, net: 0}); x.qty += l.qty; x.gross += l.gross; x.disc += l.disc; x.net += l.net; }));
+      const list = Object.entries(m), tn = list.reduce((a, [, x]) => a + x.net, 0), t = k => list.reduce((a, [, x]) => a + x[k], 0);
+      return {cols: [C('Item'), C('Category'), C('Qty', 'q'), C('Avg Price', 'm'), C('Gross', 'm'), C('Discount', 'm'), C('Net Revenue', 'm'), C('% of Net', 'p')],
+        rows: list.map(([k, x]) => [k, x.cat, x.qty, x.qty ? Math.round(x.gross / x.qty) : 0, x.gross, x.disc, x.net, tn ? x.net / tn * 100 : 0]),
+        total: ['TOTAL', '', t('qty'), '', t('gross'), t('disc'), tn, tn ? 100 : 0], sort: [6, -1],
+        cards: [['Items sold', list.length, 'n'], ['Qty', t('qty'), 'q'], ['Net Revenue', tn, 'm']],
+        note: 'Bill ka discount items mein unki keemat ke hisaab se baanta gaya hai. Net Revenue mein GST shamil nahi.'};
+    }},
+  {id: 'sales-by-category', cat: 'sales', title: 'Sales by Category', desc: 'Menu category ki sale aur kul sale mein hissa.', filters: ['channel'],
+    build(){
+      const m = {};
+      anBills(false).forEach(b => billLines(b).forEach(l => { const x = m[l.cat] || (m[l.cat] = {qty: 0, gross: 0, disc: 0, net: 0}); x.qty += l.qty; x.gross += l.gross; x.disc += l.disc; x.net += l.net; }));
+      const list = Object.entries(m), tn = list.reduce((a, [, x]) => a + x.net, 0), t = k => list.reduce((a, [, x]) => a + x[k], 0);
+      return {cols: [C('Category'), C('Qty', 'q'), C('Gross', 'm'), C('Discount', 'm'), C('Net Revenue', 'm'), C('% Share', 'p')],
+        rows: list.map(([k, x]) => [k, x.qty, x.gross, x.disc, x.net, tn ? x.net / tn * 100 : 0]), sort: [4, -1],
+        total: ['TOTAL', t('qty'), t('gross'), t('disc'), tn, tn ? 100 : 0],
+        note: 'Category aaj ke menu se li jaati hai. Menu se hata item "Other" mein dikhega.'};
+    }},
+  {id: 'popular-items', cat: 'sales', title: 'Popular Items', desc: 'Sabse zyada bikne wale items (Top 10 / 25 / 50).', filters: ['channel', 'top'],
+    build(){
+      const m = {};
+      anBills(false).forEach(b => billLines(b).forEach(l => { const x = m[l.name] || (m[l.name] = {cat: l.cat, qty: 0, net: 0}); x.qty += l.qty; x.net += l.net; }));
+      const list = Object.entries(m).sort((a, b) => b[1].qty - a[1].qty || b[1].net - a[1].net).slice(0, AN.top);
+      return {cols: [C('Rank', 'n'), C('Item'), C('Category'), C('Qty', 'q'), C('Net Revenue', 'm')], rows: list.map(([k, x], i) => [i + 1, k, x.cat, x.qty, x.net]), fixed: true};
+    }},
+  {id: 'slow-movers', cat: 'sales', title: 'Slow Movers', desc: 'Sabse kam bikne wale items, zero sale wale bhi. Promotion ya menu badalne ke liye.', filters: ['top'],
+    build(){
+      const m = {}, last = {};
+      D.menu.forEach(x => { m[x.name] = {cat: x.cat || 'Other', price: pz(x.price), qty: 0, net: 0}; });
+      anBills(false).forEach(b => billLines(b).forEach(l => { const x = m[l.name]; if(x){ x.qty += l.qty; x.net += l.net; } }));
+      D.bills.forEach(b => !b.cancelled && (b.items || []).forEach(i => { if(!last[i.name] || b.date > last[i.name]) last[i.name] = b.date; }));
+      const list = Object.entries(m).sort((a, b) => a[1].qty - b[1].qty || a[1].net - b[1].net).slice(0, AN.top);
+      return {cols: [C('Item'), C('Category'), C('Menu Price', 'm'), C('Qty', 'q'), C('Net Revenue', 'm'), C('Last Sold', 'd')], rows: list.map(([k, x]) => [k, x.cat, x.price, x.qty, x.net, last[k] || '']), fixed: true,
+        note: 'Sirf abhi ke menu ke items. "Last Sold" khaali = kabhi nahi bika.'};
+    }},
+  {id: 'payment-methods', cat: 'sales', title: 'Payment Methods', desc: 'Paisa kis mode mein aaya. Split bill ka har hissa apne mode mein, bill ek hi baar gina.', filters: ['channel'],
+    build(){
+      const m = {}, bs = anBills(false);
+      bs.forEach(b => payParts(b).forEach(p => { const x = m[p.mode] || (m[p.mode] = {n: 0, bills: new Set(), a: 0}); x.n++; x.bills.add(b.id); x.a += pz(p.amt); }));
+      const ta = Object.values(m).reduce((a, x) => a + x.a, 0);
+      return {cols: [C('Payment Method'), C('Payments', 'n'), C('Bills', 'n'), C('Amount', 'm'), C('% of Total', 'p')],
+        rows: Object.entries(m).map(([k, x]) => [k, x.n, x.bills.size, x.a, ta ? x.a / ta * 100 : 0]), sort: [3, -1],
+        total: ['TOTAL', Object.values(m).reduce((a, x) => a + x.n, 0), bs.length, ta, ta ? 100 : 0],
+        note: `Split bills: ${bs.filter(b => b.mode === 'Split').length}. "Bills" column mein split bill har us mode mein dikhta hai jisse paisa aaya; TOTAL mein bill ek hi baar gina gaya hai.`};
+    }},
+  {id: 'discounts', cat: 'sales', title: 'Discounts', desc: 'Kis bill par kitna discount, kisne diya, kisne approve kiya.', filters: ['staff', 'channel'],
+    build(){
+      const appr = {};
+      (D.audit || []).forEach(a => { if(a.action === 'Discount' && a.ref) appr[a.ref] = a.approvedBy || ''; });
+      const bs = anBills(false).filter(b => +b.disc > 0);
+      const t = k => bs.reduce((a, b) => a + pz(b[k]), 0);
+      return {cols: [C('Bill', 'n'), C('Date', 'd'), C('Time'), C('Staff'), C('Original (Gross)', 'm'), C('Discount', 'm'), C('Loyalty Part', 'm'), C('Disc %', 'p'), C('Approved By'), C('Bill Total', 'm')],
+        rows: bs.map(b => [b.no, b.date, b.time || '', b.by || '', pz(b.sub), pz(b.disc), pz(b.loyaltyDisc), b.sub ? b.disc / b.sub * 100 : 0, appr[b.id] || '', pz(b.total)]),
+        total: ['TOTAL', '', '', '', t('sub'), t('disc'), t('loyaltyDisc'), t('sub') ? t('disc') / t('sub') * 100 : 0, '', t('total')],
+        cards: [['Bills with discount', bs.length, 'n'], ['Total discount', t('disc'), 'm']],
+        note: 'Coupon / Happy Hour Setu mein nahi hain. "Approved By" sirf tab, jab cashier ki limit se zyada discount par Manager PIN laga.'};
+    }},
+  {id: 'bill-register', cat: 'sales', title: 'Bill Register', desc: 'Har bill ki poori line. Cancel bill bhi dikhte hain. Bill par click karke details.', filters: ['channel', 'mode', 'staff', 'status'],
+    build(){
+      const bs = anBills(true).filter(b => !AN.f.status || (AN.f.status === 'Cancelled') === !!b.cancelled);
+      const ok = bs.filter(b => !b.cancelled), t = k => ok.reduce((a, b) => a + pz(b[k]), 0);
+      return {cols: [C('Bill', 'n'), C('Date', 'd'), C('Time'), C('Channel'), C('Table / Ref'), C('Customer'), C('Staff'), C('Gross', 'm'), C('Discount', 'm'), C('GST', 'm'), C('Bill Total', 'm'), C('Payment'), C('Status')],
+        rows: bs.map(b => [b.no, b.date, b.time || '', b.channel || 'Dine-In', b.table || '', b.cust || '', b.by || '', pz(b.sub), pz(b.disc), pz(b.tax), pz(b.total), modeText(b), b.cancelled ? 'Cancelled' : 'Paid']),
+        ids: bs.map(b => b.id), total: [`${ok.length} paid`, '', '', '', '', '', '', t('sub'), t('disc'), t('tax'), t('total'), '', ''],
+        note: 'TOTAL mein sirf paid bills. Setu mein bill hamesha payment ke saath banta hai, isliye "pending / balance" nahi hota (Credit mode = udhaar).'};
+    }},
+  {id: 'refund-cancellation', cat: 'sales', title: 'Cancelled Bills', desc: 'Kaunsa bill kab, kisne banaya aur kisne cancel kiya.', filters: ['staff'],
+    build(){
+      const why = {};
+      (D.audit || []).forEach(a => { if(a.action === 'Bill Cancel' && a.ref) why[a.ref] = a; });
+      const bs = anBills(true).filter(b => b.cancelled);
+      return {cols: [C('Bill', 'n'), C('Date', 'd'), C('Time'), C('Table / Ref'), C('Amount', 'm'), C('Payment'), C('Made By'), C('Cancelled By'), C('Cancelled At'), C('Detail')],
+        rows: bs.map(b => { const a = why[b.id] || {}; return [b.no, b.date, b.time || '', b.table || '', pz(b.total), modeText(b), b.by || '', b.cancelledBy || a.approvedBy || a.user || '', a.date ? dmy(a.date) + ' ' + (a.time || '') : '', a.detail || '']; }),
+        total: ['TOTAL', bs.length + ' bills', '', '', bs.reduce((a, b) => a + pz(b.total), 0), '', '', '', '', ''], ids: bs.map(b => b.id),
+        note: 'Setu mein refund ka feature nahi hai. Cancel bill delete nahi hota, sirf sale se bahar hota hai aur stock wapas judta hai.'};
+    }},
+  // ---------- Tax & GST ----------
+  {id: 'tax', cat: 'tax', title: 'GST Summary', desc: 'GST rate-wise taxable, CGST, SGST. Zomato / Swiggy aur Composition alag.', filters: [],
+    build(){
+      const m = {};
+      anBills(false).forEach(b => { const sch = b.scheme || 'regular';
+        const k = sch === 'composition' ? 'Composition (Bill of Supply)' : sch === 'none' ? 'Bina GST' : isEco(b) ? `${b.channel} — GST operator bharta hai (9(5)) · ${+b.gstRate || 0}%` : `${+b.gstRate || 0}%`;
+        const x = m[k] || (m[k] = {n: 0, taxable: 0, tax: 0, total: 0}); x.n++; x.taxable += pz(b.taxable); x.tax += pz(b.tax); x.total += pz(b.total); });
+      const list = Object.entries(m), t = k => list.reduce((a, [, x]) => a + x[k], 0);
+      const own = list.filter(([k]) => /^\d/.test(k)), ot = k => own.reduce((a, [, x]) => a + x[k], 0);
+      return {cols: [C('GST Rate / Type'), C('Bills', 'n'), C('Taxable', 'm'), C('CGST', 'm'), C('SGST', 'm'), C('IGST', 'm'), C('GST Total', 'm'), C('Bill Total', 'm')],
+        rows: list.map(([k, x]) => [k, x.n, x.taxable, Math.round(x.tax / 2), x.tax - Math.round(x.tax / 2), 0, x.tax, x.total]),
+        total: ['TOTAL', t('n'), t('taxable'), Math.round(t('tax') / 2), t('tax') - Math.round(t('tax') / 2), 0, t('tax'), t('total')],
+        cards: [['Restaurant ki taxable sale', ot('taxable'), 'm'], ['Restaurant ka GST', ot('tax'), 'm'], ['Zomato/Swiggy taxable', list.filter(([k]) => /9\(5\)/.test(k)).reduce((a, [, x]) => a + x.taxable, 0), 'm']],
+        note: 'Draft working hai. Zomato / Swiggy ke orders par GST (Section 9(5)) aam taur par operator bharta hai — wo alag line mein hain. Cancel bill shamil nahi. Return file karne se pehle CA se check karwayein.'};
+    }},
+  {id: 'gst-ca-centre', cat: 'tax', title: 'GST Sales Register (CA)', desc: 'Har invoice: number, date, type (B2C / Zomato-Swiggy), taxable, CGST, SGST, total. GSTR-1 / 3B ki taiyari ke liye.', filters: ['status'],
+    build(){
+      const bs = anBills(true).filter(b => !AN.f.status || (AN.f.status === 'Cancelled') === !!b.cancelled);
+      const ok = bs.filter(b => !b.cancelled), half = b => Math.round(pz(b.tax) / 2), t = (f, l = ok) => l.reduce((a, b) => a + f(b), 0);
+      const own = ok.filter(b => !isEco(b) && (b.scheme || 'regular') === 'regular'), eco = ok.filter(isEco);
+      return {cols: [C('Invoice No', 'n'), C('Date', 'd'), C('Type'), C('Customer'), C('GST Rate', 'p'), C('Taxable', 'm'), C('CGST', 'm'), C('SGST', 'm'), C('IGST', 'm'), C('Round Off', 'm'), C('Invoice Total', 'm'), C('Status')],
+        rows: bs.map(b => [b.no, b.date, isEco(b) ? b.channel + ' (ECO 9(5))' : (b.scheme || 'regular') === 'composition' ? 'Bill of Supply' : 'B2C', b.cust || '', +b.gstRate || 0, pz(b.taxable), half(b), pz(b.tax) - half(b), 0, pz(b.round), pz(b.total), b.cancelled ? 'Cancelled' : 'OK']),
+        ids: bs.map(b => b.id),
+        total: ['TOTAL', ok.length + ' OK', '', '', '', t(b => pz(b.taxable)), t(half), t(b => pz(b.tax) - half(b)), 0, t(b => pz(b.round)), t(b => pz(b.total)), ''],
+        cards: [['3B: Restaurant taxable', t(b => pz(b.taxable), own), 'm'], ['3B: CGST', t(half, own), 'm'], ['3B: SGST', t(b => pz(b.tax) - half(b), own), 'm'], ['ECO 9(5) taxable', t(b => pz(b.taxable), eco), 'm'], ['Cancelled invoices', bs.filter(b => b.cancelled).length, 'n']],
+        note: 'B2B register ke liye customer ka GSTIN chahiye, jo Setu abhi save nahi karta — isliye sab B2C hain. IGST zero (sab sale usi state mein). Purchase ka GST save nahi hota, isliye ITC working nahi. Draft hai, CA se check karwayein.'};
+    }},
+  // ---------- Analytics ----------
+  {id: 'peak-hours', cat: 'analytics', title: 'Peak Hours', desc: 'Kis din aur kis ghante sabse zyada order aate hain.', filters: ['channel'],
+    build(){
+      const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], m = {};
+      anBills(false).forEach(b => { const d = new Date(b.date + 'T00:00').getDay(), h = +(String(b.time || '0').slice(0, 2)) || 0, k = d + '|' + h;
+        const x = m[k] || (m[k] = {d, h, n: 0, a: 0}); x.n++; x.a += pz(b.total); });
+      const hr = h => `${((h + 11) % 12) + 1}:00 ${h < 12 ? 'AM' : 'PM'}`;
+      return {cols: [C('Day'), C('Hour'), C('Orders', 'n'), C('Sales', 'm'), C('Avg Bill', 'm')],
+        rows: Object.values(m).map(x => [DAYS[x.d], hr(x.h), x.n, x.a, Math.round(x.a / x.n)]), sort: [2, -1]};
+    }},
+  {id: 'food-cost', cat: 'analytics', title: 'Food Cost & Margins', desc: 'Har dish ki recipe cost aur margin (aaj ke stock rate se, andaaza).', filters: ['category'], mgr: true,
+    build(){
+      const sold = {};
+      anBills(false).forEach(b => billLines(b).forEach(l => { const x = sold[l.name] || (sold[l.name] = {qty: 0, net: 0}); x.qty += l.qty; x.net += l.net; }));
+      const rows = D.menu.filter(x => !AN.f.category || (x.cat || 'Other') === AN.f.category).map(x => {
+        const cost = recipeCost(x), price = pz(x.price), s = sold[x.name] || {qty: 0, net: 0};
+        return [x.name, x.cat || 'Other', price, (x.recipe || []).length ? cost : '', (x.recipe || []).length ? price - cost : '', (x.recipe || []).length && price ? (price - cost) / price * 100 : '', s.qty, (x.recipe || []).length ? s.net - Math.round(cost * s.qty) : ''];
+      });
+      const noRec = D.menu.filter(x => !(x.recipe || []).length).length;
+      return {cols: [C('Item'), C('Category'), C('Selling Price', 'm'), C('Recipe Cost', 'm'), C('Margin', 'm'), C('Margin %', 'p'), C('Units Sold', 'q'), C('Total Margin', 'm')], rows, sort: [7, -1],
+        note: `Ye recipe ka margin hai, restaurant ka asli profit nahi. Cost aaj ke stock rate se hai (purani date ki cost Setu abhi save nahi karta). ${noRec ? noRec + ' items ki recipe nahi bani — unki cost khaali hai (Menu Items → Recipe).' : ''}`};
+    }},
+  // ---------- Customers ----------
+  {id: 'customers', cat: 'customers', title: 'Top Customers', desc: 'Sabse zyada kharidne wale customers (mobile number wale bills).', filters: ['top'],
+    build(){
+      const m = {};
+      anBills(false).filter(b => normPh(b.phone).length === 10 && !isEco(b)).forEach(b => { const p = normPh(b.phone), x = m[p] || (m[p] = {name: '', n: 0, a: 0, last: ''}); if(b.cust) x.name = b.cust; x.n++; x.a += pz(b.total); if(b.date > x.last) x.last = b.date; });
+      const list = Object.entries(m).sort((a, b) => b[1].a - a[1].a).slice(0, AN.top);
+      return {cols: [C('Customer'), C('Mobile'), C('Orders', 'n'), C('Spend', 'm'), C('Avg Bill', 'm'), C('Loyalty Points', 'n'), C('Last Visit', 'd')],
+        rows: list.map(([p, x]) => [x.name || '—', maskPh(p), x.n, x.a, Math.round(x.a / x.n), ptsBal(p), x.last]), fixed: true,
+        note: isManager() ? 'Zomato / Swiggy ke customers shamil nahi.' : 'Mobile number sirf Manager poora dekh sakta hai.'};
+    }},
+  {id: 'retention', cat: 'customers', title: 'Customer Retention', desc: 'Har mahine naye aur dobara aane wale customers.', filters: [],
+    build(){
+      const first = {}, m = {};
+      D.bills.filter(b => !b.cancelled && normPh(b.phone).length === 10 && !isEco(b)).sort((a, b) => a.date.localeCompare(b.date)).forEach(b => {
+        const p = normPh(b.phone), mo = b.date.slice(0, 7);
+        if(!first[p]) first[p] = mo;
+        if(b.date < AN.from || b.date > AN.to) return;
+        const x = m[mo] || (m[mo] = {all: new Set(), nw: new Set()}); x.all.add(p); if(first[p] === mo) x.nw.add(p);
+      });
+      return {cols: [C('Month'), C('Customers', 'n'), C('New', 'n'), C('Returning', 'n'), C('Returning %', 'p')],
+        rows: Object.keys(m).sort().map(k => { const x = m[k], r = x.all.size - x.nw.size; return [monthLabel(k), x.all.size, x.nw.size, r, x.all.size ? r / x.all.size * 100 : 0]; }), fixed: true,
+        note: 'Sirf mobile number wale bills se. Bina number ke orders kis customer ke hain, ye pata nahi chal sakta.'};
+    }},
+  // ---------- Staff ----------
+  {id: 'staff-sales', cat: 'staff', title: 'Staff Sales', desc: 'Kis staff ne kitne bill banaye, kitni sale, discount, cancel aur cash.', filters: ['channel'],
+    build(){
+      const m = {}, row = k => m[k] || (m[k] = {n: 0, net: 0, total: 0, disc: 0, cn: 0, ct: 0, cash: 0});
+      anBills(true).forEach(b => { const x = row(b.by || '(naam nahi)');
+        if(b.cancelled){ x.cn++; x.ct += pz(b.total); return; }
+        x.n++; x.net += pz(b.taxable); x.total += pz(b.total); x.disc += pz(b.disc); x.cash += pz(paidBy(b, 'Cash')); });
+      const list = Object.entries(m), t = k => list.reduce((a, [, x]) => a + x[k], 0);
+      return {cols: [C('Staff'), C('Bills', 'n'), C('Net Sales', 'm'), C('Bill Total', 'm'), C('Discounts', 'm'), C('Cancelled', 'n'), C('Cancelled ₹', 'm'), C('Cash Collected', 'm')],
+        rows: list.map(([k, x]) => [k, x.n, x.net, x.total, x.disc, x.cn, x.ct, x.cash]), sort: [3, -1],
+        total: ['TOTAL', t('n'), t('net'), t('total'), t('disc'), t('cn'), t('ct'), t('cash')],
+        note: 'Staff = jisne bill banaya (login wala). Tips aur Shift Setu mein nahi hain.'};
+    }},
+  {id: 'staff-attendance-payroll', cat: 'staff', title: 'Attendance & Payroll', desc: 'Mahine ki haaziri, salary, advance, paid aur baaki ("From" date ka mahina).', filters: [], mgr: true,
+    build(){
+      const mo = AN.from.slice(0, 7);
+      const rows = D.staff.map(s => ({s, m: staffMonth(s, mo)})).filter(({s, m}) => !s.left || m.worked || m.adv || m.paid);
+      const t = k => rows.reduce((a, {m}) => a + pz(m[k]), 0);
+      return {cols: [C('Employee'), C('Role'), C('Present', 'n'), C('Half Day', 'n'), C('Absent', 'n'), C('Week Off', 'n'), C('Days Counted', 'n'), C('Monthly Salary', 'm'), C('Earned', 'm'), C('Advance', 'm'), C('Paid', 'm'), C('Payable', 'm')],
+        rows: rows.map(({s, m}) => [s.name, s.role || '', m.P, m.H, m.A, m.W, m.worked, pz(s.salary), pz(m.earned), pz(m.adv), pz(m.paid), pz(m.payable)]),
+        total: ['TOTAL', '', '', '', '', '', '', rows.reduce((a, {s}) => a + pz(s.salary), 0), t('earned'), t('adv'), t('paid'), t('payable')],
+        title2: monthLabel(mo), note: 'Earned = salary ÷ mahine ke din × din aaye. Payable = earned − advance − paid. Din aaye manual bhare hon to wahi gine gaye.'};
+    }},
+  // ---------- Operations ----------
+  {id: 'reservations', cat: 'operations', title: 'Reservations', desc: 'Table booking: kitni booked, aaye, cancel, no-show.', filters: [],
+    build(){
+      const L = {booked: 'Booked', arrived: 'Arrived', cancelled: 'Cancelled', noshow: 'No Show'}, m = {};
+      (D.reservations || []).filter(r => r.date >= AN.from && r.date <= AN.to).forEach(r => { const k = L[r.status] || r.status || 'Booked', x = m[k] || (m[k] = {n: 0, g: 0}); x.n++; x.g += +r.people || 0; });
+      const list = Object.entries(m);
+      return {cols: [C('Status'), C('Reservations', 'n'), C('Guests', 'n')], rows: list.map(([k, x]) => [k, x.n, x.g]),
+        total: ['TOTAL', list.reduce((a, [, x]) => a + x.n, 0), list.reduce((a, [, x]) => a + x.g, 0)]};
+    }},
+  // ---------- Inventory ----------
+  {id: 'inventory-valuation', cat: 'inventory', title: 'Inventory Valuation', desc: 'Abhi stock mein kitne rupaye ka maal hai (qty × rate). Date filter laagu nahi.', filters: [], now: true,
+    build(){
+      const rows = D.stock.map(s => [s.name, s.unit || '', +s.qty || 0, pz(s.rate), Math.round((+s.qty || 0) * pz(s.rate)), +s.qty < 0 ? 'Minus stock!' : +s.qty <= +s.min ? 'Low' : '']);
+      const tv = rows.reduce((a, r) => a + (r[4] > 0 ? r[4] : 0), 0);
+      return {cols: [C('Stock Item'), C('Unit'), C('Current Stock', 'q'), C('Cost / Unit', 'm'), C('Stock Value', 'm'), C('Alert')], rows, sort: [4, -1],
+        total: ['TOTAL', '', '', '', tv, ''], cards: [['Items', rows.length, 'n'], ['Stock Value', tv, 'm']],
+        note: 'Aaj ka value (point-in-time). Cost = aakhri purchase rate. Purani date ka stock value stock movement log (Phase 2) ke baad milega.'};
+    }},
+  {id: 'stock-alerts', cat: 'inventory', title: 'Low Stock Alerts', desc: 'Kaunsa saman kam ya khatam hai, aur aakhri kisse liya tha.', filters: [], now: true,
+    build(){
+      const lastSup = {};
+      D.txns.filter(t => t.type === 'Purchase' && t.sid).sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time)).forEach(t => { if(t.party) lastSup[t.sid] = t.party; });
+      const list = D.stock.filter(s => +s.qty <= +s.min);
+      return {cols: [C('Item'), C('Current Stock', 'q'), C('Minimum', 'q'), C('Shortage', 'q'), C('Unit'), C('Last Supplier'), C('Status')],
+        rows: list.map(s => [s.name, +s.qty || 0, +s.min || 0, Math.max(0, (+s.min || 0) - (+s.qty || 0)), s.unit || '', lastSup[s.id] || '', +s.qty <= 0 ? 'Out of Stock' : 'Low Stock']),
+        note: 'Minimum level Stock Summary (S) mein set hota hai. Expiry / batch Setu mein abhi nahi hai.'};
+    }},
+  // ---------- Purchase & Suppliers ----------
+  {id: 'purchase-register', cat: 'purchase', title: 'Purchase Register', desc: 'Kisse, kab, kya, kitna aur kis rate par khareeda. Udhaar alag.', filters: ['supplier', 'paymode'],
+    build(){
+      const list = anTx('Purchase').filter(t => (!AN.f.supplier || supKey(t.party) === AN.f.supplier) && (!AN.f.paymode || t.mode === AN.f.paymode));
+      const unit = t => (D.stock.find(s => s.id === t.sid) || {}).unit || '';
+      const ta = list.reduce((a, t) => a + pz(t.amount), 0), cr = list.filter(t => t.mode === 'Credit').reduce((a, t) => a + pz(t.amount), 0);
+      return {cols: [C('Date', 'd'), C('Time'), C('Supplier'), C('Item'), C('Qty', 'q'), C('Unit'), C('Rate', 'm'), C('Amount', 'm'), C('Mode'), C('Status')],
+        rows: list.map(t => [t.date, t.time || '', t.party || '', t.head || '', +t.qty || 0, unit(t), +t.qty ? Math.round(pz(t.amount) / +t.qty) : '', pz(t.amount), t.mode || '', t.mode === 'Credit' ? 'Udhaar' : 'Paid']),
+        total: ['TOTAL', '', '', list.length + ' entries', '', '', '', ta, '', ''], cards: [['Purchases', ta, 'm'], ['On credit', cr, 'm'], ['Paid at purchase', ta - cr, 'm']],
+        note: 'Supplier invoice no. aur purchase ka GST abhi save nahi hota (Phase 2). Credit purchase ka paisa baad mein "Supplier Payment" se chukta hai.'};
+    }},
+  {id: 'supplier-ledger', cat: 'purchase', title: 'Supplier Ledger', desc: 'Supplier ka poora hisaab: udhaar khareed, payment aur running baaki.', filters: ['supplier'],
+    build(){
+      const key = AN.f.supplier, isSup = t => (t.type === 'Purchase' || (t.type === 'Expense' && t.head === 'Supplier Payment')) && String(t.party || '').trim();
+      const all = D.txns.filter(t => isSup(t) && (!key || supKey(t.party) === key)).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+      const bal = {}, rows = [], dr = t => t.type === 'Purchase' && t.mode === 'Credit' ? pz(t.amount) : 0, cr = t => t.type === 'Expense' ? pz(t.amount) : 0;
+      all.filter(t => t.date < AN.from).forEach(t => { const k = supKey(t.party); bal[k] = (bal[k] || 0) + dr(t) - cr(t); });
+      Object.entries(bal).filter(([, v]) => v).forEach(([k, v]) => rows.push([AN.from, all.find(t => supKey(t.party) === k).party.trim(), 'Opening Balance', '', '', '', v]));
+      let td = 0, tc = 0;
+      all.filter(t => t.date >= AN.from && t.date <= AN.to).forEach(t => { const k = supKey(t.party), d = dr(t), c = cr(t); bal[k] = (bal[k] || 0) + d - c; td += d; tc += c;
+        rows.push([t.date, t.party.trim(), t.type === 'Purchase' ? (t.mode === 'Credit' ? 'Purchase (Udhaar)' : `Purchase (${t.mode} — paid)`) : 'Payment', [t.head, t.desc].filter(Boolean).join(' · '), d || '', c || '', bal[k]]); });
+      const due = Object.values(bal).reduce((a, v) => a + v, 0);
+      return {cols: [C('Date', 'd'), C('Supplier'), C('Type'), C('Details'), C('Udhaar (Debit)', 'm'), C('Payment (Credit)', 'm'), C('Balance', 'm')], rows, fixed: true,
+        total: ['TOTAL', '', '', '', td, tc, due], cards: [['Udhaar liya', td, 'm'], ['Chukaya', tc, 'm'], ['Baaki (to date)', due, 'm']],
+        note: 'Balance = udhaar wali purchase − Supplier Payment. Cash / UPI se turant di gayi purchase baaki nahi badhati. Payment kharche mein dobara nahi gina jaata.'};
+    }},
+  {id: 'supplier-payments-due', cat: 'purchase', title: 'Supplier Dues', desc: 'Kis supplier ko kitna dena baaki hai (aaj tak).', filters: [], now: true,
+    build(){
+      const lastPay = {};
+      D.txns.filter(t => t.type === 'Expense' && t.head === 'Supplier Payment').forEach(t => { const k = supKey(t.party); if(!lastPay[k] || t.date > lastPay[k]) lastPay[k] = t.date; });
+      const list = suppliers();
+      return {cols: [C('Supplier'), C('Purchases', 'n'), C('Total Purchased', 'm'), C('On Credit', 'm'), C('Paid', 'm'), C('Outstanding', 'm'), C('Last Purchase', 'd'), C('Last Payment', 'd')],
+        rows: list.map(s => [s.name, s.count, pz(s.purchases), pz(s.credit), pz(s.paid), pz(s.due), s.last, lastPay[s.key] || '']), sort: [5, -1],
+        total: ['TOTAL', '', list.reduce((a, s) => a + pz(s.purchases), 0), list.reduce((a, s) => a + pz(s.credit), 0), list.reduce((a, s) => a + pz(s.paid), 0), list.reduce((a, s) => a + pz(s.due), 0), '', ''],
+        note: 'Supplier-wise baaki. Invoice-wise baaki aur due date ke liye purchase par invoice no. / due date chahiye (Phase 2).'};
+    }},
+  // ---------- Expenses & Accounts ----------
+  {id: 'regular-expenses', cat: 'expenses', title: 'Expenses (entry-wise)', desc: 'Gas, bijli, kiraya jaise kharche: kab, kisko, kitna, kis mode se.', filters: ['head', 'paymode'],
+    build(){
+      const list = anTx('Expense').filter(t => !NON_EXPENSE_HEADS.includes(t.head) && (!AN.f.head || t.head === AN.f.head) && (!AN.f.paymode || t.mode === AN.f.paymode));
+      const ta = list.reduce((a, t) => a + pz(t.amount), 0);
+      return {cols: [C('Date', 'd'), C('Time'), C('Category'), C('Paid To'), C('Details'), C('Mode'), C('Amount', 'm')],
+        rows: list.map(t => [t.date, t.time || '', t.head || '', t.party || '', t.desc || '', t.mode || '', pz(t.amount)]),
+        total: ['TOTAL', '', list.length + ' entries', '', '', '', ta],
+        note: 'Supplier Payment yahan nahi (wo purchase ka udhaar chukana hai, kharcha nahi). Purchase (P) bhi alag hai.'};
+    }},
+  {id: 'expense-category', cat: 'expenses', title: 'Expense Category', desc: 'Kis category par kitna kharcha hua aur kul ka kitna %.', filters: ['paymode'],
+    build(){
+      const m = {};
+      anTx('Expense').filter(t => !NON_EXPENSE_HEADS.includes(t.head) && (!AN.f.paymode || t.mode === AN.f.paymode)).forEach(t => { const x = m[t.head || 'Other'] || (m[t.head || 'Other'] = {n: 0, a: 0}); x.n++; x.a += pz(t.amount); });
+      const list = Object.entries(m), ta = list.reduce((a, [, x]) => a + x.a, 0);
+      const sp = anTx('Expense').filter(t => t.head === 'Supplier Payment').reduce((a, t) => a + pz(t.amount), 0), pur = anTx('Purchase').reduce((a, t) => a + pz(t.amount), 0);
+      return {cols: [C('Category'), C('Entries', 'n'), C('Total Expense', 'm'), C('% of Expenses', 'p')], rows: list.map(([k, x]) => [k, x.n, x.a, ta ? x.a / ta * 100 : 0]), sort: [2, -1],
+        total: ['TOTAL', list.reduce((a, [, x]) => a + x.n, 0), ta, ta ? 100 : 0], cards: [['Kharcha', ta, 'm'], ['Purchase (alag)', pur, 'm'], ['Supplier ko payment (alag)', sp, 'm']],
+        note: 'Purchase aur Supplier Payment is total mein nahi gine gaye, taaki ek hi paisa do baar na gine. Setu mein kharcha voucher turant paid hota hai, isliye "Pending" nahi.'};
+    }},
+  {id: 'day-book-cash-close', cat: 'expenses', title: 'Cash & Day Close', desc: 'Roz ka opening cash, cash aaya, gaya, kitna hona chahiye, kitna gina, farak. UPI / Card alag.', filters: [],
+    build(){
+      const days = [];
+      for(let d = AN.from, i = 0; d <= AN.to && i < 400; d = addDays(d, 1), i++) days.push(d);
+      const rows = days.map(d => { const s = summary(d);
+        if(!s.bills.length && !s.rec.length && !s.exp.length && !s.pur.length && !D.cash[d] && !s.walletTopT && !s.supPayT) return null;
+        const isCash = t => t.mode === 'Cash';
+        return [d, pz(s.opening), pz(s.by.Cash), pz(sum(D.txns.filter(t => t.date === d && t.type === 'Receipt' && isCash(t)), 'amount')),
+          pz(sum(D.txns.filter(t => t.date === d && t.type === 'Expense' && isCash(t) && t.head !== 'Supplier Payment'), 'amount')),
+          pz(sum(D.txns.filter(t => t.date === d && isCash(t) && (t.type === 'Purchase' || t.head === 'Supplier Payment')), 'amount')),
+          pz(s.expected), s.countedSaved ? pz(s.counted) : '', s.countedSaved ? pz(s.counted - s.expected) : '', pz(s.by.UPI), pz(s.by.Card), pz(s.by.Credit)];
+      }).filter(Boolean);
+      const t = i => rows.reduce((a, r) => a + (+r[i] || 0), 0);
+      return {cols: [C('Date', 'd'), C('Opening Cash', 'm'), C('Cash Sales', 'm'), C('Other Cash In', 'm'), C('Cash Expenses', 'm'), C('Cash to Suppliers', 'm'), C('Expected Cash', 'm'), C('Counted Cash', 'm'), C('Difference', 'm'), C('UPI', 'm'), C('Card', 'm'), C('Credit (Udhaar)', 'm')],
+        rows, fixed: true, total: ['TOTAL', '', t(2), t(3), t(4), t(5), '', '', t(8), t(9), t(10), t(11)],
+        note: 'Expected = Opening + Cash In − Cash Out. "Counted" tab dikhta hai jab Cash Counter (C) mein note gine gaye. Udhaar (Credit) wali purchase aaj ka cash nahi ghatati.'};
+    }},
+  {id: 'profit-loss', cat: 'expenses', title: 'Profit & Loss', desc: 'Restaurant faayde mein hai ya nuksaan mein (andaaza, saaf likha hua).', filters: [], mgr: true,
+    build(){
+      const bs = anBills(false, {}), gross = bs.reduce((a, b) => a + pz(b.sub), 0), disc = bs.reduce((a, b) => a + pz(b.disc), 0), net = bs.reduce((a, b) => a + pz(b.taxable), 0), tax = bs.reduce((a, b) => a + pz(b.tax), 0);
+      let cogs = 0, noRecNet = 0;
+      bs.forEach(b => billLines(b).forEach(l => { const m = D.menu.find(x => x.id === l.mid) || D.menu.find(x => x.name === l.name);
+        if(m && (m.recipe || []).length) cogs += Math.round(recipeCost(m) * l.qty); else noRecNet += l.net; }));
+      const exp = anTx('Expense'), otherInc = anTx('Receipt').filter(t => !NON_INCOME_HEADS.includes(t.head)).reduce((a, t) => a + pz(t.amount), 0);
+      const staffH = ['Staff Salary / Wages', 'Staff Advance'];
+      const staff = exp.filter(t => staffH.includes(t.head)).reduce((a, t) => a + pz(t.amount), 0);
+      const opex = exp.filter(t => !NON_EXPENSE_HEADS.includes(t.head) && !staffH.includes(t.head)).reduce((a, t) => a + pz(t.amount), 0);
+      const pur = anTx('Purchase').reduce((a, t) => a + pz(t.amount), 0), gp = net - cogs, np = gp + otherInc - opex - staff, cashNp = net + otherInc - pur - opex - staff;
+      const rows = [['Gross Sales (items)', gross, ''], ['− Discounts', -disc, ''], ['Net Sales (GST ke bina)', net, 'Cancel bill shamil nahi'], ['GST collected (sarkar ka, kamai nahi)', tax, 'Sirf jaankari'],
+        ['− Cost of food (recipe se)', -cogs, noRecNet ? `Andaaza. ${rs(zr(noRecNet))} ki sale wale items ki recipe nahi — unki cost shamil nahi` : 'Andaaza, aaj ke stock rate se'],
+        ['= Gross Profit', gp, ''], ['+ Other Income', otherInc, 'Wallet topup / settlement shamil nahi'], ['− Operating Expenses', -opex, 'Gas, bijli, kiraya... (Supplier Payment nahi)'], ['− Staff Salary + Advance', -staff, 'Jo is period mein diya'],
+        ['= Net Profit / Loss (andaaza)', np, np < 0 ? 'Nuksaan' : 'Faayda'], ['Purchases is period mein', pur, 'Stock khareed. Poora kharcha nahi maana gaya, bacha stock abhi pada hai'], ['Cash basis profit (purchase = kharcha)', cashNp, 'Doosra nazariya: saari khareed kharcha maan kar']];
+      return {cols: [C('Line'), C('Amount', 'm'), C('Note')], rows, fixed: true, cards: [['Net Sales', net, 'm'], ['Gross Profit', gp, 'm'], ['Net Profit (andaaza)', np, 'm']],
+        note: 'Food cost recipe ke hisaab se hai, kyunki Setu abhi stock ka opening / closing record nahi rakhta (Phase 2). Isliye ye andaaza hai — CA ke final P&L se milayein.'};
+    }},
+  // ---------- Channels ----------
+  {id: 'branch-channel-sales', cat: 'channels', title: 'Channel Sales', desc: 'Dine-in, Takeaway, Zomato, Swiggy: orders, discount, net sale, settlement.', filters: [],
+    build(){
+      const m = {};
+      anBills(true, {}).forEach(b => { const k = b.channel || 'Dine-In', x = m[k] || (m[k] = {n: 0, gross: 0, disc: 0, net: 0, total: 0, cn: 0});
+        if(b.cancelled){ x.cn++; return; } x.n++; x.gross += pz(b.sub); x.disc += pz(b.disc); x.net += pz(b.taxable); x.total += pz(b.total); });
+      const stl = ch => anTx('Receipt').filter(t => t.head === ch + ' Settlement').reduce((a, t) => a + pz(t.amount), 0);
+      const list = Object.entries(m), t = k => list.reduce((a, [, x]) => a + x[k], 0);
+      return {cols: [C('Order Source'), C('Orders', 'n'), C('Gross', 'm'), C('Discounts', 'm'), C('Net Sales', 'm'), C('Bill Total', 'm'), C('Cancelled', 'n'), C('Settlement Received', 'm')],
+        rows: list.map(([k, x]) => [k === 'Zomato' || k === 'Swiggy' ? k + ' (manual)' : k, x.n, x.gross, x.disc, x.net, x.total, x.cn, k === 'Zomato' || k === 'Swiggy' ? stl(k) : '']), sort: [5, -1],
+        total: ['TOTAL', t('n'), t('gross'), t('disc'), t('net'), t('total'), t('cn'), stl('Zomato') + stl('Swiggy')],
+        note: 'Zomato / Swiggy orders Setu mein haath se daale jaate hain (API integration nahi). Commission apne andaaze se nahi — sirf asli settlement entry (Receipt → Zomato/Swiggy Settlement) dikhayi gayi hai.'};
+    }},
+];
+
+// Reports that need data Setu does not record yet (shown in the centre so nothing is missed)
+const AN_PENDING = [['table-turnover', 'operations', 'Table Turnover', 'Order shuru hone ka time bill mein save karna hoga'],
+  ['delivery', 'operations', 'Delivery', 'Setu ka apna delivery module nahi hai'], ['waste', 'inventory', 'Waste', 'Waste entry ka feature banana hoga'],
+  ['stock-movement', 'inventory', 'Stock Movement Ledger', 'Stock ke har in/out ka log banana hoga'], ['stock-opening-closing', 'inventory', 'Opening & Closing Stock', 'Stock movement log ke baad'],
+  ['recipe-consumption', 'inventory', 'Recipe Consumption & Variance', 'Physical count workflow + movement log'], ['supplier-invoices', 'purchase', 'Invoice-wise Dues', 'Purchase par invoice no. / due date chahiye'],
+  ['scheduled', 'sales', 'Scheduled Email Reports', 'Email service set karni hogi']];
+
+const anDef = () => AN_REPORTS.find(r => r.id === AN.id);
+function anRange(k){
+  const t = today(), m1 = t.slice(0, 8) + '01';
+  const R = {today: [t, t], yday: [addDays(t, -1), addDays(t, -1)], d7: [addDays(t, -6), t], month: [m1, t], lmonth: [addDays(m1, -1).slice(0, 8) + '01', addDays(m1, -1)]};
+  [AN.from, AN.to] = R[k];
+  AN.page = 0; scrAnalytics();
+}
+function anOpen(id){ AN.id = id; AN.q = ''; AN.sort = null; AN.page = 0; AN.f = {}; scrAnalytics(); }
+// Format one cell for the screen / PDF
+function anFmt(v, t){
+  if(v === '' || v === null || v === undefined) return '';
+  if(t === 'm') return typeof v === 'number' ? money(zr(v)) : String(v);
+  if(t === 'p') return typeof v === 'number' ? v.toFixed(1) + '%' : String(v);
+  if(t === 'q') return typeof v === 'number' ? fq(v) : String(v);
+  if(t === 'd') return /^\d{4}-\d\d-\d\d$/.test(v) ? dmy(v) : String(v);
+  return String(v);
+}
+// The built report after search + sort (the same rows go to the screen, PDF, Excel and CSV)
+function anResult(){
+  const d = anDef(), r = d.build();
+  let idx = r.rows.map((_, i) => i);
+  const q = AN.q.trim().toLowerCase();
+  if(q) idx = idx.filter(i => r.rows[i].some((c, j) => r.cols[j] && String(anFmt(c, r.cols[j].t)).toLowerCase().includes(q)));
+  const s = AN.sort || (r.fixed ? null : r.sort);
+  if(s){ const [c, dir] = s; idx.sort((a, b) => { const x = r.rows[a][c], y = r.rows[b][c];
+    return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x ?? '').localeCompare(String(y ?? ''), 'en', {numeric: true})) * dir; }); }
+  return {...r, rows: idx.map(i => r.rows[i]), ids: r.ids ? idx.map(i => r.ids[i]) : null, filtered: q ? idx.length : null};
+}
+function anFilterHTML(d){
+  const sel = (k, label, opts) => `<select style="width:auto;max-width:240px" onchange="AN.f.${k}=this.value;AN.page=0;scrAnalytics()" title="${label}"><option value="">${label}: Sab</option>${opts.map(o => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${AN.f[k] === v ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select>`;
+  const F = {
+    channel: () => sel('channel', 'Channel', optList(D.bills.map(b => b.channel || 'Dine-In'))),
+    mode: () => sel('mode', 'Payment', [...MODES]),
+    paymode: () => sel('paymode', 'Mode', MODES.filter(m => !m.includes('Pay') && m !== 'Wallet')),
+    staff: () => sel('staff', 'Staff', optList(D.bills.map(b => b.by))),
+    category: () => sel('category', 'Category', optList(D.menu.map(m => m.cat || 'Other'))),
+    supplier: () => sel('supplier', 'Supplier', suppliers().map(s => [s.key, s.name])),
+    head: () => sel('head', 'Category', optList(D.txns.filter(t => t.type === 'Expense' && !NON_EXPENSE_HEADS.includes(t.head)).map(t => t.head))),
+    status: () => sel('status', 'Status', ['Paid', 'Cancelled']),
+    top: () => `<select style="width:auto" onchange="AN.top=+this.value;scrAnalytics()">${[10, 25, 50].map(n => `<option value="${n}" ${AN.top === n ? 'selected' : ''}>Top ${n}</option>`).join('')}</select>`
+  };
+  return (d.filters || []).map(k => F[k] ? F[k]() : '').join('');
+}
+function scrAnalytics(){
+  const d = anDef();
+  if(!d){
+    main.innerHTML = `<style>.an-tile{display:block;text-align:left;border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:#fff;cursor:pointer;width:100%}
+      .an-tile:hover{border-color:var(--primary)}.an-tile small{display:block;color:var(--text-muted);font-size:12px;margin-top:2px}.an-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}</style>
+    <div class="title">Reports &amp; Analytics</div>
+    <div class="card"><p style="margin:0">Asli bills, purchase, kharche, stock aur staff ke record se reports. Kuch bhi badalta nahi, sirf padhta hai. Purani Reports (F) aur Monthly CA Report (J) waise hi hain.</p></div>
+    ${AN_CATS.map(([c, l]) => { const rs1 = AN_REPORTS.filter(r => r.cat === c), pend = AN_PENDING.filter(p => p[1] === c);
+      return rs1.length || pend.length ? `<div class="card"><h3 style="margin-top:0">${l}</h3><div class="an-grid">
+        ${rs1.map(r => `<button class="an-tile" onclick="anOpen('${r.id}')"><b>${esc(r.title)}</b>${r.mgr ? ' <span class="muted" style="font-size:11px">(Manager)</span>' : ''}<small>${esc(r.desc)}</small></button>`).join('')}
+        ${pend.map(p => `<div class="an-tile" style="cursor:default;background:#f8fafc;opacity:.75"><b>${esc(p[2])}</b> <span class="muted" style="font-size:11px">(jald)</span><small>${esc(p[3])}</small></div>`).join('')}
+      </div></div>` : ''; }).join('')}`;
+    return;
+  }
+  if(d.mgr && !isManager()){
+    main.innerHTML = `<div class="title">${esc(d.title)}</div><div class="card"><p style="margin:0">Ye report sirf <b>Manager / Owner</b> dekh sakte hain.</p>
+      <div class="btns"><button class="btn ok" onclick="withManager('${esc(d.title)} report', () => { AN.mgrOk = '${d.id}'; scrAnalytics(); })">Manager PIN se kholein</button><button class="btn g" onclick="AN.id='';scrAnalytics()">‹ Sab reports</button></div></div>`;
+    if(AN.mgrOk !== d.id) return;
+  }
+  let r;
+  try{ r = anResult(); }
+  catch(e){
+    logError('Report nahi bani: ' + d.title, 'Reports & Analytics', e.stack || e.message);
+    main.innerHTML = `<div class="title">${esc(d.title)}</div><div class="card"><p style="color:#dc2626;margin:0"><b>Report nahi ban payi:</b> ${esc(e.message)}</p><div class="btns"><button class="btn g" onclick="AN.id='';scrAnalytics()">‹ Sab reports</button></div></div>`;
+    return;
+  }
+  const pages = Math.max(1, Math.ceil(r.rows.length / AN_PAGE)), pg = Math.min(AN.page, pages - 1), show = r.rows.slice(pg * AN_PAGE, pg * AN_PAGE + AN_PAGE);
+  const num = t => ['m', 'n', 'q', 'p'].includes(t);
+  const sync = SRV.cloud ? (SRV.online === false ? '<span class="red">Offline — data purana ho sakta hai</span>' : 'Cloud data · live') : SRV.on ? 'Main Counter data' : 'Is device ka data';
+  main.innerHTML = `
+  <div class="title"><span><button class="btn g sm" onclick="AN.id='';scrAnalytics()">‹</button> ${esc(d.title)}${r.title2 ? ' · ' + esc(r.title2) : ''}</span><span class="r muted" style="font-size:12px">${sync} · ${nowTime()}</span></div>
+  <div class="card" style="padding:10px 12px"><div class="muted" style="font-size:13px">${esc(d.desc)}</div>
+    ${d.now ? '' : `<div class="cats" style="margin:8px 0 0">${[['today', 'Aaj'], ['yday', 'Kal'], ['d7', '7 din'], ['month', 'Is mahine'], ['lmonth', 'Pichhle mahine']].map(([k, l]) => `<button class="cat" onclick="anRange('${k}')">${l}</button>`).join('')}
+      <span style="display:inline-flex;gap:6px;align-items:center">From <input type="date" value="${AN.from}" onchange="AN.from=this.value;AN.page=0;scrAnalytics()"> To <input type="date" value="${AN.to}" onchange="AN.to=this.value;AN.page=0;scrAnalytics()"></span></div>`}
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center">${anFilterHTML(d)}
+      <input id="an_q" placeholder="Search..." value="${esc(AN.q)}" style="width:220px" oninput="AN.q=this.value;AN.page=0;clearTimeout(scrAnalytics.t);scrAnalytics.t=setTimeout(()=>{scrAnalytics();const q=$('#an_q');if(q){q.focus();q.setSelectionRange(q.value.length,q.value.length);}},300)"></div></div>
+  ${r.cards ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:10px">${r.cards.map(([l, v, t]) => `<div class="card" style="margin:0;padding:10px 12px"><div class="muted" style="font-size:12px">${esc(l)}</div><div style="font-size:19px;font-weight:800">${esc(anFmt(v, t))}</div></div>`).join('')}</div>` : ''}
+  <div class="card" style="padding:0;overflow:auto">
+    <table><thead><tr>${r.cols.map((c, i) => `<th class="${num(c.t) ? 'n' : ''}" style="cursor:pointer;white-space:nowrap" onclick="anSort(${i})">${esc(c.h)}${AN.sort && AN.sort[0] === i ? (AN.sort[1] > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+    <tbody>${show.map((row, ri) => { const id = r.ids && r.ids[pg * AN_PAGE + ri];
+      return `<tr${id ? ` style="cursor:pointer" onclick="anBill('${id}')"` : ''}>${row.map((c, i) => `<td class="${num((r.cols[i] || {}).t) ? 'n' : ''}">${esc(anFmt(c, (r.cols[i] || {}).t))}</td>`).join('')}</tr>`; }).join('')
+      || `<tr><td colspan="${r.cols.length}" class="muted" style="text-align:center;padding:18px">Is date / filter mein koi data nahi</td></tr>`}
+    ${r.total && show.length && !r.filtered ? `<tr style="font-weight:800;background:#f1f5f9">${r.total.map((c, i) => `<td class="${num((r.cols[i] || {}).t) ? 'n' : ''}">${esc(anFmt(c, (r.cols[i] || {}).t))}</td>`).join('')}</tr>` : ''}</tbody></table></div>
+  ${pages > 1 ? `<div class="btns" style="align-items:center"><button class="btn g sm" ${pg ? '' : 'disabled'} onclick="AN.page=${pg - 1};scrAnalytics()">‹ Pichhla</button><span class="muted">Page ${pg + 1} / ${pages} · ${r.rows.length} lines</span><button class="btn g sm" ${pg < pages - 1 ? '' : 'disabled'} onclick="AN.page=${pg + 1};scrAnalytics()">Agla ›</button></div>` : ''}
+  ${r.filtered !== null ? `<p class="muted" style="font-size:12px">Search se ${r.filtered} lines. TOTAL search ke bina dikhta hai.</p>` : ''}
+  <div class="btns"><button class="btn g" onclick="anExport('print')">Print (A4)</button><button class="btn ok" onclick="anExport('pdf')">PDF</button><button class="btn g" onclick="anExport('xls')">Excel</button><button class="btn g" onclick="anExport('csv')">CSV</button></div>
+  ${r.note ? `<p class="muted" style="font-size:12px">${esc(r.note)}</p>` : ''}`;
+}
+function anSort(i){ AN.sort = AN.sort && AN.sort[0] === i ? [i, -AN.sort[1]] : [i, 1]; AN.page = 0; scrAnalytics(); }
+function anBill(id){
+  const b = getBill(id);
+  if(!b) return;
+  modal(`Bill #${b.no}${b.cancelled ? ' (Cancelled)' : ''} — ${money(b.total)}`, `
+    <div class="muted" style="font-size:13px;margin-bottom:8px">${dmy(b.date)} ${esc(b.time || '')} · ${esc(b.channel || 'Dine-In')} · ${esc(b.table || '')}${b.by ? ' · ' + esc(b.by) : ''}${b.cust ? ' · ' + esc(b.cust) : ''}</div>
+    <table><thead><tr><th>Item</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead>
+      <tbody>${(b.items || []).map(i => `<tr><td>${esc(i.name)}</td><td class="n">${fq(i.qty)}</td><td class="n">${money(i.price)}</td><td class="n">${money(i.price * i.qty)}</td></tr>`).join('')}
+      <tr><td colspan="3">Gross</td><td class="n">${money(b.sub)}</td></tr><tr><td colspan="3">Discount</td><td class="n">${money(b.disc)}</td></tr>
+      <tr><td colspan="3">GST ${+b.gstRate || 0}%</td><td class="n">${money(b.tax)}</td></tr><tr><td colspan="3"><b>Total</b> · ${esc(modeText(b))}</td><td class="n"><b>${money(b.total)}</b></td></tr></tbody></table>
+    <div class="btns"><button class="btn g" onclick="printBill('${b.id}','bill')">Print</button><button class="btn g" onclick="closeModal()">Close</button></div>`);
+}
+// Excel / CSV text: numbers stay numbers (₹ as plain 2-decimal values), text that could run as a formula gets a leading '
+const anCell = (v, t) => {
+  if(v === '' || v === null || v === undefined) return '';
+  if(typeof v === 'number') return t === 'm' ? (v / 100).toFixed(2) : t === 'p' ? v.toFixed(2) : String(+v.toFixed(3));
+  const s = t === 'd' ? anFmt(v, 'd') : String(v);
+  return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+};
+function anExport(kind){
+  const d = anDef();
+  if(!d || (d.mgr && !isManager() && AN.mgrOk !== d.id)) return;
+  const r = anResult(), range = d.now ? 'As on ' + dmy(today()) : `${dmy(AN.from)} to ${dmy(AN.to)}`;
+  const flt = Object.entries(AN.f).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join(', ');
+  const name = `${fileStem()}-${d.id}-${d.now ? today() : AN.from + '-to-' + AN.to}`;
+  audit('Report Export', `${d.title} · ${kind.toUpperCase()} · ${range}${flt ? ' · ' + flt : ''}`);
+  const total = r.total && !r.filtered ? [r.total] : [];
+  if(kind === 'csv' || kind === 'xls'){
+    const head = [[d.title + (r.title2 ? ' · ' + r.title2 : '')], [D.settings.name || ''], [range + (flt ? ' · ' + flt : '')], ['Generated: ' + dmy(today()) + ' ' + nowTime()], []];
+    const lines = [r.cols.map(c => c.h + (c.t === 'm' ? ' (₹)' : ''))].concat(r.rows.concat(total).map(row => row.map((c, i) => anCell(c, (r.cols[i] || {}).t))));
+    const rows = (kind === 'xls' ? head : []).concat(lines);
+    const csv = rows.map(row => row.map(v => '"' + String(v ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
+    saveFile(name + (kind === 'xls' ? '-excel' : '') + '.csv', (kind === 'xls' ? '﻿' : '') + csv, 'text/csv', kind === 'xls' ? 'Excel file ready (Excel mein khulegi).' : 'CSV file ready.');
+    return;
+  }
+  const fmtRow = row => row.map((c, i) => anFmt(c, (r.cols[i] || {}).t));
+  const left = r.cols.map((c, i) => ['m', 'n', 'q', 'p'].includes(c.t) ? -1 : i).filter(i => i >= 0);
+  if(kind === 'pdf'){
+    pdfFile(name + '.pdf', {title: d.title + (r.title2 ? ' · ' + r.title2 : ''), sub: [hotelLine(), range + (flt ? ' · ' + flt : ''), `Generated: ${dmy(today())} ${nowTime()}`,
+      r.cards ? r.cards.map(([l, v, t]) => `${l}: ${anFmt(v, t)}`).join('   ·   ') : ''],
+      sections: [{head: r.cols.map(c => c.h), rows: r.rows.map(fmtRow), total: total.length ? fmtRow(total[0]) : null, left}]});
+    return;
+  }
+  const st = D.settings, num = t => ['m', 'n', 'q', 'p'].includes(t);
+  $('#print').style.removeProperty('--pw');
+  $('#print').innerHTML = `<div class="a4rep">
+    <div class="a4h"><div><h2>${esc(st.name || 'Hotel')}</h2>${st.address ? `<div>${esc(st.address)}</div>` : ''}${st.gstin ? `<div>GSTIN: ${esc(st.gstin)}</div>` : ''}</div>
+      <div style="text-align:right"><h2>${esc(d.title)}${r.title2 ? ' · ' + esc(r.title2) : ''}</h2><div><b>${esc(range)}</b></div>${flt ? `<div>${esc(flt)}</div>` : ''}<div>Printed: ${dmy(today())} ${nowTime()}</div></div></div>
+    ${r.cards ? `<div style="margin:4px 0 8px">${r.cards.map(([l, v, t]) => `<b>${esc(l)}:</b> ${esc(anFmt(v, t))}`).join(' &nbsp;·&nbsp; ')}</div>` : ''}
+    <table><tr>${r.cols.map(c => `<th class="${num(c.t) ? 'n' : ''}">${esc(c.h)}</th>`).join('')}</tr>
+      ${r.rows.map(row => `<tr>${fmtRow(row).map((c, i) => `<td class="${num((r.cols[i] || {}).t) ? 'n' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${r.cols.length}">Koi data nahi</td></tr>`}
+      ${total.length ? `<tr class="tot">${fmtRow(total[0]).map((c, i) => `<td class="${num((r.cols[i] || {}).t) ? 'n' : ''}">${esc(c)}</td>`).join('')}</tr>` : ''}</table>
+    ${r.note ? `<div style="font-size:10px;margin-top:6px">${esc(r.note)}</div>` : ''}
+    <div class="a4f">Generated by Setu · Powered by Aghanya Devanya Enterprises</div></div>`;
+  printStatus('busy', 'Print window khul raha hai…');
+  setTimeout(() => { appPrint(); printStatus('ok', 'Report bhej di'); }, 80);
+}
+
 /* ================= PRINTER HEALTH (4) ================= */
 // Main counter only: Windows printers, their state and print queue. Stuck or repeated jobs can be removed.
 const PR_STATE = {paused: ['Paused (ruka hua)', 'bad'], error: ['Error', 'bad'], jam: ['Kagaz phansa (jam)', 'bad'], paperout: ['Kagaz khatam', 'bad'],
@@ -8186,6 +8700,7 @@ function resetAll(){
 
 /* ================= INIT ================= */
 function startUI(){
+  setTimeout(footerHotel, 1500);
   initIndexedDB();
   drawSide();
   checkAuth();
