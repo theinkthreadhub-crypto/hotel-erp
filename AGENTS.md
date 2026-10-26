@@ -377,3 +377,15 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 - Suppliers: `supKeyA()` (with `D.supAlias` merges), profile `D.supInfo[key] = {name, mobile, gstin, notes}`; dues = Credit purchases
   and Credit expenses − Supplier Payments. Invoice-wise dues: `supInvoices()` (payment to its own invoice first, then FIFO).
 - Dashboard "Business Charts" (`dashCharts()`, inline SVG, can be hidden in Customize Dashboard).
+
+## Setu Doctor (hotkey 6) and in-app fixes
+- `doctorChecks()` (sync) + `doctorAsync()` (counter / cloud: clock offset via `/api/clock` or the cloud `Date` header, cloud sync
+  state, printers from `/api/printer-health`) give `{area, title, status: ok|warn|info|bad, detail, fix: [label, js], auto}`.
+  `scrDoctor()` shows them; `docFix(k)` runs safe fixes (recipes, stock, printer, lockPaper / unlockPaper, reload, cache), each audited;
+  "Safe fix sab" runs the `auto` ones. Fixes never change saved bills or vouchers.
+- `doctorAuto()` runs 30 s after start and every 6 h; `bad` checks go to the Error Log (so Super Admin sees them).
+- Add a check: push one `add(area, title, status, detail, fix?, autoKey?)` in `doctorChecks()`; add its fix to `docFix()`.
+- Paper size: `settings.printLock` (set when the owner changes 58 / 80 on the PC) stops `applySaas()` overriding it with the cloud
+  Bill Design. Doctor can lock / unlock.
+- Editable dropdown lists (`LISTS`, `lst(key)`, `settings.lists`): expense heads, stock categories, misc categories / subs, locations,
+  gas sizes, waste / issue / return reasons. Settings → Dropdown Lists. Empty = defaults.

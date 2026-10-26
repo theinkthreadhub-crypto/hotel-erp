@@ -25,6 +25,7 @@ import http.server
 import urllib.request
 import urllib.error
 import ssl
+import email.utils
 import base64
 import copy
 
@@ -990,6 +991,14 @@ def make_handler(base_dir, store, port, cloud=None):
                 return self.send_json(code, j)
             if not self.role():
                 return self.send_json(401, {'error': 'pin required'})
+            if path == '/api/clock':
+                # Setu Doctor: how far this PC's clock is from the cloud's (wrong date breaks licence and SSL)
+                try:
+                    with _urlopen(urllib.request.Request(DEFAULT_CLOUD_URL + '/api/ping', headers={'User-Agent': 'Setu-Main-Counter/1.0'}), 15) as r:
+                        server = email.utils.parsedate_to_datetime(r.headers.get('Date')).timestamp()
+                    return self.send_json(200, {'offset': int((time.time() - server) * 1000)})
+                except Exception as e:
+                    return self.send_json(200, {'offset': None, 'error': _net_reason(e)[1]})
             if path == '/api/version':
                 return self.send_json(200, {'version': store.version})
             if path == '/api/db':

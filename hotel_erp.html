@@ -787,8 +787,10 @@ function applySaas(s){
   const c = s.saas;
   if(!c || typeof c !== 'object') return;
   const b = c.billing || {};
-  if(b.paper === '58' || b.paper === '80'){ s.settings.width = +b.paper; s.settings.billPaper = 'thermal'; }
-  if(b.paper === 'A6') s.settings.billPaper = 'A6';
+  if(!s.settings.printLock){
+    if(b.paper === '58' || b.paper === '80'){ s.settings.width = +b.paper; s.settings.billPaper = 'thermal'; }
+    if(b.paper === 'A6') s.settings.billPaper = 'A6';
+  }
   if(b.footer) s.settings.footer = b.footer;
   const r = c.rules || {};
   if(r.maxDiscPct !== null && r.maxDiscPct !== undefined) s.settings.maxDiscPct = +r.maxDiscPct;
@@ -2598,6 +2600,7 @@ const MENU = [
   ['2','Error Log (Galti ki report)','errors','Utilities'],
   ['3','Setu AI (Gemini)','ai','Utilities'],
   ['4','Printer Health (Queue)','printers','Utilities'],
+  ['6','Setu Doctor (Health Check)','doctor','Utilities'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -2621,6 +2624,7 @@ const SCREENS = {
   errors: scrErrors,
   ai: scrAI,
   printers: scrPrinters,
+  doctor: () => scrDoctor(),
   analytics: scrAnalytics,
   kitchen: scrKitchen,
   qr: scrQR,
@@ -5044,7 +5048,7 @@ function expRegular(){
     ${tpl.length ? `<div style="margin-bottom:8px"><span class="muted" style="font-size:12px">Saved templates: </span>${tpl.map((x, i) => `<button class="btn g sm" onclick="useTpl(${i})">${esc(x.head)}${x.party ? ' · ' + esc(x.party) : ''}</button> `).join('')}</div>` : ''}
     <div class="grid">
       ${dateIn('e_date')}
-      <div><label>Category *</label><input id="e_head" list="heads" value="${esc(EF.head || '')}" placeholder="Gas, Bijli, Kiraya..." onchange="EF.head=this.value"><datalist id="heads">${HEADS.Expense.filter(h => h !== 'Supplier Payment').concat(optList(D.txns.filter(isRegularExp).map(x => x.head))).filter((v, i, a) => a.indexOf(v) === i).map(h => `<option>${esc(h)}</option>`).join('')}</datalist></div>
+      <div><label>Category *</label><input id="e_head" list="heads" value="${esc(EF.head || '')}" placeholder="Gas, Bijli, Kiraya..." onchange="EF.head=this.value"><datalist id="heads">${lst('expHeads').concat(optList(D.txns.filter(isRegularExp).map(x => x.head))).filter((v, i, a) => a.indexOf(v) === i).map(h => `<option>${esc(h)}</option>`).join('')}</datalist></div>
       <div><label>Kisko (Payee / Supplier)</label><input id="e_party" list="e_sups" value="${esc(EF.party || '')}">${supDatalist('e_sups')}</div>
       <div><label>Details</label><input id="e_desc" value="${esc(EF.desc || '')}" placeholder="e.g. October ka bill"></div>
       <div><label>Amount (₹) *</label><input id="e_amt" type="number" step="any" value="${EF.amount || ''}"></div>
@@ -5082,13 +5086,13 @@ function expMisc(){
     <p class="muted" style="margin-top:0;font-size:13px">Achanak ka kharcha: bulb, board, repair. Ye stock mein nahi jaata (turant laga). Store mein rakhne wala saman (spare bulbs) Purchase (P) se lein.</p>
     <div class="grid">
       ${dateIn('m_date')}
-      <div><label>Category *</label><select id="m_head">${MISC_CATS.map(c => `<option ${EF.head === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>
-      <div><label>Sub-category</label><input id="m_sub" list="m_subs" value="${esc(EF.sub || '')}"><datalist id="m_subs">${MISC_SUBS.map(c => `<option>${c}</option>`).join('')}</datalist></div>
+      <div><label>Category *</label><select id="m_head">${lst('miscCats').map(c => `<option ${EF.head === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>
+      <div><label>Sub-category</label><input id="m_sub" list="m_subs" value="${esc(EF.sub || '')}"><datalist id="m_subs">${lst('miscSubs').map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
       <div><label>Item / Kaam *</label><input id="m_desc" value="${esc(EF.desc || '')}" placeholder="e.g. LED Bulb"></div>
       <div><label>Qty</label><input id="m_qty" type="number" step="any" value="${EF.qty || ''}"></div>
       <div><label>Amount (₹) *</label><input id="m_amt" type="number" step="any" value="${EF.amount || ''}"></div>
       ${payPick('m_mode', true)}
-      <div><label>Location</label><input id="m_loc" list="locs2" value="${esc(EF.loc || '')}" placeholder="Kitchen"><datalist id="locs2"><option>Kitchen</option><option>Hall</option><option>Counter</option><option>Washroom</option><option>Store</option><option>Outside</option></datalist></div>
+      <div><label>Location</label><input id="m_loc" list="locs2" value="${esc(EF.loc || '')}" placeholder="Kitchen"><datalist id="locs2">${lst('locations').map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
       <div><label>Kisko (optional)</label><input id="m_party" list="m_sups" value="${esc(EF.party || '')}">${supDatalist('m_sups')}</div>
       <div><label>Equipment (repair ho to)</label><select id="m_asset"><option value="">—</option>${(D.assets || []).filter(a => a.status !== 'disposed').map(a => `<option value="${a.id}" ${EF.assetId === a.id ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select></div>
       <div style="grid-column:1/-1"><label>Remarks</label><input id="m_rem" value="${esc(EF.remark || '')}" placeholder="e.g. Bulb replacement"></div>
@@ -5136,7 +5140,7 @@ function expGas(){
       ${dateIn('g_date')}
       <div><label>Gas Supplier *</label><input id="g_party" list="g_sups" value="${esc(EF.party || (rf[rf.length - 1] || {}).party || '')}">${supDatalist('g_sups')}</div>
       <div><label>Kitne cylinder refill *</label><input id="g_n" type="number" step="1" value="${EF.n || 1}" oninput="gasTot()"></div>
-      <div><label>Size</label><select id="g_size">${GAS_SIZES.map(z => `<option ${(EF.size || ((rf[rf.length - 1] || {}).gas || {}).size) === z ? 'selected' : ''}>${z}</option>`).join('')}</select></div>
+      <div><label>Size</label><select id="g_size">${lst('gasSizes').map(z => `<option ${(EF.size || ((rf[rf.length - 1] || {}).gas || {}).size) === z ? 'selected' : ''}>${z}</option>`).join('')}</select></div>
       <div><label>Rate per cylinder (₹) *</label><input id="g_rate" type="number" step="any" value="${EF.rate || ((rf[rf.length - 1] || {}).gas || {}).rate || ''}" oninput="gasTot()"></div>
       <div><label>Total (₹)</label><input id="g_amt" type="number" step="any"></div>
       ${payPick('g_mode', true)}
@@ -5701,7 +5705,7 @@ function editStock(id){
     <div class="grid">
       <div><label>Name</label><input id="s_name" value="${esc(s.name)}" autofocus placeholder="e.g. Atta" oninput="stockDupHint('${id || ''}')"></div>
       <div><label>Type</label><select id="s_type">${Object.entries(STOCK_TYPES).map(([k, l]) => `<option value="${k}" ${(s.type || 'stock') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <div><label>Category</label><input id="s_cat" list="s_cats" value="${esc(s.cat || '')}" placeholder="e.g. Grocery, Dairy, Electrical"><datalist id="s_cats">${optList(D.stock.map(x => x.cat)).concat(['Grocery', 'Vegetables', 'Dairy', 'Meat', 'Beverages', 'Packaging', 'Cleaning', 'Electrical', 'Fuel']).filter((v, i, a) => a.indexOf(v) === i).map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
+      <div><label>Category</label><input id="s_cat" list="s_cats" value="${esc(s.cat || '')}" placeholder="e.g. Grocery, Dairy, Electrical"><datalist id="s_cats">${optList(D.stock.map(x => x.cat)).concat(lst('stockCats')).filter((v, i, a) => a.indexOf(v) === i).map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
       <div><label>Unit</label><input id="s_unit" list="units" value="${esc(s.unit)}"><datalist id="units">${['kg', 'gm', 'ltr', 'ml', 'pcs', 'pkt', 'bag', 'box', 'dozen', 'cylinder', 'bottle'].map(u => `<option>${u}</option>`).join('')}</datalist></div>
       <div><label>${id ? 'Current Stock (Count se badlein)' : 'Opening Stock'}</label><input id="s_qty" type="number" step="any" value="${id ? fq(s.qty) : ''}" ${id ? 'disabled' : ''} placeholder="0"></div>
       <div><label>Min Level (Alert)</label><input id="s_min" type="number" step="any" value="${s.min}"></div>
@@ -5788,13 +5792,13 @@ const OUT_KIND = {waste: ['Waste entry', ['Kharab ho gaya', 'Expire', 'Gir gaya 
 function stockOut(id, kind){
   const s = stockItem(id);
   if(!s) return;
-  const [title, reasons] = OUT_KIND[kind];
+  const title = OUT_KIND[kind][0], reasons = lst(kind + 'Reasons');
   modal(`${title} — ${esc(s.name)}`, `
     <p class="muted" style="margin-top:0">Abhi stock: <b>${fq(s.qty)} ${esc(s.unit)}</b> · avg cost ₹${r2(avgCost(s.id))}/${esc(s.unit)}</p>
     <div class="grid">
       <div><label>Qty</label><div style="display:flex;gap:6px"><input id="so_q" type="number" step="any" autofocus><select id="so_u" style="width:auto">${unitList(s).map(([u, f]) => `<option value="${f}">${esc(u)}</option>`).join('')}</select></div></div>
-      <div><label>Reason</label><select id="so_r">${reasons.map(r => `<option>${r}</option>`).join('')}</select></div>
-      ${kind === 'issue' ? '<div><label>Kahan laga (Location)</label><input id="so_loc" list="locs" placeholder="Kitchen, Hall, Washroom"><datalist id="locs"><option>Kitchen</option><option>Hall</option><option>Counter</option><option>Washroom</option><option>Store</option></datalist></div>' : ''}
+      <div><label>Reason</label><select id="so_r">${reasons.map(r => `<option>${esc(r)}</option>`).join('')}</select></div>
+      ${kind === 'issue' ? `<div><label>Kahan laga (Location)</label><input id="so_loc" list="locs" placeholder="Kitchen, Hall, Washroom"><datalist id="locs">${lst('locations').map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>` : ''}
       ${kind === 'return' ? `<div><label>Supplier</label><input id="so_sup" list="so_sups" value="${esc(s.sup || '')}"><datalist id="so_sups">${suppliers().map(x => `<option>${esc(x.name)}</option>`).join('')}</datalist></div>` : ''}
       <div style="grid-column:1/-1"><label>Note</label><input id="so_n" placeholder="Details"></div>
     </div>
@@ -8720,6 +8724,204 @@ function anExport(kind){
   setTimeout(() => { appPrint(); printStatus('ok', 'Report bhej di'); }, 80);
 }
 
+/* ================= SETU DOCTOR (6): health check + one-click fixes, no coding needed ================= */
+// Every check says what is wrong, why it matters and how to fix it, with a button where Setu can fix it safely.
+// Nothing here changes a saved bill or voucher. Problems marked "bad" also go to the Error Log, so the vendor sees them in Super Admin.
+// Dropdown lists the owner can edit (Settings → Dropdown Lists) instead of asking for a code change
+const LISTS = {
+  expHeads: ['Kharcha categories (E)', () => HEADS.Expense.filter(h => h !== 'Supplier Payment')],
+  stockCats: ['Stock categories', () => ['Grocery', 'Vegetables', 'Dairy', 'Meat', 'Beverages', 'Packaging', 'Cleaning', 'Electrical', 'Fuel']],
+  miscCats: ['Misc / Maintenance categories', () => MISC_CATS], miscSubs: ['Misc sub-categories', () => MISC_SUBS],
+  locations: ['Locations (kahan laga)', () => ['Kitchen', 'Hall', 'Counter', 'Washroom', 'Store', 'Outside']],
+  gasSizes: ['Gas cylinder sizes', () => GAS_SIZES], wasteReasons: ['Waste reasons', () => OUT_KIND.waste[1]],
+  issueReasons: ['Issue reasons', () => OUT_KIND.issue[1]], returnReasons: ['Return reasons', () => OUT_KIND.return[1]]
+};
+const lst = k => { const c = ((D.settings.lists || {})[k] || []).filter(Boolean); return c.length ? c : LISTS[k][1](); };
+
+const DOC_ICON = {ok: '✅', warn: '⚠️', bad: '❌', info: 'ℹ️'};
+let DOC = {res: null, extra: [], at: 0};
+function doctorChecks(){
+  const out = [], add = (area, title, status, detail, fix, auto) => out.push({area, title, status, detail, fix, auto});
+  const st = D.settings, live = D.bills.filter(b => !b.cancelled);
+  // ---- Data ----
+  const nos = {}; live.forEach(b => { (nos[b.no] = nos[b.no] || []).push(b); });
+  const dupNo = Object.entries(nos).filter(([, l]) => l.length > 1);
+  add('Data', 'Bill numbers', dupNo.length ? 'warn' : 'ok', dupNo.length ? `${dupNo.length} bill number do baar: ${dupNo.slice(0, 5).map(([n]) => '#' + n).join(', ')}. Purane bill badle nahi jaate; Bill Register (5) mein dono dikhte hain. Vendor ko batayein.` : 'Har bill ka number alag hai.');
+  const sids = new Set(D.stock.map(s => s.id)), broken = [];
+  D.menu.forEach(m => (m.recipe || []).forEach(r => { if(!sids.has(sidOf(r.sid))) broken.push(m.name); }));
+  add('Data', 'Recipes', broken.length ? 'bad' : 'ok', broken.length ? `${broken.length} recipe line aise stock item par hai jo ab nahi hai (${[...new Set(broken)].slice(0, 5).join(', ')}). In dishes ka stock nahi ghatega.` : 'Har recipe sahi stock item se judi hai.',
+    broken.length ? ['Tooti recipe lines hatao', 'docFix("recipes")'] : null, 'recipes');
+  const inact = D.menu.filter(m => (m.recipe || []).some(r => (stockItem(r.sid) || {}).active === false)).map(m => m.name);
+  if(inact.length) add('Data', 'Recipe mein band item', 'warn', `${inact.slice(0, 5).join(', ')} ki recipe mein "Band" (inactive) stock item hai.`, ['Menu Items kholo', "go('menu')"]);
+  const mn = {}; D.menu.forEach(m => { const k = m.name.trim().toLowerCase(); mn[k] = (mn[k] || 0) + 1; });
+  const dupMenu = Object.entries(mn).filter(([, n]) => n > 1).map(([k]) => k), zero = D.menu.filter(m => !(+m.price > 0)).map(m => m.name);
+  add('Data', 'Menu', dupMenu.length || zero.length ? 'warn' : 'ok', [dupMenu.length ? `Same naam ki dish do baar: ${dupMenu.slice(0, 5).join(', ')}` : '', zero.length ? `₹0 price: ${zero.slice(0, 5).join(', ')}` : ''].filter(Boolean).join(' · ') || `${D.menu.length} dishes theek.`, dupMenu.length || zero.length ? ['Menu Items kholo', "go('menu')"] : null);
+  // ---- Stock ----
+  const neg = activeStock().filter(s => +s.qty < 0);
+  add('Stock', 'Minus stock', neg.length ? 'warn' : 'ok', neg.length ? `${neg.map(s => `${s.name} (${fq(s.qty)} ${s.unit})`).slice(0, 5).join(', ')}. Purchase entry chhooti hai ya recipe galat. Ginti karke "Count" se theek karein.` : 'Kisi item ka stock minus nahi.', neg.length ? ['Stock kholo', "go('stock')"] : null);
+  const low = lowStock();
+  add('Stock', 'Low stock', low.length ? 'info' : 'ok', low.length ? `${low.length} item min level se kam: ${low.slice(0, 5).map(s => s.name).join(', ')}` : 'Sab item min level se upar.', low.length ? ['Purchase karo', "go('purchase')"] : null);
+  const stale = Object.entries(D.kaccha || {}).filter(([, k]) => k.cart && k.cart.length && k.updatedAt && Date.now() - new Date(k.updatedAt.length <= 5 ? today() + 'T' + k.updatedAt : k.updatedAt).getTime() > 12 * 36e5);
+  if(stale.length) add('Stock', 'Purane khule tables', 'warn', `${stale.map(([t]) => t).join(', ')} par 12 ghante se zyada se order khula hai. Bill banayein ya order hatayein.`, ['Billing kholo', "go('bill')"]);
+  const oldOrders = (D.orders || []).filter(o => o.status === 'open' && o.date < addDays(today(), -7));
+  if(oldOrders.length) add('Stock', 'Purane purchase order', 'warn', `${oldOrders.length} order 7 din se "maal nahi aaya" par atke hain.`, ['Purchase kholo', "go('purchase')"]);
+  // ---- Printing ----
+  const direct = directPrint();
+  if(SRV.on && !SRV.cloud && SRV.local){
+    add('Printer', 'Printer chuna hua', direct && !st.billPrinter ? 'bad' : 'ok', direct && !st.billPrinter ? 'Direct print chalu hai lekin Bill printer chuna nahi — print nahi niklega.' : direct ? `Bill: ${st.billPrinter} · KOT: ${st.kotPrinter || st.billPrinter}` : 'Print dialog wala tareeka (har baar print box).',
+      direct && !st.billPrinter ? ['Printer apne aap chuno', 'docFix("printer")'] : ['Printer Setup', "go('settings')"], direct && !st.billPrinter ? 'printer' : null);
+  }
+  const cloudPaper = ((D.saas || {}).billing || {}).paper;
+  if(cloudPaper === '58' || cloudPaper === '80') add('Printer', 'Paper size (58 / 80 mm)', 'info', st.printLock ? `Is PC par apna paper size (${st.width || 80} mm) locked hai. Cloud Bill Design (${cloudPaper} mm) isse nahi badlega.` : `Paper size cloud Bill Design se aata hai (${cloudPaper} mm). Is PC par apna rakhna ho to Lock karein.`,
+    st.printLock ? ['Lock hatao (cloud wala lo)', 'docFix("unlockPaper")'] : ['Is PC ka paper size lock karo', 'docFix("lockPaper")']);
+  // ---- Licence / cloud ----
+  const sub = getSubscriptionInfo();
+  add('Licence', 'Licence', sub.isExpired ? 'bad' : sub.isLifetime ? 'ok' : sub.daysLeft <= 7 ? 'warn' : 'ok', sub.isExpired ? 'Licence khatam. Vendor se nayi key lein (K).' : sub.isLifetime ? 'Lifetime' : `${sub.daysLeft} din bache (${dmy(String(sub.validUntil).slice(0, 10))}).`, sub.isExpired || (!sub.isLifetime && sub.daysLeft <= 7) ? ['Licence kholo (K)', 'openSubscriptionModal()'] : null);
+  if(SRV.cloud) add('Cloud', 'Internet / Cloud', SRV.online === false ? 'bad' : 'ok', SRV.online === false ? 'Cloud se connection nahi. Internet check karein; data is phone par rakha hai, aate hi chala jayega.' : 'Cloud se juda hai.');
+  // ---- Security ----
+  const weak = ['1234', '1111', '0000', '12345', '123456'];
+  const staffPins = D.staff.filter(s => s.pin && !s.left).map(s => s.pin), dupPin = staffPins.filter((p, i) => staffPins.indexOf(p) !== i);
+  const weakList = [weak.includes(String(st.adminPin)) ? 'Manager PIN' : '', weak.includes(String(st.cashierPin)) ? 'Cashier PIN' : '', dupPin.length ? 'do staff ka same PIN' : ''].filter(Boolean);
+  add('Security', 'PIN', weakList.length ? 'warn' : 'ok', weakList.length ? `${weakList.join(', ')} aasaan / same hai. Koi bhi andaaza laga sakta hai. Settings (G) / Staff (A) mein badlein.` : 'PIN theek hain.', weakList.length ? ['Settings kholo', "go('settings')"] : null);
+  // ---- GST ----
+  const gstOk = !st.gstin || /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(st.gstin).toUpperCase());
+  const rate = +st.gst;
+  add('GST', 'GST setting', (st.gstScheme || 'regular') === 'regular' && (!st.gstin || !gstOk) ? 'warn' : ![0, 5, 12, 18, 28].includes(rate) ? 'warn' : 'ok',
+    (st.gstScheme || 'regular') === 'regular' && !st.gstin ? 'GST "Regular" hai lekin GSTIN khaali. Bill par GSTIN zaroori hai (ya GST type "Bina GST" karein).' : !gstOk ? `GSTIN "${st.gstin}" sahi format mein nahi lagta (15 akshar).` : ![0, 5, 12, 18, 28].includes(rate) ? `GST ${rate}% asaamanya hai. Restaurant ka aam rate 5%.` : `${st.gstScheme || 'regular'} · ${rate}%${st.gstin ? ' · ' + st.gstin : ''}`, ['Settings kholo', "go('settings')"]);
+  // ---- Backup / storage ----
+  if(!SRV.on){
+    let last = 0; try{ last = +lsGet('setu_last_backup') || 0; }catch(e){}
+    const days = last ? Math.floor((Date.now() - last) / 864e5) : null;
+    add('Backup', 'Backup', days === null || days > 7 ? 'warn' : 'ok', days === null ? 'Is browser mein data hai aur kabhi backup nahi liya.' : `Aakhri backup ${days} din pehle.`, ['Backup download karo', 'backup()']);
+    let size = 0; try{ size = JSON.stringify(D).length; }catch(e){}
+    add('Backup', 'Browser storage', size > 3500000 ? 'bad' : size > 2500000 ? 'warn' : 'ok', `${Math.round(size / 50000)}% bhara hua.${size > 2500000 ? ' Setu Desktop App (EXE) par chalein, usmein ye limit nahi.' : ''}`);
+  } else add('Backup', 'Backup', 'ok', SRV.cloud ? 'Data cloud par save hota hai.' : 'Main Counter roz apne aap backup leta hai (Data\\Backups, 60 din).');
+  // ---- App ----
+  const e24 = errList().filter(x => Date.now() - x.at < 864e5 && !/^Setu Doctor/.test(x.kya));
+  add('App', 'Error Log (24 ghante)', e24.length ? 'warn' : 'ok', e24.length ? `${e24.length} galti: ${e24.slice(0, 3).map(x => x.kya).join(' · ')}` : 'Koi galti nahi.', e24.length ? ['Error Log kholo', "go('errors')"] : null);
+  add('App', 'Setu version', 'info', `${verText()}${SRV.cloud ? ' (cloud)' : SRV.local ? ' (Main Counter)' : ''}. Naya update vendor se. Purana screen dikhe to Tools → "Cache saaf karke reload".`);
+  return out.concat(DOC.extra);
+}
+// Checks that need the counter / cloud (printer queue, clock, cloud sync)
+async function doctorAsync(){
+  const extra = [], add = (area, title, status, detail, fix) => extra.push({area, title, status, detail, fix});
+  try{
+    let off = null;
+    if(SRV.cloud){ const r = await srvFetch('/api/ping'); const d = Date.parse(r.headers.get('Date') || ''); if(d) off = Date.now() - d; }
+    else if(SRV.on && SRV.local){ const j = await (await srvFetch('/api/clock')).json(); if(j.offset !== undefined && j.offset !== null) off = j.offset; else if(j.error) add('Cloud', 'Date / time check', 'info', 'Internet ke bina date check nahi ho payi.'); }
+    if(off !== null) add('Cloud', 'PC / phone ki date-time', Math.abs(off) > 5 * 60000 ? 'bad' : 'ok', Math.abs(off) > 5 * 60000 ? `Date-time ${Math.round(Math.abs(off) / 60000)} minute ${off > 0 ? 'aage' : 'peeche'} hai. Licence aur cloud sync gadbad karte hain. Windows / phone ki date-time "automatic" karein.` : 'Date-time sahi hai.');
+  }catch(e){}
+  if(SRV.on && SRV.local && !SRV.cloud){
+    try{
+      const c = await (await srvFetch('/api/cloud')).json();
+      const a = c.auto || {};
+      add('Cloud', 'Cloud sync', c.configured ? (c.ok === false ? 'bad' : 'ok') : a.state === 'offline' || a.state === 'error' ? 'bad' : 'warn',
+        c.configured ? (c.ok === false ? 'Sync fail: ' + (c.error || '') : `Juda hai · Hotel Code ${c.hotel}${c.at ? ' · aakhri sync ' + new Date(c.at).toLocaleTimeString('en-IN') : ''}`) : a.error || 'Abhi cloud se nahi juda.', ['Abhi jodo / Settings', "go('settings')"]);
+    }catch(e){}
+    try{
+      const h = await (await srvFetch('/api/printer-health')).json();
+      if(h.supported){
+        const names = (h.printers || []).map(p => p.name), st = D.settings;
+        [st.billPrinter, st.kotPrinter].filter(Boolean).filter((p, i, a) => a.indexOf(p) === i).forEach(p => {
+          const pr = (h.printers || []).find(x => x.name === p);
+          const bad = !names.includes(p) ? 'Windows mein ye printer nahi mila (naam badla ya hata diya).' : (pr.state || []).filter(x => ['offline', 'workoffline', 'paperout', 'jam', 'error', 'notavailable', 'dooropen'].includes(x)).join(', ');
+          const jobs = pr ? pr.jobs.length : 0;
+          add('Printer', `Printer: ${p}`, bad ? 'bad' : jobs > 3 ? 'warn' : 'ok', bad ? `Dikkat: ${bad}. Printer chalu karein, cable / kagaz dekhein.` : jobs > 3 ? `${jobs} print queue mein atke hain.` : 'Theek hai.', bad || jobs > 3 ? ['Printer Health (4)', "go('printers')"] : null);
+        });
+      }
+    }catch(e){}
+  }
+  return extra;
+}
+async function scrDoctor(run){
+  if(run || !DOC.res){
+    main.innerHTML = '<div class="title">Setu Doctor</div><div class="card"><p class="muted" style="margin:0">Jaanch ho rahi hai...</p></div>';
+    DOC.extra = await doctorAsync();
+    DOC.res = doctorChecks(); DOC.at = Date.now();
+    if(cur !== 'doctor') return;
+  }
+  const res = DOC.res, n = k => res.filter(x => x.status === k).length, mgr = isManager();
+  const autoFix = res.filter(x => x.auto && x.status !== 'ok');
+  const areas = [...new Set(res.map(x => x.area))];
+  main.innerHTML = `<div class="title"><span>Setu Doctor — Health Check</span><span class="r muted" style="font-size:12px">${new Date(DOC.at).toLocaleTimeString('en-IN')}</span></div>
+  <div class="card" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+    <div style="font-size:15px"><b>${n('bad') ? '❌ ' + n('bad') + ' dikkat' : '✅ Koi badi dikkat nahi'}</b> · ⚠️ ${n('warn')} dhyan · ✅ ${n('ok')} theek</div>
+    <span style="flex:1"></span>
+    <button class="btn g" onclick="scrDoctor(true)">Dobara jaancho</button>
+    ${autoFix.length && mgr ? `<button class="btn ok" onclick="docFixAll()">Safe fix sab ek saath (${autoFix.length})</button>` : ''}
+  </div>
+  ${areas.map(a => `<div class="card" style="padding:0;overflow:auto"><h3 style="margin:10px 12px">${esc(a)}</h3>
+    ${res.filter(x => x.area === a).sort((x, y) => ['bad', 'warn', 'info', 'ok'].indexOf(x.status) - ['bad', 'warn', 'info', 'ok'].indexOf(y.status)).map(x => `
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:9px 12px;border-top:1px solid var(--border)">
+        <span style="font-size:16px">${DOC_ICON[x.status]}</span>
+        <div style="flex:1;min-width:0"><b>${esc(x.title)}</b><div class="muted" style="font-size:13px">${esc(x.detail)}</div></div>
+        ${x.fix && (mgr || !/docFix/.test(x.fix[1])) ? `<button class="btn ${x.status === 'bad' ? 'ok' : 'g'} sm" style="white-space:nowrap" onclick="${x.fix[1].replace(/"/g, '&quot;')}">${esc(x.fix[0])}</button>` : ''}
+      </div>`).join('')}</div>`).join('')}
+  <div class="card"><h3 style="margin-top:0">Tools (bina coding ke theek karein)</h3>
+    ${mgr ? `<div class="btns" style="margin:0">
+      <button class="btn g" onclick="docFix('stock')">Stock dobara gino</button>
+      ${SRV.on ? '<button class="btn g" onclick="docFix(\'reload\')">Cloud / Counter se data dobara lao</button>' : ''}
+      <button class="btn g" onclick="docFix('cache')">Cache saaf karke reload (naya version)</button>
+      ${SRV.on && !SRV.cloud && SRV.local ? '<button class="btn g" onclick="docFix(\'printer\')">Printer apne aap dhoondo</button><button class="btn g" onclick="go(\'printers\')">Printer Health (4)</button>' : ''}
+      <button class="btn g" onclick="go('settings');setTimeout(()=>{const c=document.getElementById('lists-card');if(c)c.scrollIntoView();},300)">Dropdown lists badlo</button>
+      <button class="btn g" onclick="go('errors')">Error Log (2)</button>
+      <button class="btn g" onclick="backup()">Backup download</button>
+    </div>
+    <p class="muted" style="font-size:12px;margin:8px 0 0">In tools se koi bill ya hisaab nahi badalta. Har fix Audit Log mein likha jaata hai. Badi dikkat (❌) Setu apne aap vendor ke Admin app mein bhi bhejta hai.</p>`
+    : '<p class="muted" style="margin:0">Fix aur tools sirf Manager / Owner ke liye. Manager ko dikhayein.</p>'}</div>`;
+}
+function docFix(k, quiet){
+  const done = msg => { audit('Setu Doctor Fix', msg); if(!quiet){ toast(msg); scrDoctor(true); } return msg; };
+  if(k === 'recipes'){
+    const ids = new Set(D.stock.map(s => s.id)); let n = 0;
+    D.menu.forEach(m => { const b = (m.recipe || []).length; m.recipe = (m.recipe || []).filter(r => ids.has(sidOf(r.sid))); n += b - m.recipe.length; });
+    save(); return done(`${n} tooti recipe line hatayi`);
+  }
+  if(k === 'stock'){ const before = D.stock.map(s => s.qty).join(); stockRecalc(D); save(); return done(before === D.stock.map(s => s.qty).join() ? 'Stock dobara gina: sab sahi tha' : 'Stock dobara gina aur theek kiya'); }
+  if(k === 'printer'){ D.settings.printAuto = false; autoPrinterSetup().then(() => { if(!quiet) scrDoctor(true); }); audit('Setu Doctor Fix', 'Printer auto-setup'); toast('Printer dhoond rahe hain...'); return 'printer'; }
+  if(k === 'lockPaper' || k === 'unlockPaper'){ D.settings.printLock = k === 'lockPaper'; if(!D.settings.printLock) applySaas(D); save(); return done(D.settings.printLock ? 'Paper size is PC par lock' : 'Paper size ab cloud Bill Design se'); }
+  if(k === 'reload'){ SRV.version = -1; audit('Setu Doctor Fix', 'Data dobara load'); srvPoll().then(() => { toast('Data dobara aa gaya'); scrDoctor(true); }); return 'reload'; }
+  if(k === 'cache'){
+    audit('Setu Doctor Fix', 'Cache clear + reload'); save();
+    setTimeout(async () => {
+      try{ if(window.caches) for(const n of await caches.keys()) await caches.delete(n); }catch(e){}
+      try{ if(navigator.serviceWorker) for(const r of await navigator.serviceWorker.getRegistrations()) await r.unregister(); }catch(e){}
+      location.reload();
+    }, 800);
+    return 'cache';
+  }
+}
+function docFixAll(){
+  const list = (DOC.res || []).filter(x => x.auto && x.status !== 'ok');
+  const msgs = list.map(x => docFix(x.auto, true)).filter(Boolean);
+  toast(`${msgs.length} fix lagaye`); scrDoctor(true);
+}
+// Runs by itself after start and every 6 hours: serious problems go to the Error Log (and from there to the vendor)
+async function doctorAuto(){
+  try{
+    if(!activeUser || typeof D === 'undefined' || !D || !D.settings) return;
+    DOC.extra = await doctorAsync();
+    DOC.res = doctorChecks(); DOC.at = Date.now();
+    DOC.res.filter(x => x.status === 'bad').forEach(x => logError('Setu Doctor: ' + x.title, x.area, x.detail));
+  }catch(e){}
+}
+setInterval(doctorAuto, 6 * 36e5);
+
+function listsCard(){
+  return `<div class="card" id="lists-card" style="border-left:4px solid #16a34a"><h3 style="margin-top:0">Dropdown Lists (apni categories)</h3>
+    <p class="muted" style="font-size:12px;margin-top:0">Har line mein ek naam. Sab mita do = Setu ki default list. Purani entries nahi badalti.</p>
+    <div class="grid">${Object.entries(LISTS).map(([k, [l]]) => `<div><label>${l}</label><textarea id="ls_${k}" rows="4" style="width:100%">${esc(lst(k).join('\n'))}</textarea></div>`).join('')}</div>
+    <div class="btns"><button class="btn ok" onclick="saveLists()">Lists save karein</button></div></div>`;
+}
+function saveLists(){
+  if(!isManager()){ toast('Sirf Manager / Owner'); return; }
+  const out = {};
+  Object.entries(LISTS).forEach(([k, [, def]]) => { const v = [...new Set($('#ls_' + k).value.split('\n').map(x => x.trim()).filter(Boolean))]; if(v.length && v.join('|') !== def().join('|')) out[k] = v; });
+  D.settings.lists = out;
+  audit('Settings', 'Dropdown lists badli');
+  save(); toast('Lists save hui');
+}
+
 /* ================= PRINTER HEALTH (4) ================= */
 // Main counter only: Windows printers, their state and print queue. Stuck or repeated jobs can be removed.
 const PR_STATE = {paused: ['Paused (ruka hua)', 'bad'], error: ['Error', 'bad'], jam: ['Kagaz phansa (jam)', 'bad'], paperout: ['Kagaz khatam', 'bad'],
@@ -8901,6 +9103,7 @@ function scrSettings(){
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
+  ${listsCard()}
   <div class="card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Owner Password</h3>
     <p class="muted" style="margin-top:-4px">Used to sign in on this PC, as the Manager PIN, and on the owner's phone app (Hotel Setu Cloud). Forgot it? Your vendor can set a new one.</p>
     <div class="grid">
@@ -9153,7 +9356,9 @@ function savePrintSettings(silent){
   st.kotPrinter = $('#pr_kot').value;
   st.autoKot = $('#pr_auto').value === '1';
   st.drawerKick = $('#pr_drawer').value === '1';
+  const w0 = +st.width;
   st.width = +$('#pr_width').value;
+  if(st.width !== w0) st.printLock = true;   // the owner chose it here: the cloud Bill Design must not change it back
   st.printGraphic = $('#pr_graphic').value === '1';
   st.afterBill = $('#pr_after').value;
   if(st.width === 58){ st.billPaper = 'thermal'; st.kotPaper = 'thermal'; }
@@ -9452,6 +9657,7 @@ function saveSettings(){
   if($('#st_tokenOn')) D.settings.tokenOn = $('#st_tokenOn').value === '1';
   if($('#st_gstInclusive')) D.settings.gstInclusive = $('#st_gstInclusive').value === '1';
   D.settings.gst = +$('#st_gst').value || 0;
+  if(+$('#st_width').value !== +D.settings.width) D.settings.printLock = true;
   D.settings.width = +$('#st_width').value;
   D.settings.billPaper = $('#st_billPaper').value;
   D.settings.kotPaper = $('#st_kotPaper').value;
@@ -9475,6 +9681,7 @@ function saveSettings(){
 function backup(){
   const name = String(D.settings.name || 'hotel').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'hotel';
   saveFile(`setu-backup-${name}-${today()}.json`, JSON.stringify(D, null, 1), 'application/json', 'Backup ready.');
+  lsSet('setu_last_backup', String(Date.now()));
 }
 
 // Accepts a Setu backup download, the setu-db.json file, or a daily file from Data\Backups
@@ -9550,6 +9757,7 @@ function resetAll(){
 /* ================= INIT ================= */
 function startUI(){
   setTimeout(footerHotel, 1500);
+  setTimeout(doctorAuto, 30000);
   initIndexedDB();
   drawSide();
   checkAuth();

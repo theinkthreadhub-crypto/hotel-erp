@@ -350,3 +350,11 @@ flowchart LR
   Gas Register (refill, full / empty, deposit), Fixed Assets (fridge, oven).
 - **Suppliers (U):** mobile, Edit, Merge, Pay (date + mode), Ledger. Baaki wala kharcha bhi yahin chukta hai.
 - Dashboard par **Business Charts** (7 / 14 / 30 din).
+
+### Setu Doctor (6) — dikkat khud theek karein
+- **6** dabayein: Setu apni jaanch karta hai: data, recipe, stock, printer, paper size, licence, cloud, date-time, PIN, GST, backup, errors.
+- ❌ / ⚠️ ke saath likha hota hai kya hua aur kaise theek karein. Button dabane se Setu khud theek karta hai (Manager).
+- **Tools:** Stock dobara gino · Data dobara lao · Cache saaf karke reload (naya version na dikhe to) · Printer dhoondo · Dropdown lists.
+- **Paper size 58 / 80:** PC par badla to wahi rahega (cloud Bill Design use nahi badlega). Doctor mein Lock / Unlock.
+- **Apni categories:** Settings (G) → Dropdown Lists: kharcha categories, locations, gas size, waste reasons — bina coding.
+- Badi dikkat (❌) Setu apne aap Error Log ke through aapke Admin app mein bhejta hai.
