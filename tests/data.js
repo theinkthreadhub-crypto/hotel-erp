@@ -57,6 +57,13 @@ if(!HOTEL || !PIN || !AK){ console.error('Set SETU_HOTEL, SETU_PIN (a test hotel
     $('#del_code').value = await mk(); await delRun();
     stockRecalc();
     t('Purchases deleted, stock kept as it was', !D.txns.some(x => x.type === 'Purchase') && stockItem('dx').qty === stockBefore, [stockItem('dx').qty, stockBefore]);
+    // Excel templates: every kind has one; a written .xlsx reads back the same; Excel day numbers become dates
+    const kinds = ['menu', 'stock', 'purchase', ...Object.keys(IMP)], bad = kinds.filter(k => { const t = tplInfo(k); return !t.cols || !t.sample || t.help.length !== t.cols.length; });
+    t('Template for every import, help for every column', !bad.length, bad);
+    const rows = await xlsxRows(xlsxBytes([{name: 'Fill here', rows: [['Date', 'Bill No', 'Item'], ['46113', '7', 'Roti, plain "big"']]}]).buffer);
+    t('.xlsx written and read back', JSON.stringify(rows) === JSON.stringify([['Date', 'Bill No', 'Item'], ['46113', '7', 'Roti, plain "big"']]), rows);
+    t('Excel day number → date', bulkDate('46113') === '2026-04-01', bulkDate('46113'));
+    t('CSV made from Excel rows reads back', JSON.stringify(csvRows(rowsCsv(rows))[1]) === JSON.stringify(['2026-04-01'.length ? '46113' : '', '7', 'Roti, plain "big"']), csvRows(rowsCsv(rows))[1]);
     return R;
   }, [AK, HOTEL]);
   R.push({ name: 'No page errors', ok: !errs.length, got: errs });
