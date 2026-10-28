@@ -22,7 +22,7 @@ Branch `ccr-89eaafa4-mxbfj2` (the branch that builds the EXE and deploys Hotel S
 ## Phase 4 — Reports
 - **Files:** `hotel_erp.html`, `tests/reports.js`.
 - **Data:** bill `opened` (time the table's running order started; new bills only).
-- **Reports added:** Table Turnover & Revenue, Delivery & Online Orders, Branch Sales (Outlets). Reports & Analytics now has 47 reports; only "Scheduled email reports" is pending (needs an email service).
+- **Reports added:** Table Turnover & Revenue, Delivery & Online Orders, Branch Sales (Outlets). Reports & Analytics now has 46 reports; only "Scheduled email reports" is pending (needs an email service).
 
 ## Phase 5 — QA
 `tests/run-all.sh` (local `wrangler dev`, a TEST hotel):
