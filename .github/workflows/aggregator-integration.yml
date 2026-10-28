@@ -10,6 +10,8 @@ on:
       - 'app_main.py'
       - 'tests/aggregator-inbox.test.mjs'
       - '.github/workflows/aggregator-integration.yml'
+  pull_request:
+    branches: [feat/whatsapp-baileys, ccr-89eaafa4-mxbfj2]
   workflow_dispatch:
 
 permissions:
