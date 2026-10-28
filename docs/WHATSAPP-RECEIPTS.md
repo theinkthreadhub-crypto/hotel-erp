@@ -22,7 +22,7 @@ Create this **UTILITY** template in WhatsApp Manager, name **setu_receipt_v1**, 
 Your receipt from {{1}}.
 Bill #{{2}} | {{3}}
 Items: {{4}}
-Total paid: INR {{5}}
+Bill total: INR {{5}}
 Thank you for visiting. This is a transaction receipt.
 ```
 
