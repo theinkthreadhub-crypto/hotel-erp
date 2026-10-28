@@ -44,8 +44,9 @@ export class ReceiptOutbox {
   }
   async submit(body){
     const v=validateReceipt(body);
-    if(this.records[v.key])return this.publicRecord(this.records[v.key]);
+    // A concurrent duplicate must wait for the same send, not observe a half-written 'sending' entry.
     if(this.inflight.has(v.key))return this.inflight.get(v.key);
+    if(this.records[v.key])return this.publicRecord(this.records[v.key]);
     const work=this.submitOnce(v);
     this.inflight.set(v.key,work);
     try{return await work;}finally{this.inflight.delete(v.key);}
