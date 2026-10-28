@@ -167,7 +167,7 @@ async function gate2(){
   // Use actual Setu qrApply and cartDelta/sentMap functions; substitute only external storage/print I/O.
   const deltaFn=extract(html,'function cartDelta(cart, sent){','function pushKot(t){');
   const applyFn=extract(html,'async function qrApply(o, by){','const qrDoneCall =');
-  const calc=new Function(deltaFn+'return {cartDelta,sentMap};')();
+  const calc=new Function('r2', deltaFn+'return {cartDelta,sentMap};')(n=>Math.round(n*100)/100);
   const ctx={
     D:{menu:[paneer,roti],kaccha:{},kots:[],qrDone:[],qrLog:[]},
     B:{table:'Counter',channel:'Takeaway',cart:[],sent:{}},
