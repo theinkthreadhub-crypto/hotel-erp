@@ -6149,10 +6149,10 @@ function ingRow(sid, qty){
 const qrSlug = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0,28);
 function qrModText(m){
   return (m.qrMods || []).map(g => g.name + (g.required ? '*' : '') + ': ' +
-    (g.options || []).map(o => o.name + '=' + o.price).join(' | ')).join('\\n');
+    (g.options || []).map(o => o.name + '=' + o.price).join(' | ')).join('\n');
 }
 function qrParseMods(text){
-  const lines = String(text || '').split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);
+  const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
   if(lines.length > 4) throw new Error('Maximum four option groups per dish');
   const groups = [], groupIds = new Set();
   for(const line of lines){
