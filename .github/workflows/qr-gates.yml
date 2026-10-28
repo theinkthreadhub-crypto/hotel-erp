@@ -1,0 +1,43 @@
+name: QR Gate 1 and Gate 2
+
+on:
+  push:
+    branches: [feat/orderrestro-qr-parity]
+    paths:
+      - 'cloud/src/worker.js'
+      - 'cloud/static/qr.html'
+      - 'hotel_erp.html'
+      - 'tests/qr-gates.cjs'
+      - '.github/workflows/qr-gates.yml'
+  pull_request:
+    branches: [ccr-89eaafa4-mxbfj2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gate-1-security:
+    name: Gate 1 - QR security and validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check worker JavaScript
+        run: node --check cloud/src/worker.js
+      - name: Test guest QR validation and hotel/table isolation
+        run: node tests/qr-gates.cjs --gate=1
+
+  gate-2-order-integrity:
+    name: Gate 2 - guest cart, incremental KOT and bill model
+    needs: gate-1-security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test cart variants and QR-to-KOT integration
+        run: node tests/qr-gates.cjs --gate=2
