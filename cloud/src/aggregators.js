@@ -32,10 +32,12 @@ export function normalizeAggregatorOrder(platform,payload){
   if(!Number.isFinite(totalValue)||totalValue<0||totalValue>1e9)problems.push('Confirm total from provider');
   const note=text(order.special_instructions ?? order.instructions ?? order.note,250);
   const externalStatus=text(order.order_status ?? order.status ?? 'placed',40).toLowerCase();
+  if(/cancel|reject|fail|expire|timeout|deliver|complete/.test(externalStatus))
+    problems.push('Order is not newly actionable: provider status '+externalStatus);
   return {
     platform,orderId,outletId,items,total:Number.isFinite(totalValue)&&totalValue>=0?Math.round(totalValue*100)/100:0,
     note,externalStatus,at:Date.now(),needsReview:problems.length>0,
-    issues:problems.slice(0,15),source:'approved_partner_webhook'
+    issues:problems.slice(0,15),source:'authenticated_partner_webhook'
   };
 }
 export function outletHotel(env,platform,outletId){
