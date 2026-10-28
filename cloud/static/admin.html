@@ -416,6 +416,7 @@ function hotelSheet(code){
       ${tile('warn', 'Error Log', +h.errs ? h.errs + ' (24 hours)' : 'see all', `hotelErrors('${C}')`, +h.errs ? 'red' : '')}
       ${tile('ticket', 'Tickets', h.tickets ? h.tickets + ' new' : '', `hotelTickets('${C}')`)}
       ${tile('download', 'Backup', 'download', `dlBackup('${C}')`)}
+      ${tile('trash', 'Delete code', 'bulk delete · 30 min', `delCode('${C}')`, 'red')}
       ${tile('user', 'Password', 'owner', `pwAsk('${C}')`)}
       ${tile('gear', 'All settings', 'plan, bill...', `openHotel('${C}')`)}
     </div>
@@ -479,6 +480,12 @@ const setOffline = run(async (code, on) => {
 const webUnlock = run(async code => {
   if(await ask('Unlock website billing for 24 hours?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: for 24 hours the website has no daily bill limit (normally 5 a day). Use when the hotel's PC is broken or has no power.</p>`, 'Unlock 24 hours'))
     await adminUpdate(code, {webUnlock: true}, 'Website billing unlocked for 24 hours');
+});
+// One-time code for a bulk delete inside the hotel's Setu (only the vendor can allow it)
+const delCode = run(async code => {
+  if(!(await ask('Allow a bulk delete?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: makes a 6-digit code for one bulk delete (bills, entries, menu or stock) in their Setu, valid 30 minutes. Setu downloads a backup before deleting.</p>`, 'Make code', true))) return;
+  const r = await api('/api/admin/delcode', {code});
+  await ask('Delete code: ' + r.code, `<p style="font-size:28px;font-weight:800;letter-spacing:6px;text-align:center;margin:8px 0">${esc(r.code)}</p><p class="muted">Valid until ${new Date(r.until).toLocaleTimeString('en-IN')} · one use. Type it in Setu → Import & Delete (7) → Delete.</p>`, 'OK');
 });
 const setSuspend = run(async (code, on) => adminUpdate(code, {status: on ? 'suspended' : 'active'}, on ? 'Suspended' : 'Account active again'));
 const pwAsk = run(async code => {

@@ -1188,6 +1188,11 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception:
                     return self.send_json(502, {'error': 'Could not reach the cloud. Check the internet.'})
                 return self.send_json(code, j)
+            if path == '/api/vendor/verify':
+                # Bulk delete: the vendor's one-time code is checked on Hotel Setu Cloud (Manager / counter only)
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                return self.qr_proxy('POST', path, self.read_json())
             if path.startswith('/api/qr/'):
                 # Any staff device may accept orders; QR settings and table codes are for the manager
                 if not self.role() or (path in ('/api/qr/settings', '/api/qr/table') and self.role() not in ('local', 'admin')):

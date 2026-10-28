@@ -1289,6 +1289,14 @@ export class SetuHotel extends DurableObject {
       return json(200, { errors: list.slice(0, 100) });
     }
     if(path === '/internal/backup') return rawJson(200, this.dbText(`"hotel": ${JSON.stringify(this.account.code)}, `));
+    // Bulk delete in the hotel's Setu needs a one-time code from the vendor (Super Admin): 6 digits, 30 minutes, one use
+    if(path === '/internal/delcode'){
+      const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1e6).padStart(6, '0'), until = Date.now() + 30 * 60000;
+      const a = this.account;
+      a.delCodes = [...(a.delCodes || []).filter(c => c.until > Date.now() && !c.used), { hash: await sha256(code), until }].slice(-3);
+      this.saveAccount();
+      return json(200, { code, until });
+    }
     if(path === '/internal/delete'){
       await this.ctx.storage.deleteAll();
       this.account = null; this.meta = { version: 0, savedAt: 0, day: '' }; this.raw = null;
@@ -1320,6 +1328,20 @@ export class SetuHotel extends DurableObject {
     if(method === 'GET' && path === '/api/db') return rawJson(200, this.dbText());
     if(method === 'GET' && path === '/api/billing') return json(200, this.billingInfo());
     if(role === 'support') return json(403, { error: 'read only' });   // support can only look
+    if(method === 'POST' && path === '/api/vendor/verify'){
+      if(!isAdmin) return json(403, { error: 'manager only' });
+      const b = body(), a = this.account, h = await sha256(String(b.code || '').replace(/\D/g, ''));
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown', fails = this.kvGet('dfail:' + ip) || { n: 0, at: Date.now() };
+      if(Date.now() - fails.at > FAIL_WINDOW){ fails.n = 0; fails.at = Date.now(); }
+      if(fails.n >= 5) return json(429, { error: 'Too many wrong codes. Please wait 15 minutes.' });
+      const c = (a.delCodes || []).find(x => !x.used && x.until > Date.now() && sameText(x.hash, h));
+      if(!c){ fails.n++; this.kvSet('dfail:' + ip, fails); return json(403, { error: 'Wrong or expired code. Ask Aghanya Devanya Enterprises for a new one.' }); }
+      c.used = Date.now();
+      const ref = 'DEL-' + randomHex(4).toUpperCase();
+      a.delLog = [{ ref, at: Date.now(), what: str(b.what, 200) }, ...(a.delLog || [])].slice(0, 30);
+      this.saveAccount();
+      return json(200, { ok: true, ref });
+    }
     // QR self-ordering, staff side (the counter PC through its sync key, or a logged-in device)
     if(path.startsWith('/api/qr/')) return this.qrStaff(request, path, method, body, role, url);
     if(method === 'GET' && path === '/api/printers') return json(200, { printers: [], default: '', cloud: true });
@@ -1639,6 +1661,14 @@ async function admin(request, env, path){
     await regCall(env, '/conf/set', { k: 'totp', v: {} });
     await log('Authenticator app switched off', '', '');
     return json(200, { ok: true });
+  }
+  // One-time code that allows a bulk delete in this hotel's Setu (30 minutes, one use)
+  if(path === '/api/admin/delcode'){
+    if(!validCode(body.code)) return json(400, { error: 'hotel code required' });
+    const r = await hotelCall(body.code, '/internal/delcode', {});
+    if(!r.ok) return json(r.status, { error: 'hotel not found' });
+    await log('Delete code made', body.code, '');
+    return json(200, await r.json());
   }
   // Updates for every counter PC: see the newest version, pause / resume it (a bad release is held back)
   if(path === '/api/admin/update'){

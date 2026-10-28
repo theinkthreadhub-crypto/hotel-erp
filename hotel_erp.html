@@ -814,6 +814,8 @@ function ensureGrowth(s){
   // QR self-ordering: ids of guest orders already added to a table (never added twice), and a log for the report
   if(!Array.isArray(s.qrDone)) s.qrDone = [];
   if(!Array.isArray(s.qrLog)) s.qrLog = [];
+  // Customers imported from a file (Import & Delete Data); bills still build the main customer list
+  if(!Array.isArray(s.custList)) s.custList = [];
   if(!Array.isArray(s.audit)) s.audit = [];
   if(!s.monthlySent || typeof s.monthlySent !== 'object') s.monthlySent = {};
   if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
@@ -2446,6 +2448,7 @@ function customers(){
     const p = normPh(t.phone);
     if(!m[p]) m[p] = {phone: p, name: t.party || '', visits: 0, spend: 0, first: t.date, last: t.date, pts: 0, fav: {}};
   });
+  (D.custList || []).forEach(x => { const p = normPh(x.phone); if(p.length !== 10) return; if(!m[p]) m[p] = {phone: p, name: x.name || '', visits: 0, spend: 0, first: '', last: '', pts: 0, fav: {}}; else if(!m[p].name) m[p].name = x.name || ''; if(x.bday) m[p].bday = x.bday; });
   return Object.values(m).map(c => ({...c, spend: r2(c.spend), wallet: walletBal(c.phone), fav: Object.entries(c.fav).sort((a,b) => b[1] - a[1])[0]?.[0] || ''}));
 }
 
@@ -2615,6 +2618,7 @@ const MENU = [
   ['3','Setu AI (Gemini)','ai','Utilities'],
   ['4','Printer Health (Queue)','printers','Utilities'],
   ['6','Setu Doctor (Health Check)','doctor','Utilities'],
+  ['7','Import & Delete Data','data','Utilities'],
   ['K','Aghanya Devanya License','license','Utilities'],
   ['G','Settings & Backup','settings','Utilities'],
 ];
@@ -2639,6 +2643,7 @@ const SCREENS = {
   ai: scrAI,
   printers: scrPrinters,
   doctor: () => scrDoctor(),
+  data: () => scrData(),
   analytics: scrAnalytics,
   kitchen: scrKitchen,
   qr: scrQR,
@@ -5605,7 +5610,7 @@ function bulkDate(v){
 function bulkUpload(kind){
   const k = BULK[kind];
   modal(k.title, `
-    <p class="muted" style="margin:0 0 8px;font-size:12px">Ek line = ek ${kind === 'stock' ? 'item' : 'purchase'}. Columns: <b>${k.cols.join(', ')}</b>. ${k.note}</p>
+    <p class="muted" style="margin:0 0 8px;font-size:12px">One line = one ${kind === 'stock' ? 'item' : 'purchase'}. Columns: <b>${k.cols.join(', ')}</b>. ${k.note}</p>
     <div class="btns" style="margin:0 0 8px">
       <label class="btn g sm" style="margin:0;cursor:pointer">Choose Excel (CSV) File<input type="file" accept=".csv,.txt" style="display:none" onchange="bulkFile(this.files[0],'${kind}')"></label>
       <button class="btn g sm" onclick="downloadCSV([BULK.${kind}.cols].concat(BULK.${kind}.sample), '${kind}-sample.csv')">Sample Excel File</button>
@@ -5649,7 +5654,7 @@ function bulkPreview(kind){
   const {ok, bad} = bulkParse(kind);
   const isNew = x => !D.stock.some(s => s.name.toLowerCase() === x.name.toLowerCase());
   $('#bu_prev').innerHTML = (ok.length ? `<b class="green">${ok.length} lines OK</b>` + (kind === 'stock'
-      ? ` · ${ok.filter(isNew).length} naye, ${ok.filter(x => !isNew(x)).length} update`
+      ? ` · ${ok.filter(isNew).length} new, ${ok.filter(x => !isNew(x)).length} updated`
       : ` · total ${money(sum(ok, x => x.qty * x.rate))} · ${ok.filter(isNew).length} new stock items`) : 'No lines yet')
     + (bad.length ? `<div class="red" style="margin-top:4px">${bad.slice(0, 8).map(esc).join('<br>')}${bad.length > 8 ? `<br>… and ${bad.length - 8} more` : ''}</div>` : '');
 }
@@ -8048,6 +8053,236 @@ document.addEventListener('keydown', e => {
   if(l && !l.contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
 
+/* ================= IMPORT & DELETE DATA (hotkey 7) ================= */
+// Bulk import from Excel (CSV) for every kind of record, and bulk delete that needs a one-time code from the vendor
+// (Super Admin → hotel → Delete code). A backup is downloaded before anything is deleted; every delete is audited.
+const impYes = v => /^(y|yes|1|true|haan|ha)$/i.test(String(v || '').trim());
+const IMP = {
+  bills: {title: 'Bills (old sales)', cols: ['Date', 'Bill No', 'Channel', 'Table', 'Customer', 'Mobile', 'Item', 'Qty', 'Rate', 'Payment', 'GST %'],
+    sample: [['01-04-2026', '101', 'Dine-In', 'T-1', 'Ravi', '9876543210', 'Paneer Tikka', '2', '200', 'Cash', '5'], ['01-04-2026', '101', 'Dine-In', 'T-1', 'Ravi', '9876543210', 'Roti', '4', '15', 'Cash', '5'], ['01-04-2026', '102', 'Takeaway', '', '', '', 'Thali', '1', '150', 'UPI', '5']],
+    note: 'One line = one item. Lines with the same Date + Bill No become one bill. Imported bills do not change stock and are marked "Imported".',
+    parse(c){
+      const date = bulkDate(c[0]), no = String(c[1] || '').trim(), item = String(c[6] || '').trim(), qty = bulkNum(c[7]), rate = bulkNum(c[8]);
+      const ch = ['Dine-In', 'Takeaway', 'Zomato', 'Swiggy'].find(x => x.toLowerCase() === String(c[2] || 'Dine-In').trim().toLowerCase());
+      const mode = MODES.find(m => m.toLowerCase() === String(c[9] || 'Cash').trim().toLowerCase());
+      const gst = c[10] === undefined || c[10] === '' ? gstRate() : bulkNum(c[10]);
+      if(!c[0] || !date || date > today()) return 'date is not valid (DD-MM-YYYY)';
+      if(!/^\d{1,9}$/.test(no)) return 'Bill No must be a number';
+      if(!item) return 'item is empty';
+      if(!(qty > 0) || isNaN(rate) || rate < 0) return 'qty / rate is not valid';
+      if(!ch) return `channel "${c[2]}": use Dine-In / Takeaway / Zomato / Swiggy`;
+      if(!mode) return `payment "${c[9]}": use ${MODES.join(' / ')}`;
+      if(isNaN(gst) || gst < 0 || gst > 28) return 'GST % is not valid';
+      return {date, no: +no, channel: ch, table: String(c[3] || '').trim(), cust: String(c[4] || '').trim(), phone: String(c[5] || '').replace(/\D/g, '').slice(-10), item, qty, rate, mode, gst};
+    },
+    save(rows){
+      const g = {}, have = new Set(D.bills.map(b => b.date + '#' + b.no));
+      rows.forEach(r => { const k = r.date + '#' + r.no; (g[k] = g[k] || []).push(r); });
+      let added = 0, skipped = 0;
+      Object.entries(g).forEach(([k, ls]) => {
+        if(have.has(k)){ skipped++; return; }
+        const f = ls[0], items = ls.map(l => { const m = D.menu.find(x => x.name.toLowerCase() === l.item.toLowerCase()); return {mid: m ? m.id : '', name: m ? m.name : l.item, price: l.rate, qty: l.qty, cat: m ? m.cat : ''}; });
+        D.bills.push({id: uid(), no: f.no, kot: 0, date: f.date, time: '12:00', channel: f.channel, orderId: '', table: f.table, cust: f.cust, phone: f.phone, note: '', mode: f.mode,
+          gstRate: f.gst, scheme: D.settings.gstScheme || 'regular', items, ...calc(items, 0, f.gst), ptsUsed: 0, ptsEarned: 0, loyaltyDisc: 0, token: 0, by: curUser(), used: [], imported: 1});
+        added++;
+      });
+      return `${added} bills imported${skipped ? `, ${skipped} skipped (same date + bill no. already in Setu)` : ''}`;
+    }},
+  expenses: {title: 'Expenses', cols: ['Date', 'Category', 'Details', 'Paid To', 'Amount', 'Payment'],
+    sample: [['05-04-2026', 'Electricity Bill', 'March bill', 'UPPCL', '4500', 'UPI'], ['06-04-2026', 'Vegetables', 'Sabzi', 'Mandi', '1200', 'Cash'], ['07-04-2026', 'Rent', 'April rent', 'Mr. Gupta', '15000', 'Credit']],
+    note: 'Payment "Credit" = not paid yet (goes to Suppliers U). Same line twice is skipped.',
+    parse(c){
+      const date = bulkDate(c[0]), amt = bulkNum(c[4]), mode = ['Cash', 'UPI', 'Card', 'Bank', 'Credit'].find(m => m.toLowerCase() === String(c[5] || 'Cash').trim().toLowerCase());
+      if(!c[0] || !date || date > today()) return 'date is not valid';
+      if(!String(c[1] || '').trim()) return 'category is empty';
+      if(!(amt > 0)) return 'amount is not valid';
+      if(!mode) return 'payment: use Cash / UPI / Card / Bank / Credit';
+      if(mode === 'Credit' && !String(c[3] || '').trim()) return '"Paid To" is needed for Credit';
+      return {date, head: String(c[1]).trim(), desc: String(c[2] || '').trim(), party: String(c[3] || '').trim(), amount: amt, mode};
+    },
+    save(rows){ return impTx(rows, 'Expense'); }},
+  income: {title: 'Other Income', cols: ['Date', 'Head', 'Details', 'From', 'Amount', 'Mode'],
+    sample: [['08-04-2026', 'Party Advance', 'Birthday party booking', 'Sharma ji', '5000', 'UPI'], ['09-04-2026', 'Scrap Sale', 'Old cartons', 'Kabadi', '300', 'Cash']],
+    note: 'Money received that is not a bill.',
+    parse(c){
+      const date = bulkDate(c[0]), amt = bulkNum(c[4]), mode = ['Cash', 'UPI', 'Card', 'Bank'].find(m => m.toLowerCase() === String(c[5] || 'Cash').trim().toLowerCase());
+      if(!c[0] || !date || date > today()) return 'date is not valid';
+      if(!String(c[1] || '').trim()) return 'head is empty';
+      if(!(amt > 0)) return 'amount is not valid';
+      if(!mode) return 'mode: use Cash / UPI / Card / Bank';
+      return {date, head: String(c[1]).trim(), desc: String(c[2] || '').trim(), party: String(c[3] || '').trim(), amount: amt, mode};
+    },
+    save(rows){ return impTx(rows, 'Receipt'); }},
+  customers: {title: 'Customers', cols: ['Name', 'Mobile', 'Birthday (DD-MM)', 'Notes'],
+    sample: [['Ravi Kumar', '9876543210', '15-08', 'Likes less spicy'], ['Neha', '9812345678', '', '']],
+    note: 'Mobile must be 10 digits. Customers already in Setu are updated (name / birthday).',
+    parse(c){
+      const name = String(c[0] || '').trim(), ph = String(c[1] || '').replace(/\D/g, '').slice(-10), bd = String(c[2] || '').trim();
+      if(!name) return 'name is empty';
+      if(ph.length !== 10) return 'mobile must be 10 digits';
+      if(bd && !/^\d{1,2}[-/.]\d{1,2}$/.test(bd)) return 'birthday: use DD-MM';
+      return {name, phone: ph, bday: bd.replace(/[/.]/g, '-'), notes: String(c[3] || '').trim()};
+    },
+    save(rows){
+      let a = 0, u = 0;
+      rows.forEach(r => { const x = D.custList.find(c => c.phone === r.phone); if(x){ Object.assign(x, r); u++; } else { D.custList.push({...r, at: Date.now()}); a++; } });
+      return `${a} customers added, ${u} updated`;
+    }},
+  staff: {title: 'Staff', cols: ['Name', 'Role', 'Mobile', 'Monthly Salary'],
+    sample: [['Raju', 'Waiter', '9898989898', '9000'], ['Suresh', 'Cook', '9797979797', '15000']],
+    note: 'Software access and PIN are set later in Staff (A). Same name is updated, not added twice.',
+    parse(c){
+      const name = String(c[0] || '').trim(), sal = bulkNum(c[3]);
+      if(!name) return 'name is empty';
+      if(!(sal > 0)) return 'salary is not valid';
+      return {name, role: String(c[1] || '').trim(), phone: String(c[2] || '').replace(/\D/g, '').slice(-10), salary: sal};
+    },
+    save(rows){
+      let a = 0, u = 0;
+      rows.forEach(r => { const x = D.staff.find(s => !s.left && s.name.toLowerCase() === r.name.toLowerCase()); if(x){ Object.assign(x, r); u++; } else { D.staff.push({id: uid(), ...r, pin: '', access: '', perms: []}); a++; } });
+      return `${a} staff added, ${u} updated`;
+    }},
+  suppliers: {title: 'Suppliers', cols: ['Name', 'Mobile', 'GSTIN', 'Notes'],
+    sample: [['Gupta Traders', '9811111111', '09ABCDE1234F1Z5', 'Atta, rice'], ['Indane Gas', '9822222222', '', 'Gas agency']],
+    note: 'Adds the supplier profile (Suppliers U). Purchases are imported in Purchase (P) → Bulk Purchase.',
+    parse(c){
+      const name = String(c[0] || '').trim(), g = String(c[2] || '').toUpperCase().replace(/\s/g, '');
+      if(!name) return 'name is empty';
+      if(g && !/^[0-9]{2}[A-Z0-9]{13}$/.test(g)) return 'GSTIN must be 15 characters';
+      return {name, mobile: String(c[1] || '').replace(/\D/g, '').slice(-10), gstin: g, notes: String(c[3] || '').trim()};
+    },
+    save(rows){
+      rows.forEach(r => { D.supInfo[supKeyA(r.name)] = {...(D.supInfo[supKeyA(r.name)] || {}), ...r}; });
+      return `${rows.length} suppliers saved`;
+    }}
+};
+function impTx(rows, type){
+  const key = t => [t.date, t.head, t.desc, t.party, +t.amount, t.mode].join('|').toLowerCase();
+  const have = new Set(D.txns.filter(t => t.type === type).map(key));
+  let a = 0, s = 0;
+  rows.forEach(r => { if(have.has(key(r))){ s++; return; } D.txns.push({id: uid(), type, ...(type === 'Expense' ? {kind: 'regular'} : {}), ...r, time: '12:00', by: curUser(), at: Date.now(), imported: 1}); have.add(key(r)); a++; });
+  return `${a} entries imported${s ? `, ${s} skipped (already in Setu)` : ''}`;
+}
+function impOpen(kind){
+  const k = IMP[kind];
+  modal('Import: ' + k.title, `
+    <p class="muted" style="margin:0 0 8px;font-size:12px">Columns: <b>${k.cols.map(esc).join(', ')}</b>. ${esc(k.note)}</p>
+    <div class="btns" style="margin:0 0 8px">
+      <label class="btn g sm" style="margin:0;cursor:pointer">Choose Excel (CSV) File<input type="file" accept=".csv,.txt" style="display:none" onchange="impFile(this.files[0],'${kind}')"></label>
+      <button class="btn g sm" onclick="downloadCSV([IMP.${kind}.cols].concat(IMP.${kind}.sample), '${kind}-sample.csv')">Sample Excel File</button>
+    </div>
+    <textarea id="imp_txt" rows="9" placeholder="${k.sample.map(r => r.join(', ')).join('&#10;')}" oninput="impPreview('${kind}')"></textarea>
+    <div id="imp_prev" class="muted" style="font-size:12px;margin-top:6px"></div>
+    <div class="btns"><button class="btn ok" onclick="impSave('${kind}')">Import All</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+}
+function impFile(f, kind){
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { $('#imp_txt').value = String(r.result); impPreview(kind); };
+  r.readAsText(f);
+}
+function impParse(kind){
+  const k = IMP[kind];
+  let rows = csvRows($('#imp_txt').value).filter(c => c.some(x => String(x || '').trim()));
+  if(rows.length && String(rows[0][0] || '').trim().toLowerCase() === k.cols[0].toLowerCase()) rows = rows.slice(1);
+  const ok = [], bad = [];
+  rows.forEach((c, i) => { const r = k.parse(c); if(typeof r === 'string') bad.push(`line ${i + 1}: ${r}`); else ok.push(r); });
+  return {ok, bad};
+}
+function impPreview(kind){
+  const {ok, bad} = impParse(kind);
+  $('#imp_prev').innerHTML = (ok.length ? `<b class="green">${ok.length} lines OK</b>` : 'No lines yet')
+    + (bad.length ? `<div class="red" style="margin-top:4px">${bad.slice(0, 8).map(esc).join('<br>')}${bad.length > 8 ? `<br>… and ${bad.length - 8} more` : ''}</div>` : '');
+}
+function impSave(kind){
+  const {ok, bad} = impParse(kind);
+  if(bad.length){ impPreview(kind); toast('Fix the lines in red first'); return; }
+  if(!ok.length){ toast('No lines found'); return; }
+  const msg = IMP[kind].save(ok);
+  audit('Bulk Import', `${IMP[kind].title}: ${msg}`, 0, kind);
+  save(); closeModal(); toast(msg); if(cur === 'data') scrData();
+}
+
+// ----- bulk delete -----
+const DEL = {
+  bills: {label: 'Bills (sales) in a date range', dates: true, list: f => D.bills.filter(b => b.date >= f.from && b.date <= f.to && (!f.only || b.imported))},
+  purchase: {label: 'Purchase entries in a date range', dates: true, list: f => D.txns.filter(t => t.type === 'Purchase' && t.date >= f.from && t.date <= f.to && (!f.only || t.imported))},
+  expense: {label: 'Expense / payment entries in a date range', dates: true, list: f => D.txns.filter(t => t.type === 'Expense' && t.date >= f.from && t.date <= f.to && (!f.only || t.imported))},
+  income: {label: 'Other income entries in a date range', dates: true, list: f => D.txns.filter(t => t.type === 'Receipt' && t.date >= f.from && t.date <= f.to && (!f.only || t.imported))},
+  menu: {label: 'Menu items (all, or one category)', cat: true, list: f => D.menu.filter(m => !f.cat || m.cat === f.cat)},
+  stock: {label: 'Inactive stock items (with their history)', list: () => D.stock.filter(s => s.active === false && !s.merged)},
+  customers: {label: 'Imported customer list', list: () => D.custList.slice()}
+};
+let DELF = {kind: 'bills', from: today().slice(0, 8) + '01', to: today(), only: false, cat: '', keep: true};
+function delCount(){ return DEL[DELF.kind].list(DELF).length; }
+function delDraw(){
+  const el = $('#del_box'), k = DEL[DELF.kind], n = delCount();
+  if(!el) return;
+  el.innerHTML = `<div class="grid">
+      <div><label>What to delete</label><select onchange="DELF.kind=this.value;delDraw()">${Object.entries(DEL).map(([v, x]) => `<option value="${v}" ${DELF.kind === v ? 'selected' : ''}>${x.label}</option>`).join('')}</select></div>
+      ${k.dates ? `<div><label>From</label><input type="date" value="${DELF.from}" onchange="DELF.from=this.value;delDraw()"></div><div><label>To</label><input type="date" value="${DELF.to}" onchange="DELF.to=this.value;delDraw()"></div>
+        <div><label style="display:flex;gap:6px;align-items:center;margin-top:24px"><input type="checkbox" style="width:auto;margin:0" ${DELF.only ? 'checked' : ''} onchange="DELF.only=this.checked;delDraw()"> Only imported entries</label></div>` : ''}
+      ${k.cat ? `<div><label>Category</label><select onchange="DELF.cat=this.value;delDraw()"><option value="">All categories</option>${[...new Set(D.menu.map(m => m.cat))].map(c => `<option ${DELF.cat === c ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></div>` : ''}
+    </div>
+    ${['bills', 'purchase'].includes(DELF.kind) ? `<label style="display:flex;gap:6px;align-items:center;margin-top:8px"><input type="checkbox" style="width:auto;margin:0" ${DELF.keep ? 'checked' : ''} onchange="DELF.keep=this.checked"> Keep the current stock as it is (recommended for old history)</label>` : ''}
+    <p style="margin:10px 0"><b class="${n ? 'red' : ''}">${n}</b> ${n === 1 ? 'entry' : 'entries'} will be deleted.</p>
+    <div class="grid" style="grid-template-columns:200px auto;align-items:end"><div><label>Delete code from Aghanya Devanya Enterprises</label><input id="del_code" inputmode="numeric" maxlength="6" placeholder="6 digits"></div>
+      <div><button class="btn bad" ${n ? '' : 'disabled'} onclick="delRun()">Delete ${n} ${n === 1 ? 'entry' : 'entries'}</button></div></div>`;
+}
+async function delRun(){
+  const k = DEL[DELF.kind], list = k.list(DELF), code = ($('#del_code').value || '').trim();
+  if(!list.length) return;
+  if(!/^\d{6}$/.test(code)){ toast('Enter the 6-digit delete code from Aghanya Devanya Enterprises'); return; }
+  if(!SRV.on || !(SRV.cloud || SRV.local)){ toast('Delete needs this Setu connected to Hotel Setu Cloud (the code is checked online)'); return; }
+  if(!confirm(`Delete ${list.length} entries (${k.label})?\nA backup file is downloaded first. This cannot be undone in Setu.`)) return;
+  const what = `${k.label}: ${list.length}${k.dates ? ` · ${DELF.from} to ${DELF.to}` : ''}${DELF.cat ? ' · ' + DELF.cat : ''}${DELF.only ? ' · imported only' : ''}`;
+  let ref;
+  try{
+    const r = await srvFetch('/api/vendor/verify', {method: 'POST', body: JSON.stringify({code, what})});
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+    ref = j.ref;
+  }catch(e){ toast(e.message); return; }
+  backup();
+  const before = DELF.keep && ['bills', 'purchase'].includes(DELF.kind) ? Object.fromEntries(D.stock.map(s => [s.id, +s.qty || 0])) : null;
+  const ids = new Set(list.map(x => x.id || x.phone));
+  if(DELF.kind === 'bills') D.bills = D.bills.filter(b => !ids.has(b.id));
+  else if(['purchase', 'expense', 'income'].includes(DELF.kind)){
+    // An invoice goes with its own payment lines so no payment is left without its bill
+    const inv = new Set(list.map(t => t.inv && t.inv.id).filter(Boolean));
+    D.txns = D.txns.filter(t => !ids.has(t.id) && !(t.inv && inv.has(t.inv.id)));
+  }
+  else if(DELF.kind === 'menu') D.menu = D.menu.filter(m => !ids.has(m.id));
+  else if(DELF.kind === 'stock'){ D.stock = D.stock.filter(s => !ids.has(s.id)); D.moves = D.moves.filter(m => !ids.has(sidOf(m.sid))); }
+  else if(DELF.kind === 'customers') D.custList = D.custList.filter(c => !ids.has(c.phone));
+  stockRecalc();
+  if(before) D.stock.forEach(s => { const d = r3((before[s.id] || 0) - (+s.qty || 0)); if(d) addMove(s.id, d, 'adjust', `Bulk delete ${ref}: stock kept as it was`); });
+  stockRecalc();
+  audit('Bulk Delete', `${what} · vendor code ${ref}`, 0, ref, 'Aghanya Devanya Enterprises');
+  save();
+  toast(`Deleted ${list.length} entries · ref ${ref}`);
+  scrData();
+}
+function scrData(){
+  // Owner / manager only; a cashier can open it with the Manager PIN
+  if(!isManager() && !scrData.ok){ main.innerHTML = `<div class="card"><h3 style="margin-top:0">Import & Delete Data</h3><p>Only the owner / manager can import or delete data.</p><button class="btn" onclick="withManager('Import & Delete Data — open', () => { scrData.ok = true; scrData(); })">Open with Manager PIN</button></div>`; return; }
+  scrData.ok = false;
+  const tile = (t, d, fn) => `<div class="card" style="margin:0;display:flex;flex-direction:column;gap:6px"><b>${t}</b><span class="muted" style="font-size:12px;flex:1">${d}</span><button class="btn sm" onclick="${fn}">Import</button></div>`;
+  main.innerHTML = `<div class="title"><span>Import & Delete Data</span><span class="r">Excel (CSV) files · sample file in each</span></div>
+  <div class="card"><h3 style="margin-top:0">Bulk import</h3>
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">
+      ${tile('Menu items', 'Dishes, categories and prices (also from a pasted menu).', "go('menu');setTimeout(importMenu,50)")}
+      ${tile('Stock items', 'Item master: name, unit, opening stock, min level, rate.', "bulkUpload('stock')")}
+      ${tile('Purchases', 'Item, qty, rate, supplier, mode, date. Stock goes up.', "bulkUpload('purchase')")}
+      ${Object.entries(IMP).map(([k, x]) => tile(x.title, x.note, `impOpen('${k}')`)).join('')}
+    </div>
+    <p class="muted" style="font-size:12px;margin-bottom:0">The same file imported twice is not added twice (bills by date + bill no., entries by date + amount + details). Every import is in the Audit Log (V).</p></div>
+  <div class="card" style="border-left:4px solid var(--bad)"><h3 style="margin-top:0">Bulk delete</h3>
+    <p class="muted" style="margin-top:-4px;font-size:13px">Only with a one-time code from Aghanya Devanya Enterprises (valid 30 minutes, one use, checked online). Setu downloads a full backup first and records the delete in the Audit Log.</p>
+    <div id="del_box"></div></div>`;
+  delDraw();
+}
+
 /* ================= QR SELF-ORDERING (guest orders from the table QR) ================= */
 // Guests order on Hotel Setu Cloud (cloud/static/qr.html); their orders wait there. Staff accept them here, and only
 // then they join the table's running order the same way as the Captain App (KOT for the new items only). The cloud
@@ -9114,7 +9349,7 @@ function doctorChecks(){
   const out = [], add = (area, title, status, detail, fix, auto) => out.push({area, title, status, detail, fix, auto});
   const st = D.settings, live = D.bills.filter(b => !b.cancelled);
   // ---- Data ----
-  const nos = {}; live.forEach(b => { (nos[b.no] = nos[b.no] || []).push(b); });
+  const nos = {}; live.filter(b => !b.imported).forEach(b => { (nos[b.no] = nos[b.no] || []).push(b); });
   const dupNo = Object.entries(nos).filter(([, l]) => l.length > 1);
   add('Data', 'Bill numbers', dupNo.length ? 'warn' : 'ok', dupNo.length ? `${dupNo.length} bill numbers used twice: ${dupNo.slice(0, 5).map(([n]) => '#' + n).join(', ')}. Old bills are never changed; both appear in the Bill Register (5). Tell your vendor.` : 'Every bill has its own number.');
   const sids = new Set(D.stock.map(s => s.id)), broken = [];
