@@ -4,38 +4,30 @@
 <meta name="theme-color" content="#0f172a"><meta name="robots" content="noindex">
 <title>Order at your table</title>
 <style>
-  :root{ --ink:#0f172a; --mut:#64748b; --line:#e2e8f0; --bg:#f8fafc; --card:#fff; --ok:#16a34a; --acc:#ea580c; --bad:#dc2626 }
-  *{ box-sizing:border-box } body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); padding-bottom:110px }
-  header{ background:var(--ink); color:#fff; padding:16px 16px 12px; position:sticky; top:0; z-index:5 }
-  header h1{ margin:0; font-size:19px } header .t{ color:#fdba74; font-weight:700; font-size:14px; margin-top:2px }
-  .cats{ display:flex; gap:8px; overflow-x:auto; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:62px; z-index:4; scrollbar-width:none }
-  .cats::-webkit-scrollbar{ display:none }
-  .cat{ flex:none; border:1px solid var(--line); background:var(--card); border-radius:99px; padding:7px 14px; font-weight:600; font-size:14px; color:var(--ink) }
-  .cat.on{ background:var(--ink); color:#fff; border-color:var(--ink) }
-  main{ padding:8px 16px }
-  h2{ font-size:15px; margin:16px 0 8px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px }
-  .it{ display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:8px }
-  .it img{ width:64px; height:64px; object-fit:cover; border-radius:10px; flex:none }
-  .it .n{ flex:1; min-width:0 } .it b{ display:block; font-size:15px } .it small{ color:var(--mut) } .it .p{ font-weight:700; margin-top:3px }
-  .veg{ display:inline-block; width:12px; height:12px; border:2px solid var(--ok); border-radius:2px; margin-right:6px; vertical-align:-1px; position:relative }
-  .veg.nv{ border-color:var(--bad) } .veg::after{ content:''; position:absolute; inset:2px; border-radius:50%; background:currentColor; color:var(--ok) } .veg.nv::after{ color:var(--bad) }
-  .q{ display:flex; align-items:center; gap:6px } .q button{ width:34px; height:34px; border-radius:10px; border:1px solid var(--line); background:var(--card); font-size:20px; font-weight:700; color:var(--ink) }
-  .q span{ min-width:20px; text-align:center; font-weight:700 } .add{ border:1px solid var(--acc); color:var(--acc); background:#fff7ed; border-radius:10px; padding:8px 16px; font-weight:700; font-size:14px }
-  .bar{ position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); z-index:6 }
-  .bar .row{ display:flex; gap:8px } .btn{ flex:1; border:0; border-radius:12px; padding:13px; font-weight:700; font-size:15px; background:var(--acc); color:#fff }
-  .btn.g{ background:#f1f5f9; color:var(--ink) } .btn:disabled{ opacity:.5 }
-  .sheet{ position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:flex-end; z-index:9 } .sheet.open{ display:flex }
-  .box{ background:var(--card); width:100%; max-height:88vh; overflow:auto; border-radius:18px 18px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom)) }
-  .box h3{ margin:0 0 10px } .line{ display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--line) }
-  textarea,input{ width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit; margin-top:8px }
-  .st{ border-radius:12px; padding:12px; margin:8px 0; background:#f1f5f9 } .st b{ display:block }
-  .tag{ display:inline-block; border-radius:99px; padding:3px 10px; font-size:12px; font-weight:700; background:#e2e8f0 }
-  .tag.ok{ background:#dcfce7; color:#166534 } .tag.w{ background:#ffedd5; color:#9a3412 } .tag.bad{ background:#fee2e2; color:#991b1b }
-  .msg{ text-align:center; padding:60px 20px; color:var(--mut) } .toast{ position:fixed; left:16px; right:16px; bottom:96px; background:var(--ink); color:#fff; padding:12px; border-radius:12px; text-align:center; display:none; z-index:10 }
-  .foot{ text-align:center; color:var(--mut); font-size:11px; margin:20px 0 }
+:root{--ink:#14213a;--mut:#718096;--bg:#f7f7fb;--white:#fff;--line:#e8ebf2;--orange:#f97316;--ok:#16a34a;--bad:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:110px}
+button,input,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}
+header{background:linear-gradient(125deg,#12253e,#233959 70%,#29344e);color:#fff;padding:24px max(20px,calc((100% - 1080px)/2));position:relative}
+.brand{font-size:11px;font-weight:800;letter-spacing:2px;color:#fb923c;margin-bottom:8px}
+header h1{font-size:clamp(22px,4vw,32px);margin:0 0 6px}header .t{display:inline-flex;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:99px;font-weight:700;font-size:12px}header p{font-size:13px;color:#dbe3ef;margin:12px 0 0}
+.toolbar{max-width:1080px;margin:0 auto;padding:16px 20px 0}.search{width:100%;border:1px solid var(--line);background:#fff;border-radius:14px;padding:14px 16px;outline:none}.search:focus{border-color:var(--orange)}
+.cats{max-width:1080px;margin:0 auto;display:flex;gap:8px;overflow-x:auto;padding:14px 20px 10px;scrollbar-width:none}.cat{white-space:nowrap;flex:none;border:1px solid var(--line);background:#fff;border-radius:99px;padding:9px 17px;font-weight:700;font-size:13px;color:#344256}.cat.on{background:#172940;color:white;border-color:#172940}
+main{max-width:1080px;margin:0 auto;padding:0 20px}main h2{font-size:18px;margin:18px 0 12px}.menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.it{display:flex;gap:14px;align-items:center;border:1px solid var(--line);background:#fff;padding:13px;border-radius:18px;box-shadow:0 8px 25px rgba(15,23,42,.04)}
+.it img,.img-placeholder{width:92px;height:94px;border-radius:14px;object-fit:cover;flex-shrink:0}.img-placeholder{display:grid;place-items:center;background:#fff1e8;font-size:32px}
+.it .n{flex:1;min-width:0}.it b{font-size:15px;display:block;line-height:1.35}.it small{font-size:12px;color:var(--mut);display:block;margin-top:5px}.it .p{font-size:16px;font-weight:800;margin-top:8px}.it .act{display:flex;align-items:center;gap:7px;margin-top:7px}
+.veg{display:inline-block;width:12px;height:12px;border:2px solid var(--ok);border-radius:2px;margin-right:5px;vertical-align:-1px}.veg.nv{border-color:var(--bad)}.veg:after{content:"";display:block;margin:2px;width:4px;height:4px;border-radius:50%;background:var(--ok)}.veg.nv:after{background:var(--bad)}
+.q{display:inline-flex;align-items:center;gap:8px}.q button{width:31px;height:31px;background:#fff;border:1px solid #d8dde7;border-radius:9px;font-weight:800;font-size:18px}.q span{min-width:18px;text-align:center;font-weight:800}
+.add{border:1px solid #fed7aa;color:#c2410c;background:#fff7ed;padding:8px 14px;border-radius:11px;font-weight:800;font-size:13px}
+.bar{position:fixed;bottom:0;left:0;right:0;padding:12px max(14px,calc((100% - 1080px)/2)) calc(12px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);z-index:6;box-shadow:0 -12px 40px rgba(0,0,0,.06)}.bar .row{display:flex;gap:8px}.btn{background:var(--orange);color:#fff;border:0;border-radius:12px;padding:13px 14px;font-size:14px;font-weight:800;flex:1}.btn.g{color:var(--ink);background:#edf1f6}
+.sheet{position:fixed;inset:0;z-index:9;background:rgba(15,23,42,.58);display:none;align-items:flex-end}.sheet.open{display:flex}.box{background:#fff;border-radius:24px 24px 0 0;padding:22px max(18px,calc((100% - 680px)/2)) calc(24px + env(safe-area-inset-bottom));width:100%;max-height:90vh;overflow-y:auto}.box h3{font-size:20px;margin:0 0 12px}.line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}textarea,.box input[type=text],.box input:not([type]){width:100%;border:1px solid var(--line);padding:12px;border-radius:12px;margin:8px 0;font-size:14px}
+.grp{padding:14px;border:1px solid var(--line);border-radius:14px;margin:12px 0}.grp h4{margin:0 0 8px;font-size:14px}.opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px;margin-top:7px;border-radius:10px;background:#f8fafc;border:1px solid #e7ebf1;font-weight:600;font-size:13px}.opt.selected{border-color:var(--orange);background:#fff7ed}.opt input{accent-color:var(--orange)}
+.st{border:1px solid var(--line);background:#f8fafc;padding:14px;border-radius:14px;margin:9px 0}.st b{display:block;margin:7px 0}.tag{display:inline-block;padding:4px 10px;border-radius:99px;background:#e2e8f0;font-size:12px;font-weight:800}.tag.ok{background:#dcfce7;color:#166534}.tag.w{background:#ffedd5;color:#9a3412}.tag.bad{background:#fee2e2;color:#991b1b}.msg{padding:55px 10px;text-align:center;color:var(--mut)}.toast{position:fixed;z-index:12;display:none;left:16px;right:16px;bottom:90px;border-radius:12px;background:#172940;color:#fff;text-align:center;padding:13px}.foot{text-align:center;font-size:11px;color:#94a3b8;padding:25px 0}.muted{color:var(--mut);font-size:12px}
+@media(max-width:760px){.menu-grid{grid-template-columns:1fr}.it img,.img-placeholder{width:94px;height:98px}header{padding:23px 19px}.bar .btn{padding:12px 9px;font-size:12px}}
 </style></head>
 <body>
-<header><h1 id="h">Menu</h1><div class="t" id="tb"></div></header>
+<header><div class="brand">SETU • SCAN & DINE</div><h1 id="h">Menu</h1><div class="t" id="tb"></div><p>Freshly prepared, served at your table. No app needed.</p></header>
+<div class="toolbar"><input class="search" id="search" type="search" placeholder="Search dishes, drinks, starters…" autocomplete="off" oninput="draw()"></div>
 <div class="cats" id="cats"></div>
 <main id="m"><div class="msg">Loading the menu…</div></main>
 <div class="bar" id="bar" style="display:none"><div class="row">
