@@ -13,7 +13,7 @@ binding = "ASSETS"
 run_worker_first = ["/api/*", "/"]
 
 [vars]
-TRIAL_DAYS = "14"
+TRIAL_DAYS = "7"
 TRIAL_TIER = "premium"
 # Razorpay plans: one per tier x cycle. Plan ids from Razorpay Dashboard -> Subscriptions -> Plans.
 # price in rupees (display), days = license days added per paid cycle, tier = basic / premium / diamond.

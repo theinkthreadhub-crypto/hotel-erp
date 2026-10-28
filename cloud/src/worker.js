@@ -30,6 +30,7 @@ const GRACE_DAYS = 3;                 // saving keeps working this long after th
 const WEAK_PINS = new Set(['1234', '1111', '0000', '4321', '9999', '123456', '111111', '000000', 'demo', 'admin', 'password']);
 const MAX_BODY = 100 * 1024 * 1024;
 const DAY = 864e5;
+const WEB_BILLS_PER_DAY = 5;            // hotel with a counter PC: bills a day from the website (emergency only)
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const LIC_EPOCH = Date.UTC(2026, 0, 1);
 
@@ -105,6 +106,19 @@ function chunks(text){
   return out.length ? out : [''];
 }
 
+// gzip + base64 text: end-of-day backups take about 8-10 times less space
+async function gzipB64(text){
+  const buf = new Uint8Array(await new Response(new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  let s = '';
+  for(let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+async function gunzipB64(b64){
+  const bin = atob(b64), buf = new Uint8Array(bin.length);
+  for(let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+}
+
 // Razorpay plans: keys like "premium_monthly" -> { tier, label, price, days, razorpay }
 function plans(env){
   try{ return JSON.parse(env.PLANS || '{}'); }catch(e){ return {}; }
@@ -172,7 +186,9 @@ function saasView(a){
   const features = {};
   Object.keys(FEATURES).forEach(k => features[k] = k in (c.overrides || {}) ? !!c.overrides[k] : TIERS[tier].features.includes(k));
   return { hotel: a.code, tier, tierLabel: TIERS[tier].label, businessType: c.businessType, features, billing: c.billing, rules: c.rules, ver: c.ver || 1,
-    notice: a.notice || null,
+    notice: a.notice || null, offline: !!a.offline,
+    // Counter-PC hotel billing on the website: daily limit and an emergency unlock (shown in the app, enforced on save)
+    ...(a.plan === 'counter' ? { webMax: a.webMax ?? WEB_BILLS_PER_DAY, webUnlockUntil: a.webUnlockUntil || 0 } : {}),
     lock: a.status === 'suspended' ? { lv: 2, msg: 'Your Setu account is suspended. Please contact Aghanya Devanya Enterprises.', at: a.suspendedAt || 0 } : a.lock || null };
 }
 
@@ -184,6 +200,30 @@ function b32encode(bytes){
   let out = '';
   for(let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5), 2)];
   return out;
+}
+
+// ---------- Authenticator app (TOTP, RFC 6238: SHA-1, 30 s, 6 digits) for the Super Admin ----------
+const totpKey = secret => { const t = String(secret || '').toUpperCase().replace(/[^A-Z2-7]/g, ''); return b32decode(t, Math.floor(t.length * 5 / 8)); };
+async function totpAt(secret, step){
+  const key = await crypto.subtle.importKey('raw', totpKey(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const msg = new Uint8Array(8);
+  new DataView(msg.buffer).setUint32(4, step);
+  new DataView(msg.buffer).setUint32(0, Math.floor(step / 2 ** 32));
+  const h = new Uint8Array(await crypto.subtle.sign('HMAC', key, msg)), o = h[19] & 15;
+  return String(((h[o] & 127) << 24 | h[o + 1] << 16 | h[o + 2] << 8 | h[o + 3]) % 1e6).padStart(6, '0');
+}
+async function totpOk(secret, code){
+  const c = String(code || '').replace(/\D/g, ''), step = Math.floor(Date.now() / 30000);
+  if(c.length !== 6 || !secret) return false;
+  for(const d of [-1, 0, 1]) if(sameText(await totpAt(secret, step + d), c)) return true;   // phone clock may be 30 s off
+  return false;
+}
+// After a right code the phone keeps a 30-day session, so the code is asked once per device, not on every tap
+const OTP_SESSION_DAYS = 30;
+async function otpSession(env, secret, until){ return until + '.' + (await hmac(env.ADMIN_KEY + secret, 'otp.' + until)).slice(0, 32); }
+async function otpSessionOk(env, secret, tok){
+  const [until] = String(tok || '').split('.');
+  return +until > Date.now() && sameText(await otpSession(env, secret, +until), tok);
 }
 
 // kind: 1 = days (added), 2 = minutes (demo), 3 = lifetime, 4 = owner password reset, 5 = days from today (replaces the date),
@@ -416,6 +456,13 @@ export class SetuRegistry extends DurableObject {
     // Error Log from the hotels: errors in the last 24 hours and the newest one (JSON)
     if(!cols.includes('errs')) this.sql.exec('ALTER TABLE hotel ADD COLUMN errs INTEGER DEFAULT 0');
     if(!cols.includes('lasterr')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lasterr TEXT');
+    // Backups for the Super Admin Backup table: newest backup day, how many, their size, live data size (bytes)
+    if(!cols.includes('lastbk')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lastbk TEXT');
+    if(!cols.includes('bkn')) this.sql.exec('ALTER TABLE hotel ADD COLUMN bkn INTEGER DEFAULT 0');
+    if(!cols.includes('bksize')) this.sql.exec('ALTER TABLE hotel ADD COLUMN bksize INTEGER DEFAULT 0');
+    if(!cols.includes('dsize')) this.sql.exec('ALTER TABLE hotel ADD COLUMN dsize INTEGER DEFAULT 0');
+    // Offline hotel (no internet at the hotel): the 30-day cloud grace does not apply, the licence key decides
+    if(!cols.includes('offmode')) this.sql.exec('ALTER TABLE hotel ADD COLUMN offmode INTEGER DEFAULT 0');
     // Help & Support tickets from the hotels, and Install IDs the vendor blocked
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ticket (id TEXT PRIMARY KEY, code TEXT NOT NULL, subject TEXT, status TEXT, msgs TEXT,
       created INTEGER, updated INTEGER, unread_admin INTEGER DEFAULT 0, unread_hotel INTEGER DEFAULT 0)`);
@@ -537,7 +584,7 @@ export class SetuRegistry extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/update'){
-      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill', 'errs', 'lasterr'].filter(c => c in body);
+      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill', 'errs', 'lasterr', 'lastbk', 'bkn', 'bksize', 'dsize', 'offmode'].filter(c => c in body);
       if(cols.length) this.sql.exec(`UPDATE hotel SET ${cols.map(c => c + ' = ?').join(', ')} WHERE code = ?`, ...cols.map(c => body[c]), body.code);
       return json(200, { ok: true });
     }
@@ -630,7 +677,7 @@ export class SetuHotel extends DurableObject {
     // Best effort: the registry copy is only for the Super Admin list
     this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, name: a.name, owner: a.owner, phone: a.phone, email: a.email,
       paid_until: a.paidUntil, status: a.status, plan: a.plan, version: this.meta.version, tier: a.config.tier, btype: a.config.businessType,
-      notice: a.notice ? a.notice.t : '', lockv: a.lock ? a.lock.lv : 0 }).catch(() => {}));
+      notice: a.notice ? a.notice.t : '', lockv: a.lock ? a.lock.lv : 0, offmode: a.offline ? 1 : 0 }).catch(() => {}));
   }
 
   readSlot(slot){
@@ -640,6 +687,36 @@ export class SetuHotel extends DurableObject {
   writeSlot(slot, text){
     this.sql.exec('DELETE FROM chunk WHERE slot = ?', slot);
     chunks(text).forEach((s, i) => this.sql.exec('INSERT INTO chunk (slot, i, s) VALUES (?, ?, ?)', slot, i, s));
+  }
+
+  // End-of-day backups: 'bz:<day>' compressed, 'bk:<day>' plain (written in commit, compressed right after)
+  backupDays(){
+    return [...new Set(this.sql.exec(`SELECT DISTINCT slot FROM chunk WHERE slot LIKE 'bk:%' OR slot LIKE 'bz:%'`).toArray().map(r => r.slot.slice(3)))].sort().reverse();
+  }
+  async readBackup(day){
+    const z = this.readSlot('bz:' + day);
+    return z !== 'null' ? gunzipB64(z) : this.readSlot('bk:' + day);
+  }
+  async packBackups(){
+    if(this.packing) return;
+    this.packing = true;
+    try{
+      for(const day of this.backupDays()){
+        const plain = this.readSlot('bk:' + day);
+        if(plain === 'null') continue;
+        const z = await gzipB64(plain);
+        // The plain copy goes only after the compressed one reads back the same
+        if(await gunzipB64(z) !== plain) continue;
+        this.ctx.storage.transactionSync(() => {
+          this.writeSlot('bz:' + day, z);
+          this.sql.exec('DELETE FROM chunk WHERE slot = ?', 'bk:' + day);
+        });
+      }
+    }finally{ this.packing = false; }
+    const days = this.backupDays();
+    const size = this.sql.exec(`SELECT COALESCE(SUM(length(s)), 0) AS n FROM chunk WHERE slot LIKE 'bz:%' OR slot LIKE 'bk:%'`).toArray()[0].n;
+    await regCall(this.env, '/update', { code: this.account.code, lastbk: days[0] || '', bkn: days.length, bksize: size,
+      dsize: this.data().length }).catch(() => {});
   }
 
   data(){
@@ -704,8 +781,7 @@ export class SetuHotel extends DurableObject {
       // First write of a new day keeps yesterday's last state as that day's backup
       if(this.meta.version && this.meta.day && this.meta.day !== day){
         this.writeSlot('bk:' + this.meta.day, this.data());
-        const old = this.sql.exec(`SELECT DISTINCT slot FROM chunk WHERE slot LIKE 'bk:%' ORDER BY slot DESC`).toArray().slice(KEEP_BACKUPS);
-        old.forEach(r => this.sql.exec('DELETE FROM chunk WHERE slot = ?', r.slot));
+        this.backupDays().slice(KEEP_BACKUPS).forEach(day => this.sql.exec('DELETE FROM chunk WHERE slot IN (?, ?)', 'bk:' + day, 'bz:' + day));
       }
       this.writeSlot('cur', raw);
       this.kvSet('meta', meta);
@@ -729,9 +805,34 @@ export class SetuHotel extends DurableObject {
       this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, version: meta.version, seen: now, iid, lic, appv,
         bdays: use.bdays, ball: use.ball, lastbill: use.lastbill, errs: eu.errs, lasterr: eu.lasterr }).catch(() => {}));
     }
+    // A new backup (or a DO that still holds plain backups from before): compress them in the background
+    if(day !== this.meta.day || !this.packedOnce){
+      this.packedOnce = true;
+      this.ctx.waitUntil(this.packBackups().catch(() => {}));
+    }
     this.meta = meta;
     this.raw = raw;
     if(renamed){ a.name = newName; this.saveAccount(); }
+  }
+
+  // Bills made on the website (not the counter PC) get web: 1. Returns an error text when today's limit is used up.
+  // The web mark of older bills is kept when a device sends them back without it.
+  webLimit(d, fromWeb){
+    const a = this.account, max = Math.max(0, +(a.webMax ?? WEB_BILLS_PER_DAY));
+    const old = JSON.parse(this.data()) || {}, byId = new Map((old.bills || []).filter(b => b && b.id).map(b => [b.id, b]));
+    const bills = Array.isArray(d.bills) ? d.bills : [];
+    let tagged = false;
+    bills.forEach(b => { const o = b && byId.get(b.id); if(o && o.web && !b.web){ b.web = 1; tagged = true; } });
+    if(!fromWeb) return { tagged };
+    const fresh = bills.filter(b => b && b.id && !byId.has(b.id));
+    if(!fresh.length) return { tagged };
+    fresh.forEach(b => b.web = 1);
+    if((a.webUnlockUntil || 0) > Date.now()) return { tagged: true };
+    const day = istDay(Date.now());
+    const used = (old.bills || []).filter(b => b && b.web && b.date === day).length;
+    if(used + fresh.length > max)
+      return { error: `Website billing limit reached (${max} bills a day). Please bill on the Setu PC app (Install for PC), or ask Aghanya Devanya Enterprises for an emergency unlock.` };
+    return { tagged: true };
   }
 
   // Re-save the current data so devices pick up new config / keys
@@ -762,7 +863,7 @@ export class SetuHotel extends DurableObject {
       features: view.features, version: this.meta.version, savedAt: this.meta.savedAt,
       supportLog: (a.supportLog || []).slice(0, 10), gstin: a.gstin || '', notice: a.notice || null, lock: a.lock || null,
       counter: this.counterInfo(),
-      backups: this.sql.exec(`SELECT DISTINCT slot FROM chunk WHERE slot LIKE 'bk:%' ORDER BY slot DESC`).toArray().map(r => r.slot.slice(3)).slice(0, 7)
+      backups: this.backupDays().slice(0, 7)
     };
   }
 
@@ -920,6 +1021,11 @@ export class SetuHotel extends DurableObject {
       notes.push('status ' + b.status);
     }
     if(b.lifetime !== undefined){ a.lifetime = !!b.lifetime; notes.push('lifetime ' + a.lifetime); }
+    // Website billing for a counter-PC hotel: emergency unlock for 24 hours, or a different daily limit
+    if(b.webUnlock){ a.webUnlockUntil = Date.now() + DAY; notes.push('website billing unlocked for 24 hours'); }
+    if(b.webMax !== undefined){ a.webMax = Math.max(0, Math.min(500, Math.round(+b.webMax) || 0)); notes.push('website limit ' + a.webMax + ' a day'); }
+    // Offline hotel: no internet at the hotel, so the 30-day cloud check is off and the licence key decides
+    if(b.offline !== undefined){ a.offline = !!b.offline; notes.push(a.offline ? 'offline hotel' : 'online hotel'); }
     if(b.applyTemplate && TEMPLATES[b.applyTemplate]){
       a.config = { ...newConfig(b.applyTemplate, b.tier), ver: (c.ver || 1) + 1 };
       notes.push('template ' + b.applyTemplate);
@@ -1090,8 +1196,15 @@ export class SetuHotel extends DurableObject {
       // First upload and forced restore / reset: main counter sync or a Manager login only
       if((this.meta.version === 0 || force) && !isAdmin) return json(403, { error: 'main counter only' });
       if(!force && +up.baseVersion !== this.meta.version) return rawJson(409, this.dbText('"conflict": true, '));
+      // Hotel with a counter PC, billing from the website (emergency only): a few bills a day, counted here
+      let tagged = false;
+      if(this.account.plan === 'counter' && this.meta.version){
+        const w = this.webLimit(data, role !== 'sync');
+        if(w.error) return json(403, { error: w.error });
+        tagged = w.tagged;
+      }
       let changed;
-      try{ changed = await this.prepare(data); }catch(e){ return json(500, { error: 'save failed: ' + e.message }); }
+      try{ changed = (await this.prepare(data)) || tagged; }catch(e){ return json(500, { error: 'save failed: ' + e.message }); }
       // prepare() awaited: someone may have saved in between
       if(!force && +up.baseVersion !== this.meta.version) return rawJson(409, this.dbText('"conflict": true, '));
       try{
@@ -1206,14 +1319,13 @@ export class SetuHotel extends DurableObject {
     // Manager / sync only: list and download the end-of-day cloud backups
     if(method === 'GET' && path === '/api/backups'){
       if(!isAdmin) return json(403, { error: 'manager only' });
-      const days = this.sql.exec(`SELECT DISTINCT slot FROM chunk WHERE slot LIKE 'bk:%' ORDER BY slot DESC`).toArray().map(r => r.slot.slice(3));
-      return json(200, { days });
+      return json(200, { days: this.backupDays() });
     }
     if(method === 'GET' && path === '/api/backup'){
       if(!isAdmin) return json(403, { error: 'manager only' });
       const day = url.searchParams.get('day') || '';
       if(!/^\d{4}-\d{2}-\d{2}$/.test(day)) return json(400, { error: 'day required' });
-      const out = this.readSlot('bk:' + day);
+      const out = await this.readBackup(day);
       if(out === 'null') return json(404, { error: 'not found' });
       return new Response(out, { headers: {
         'Content-Type': 'application/json; charset=utf-8',
@@ -1283,7 +1395,7 @@ async function signup(request, env){
     return createHotel(env, input, { days, installId, iid: installId, noKey: true, ip, tier, status: 'active', lifetime: lic.lifetime });
   }
   if(!env.LICENSE_PRIVATE_KEY) return json(400, { error: 'Enter the Master Key from your vendor.' });
-  return createHotel(env, input, { days: +env.TRIAL_DAYS || 14, installId, ip, tier });
+  return createHotel(env, input, { days: +env.TRIAL_DAYS || 7, installId, ip, tier });
 }
 
 // Library-ERP style: a licensed counter PC joins the cloud by itself, no codes to type.
@@ -1342,6 +1454,17 @@ async function admin(request, env, path){
     await new Promise(r => setTimeout(r, 1000));   // slow down guessing
     return json(401, { error: 'admin key' });
   }
+  // Authenticator app (when switched on): Admin Key + a 6-digit code once per device (30-day session)
+  const totp = (await regJson(env, '/conf/get', { k: 'totp' })).v || {};
+  const otpWrong = async () => { await regCall(env, '/adminguard', { ip, fail: true }); return json(401, { error: 'Wrong authenticator code' }); };
+  if(path === '/api/admin/totp/login'){
+    if(!totp.on) return json(400, { error: 'The authenticator app is not switched on' });
+    if(!(await totpOk(totp.secret, body.code))) return otpWrong();
+    await regCall(env, '/adminguard', { ip, ok: true });
+    return json(200, { session: await otpSession(env, totp.secret, Date.now() + OTP_SESSION_DAYS * DAY) });
+  }
+  if(totp.on && env.ADMIN_TOTP_OFF !== '1' && !(await otpSessionOk(env, totp.secret, request.headers.get('X-Setu-Otp'))))
+    return json(401, { error: 'otp' });
   if(guard.minutes === 0) await regCall(env, '/adminguard', { ip, ok: true });
   const log = (action, code, detail) => regCall(env, '/audit/add', { actor: 'admin ' + ip, action, code, detail }).catch(() => {});
   const validCode = c => /^[A-Z0-9]{4,12}$/.test(c || '');
@@ -1353,12 +1476,45 @@ async function admin(request, env, path){
     await log('Admin locks cleared', '', '');
     return json(200, { ok: true });
   }
+  // Authenticator setup: a new secret (not active yet) → the right code from the app switches it on
+  if(path === '/api/admin/totp'){
+    return json(200, { on: !!totp.on });
+  }
+  if(path === '/api/admin/totp/setup'){
+    const secret = b32encode(crypto.getRandomValues(new Uint8Array(20)));
+    await regCall(env, '/conf/set', { k: 'totp', v: { ...totp, pending: secret } });
+    return json(200, { secret, uri: `otpauth://totp/Setu%20Super%20Admin?secret=${secret}&issuer=Aghanya%20Devanya%20Enterprises&digits=6&period=30` });
+  }
+  if(path === '/api/admin/totp/enable'){
+    if(!totp.pending) return json(400, { error: 'Start the setup first' });
+    if(!(await totpOk(totp.pending, body.code))) return otpWrong();
+    await regCall(env, '/conf/set', { k: 'totp', v: { on: true, secret: totp.pending, at: Date.now() } });
+    await log('Authenticator app switched on', '', '');
+    return json(200, { session: await otpSession(env, totp.pending, Date.now() + OTP_SESSION_DAYS * DAY) });
+  }
+  if(path === '/api/admin/totp/disable'){
+    if(!totp.on) return json(200, { ok: true });
+    if(!(await totpOk(totp.secret, body.code))) return otpWrong();
+    await regCall(env, '/conf/set', { k: 'totp', v: {} });
+    await log('Authenticator app switched off', '', '');
+    return json(200, { ok: true });
+  }
+  // Updates for every counter PC: see the newest version, pause / resume it (a bad release is held back)
+  if(path === '/api/admin/update'){
+    if(body.hold !== undefined || body.notes !== undefined){
+      const c = (await regJson(env, '/conf/get', { k: 'update' })).v || {};
+      const nv = { ...c, ...(body.hold !== undefined ? { hold: !!body.hold } : {}), ...(body.notes !== undefined ? { notes: str(body.notes, 500) } : {}) };
+      await regCall(env, '/conf/set', { k: 'update', v: nv });
+      await log(nv.hold ? 'Updates paused' : 'Updates released', '', nv.notes || '');
+    }
+    return json(200, await updateManifest(env, request));
+  }
   if(path === '/api/admin/meta'){
     return json(200, {
       features: Object.fromEntries(Object.entries(FEATURES).map(([k, v]) => [k, v.label])),
       tiers: TIERS, templates: Object.fromEntries(Object.entries(TEMPLATES).map(([k, v]) => [k, { label: v.label, tier: v.tier }])),
       plans: plans(env), baseDomain: env.BASE_DOMAIN || '', customDomains: !!(env.CF_API_TOKEN && env.CF_ZONE_ID),
-      cnameTarget: env.SAAS_CNAME_TARGET || '', razorpay: !!env.RAZORPAY_KEY_ID, trialDays: +env.TRIAL_DAYS || 14
+      cnameTarget: env.SAAS_CNAME_TARGET || '', razorpay: !!env.RAZORPAY_KEY_ID, trialDays: +env.TRIAL_DAYS || 7
     });
   }
   if(path === '/api/admin/hotels') return registry(env).fetch('https://registry/list', { method: 'POST', body: '{}' });
@@ -1548,6 +1704,18 @@ async function hostHotel(env, host){
   return code;
 }
 
+// ---------- EXE updates: the newest installer is published with the cloud (/download/), the vendor can pause it ----------
+async function updateManifest(env, request){
+  let m = {};
+  try{
+    const r = await env.ASSETS.fetch(new Request(new URL('/download/latest.json', request.url)));
+    if(r.ok) m = await r.json();
+  }catch(e){}
+  const c = (await regJson(env, '/conf/get', { k: 'update' }).catch(() => ({}))).v || {};
+  return { version: m.version || '', sha256: m.sha256 || '', size: m.size || 0, url: m.version ? '/download/Setu-POS-Setup.exe' : '',
+    notes: c.notes || m.notes || '', at: m.at || '', hold: !!c.hold };
+}
+
 export default {
   async fetch(request, env){
     const url = new URL(request.url), path = url.pathname;
@@ -1558,6 +1726,7 @@ export default {
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);
     if(path === '/api/counter/link' && request.method === 'POST') return counterLink(request, env);
     if(path === '/api/razorpay/webhook' && request.method === 'POST') return webhook(request, env);
+    if(path === '/api/update') return json(200, await updateManifest(env, request));
     if(path.startsWith('/api/admin/')) return admin(request, env, path);
     // The hotel's own domain decides the hotel; a header from the browser cannot override it
     const byHost = await hostHotel(env, url.hostname);

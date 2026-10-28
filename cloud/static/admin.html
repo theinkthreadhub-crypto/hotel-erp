@@ -170,6 +170,7 @@ const ICONS = {
   hotels: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4',
   key: 'M14.5 4a5.5 5.5 0 1 1-4.3 8.9L4 19v-3h2.5v-2.5H9l1.2-1.2A5.5 5.5 0 0 1 14.5 4zM16 8h.01',
   ticket: 'M4 5h16v11H9l-5 4z',
+  cloud: 'M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.6 1.5A3.3 3.3 0 0 0 7 18z',
   more: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
   lock: 'M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
   unlock: 'M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 6.8-1.2',
@@ -211,10 +212,21 @@ function shareText(t){
   window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
 }
 
-async function api(path, body){
-  const r = await fetch(path, {method: 'POST', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
-  if(r.status === 401) throw new Error('Invalid Admin Key');
+// Authenticator app: a right 6-digit code gives this device a 30-day session
+const otpGet = () => { try{ return localStorage.getItem('setu_admin_otp') || ''; }catch(e){ return ''; } };
+const otpSet = v => { try{ v ? localStorage.setItem('setu_admin_otp', v) : localStorage.removeItem('setu_admin_otp'); }catch(e){} };
+async function api(path, body, again){
+  const r = await fetch(path, {method: 'POST', headers: {'X-Setu-Admin': KEY, 'X-Setu-Otp': otpGet(), 'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
   const j = await r.json().catch(() => ({}));
+  if(r.status === 401 && j.error === 'otp' && !again){
+    otpSet('');
+    const v = await ask('Authenticator code', '<p class="muted" style="margin-top:0">Open the Authenticator app on your phone and type the 6-digit code for Setu Super Admin.</p><input id="otp_c" inputmode="numeric" maxlength="6" autocomplete="one-time-code">', 'Verify');
+    if(!v) throw new Error('Authenticator code needed');
+    const s = await api('/api/admin/totp/login', {code: v.otp_c}, true);
+    otpSet(s.session);
+    return api(path, body, true);
+  }
+  if(r.status === 401) throw new Error(j.error === 'otp' || /authenticator/i.test(j.error || '') ? (j.error === 'otp' ? 'Authenticator code needed' : j.error) : 'Invalid Admin Key');
   if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   return j;
 }
@@ -253,7 +265,7 @@ function askDone(v){ $('#ask').classList.remove('open'); const r = ASK; ASK = nu
 
 // ---------------- navigation ----------------
 const VIEWS = {hotels: ['Hotels', 'hotels'], keygen: ['Keygen', 'key'], tickets: ['Tickets', 'ticket'], more: ['More', 'more']};
-const SUB = {dash: 'Dashboard', add: 'New Hotel', ai: 'Setu AI', audit: 'Activity Log', blocked: 'Blocked computers'};
+const SUB = {dash: 'Dashboard', add: 'New Hotel', ai: 'Setu AI', audit: 'Activity Log', blocked: 'Blocked computers', backups: 'Backups', security: 'Login security', updates: 'Software updates'};
 let UNREAD = 0;
 function nav(){
   const top = SUB[VIEW] ? 'more' : VIEW;
@@ -262,7 +274,7 @@ function nav(){
   $('#hsub').textContent = VIEW === 'hotels' && HOTELS.length ? HOTELS.length + ' hotels · Aghanya Devanya Enterprises' : 'Setu Hotel Admin';
 }
 const show = run(async v => { VIEW = v; nav(); window.scrollTo(0, 0);
-  await ({hotels: drawHotels, keygen: drawKeygen, tickets: drawTickets, more: drawMore, dash: drawDash, add: drawAdd, ai: drawAI, audit: drawAudit, blocked: drawBlocked})[v](); nav(); });
+  await ({hotels: drawHotels, keygen: drawKeygen, tickets: drawTickets, more: drawMore, dash: drawDash, add: drawAdd, ai: drawAI, audit: drawAudit, blocked: drawBlocked, backups: drawBackups, security: drawSecurity, updates: drawUpdates})[v](); nav(); });
 const backBtn = () => `<button class="g" style="margin-bottom:12px" onclick="show('more')">‹ Back</button>`;
 
 async function loadHotels(){ const j = await api('/api/admin/hotels'); HOTELS = j.hotels; UNREAD = j.ticketsUnread || 0; }
@@ -398,6 +410,8 @@ function hotelSheet(code){
       ${lk === 2 ? tile('unlock', 'Unlock', 'Turn Setu on', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Turn Setu off', `lockAsk('${C}')`, 'red')}
       ${lk === 1 ? tile('warn', 'Remove warning', 'showing now', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu keeps running', `warnAsk('${C}')`, 'amber')}
       ${sus ? tile('play', 'Activate', 'account on', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account off', `suspendAsk('${C}')`, 'red')}
+      ${+h.offmode ? tile('cloud', 'Offline hotel', 'licence key only · tap for online', `setOffline('${C}', false)`, 'amber on') : tile('cloud', 'Online hotel', '30-day cloud check · tap if no internet', `setOffline('${C}', true)`)}
+      ${h.plan === 'counter' ? tile('play', 'Website billing', '5 a day · unlock 24 h', `webUnlock('${C}')`) : ''}
       ${tile('msg', 'Message', h.notice ? 'showing' : 'send a popup', `noticeBox('${C}')`)}
       ${tile('warn', 'Error Log', +h.errs ? h.errs + ' (24 hours)' : 'see all', `hotelErrors('${C}')`, +h.errs ? 'red' : '')}
       ${tile('ticket', 'Tickets', h.tickets ? h.tickets + ' new' : '', `hotelTickets('${C}')`)}
@@ -455,6 +469,16 @@ const setLock = run(async (code, lv) => adminUpdate(code, {lock: {lv}}, lv ? 'Ap
 const suspendAsk = run(async code => {
   if(await ask('Suspend the account?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: Setu stops and cloud saving pauses. Data stays safe on the PC. Press Activate to turn it back on.</p>`, 'Suspend', true))
     await adminUpdate(code, {status: 'suspended'}, 'Suspended. The lock shows as soon as the PC is online.');
+});
+// Offline hotel: no internet at the hotel, so no 30-day cloud check; renew it with a licence key (Keygen)
+const setOffline = run(async (code, on) => {
+  if(on && !(await ask('Make this an Offline hotel?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: for a hotel without internet. Setu will not lock after 30 days without the cloud; it runs until its licence key ends. Renew with Keygen. The PC must sync once more to get this change.</p>`, 'Offline hotel'))) return;
+  await adminUpdate(code, {offline: on}, on ? 'Offline hotel. Reaches the PC on its next sync.' : 'Online hotel (30-day cloud check)');
+});
+// Counter-PC hotel: the website allows 5 bills a day (emergency). Unlock for 24 hours when its PC is broken.
+const webUnlock = run(async code => {
+  if(await ask('Unlock website billing for 24 hours?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: for 24 hours the website has no daily bill limit (normally 5 a day). Use when the hotel's PC is broken or has no power.</p>`, 'Unlock 24 hours'))
+    await adminUpdate(code, {webUnlock: true}, 'Website billing unlocked for 24 hours');
 });
 const setSuspend = run(async (code, on) => adminUpdate(code, {status: on ? 'suspended' : 'active'}, on ? 'Suspended' : 'Account active again'));
 const pwAsk = run(async code => {
@@ -620,6 +644,9 @@ function drawMore(){
   $('#main').innerHTML = row('chart', 'Dashboard', 'Hotels, payments, backups', "show('dash')")
     + row('plus', 'Create New Hotel', 'Phone-app hotel without a PC', "show('add')")
     + row('spark', 'Setu AI', 'Gemini key and daily limit', "show('ai')")
+    + row('download', 'Backups', 'Every hotel: last sync, last backup, size', "show('backups')")
+    + row('refresh', 'Software updates', 'Newest Setu EXE for all PCs, pause / release', "show('updates')")
+    + row('key', 'Login security', 'Authenticator app (2-step login)', "show('security')")
     + row('list', 'Activity Log', 'What you changed and when', "show('audit')")
     + row('block', 'Blocked computers', 'PCs blocked when deleting', "show('blocked')")
     + row('key', 'Keygen setup', 'To make keys from the phone', "show('keygen').then(() => drawKeygenSetup())")
@@ -656,7 +683,7 @@ async function drawDash(){
 }
 
 const dlBackup = run(async code => {
-  const r = await fetch('/api/admin/backup', {method: 'POST', headers: {'X-Setu-Admin': KEY, 'Content-Type': 'application/json'}, body: JSON.stringify({code})});
+  const r = await fetch('/api/admin/backup', {method: 'POST', headers: {'X-Setu-Admin': KEY, 'X-Setu-Otp': otpGet(), 'Content-Type': 'application/json'}, body: JSON.stringify({code})});
   if(!r.ok) throw new Error('Backup download failed (HTTP ' + r.status + ')');
   const blob = await r.blob(), name = `setu-${code}-backup.json`;
   // Setu Hotel Admin phone app: hand the file to Android (save to Files / send on WhatsApp, Gmail, Drive)
@@ -762,6 +789,82 @@ const saveAI = run(async test => {
 });
 
 // ----- blocked computers -----
+// ---------------- software updates for every counter PC ----------------
+async function drawUpdates(){
+  const u = await api('/api/admin/update');
+  const old = HOTELS.length ? HOTELS : (await loadHotels(), HOTELS);
+  const behind = old.filter(h => h.appv && u.version && h.appv !== u.version);
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Software updates</h2>
+    <p class="muted" style="margin-top:-6px">Every new EXE build is published here. Counter PCs show "Software Update" in Settings (G); the owner installs it there. Pause it if a release has a problem.</p>
+    <p>Newest: <b>${u.version ? 'Setu v' + esc(u.version) : 'not published yet'}</b>${u.at ? ` <span class="muted">(${esc(u.at.slice(0, 10))})</span>` : ''}</p>
+    <p>Status: ${u.hold ? '<span class="err"><b>Paused</b>: no PC is offered this update</span>' : '<span class="ok"><b>Released</b> to all PCs</span>'}</p>
+    <label>Message shown with the update (optional)</label><input id="up_notes" maxlength="300" value="${esc(u.notes || '')}">
+    <div class="btns">${u.hold ? `<button onclick="updSet(false)">Release to all PCs</button>` : `<button class="g" style="color:var(--bad)" onclick="updSet(true)">Pause updates</button>`}<button class="g" onclick="updSet(null)">Save message</button></div>
+    ${u.version ? `<p class="muted" style="font-size:12px">Download link for new clients: <code>${esc(location.origin)}/download/Setu-POS-Setup.exe</code></p>` : ''}</div>
+    <div class="card"><h2>PCs on an older version (${behind.length})</h2>
+    ${behind.map(h => `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></span><span class="tag warn">v${esc(h.appv)}</span></div>`).join('') || '<p class="muted">All connected PCs are on the newest version.</p>'}</div>`;
+}
+const updSet = run(async hold => {
+  await api('/api/admin/update', {...(hold === null ? {} : {hold}), notes: $('#up_notes').value});
+  toast(hold === true ? 'Updates paused' : hold === false ? 'Update released' : 'Saved'); await drawUpdates();
+});
+
+// ---------------- login security: Authenticator app ----------------
+async function drawSecurity(){
+  const st = await api('/api/admin/totp');
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Login security</h2>
+    <p class="muted" style="margin-top:-6px">With the Authenticator app on, the Admin Key alone is not enough: a new phone or browser also needs the 6-digit code from your Authenticator app (asked once per device, every 30 days).</p>
+    <p>Status: ${st.on ? '<span class="ok"><b>On</b></span>' : '<span class="err"><b>Off</b></span>'}</p>
+    ${st.on ? `<button class="g" style="color:var(--bad)" onclick="totpOff()">Switch off</button>` : `<button onclick="totpSetup()">Switch on</button>`}
+    <div id="totp_box"></div></div>
+    <div class="card"><h2>Lost the phone?</h2><p class="muted" style="margin:0">On Cloudflare (Workers → setu-cloud → Settings → Variables), add <code>ADMIN_TOTP_OFF</code> = <code>1</code>. The code is not asked any more; switch it off here, set it up again, then delete that variable.</p></div>`;
+}
+const totpSetup = run(async () => {
+  const s = await api('/api/admin/totp/setup');
+  $('#totp_box').innerHTML = `<ol class="steps"><li>Install <b>Google Authenticator</b> (or Microsoft Authenticator) on your phone.</li>
+    <li>Tap <a href="${esc(s.uri)}"><b>Add to Authenticator</b></a>, or in the app choose "Enter a setup key" and type:<br><code style="font-size:15px;letter-spacing:1px;word-break:break-all">${esc(s.secret.replace(/(.{4})/g, '$1 ').trim())}</code></li>
+    <li>Type the 6-digit code the app shows:</li></ol>
+    <div class="row"><input id="totp_c" inputmode="numeric" maxlength="6" style="max-width:160px"><button onclick="totpOn()">Verify & switch on</button></div>
+    <p class="muted" style="font-size:12px">Keep the setup key somewhere safe (not in WhatsApp). It is shown only now.</p>`;
+});
+const totpOn = run(async () => {
+  const r = await api('/api/admin/totp/enable', {code: $('#totp_c').value});
+  otpSet(r.session); toast('Authenticator app is on'); await drawSecurity();
+});
+const totpOff = run(async () => {
+  const v = await ask('Switch off the Authenticator app?', '<p class="muted" style="margin-top:0">Type the current 6-digit code.</p><input id="otp_off" inputmode="numeric" maxlength="6">', 'Switch off', true);
+  if(!v) return;
+  await api('/api/admin/totp/disable', {code: v.otp_off}); otpSet(''); toast('Authenticator app is off'); await drawSecurity();
+});
+
+// ---------------- backups: one table for all hotels ----------------
+let BKF = 'all';
+const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((n || 0) / 1024)) + ' KB';
+function bkState(h){
+  const day = 864e5, seen = +h.seen || 0, bkAge = h.lastbk ? (Date.now() - Date.parse(h.lastbk)) / day : null;
+  if(!seen) return ['never', 'Never synced', 'bad'];
+  if(+h.offmode) return ['offline', 'Offline hotel', 'warn'];
+  if(Date.now() - seen > 3 * day) return ['offline', 'Offline ' + Math.floor((Date.now() - seen) / day) + ' days', 'bad'];
+  if(bkAge === null || bkAge > 3) return ['failed', 'No recent backup', 'bad'];
+  if(Date.now() - seen > 2 * 3600e3) return ['delayed', 'Sync delayed', 'warn'];
+  return ['ok', 'Backup OK', 'ok'];
+}
+async function drawBackups(){
+  await loadHotels();
+  const F = {all: 'All', ok: 'Backup OK', delayed: 'Sync delayed', offline: 'Offline', failed: 'No backup', never: 'Never synced'};
+  const q = ($('#bk_q') && $('#bk_q').value || '').toLowerCase();
+  const L = HOTELS.filter(h => (BKF === 'all' || bkState(h)[0] === BKF) && (!q || (h.name + ' ' + h.code + ' ' + (h.iid || '')).toLowerCase().includes(q)));
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Backups</h2>
+    <p class="muted" style="margin-top:-6px">Each hotel keeps ${30} end-of-day backups on Hotel Setu Cloud (compressed). Tap a hotel to download its data.</p>
+    <input id="bk_q" placeholder="Search name, code or Install ID" value="${esc(q)}" oninput="drawBackups()" style="margin-bottom:8px">
+    <div class="chips">${Object.entries(F).map(([k, v]) => `<button class="chip ${BKF === k ? 'on' : ''}" onclick="BKF='${k}';drawBackups()">${v} ${HOTELS.filter(h => k === 'all' || bkState(h)[0] === k).length}</button>`).join('')}</div>
+    <div style="overflow-x:auto"><table><tr><th>Hotel Code</th><th>Hotel</th><th>Device (Install ID)</th><th>Last sync</th><th>Last backup</th><th>Backups</th><th>Size</th><th>Status</th></tr>
+    ${L.map(h => { const st = bkState(h); return `<tr class="click" onclick="dlBackup('${esc(h.code)}')"><td><code>${esc(h.code)}</code></td><td>${esc(h.name)}</td><td><code>${esc(h.iid || '-')}</code></td>
+      <td>${h.seen ? ago(h.seen) : '-'}</td><td>${h.lastbk ? esc(h.lastbk) : '-'}</td><td>${+h.bkn || 0}</td><td>${h.bksize ? kb(+h.bksize) : '-'}${h.dsize ? `<div class="muted">live ${kb(+h.dsize)}</div>` : ''}</td>
+      <td><span class="tag ${st[2]}">${st[1]}</span></td></tr>`; }).join('') || '<tr><td colspan="8" class="muted">Nothing in this list</td></tr>'}</table></div></div>`;
+  const i = $('#bk_q'); if(q){ i.focus(); i.setSelectionRange(q.length, q.length); }
+}
+
 async function drawBlocked(){
   const L = (await api('/api/admin/blocked')).blocked || [];
   $('#main').innerHTML = backBtn() + `<div class="card"><h2>Blocked computers</h2><p class="muted" style="margin-top:-6px">These Install IDs cannot join Hotel Setu Cloud again (blocked when the hotel was deleted).</p>
@@ -1072,7 +1175,7 @@ function closeAll(){
 }
 
 // ---------------- start ----------------
-function logout(){ try{ sessionStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin'); }catch(e){} location.reload(); }
+function logout(){ try{ sessionStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin_otp'); }catch(e){} location.reload(); }
 async function openPanel(){
   try{
     META = await api('/api/admin/meta');

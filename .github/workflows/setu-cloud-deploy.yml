@@ -17,6 +17,9 @@ on:
         type: choice
         options: [deploy, check]
 
+permissions:
+  contents: read   # to read the setu-latest release (installer for /download/)
+
 concurrency:
   group: setu-cloud-deploy
   cancel-in-progress: false
@@ -46,6 +49,11 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - name: Copy app files and check syntax
         run: node scripts/copy-assets.mjs && node --check src/worker.js
+      # The newest EXE goes out with the cloud: "Install for PC" downloads and the counter PCs' updater read it
+      - name: Add the newest Setu installer for download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/fetch-exe.sh
       - name: Check Cloudflare login and the live worker (changes nothing)
         if: steps.secrets.outputs.ok == 'true' && inputs.mode == 'check'
         env:

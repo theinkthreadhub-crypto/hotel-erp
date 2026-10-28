@@ -1220,6 +1220,14 @@ async function srvPush(){
       }
       if(r.status === 403 && SRV.readOnly){ SRV.dirty = false; return; }
       if(r.status === 403){
+        const why = (await r.json().catch(() => ({}))).error || '';
+        if(/limit/i.test(why)){
+          // Website bill over the daily limit: the cloud did not keep it; show the cloud's copy again
+          SRV.dirty = false; SRV.version = -1;
+          alert(why);
+          setTimeout(srvPoll, 300);
+          return;
+        }
         // Restore / reset is allowed only from the main counter PC or a Manager device
         SRV.forceNext = false;
         SRV.dirty = false;
@@ -1751,8 +1759,9 @@ async function activateLicenseKey(keyStr, reason = 'Key Activation'){
     }
     D.subscription.status = 'active';
   }
-  // A new key also clears a clock-tamper lock
+  // A new key also clears a clock-tamper lock, and counts as a licence check for the 30-day cloud rule
   D.subscription.lastSeen = Date.now();
+  D.subscription.lastKeyAt = Date.now();
   D.subscription.usedKeys.push(info.id);
   if(!D.subscription.history) D.subscription.history = [];
   D.subscription.history.unshift({
@@ -3988,6 +3997,7 @@ function finalizePakkaBill(approvedDisc){
     checkExpiryLock();
     return;
   }
+  if(webBillBlocked()) return;
   const tbl = (B.table || (B.channel !== 'Dine-In' ? B.channel : '')).trim();
   if(!tbl){
     toast('Please select a table or order first');
@@ -7970,9 +7980,67 @@ function saasNotices(){
 setInterval(() => { try{ saasNotices(); }catch(e){} }, 15000);
 // Vendor lock: nothing behind the lock screen may be used, not even with the keyboard (hotkeys, Enter on a focused button)
 document.addEventListener('keydown', e => {
-  const l = $('#saas-lock');
+  const l = $('#saas-lock') || $('#grace-lock');
   if(l && !l.contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
+
+/* ================= WEBSITE BILLING FOR A COUNTER-PC HOTEL ================= */
+// The website is for emergencies (PC broken, no power): a few bills a day. The cloud counts them too.
+const isWebOfCounter = () => SRV.cloud && D.saas && D.saas.webMax !== undefined;
+function webBillBlocked(){
+  if(!isWebOfCounter() || (D.saas.webUnlockUntil || 0) > Date.now()) return false;
+  const used = (D.bills || []).filter(b => b.web && b.date === today()).length;
+  if(used < +D.saas.webMax) return false;
+  modal('Website billing limit reached', `<p style="font-size:14px">On the website you can make <b>${+D.saas.webMax} bills a day</b> (for emergencies). Please bill on the Setu PC app: it works without internet and prints directly.</p>
+    <div class="btns"><a class="btn ok" href="/download/Setu-POS-Setup.exe">Install for PC</a><button class="btn g" onclick="closeModal()">Close</button></div>
+    <p class="muted">Urgent? Ask Aghanya Devanya Enterprises for an emergency unlock (24 hours).</p>`);
+  return true;
+}
+function webBanner(){
+  let w = $('#web-banner');
+  if(!isWebOfCounter() || !activeUser){ if(w) w.remove(); return; }
+  if(!w){ w = document.createElement('div'); w.id = 'web-banner'; document.body.prepend(w); }
+  const used = (D.bills || []).filter(b => b.web && b.date === today()).length;
+  w.style.cssText = 'background:#1d4ed8;color:#fff;padding:7px 16px;font-size:13px;text-align:center';
+  w.innerHTML = `Website mode: ${used}/${+D.saas.webMax} emergency bills today. For full Setu (printing, offline, all modules) <a href="/download/Setu-POS-Setup.exe" style="color:#fff;font-weight:700;text-decoration:underline">Install for PC</a>`;
+}
+setInterval(() => { try{ webBanner(); }catch(e){} }, 15000);
+
+/* ================= 30-DAY CLOUD CHECK (hotels on the cloud plan) ================= */
+// Billing never stops when the internet goes. After 20 days without reaching Hotel Setu Cloud a warning shows; after 30 days
+// Setu locks until the internet comes back or a licence key from the vendor is entered. Offline hotels (Super Admin) are exempt.
+const GRACE_WARN = 20, GRACE_LOCK = 30;
+async function graceCheck(){
+  if(!SRV.on || SRV.cloud) return;
+  let g = null;
+  try{ g = (await (await fetch('/api/ping', {cache: 'no-store'})).json()).grace; }catch(e){ return; }
+  let w = $('#grace-warn'), l = $('#grace-lock');
+  if(g !== null && g !== undefined && g >= GRACE_WARN && g < GRACE_LOCK){
+    if(!w){ w = document.createElement('div'); w.id = 'grace-warn'; document.body.prepend(w); }
+    w.style.cssText = 'background:#d97706;color:#fff;padding:8px 16px;font-weight:700;font-size:13px;text-align:center';
+    w.textContent = `No internet for ${Math.floor(g)} days. Connect this PC to the internet (a phone hotspot is enough) within ${Math.ceil(GRACE_LOCK - g)} days, or Setu will lock. Your data stays safe.`;
+  } else if(w) w.remove();
+  if(g !== null && g !== undefined && g >= GRACE_LOCK){
+    if(l) return;
+    l = document.createElement('div'); l.id = 'grace-lock'; document.body.appendChild(l);
+    if(document.activeElement) document.activeElement.blur();
+    l.style.cssText = 'position:fixed;inset:0;background:radial-gradient(circle at 50% 15%,#1e293b 0%,#090d16 100%);z-index:99999998;display:flex;align-items:center;justify-content:center;padding:20px';
+    l.innerHTML = `<div class="login-card" style="max-width:480px;text-align:center">
+      <h2 style="margin-top:0">Licence check needed</h2>
+      <p style="font-size:15px">This PC has not reached Hotel Setu Cloud for ${Math.floor(g)} days.</p>
+      <p class="muted">Connect the internet (a phone hotspot is enough): Setu opens again by itself within a minute. Or enter the licence key from Aghanya Devanya Enterprises. All your data is safe.</p>
+      <input id="grace_key" placeholder="Paste licence key" style="width:100%;margin:8px 0">
+      <div class="btns" style="justify-content:center"><button class="btn ok" onclick="graceKey()">Activate Key</button><button class="btn g" onclick="backup()">Backup Download</button></div>
+      <div id="grace_msg" class="muted" style="margin-top:8px"></div></div>`;
+  } else if(l) l.remove();
+}
+async function graceKey(){
+  const r = await activateLicenseKey(($('#grace_key').value || '').trim(), 'Key (30-day check)');
+  $('#grace_msg').textContent = r.success ? 'Activated. Opening Setu…' : r.message;
+  if(r.success){ await new Promise(res => setTimeout(res, 1500)); const l = $('#grace-lock'); if(l) l.remove(); graceCheck(); }
+}
+setInterval(() => { graceCheck().catch(() => {}); }, 60000);
+setTimeout(() => { graceCheck().catch(() => {}); }, 8000);
 
 /* ================= SETU AI (Gemini via Hotel Setu Cloud) ================= */
 // The question goes to the cloud; the cloud adds this hotel's totals (no customer data) and asks Gemini.
@@ -9103,6 +9171,7 @@ function scrSettings(){
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
+  <div class="card" id="update-card" style="border-left:4px solid #16a34a;display:none"></div>
   ${listsCard()}
   <div class="card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Owner Password</h3>
     <p class="muted" style="margin-top:-4px">Used to sign in on this PC, as the Manager PIN, and on the owner's phone app (Hotel Setu Cloud). Forgot it? Your vendor can set a new one.</p>
@@ -9304,6 +9373,7 @@ function scrSettings(){
   drawNetCard();
   drawPrintCard();
   drawCloudCard();
+  drawUpdateCard();
 }
 
 async function drawPrintCard(){
@@ -9466,8 +9536,10 @@ async function cloudPill(){
       const c = await (await srvFetch('/api/cloud')).json();
       if(c.configured){
         const t = c.at ? new Date(c.at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'}) : '';
-        cls = c.ok === true ? 'on' : c.ok === false ? 'bad' : 'wait';
-        txt = c.ok === true ? `☁ Synced ${t}` : c.ok === false ? '☁ Sync failed' : '☁ Connecting…';
+        // Bills made after the last good sync are not on the cloud yet
+        const waiting = c.pending ? (D.bills || []).filter(b => !c.okAt || Date.parse(b.date + 'T' + (b.time || '00:00')) > c.okAt - 60000).length : 0;
+        cls = c.ok === true && !c.pending ? 'on' : c.ok === false ? 'bad' : 'wait';
+        txt = c.ok === true ? (c.pending ? '☁ Saving to cloud…' : `☁ All saved ${t}`) : c.ok === false ? (waiting ? `☁ Offline · ${waiting} bill${waiting > 1 ? 's' : ''} not on cloud` : '☁ Offline') : '☁ Connecting…';
         el.title = c.ok === false ? 'Cloud Sync failing: ' + (c.error || '') + ' — open Settings' : 'Hotel Setu Cloud Sync — open Settings';
       }
     }catch(e){}
@@ -9490,6 +9562,55 @@ async function footerHotel(){
 }
 setInterval(footerHotel, 60000);
 setInterval(cloudPill, 60000);
+
+/* ================= SOFTWARE UPDATE (Main Counter PC) ================= */
+// The newest Setu comes from Hotel Setu Cloud. Download is checked (SHA-256); install waits until no bill is open on this PC.
+async function updApi(action){
+  const r = await srvFetch('/api/update', action ? {method: 'POST', body: JSON.stringify({action})} : {});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+  return j;
+}
+async function drawUpdateCard(){
+  const el = $('#update-card');
+  if(!el || !SRV.on || !SRV.local || SRV.cloud) return;
+  let u;
+  try{ u = await updApi(); }catch(e){ return; }
+  el.style.display = '';
+  const btn = (t, a, cls) => `<button class="btn ${cls || ''}" onclick="updDo('${a}')">${t}</button>`;
+  el.innerHTML = `<h3 style="margin-top:0">Software Update</h3>
+    <p style="margin:0 0 6px">This PC: <b>${u.current === 'dev' ? 'test build' : 'Setu v' + esc(u.current)}</b>${u.latest ? ` · Newest: <b>Setu v${esc(u.latest)}</b>` : ''}${u.checkedAt ? ` <span class="muted">(checked ${new Date(u.checkedAt).toLocaleString('en-IN')})</span>` : ''}</p>
+    ${u.hold ? '<p class="muted">Updates are paused by Aghanya Devanya Enterprises.</p>' : ''}
+    ${u.available ? `<p class="ok"><b>A new version is ready.</b>${u.notes ? ' ' + esc(u.notes) : ''}</p>` : u.latest && !u.hold ? '<p class="ok">Setu is up to date.</p>' : ''}
+    ${u.step === 'downloading' ? `<p>Downloading… ${u.progress || 0}%</p>` : ''}
+    ${u.step === 'failed' || u.error ? `<p class="err">${esc(u.error || 'Update failed')}</p>` : ''}
+    <div class="btns">${btn('Check now', 'check', 'g')}${u.available && !['downloading', 'ready', 'installing'].includes(u.step) ? btn('Download update', 'download', 'ok') : ''}${u.step === 'ready' ? btn('Install now (Setu restarts)', 'install', 'ok') : ''}</div>
+    <p class="muted" style="font-size:12px">Your bills, settings, printers and licence stay as they are. Setu closes for about a minute and opens again by itself.</p>`;
+  if(u.step === 'downloading') setTimeout(drawUpdateCard, 2000);
+}
+async function updDo(a){
+  try{
+    if(a === 'install'){
+      const open = Object.keys(D.kaccha || {}).length, cart = typeof B !== 'undefined' && B && B.cart && B.cart.length;
+      if(cart){ toast('Finish or clear the bill on the screen first'); return; }
+      if(!confirm(`Install the update now? Setu will close and open again in about a minute.${open ? `\n\n${open} running table order(s) are saved and will be there after the update.` : ''}`)) return;
+      save();
+      // Let the last edits reach the counter's database file before Setu closes
+      for(let i = 0; i < 40 && (SRV.dirty || SRV.busy); i++) await new Promise(r => setTimeout(r, 250));
+    }
+    await updApi(a);
+    if(a === 'install'){ main.innerHTML = '<div class="card" style="text-align:center;padding:40px"><h2>Updating Setu…</h2><p class="muted">Setu opens again by itself in about a minute. Do not turn off the PC.</p></div>'; return; }
+  }catch(e){ toast(e.message); }
+  drawUpdateCard();
+}
+// Once a day on the counter PC: tell the manager a new version is ready
+setTimeout(async () => {
+  try{
+    if(!SRV.on || !SRV.local || SRV.cloud) return;
+    const u = await updApi();
+    if(u.available && lsGet('setu_upd_seen') !== u.latest + today()){ lsSet('setu_upd_seen', u.latest + today()); toast(`New Setu v${u.latest} is ready: Settings (G) → Software Update`); }
+  }catch(e){}
+}, 120000);
 
 async function drawCloudCard(){
   const el = $('#cloud-card');

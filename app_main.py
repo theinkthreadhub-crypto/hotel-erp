@@ -28,8 +28,10 @@ import ssl
 import email.utils
 import base64
 import copy
+import hashlib
 
 APP_PORT = 8000
+APP_VERSION = 'dev'   # stamped by installer/stamp-version.py when the EXE is built
 # Setu Cloud the counter PC joins by itself (like Library ERP). SETU_CLOUD_URL overrides it.
 DEFAULT_CLOUD_URL = os.environ.get('SETU_CLOUD_URL', 'https://setu-cloud.theinkthreadhub.workers.dev')
 AUTO_LINK_EVERY = 30 * 60   # seconds between join attempts while offline / not licensed yet
@@ -600,8 +602,27 @@ class CloudSync:
 
     def public(self):
         # The sync key never leaves this PC
+        lv = self.state.get('lv', -1)
         return {'configured': self.configured(), 'url': self.cfg.get('url', '') or DEFAULT_CLOUD_URL, 'hotel': self.cfg.get('hotel', ''),
-                'enabled': self.cfg.get('enabled', True), 'hasKey': bool(self.cfg.get('key')), 'auto': self.auto, **self.status}
+                'enabled': self.cfg.get('enabled', True), 'hasKey': bool(self.cfg.get('key')), 'auto': self.auto, **self.status,
+                # Edits on this PC that the cloud does not have yet, and the last time a sync fully succeeded
+                'pending': self.configured() and (lv < 0 or self.store.version != lv), 'okAt': self.state.get('okAt', 0)}
+
+    def grace(self):
+        # Days since this PC last reached the cloud (or got a new licence key). Only for a hotel on the cloud;
+        # an Offline hotel (set in Super Admin) and a PC that never synced after this update are left alone.
+        ok_at = self.state.get('okAt', 0)
+        if not self.configured() or not ok_at:
+            return None
+        with self.store.lock:
+            d = self.store.data() if self.store.version else None
+        if not isinstance(d, dict):
+            return None
+        saas = d.get('saas') or {}
+        if not saas or saas.get('offline'):
+            return None
+        key_at = ((d.get('subscription') or {}).get('lastKeyAt') or 0) / 1000
+        return round(max(0.0, (time.time() - max(ok_at / 1000, key_at)) / 86400), 2)
 
     def _license(self):
         # This PC's newest signed licence key (never the built-in AD-DEMO keys) + Install ID
@@ -800,7 +821,12 @@ class CloudSync:
                 continue
             try:
                 self._tick()
-                self.status.update(ok=True, at=int(time.time() * 1000), error='')
+                now_ms = int(time.time() * 1000)
+                self.status.update(ok=True, at=now_ms, error='')
+                # Remember the last good sync on disk (for the 30-day check after a restart); every 10 min is enough
+                if now_ms - self.state.get('okAt', 0) > 600000:
+                    self.state['okAt'] = now_ms
+                    _write_json(self.state_path, self.state)
                 try:
                     self._push_license()
                 except Exception:
@@ -903,12 +929,113 @@ class CloudSync:
             new_lv = self.store.version
         _write_json(self.base_path, merged)
         # lv = -1 tells the next round that this PC still has edits the cloud lacks
-        self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1, **{k: self.state[k] for k in ('lic', 'licSent') if k in self.state}}
+        self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1, **{k: self.state[k] for k in ('lic', 'licSent', 'okAt') if k in self.state}}
         _write_json(self.state_path, self.state)
         self.status['cloudVersion'] = cv
 
 
-def make_handler(base_dir, store, port, cloud=None):
+def _ver(v):
+    try:
+        return tuple(int(x) for x in str(v).split('.'))
+    except ValueError:
+        return ()
+
+
+class Updater:
+    # Newest Setu installer from Hotel Setu Cloud: check every 6 hours, download only when the owner asks,
+    # check its SHA-256, and install only when no print is running. Data, printers and licence are never touched:
+    # they live in %LOCALAPPDATA%\AghanyaDevanyaERP\Data, outside the program folder.
+    def __init__(self, store):
+        self.store = store
+        self.dir = os.path.join(os.path.dirname(store.dir), 'Updates')
+        self.manifest = {}
+        self.file = ''
+        self.state = {'current': APP_VERSION, 'latest': '', 'available': False, 'hold': False, 'notes': '',
+                      'step': '', 'error': '', 'progress': 0, 'checkedAt': 0}
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _loop(self):
+        time.sleep(90)
+        while True:
+            try:
+                self.check()
+            except Exception as e:
+                self.state['error'] = _net_reason(e)
+            time.sleep(6 * 3600)
+
+    def check(self):
+        req = urllib.request.Request(DEFAULT_CLOUD_URL + '/api/update', headers={'User-Agent': 'Setu-Main-Counter/1.0'})
+        with _urlopen(req, 20) as r:
+            m = json.loads(r.read().decode('utf-8') or '{}')
+        self.manifest = m
+        newer = APP_VERSION != 'dev' and bool(_ver(m.get('version'))) and _ver(m.get('version')) > _ver(APP_VERSION)
+        self.state.update(latest=m.get('version', ''), hold=bool(m.get('hold')), notes=m.get('notes', ''),
+                          available=newer and not m.get('hold'), checkedAt=int(time.time() * 1000), error='')
+        return self.state
+
+    def download(self):
+        if self.state['step'] == 'downloading':
+            return
+        m = self.manifest
+        if not self.state['available'] or not m.get('url') or not m.get('sha256'):
+            raise ValueError('No update to download')
+        self.state.update(step='downloading', progress=0, error='')
+        threading.Thread(target=self._download, args=(dict(m),), daemon=True).start()
+
+    def _download(self, m):
+        try:
+            os.makedirs(self.dir, exist_ok=True)
+            path = os.path.join(self.dir, 'Setu-POS-Setup-%s.exe' % m['version'])
+            part = path + '.part'
+            h, got = hashlib.sha256(), 0
+            req = urllib.request.Request(DEFAULT_CLOUD_URL + m['url'], headers={'User-Agent': 'Setu-Main-Counter/1.0'})
+            with _urlopen(req, 60) as r, open(part, 'wb') as f:
+                while True:
+                    chunk = r.read(256 * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    h.update(chunk)
+                    got += len(chunk)
+                    if m.get('size'):
+                        self.state['progress'] = min(99, int(got * 100 / m['size']))
+            if h.hexdigest().lower() != str(m['sha256']).lower():
+                os.remove(part)
+                raise OSError('The downloaded file is damaged (check failed). Please try again.')
+            os.replace(part, path)
+            # Keep this one and the one before (to go back if needed)
+            old = sorted((f for f in os.listdir(self.dir) if f.startswith('Setu-POS-Setup-') and f.endswith('.exe')),
+                         key=lambda f: _ver(f[15:-4]))
+            for f in old[:-2]:
+                try:
+                    os.remove(os.path.join(self.dir, f))
+                except OSError:
+                    pass
+            self.file = path
+            self.state.update(step='ready', progress=100)
+            self.store.log('UPDATE: downloaded Setu ' + m['version'])
+        except Exception as e:
+            self.state.update(step='failed', error=_net_reason(e) if isinstance(e, urllib.error.URLError) else str(e))
+            self.store.log('UPDATE FAILED: ' + str(e))
+
+    def install(self):
+        if self.state['step'] != 'ready' or not self.file or not os.path.exists(self.file):
+            raise ValueError('Download the update first')
+        last = print_history[-1]['at'] if print_history else 0
+        if print_lock.locked() or time.time() * 1000 - last < 20000:
+            raise ValueError('A print is running. Try again in a few seconds.')
+        if os.name != 'nt':
+            raise ValueError('Updates install only on Windows')
+        import subprocess
+        self.store.log('UPDATE: installing Setu ' + self.state['latest'])
+        # Silent install of the same per-user setup; it closes Setu, updates the program files and starts Setu again
+        subprocess.Popen([self.file, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CLOSEAPPLICATIONS'],
+                         close_fds=True, creationflags=0x00000008)   # DETACHED_PROCESS
+        self.state['step'] = 'installing'
+        threading.Timer(4, lambda: os._exit(0)).start()
+
+
+def make_handler(base_dir, store, port, cloud=None, updater=None):
     class Handler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=base_dir, **kwargs)
@@ -962,13 +1089,18 @@ def make_handler(base_dir, store, port, cloud=None):
             if not path.startswith('/api/'):
                 return super().do_GET()
             if path == '/api/ping':
-                return self.send_json(200, {'setu': True, 'version': store.version, 'local': self.is_local()})
+                return self.send_json(200, {'setu': True, 'version': store.version, 'local': self.is_local(),
+                                            'grace': cloud.grace() if cloud else None})
             if path == '/api/cloud':
                 if not self.is_local():
                     return self.send_json(403, {'error': 'main counter only'})
                 return self.send_json(200, cloud.public() if cloud else {'configured': False})
             if path == '/api/info':
                 return self.send_json(200, {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()})
+            if path == '/api/update':
+                if not self.is_local() or not updater:
+                    return self.send_json(403, {'error': 'main counter only'})
+                return self.send_json(200, updater.state)
             if path == '/api/log':
                 # Error Log screen: the newest lines of setu-server.log (main counter only)
                 if not self.is_local():
@@ -1093,6 +1225,25 @@ def make_handler(base_dir, store, port, cloud=None):
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
                 return self.send_json(200, cloud.public())
+            if path == '/api/update':
+                # Check / download / install a new Setu (main counter PC only)
+                if not self.is_local() or not updater:
+                    return self.send_json(403, {'error': 'main counter only'})
+                try:
+                    act = self.read_json().get('action')
+                    if act == 'check':
+                        updater.check()
+                    elif act == 'download':
+                        updater.download()
+                    elif act == 'install':
+                        updater.install()
+                    else:
+                        return self.send_json(400, {'error': 'unknown action'})
+                except ValueError as e:
+                    return self.send_json(400, {'error': str(e)})
+                except Exception as e:
+                    return self.send_json(502, {'error': _net_reason(e) if isinstance(e, urllib.error.URLError) else str(e)})
+                return self.send_json(200, updater.state)
             if path == '/api/printer-jobs':
                 # Printer Health: remove stuck or repeated jobs (main counter or a Manager device)
                 if self.role() not in ('local', 'admin'):
@@ -1185,7 +1336,8 @@ def start_server(base_dir, data_dir, port):
     store.log(f'Server start: port {port}, database version {store.version}')
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
-    httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud))
+    updater = Updater(store)
+    httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud, updater))
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
     t.start()

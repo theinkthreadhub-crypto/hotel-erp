@@ -389,3 +389,14 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
   Bill Design. Doctor can lock / unlock.
 - Editable dropdown lists (`LISTS`, `lst(key)`, `settings.lists`): expense heads, stock categories, misc categories / subs, locations,
   gas sizes, waste / issue / return reasons. Settings → Dropdown Lists. Empty = defaults.
+
+## Batch A (28 Oct 2026): backups, 30-day check, website limit, Authenticator, updates
+
+- **Regression tests:** `tests/regression.js` (Playwright, a TEST hotel on a local `wrangler dev`): KOT 3+5=8, GST, stock once, five clicks = one bill, bill numbers, split, cancel, print layout, reload. Run before every release.
+- **Cloud backups compressed:** end-of-day backups are written as `bk:<day>` in `commit()` and compressed right after to `bz:<day>` (gzip + base64) by `packBackups()`; `readBackup()` reads both. Registry columns `lastbk`, `bkn`, `bksize`, `dsize`. Super Admin → More → **Backups** table.
+- **Trial:** `TRIAL_DAYS = 7`.
+- **30-day cloud check (grace):** `app_main.py` keeps `okAt` (last good sync) in the cloud state file; `CloudSync.grace()` = days since max(okAt, `subscription.lastKeyAt`), returned by `/api/ping`. `graceCheck()` in the app: 20 days → warning bar, 30 days → lock screen with licence key box. Billing data is never touched. Not applied when `D.saas.offline` (Super Admin tile **Online / Offline hotel**) or before the first sync after this update.
+- **Pending sync:** `/api/cloud` has `pending` + `okAt`; the top pill shows "All saved", "Saving to cloud…" or "Offline · N bills not on cloud".
+- **Website billing for counter-PC hotels** (`plan === 'counter'`): `webLimit()` in the Hotel DO marks new bills from the website `web: 1` and allows `WEB_BILLS_PER_DAY` (5) a day; `webUnlock` (24 h) and `webMax` from Super Admin. App side: `webBillBlocked()` + `webBanner()` ("Install for PC" → `/download/Setu-POS-Setup.exe`). Phone-only hotels have no limit.
+- **Authenticator app (TOTP) for Super Admin:** `/api/admin/totp/*`, secret in registry conf `totp`. Once on, every admin call needs `X-Setu-Otp` (30-day per-device session from `/api/admin/totp/login`). Lost phone: Worker variable `ADMIN_TOTP_OFF = 1`.
+- **EXE updates:** builds publish the installer with the cloud (`cloud/scripts/fetch-exe.sh` → `public/download/` + `latest.json`, in both `build-exe.yml` (job `publish-cloud`) and `setu-cloud-deploy.yml`). `/api/update` = manifest + `hold` (Super Admin → More → **Software updates**: pause / release, message). `Updater` in `app_main.py`: check every 6 h, download on request, SHA-256 check, install only when no print ran in the last 20 s (silent Inno install; `[Run] ... Check: WizardSilent` starts Setu again). Settings (G) → **Software Update** card. `APP_VERSION` is stamped into `app_main.py` too. The last two installers stay in `%LOCALAPPDATA%\AghanyaDevanyaERP\Updates`.

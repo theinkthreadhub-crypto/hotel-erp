@@ -3,3 +3,5 @@
   Cache-Control: no-cache
 /hotel_erp.html
   Cache-Control: no-cache
+/download/latest.json
+  Cache-Control: no-cache

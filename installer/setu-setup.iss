@@ -54,6 +54,8 @@ Name: "{userdesktop}\Setu POS"; Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe";
 [Run]
 Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Microsoft WebView2 install ho raha hai (internet chahiye)..."; Check: NeedsWebView2; Flags: waituntilterminated
 Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Description: "Setu POS abhi kholein"; Flags: nowait postinstall skipifsilent
+; Update from inside Setu (silent install): start Setu again by itself
+Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Flags: nowait; Check: WizardSilent
 
 [Code]
 const
