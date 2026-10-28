@@ -14,7 +14,7 @@ test('Zomato live relay order identity and true item prices retained',()=>{
  const x=normalizeAggregatorOrder('zomato',example());
  assert.equal(x.platform,'zomato');assert.equal(x.orderId,'1965530160');assert.equal(x.outletId,'18555376');
  assert.equal(x.items[0].qty,2);assert.equal(x.items[0].price,230);
- assert.equal(x.total,520);assert.equal(x.source,'approved_partner_webhook');assert.equal(x.needsReview,false);
+ assert.equal(x.total,520);assert.equal(x.source,'authenticated_partner_webhook');assert.equal(x.needsReview,false);
 });
 test('Swiggy adapter stays ready for approved mapped provider schema',()=>{
  const x=normalizeAggregatorOrder('swiggy',{order_id:'S201',store_id:'KITCHEN-1',items:[{name:'Roti',qty:3,price:15}],total:45});
@@ -23,6 +23,11 @@ test('Swiggy adapter stays ready for approved mapped provider schema',()=>{
 test('Unknown item schema is preserved as REVIEW, never silently made real revenue',()=>{
  const x=normalizeAggregatorOrder('zomato',{order_id:'AA123',restaurant_id:'18555376',items:[{name:'Roti',quantity:2}],total:50});
  assert.equal(x.needsReview,true);assert.ok(x.issues.join(' ').includes('Price mapping'));
+});
+test('Cancelled marketplace orders are never auto-importable',()=>{
+ const x=normalizeAggregatorOrder('zomato',{order_id:'CANCEL-01',restaurant_id:'18555376',status:'cancelled',
+   items:[{name:'Roti',qty:1,price:20}],total:20});
+ assert.equal(x.needsReview,true);assert.ok(x.issues.some(i=>i.includes('not newly actionable')));
 });
 test('Missing partner outlet and order IDs are rejected',()=>{
  assert.throws(()=>normalizeAggregatorOrder('zomato',{order:{order_id:'X-1'}}),/outlet/);
