@@ -2405,7 +2405,10 @@ function waOwner(text){
 function waReceiptShare(id){
   const bill=D.bills.find(b=>b.id===id);
   if(!bill || !bill.phone) return toast('Bill or customer mobile is missing');
+  if(D.settings.waReceiptMode === 'off') return toast('WhatsApp receipts are turned OFF in Settings.');
   if(!bill.waReceiptConsent && !confirm('Has this customer agreed to receive this bill on WhatsApp?')) return;
+  if(bill.waReceiptConsent && D.settings.waReceiptMode === 'auto' &&
+     !confirm('Automatic receipt may also be sent after cloud sync. Send this manually as well?')) return;
   // Manual wa.me sharing never triggers the automatic API sender.
   waOpen(bill.phone,billText(bill));
 }
