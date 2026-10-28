@@ -6,7 +6,7 @@ name: Setu Cloud deploy
 # Worker secrets (ADMIN_KEY, LICENSE_PRIVATE_KEY, Razorpay) stay in Cloudflare and are not touched here.
 on:
   push:
-    branches: [main, hotel-software, ccr-89eaafa4-mxbfj2]
+    branches: [ccr-89eaafa4-mxbfj2]
     paths: ['cloud/**', 'hotel_erp.html', 'sw.js', 'manifest.json', '.github/workflows/setu-cloud-deploy.yml']
   workflow_dispatch:
     inputs:
@@ -26,6 +26,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
     runs-on: ubuntu-latest
     defaults:
       run:
