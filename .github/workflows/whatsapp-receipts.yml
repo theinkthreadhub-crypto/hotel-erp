@@ -1,0 +1,36 @@
+name: WhatsApp Receipt Gate
+
+on:
+  push:
+    branches: [feat/whatsapp-receipts]
+    paths:
+      - 'cloud/src/worker.js'
+      - 'hotel_erp.html'
+      - 'app_main.py'
+      - 'tests/whatsapp-receipts.cjs'
+      - '.github/workflows/whatsapp-receipts.yml'
+  pull_request:
+    branches: [ccr-89eaafa4-mxbfj2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-security:
+    name: Consent, Meta API and duplicate delivery checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check Cloudflare Worker JavaScript
+        run: node --check cloud/src/worker.js
+      - name: Check Windows server Python syntax
+        run: python -m py_compile app_main.py
+      - name: Run 16 WhatsApp receipt tests without a real Meta API token
+        run: node tests/whatsapp-receipts.cjs
