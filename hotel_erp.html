@@ -2405,7 +2405,8 @@ function waOwner(text){
 function waReceiptShare(id){
   const bill=D.bills.find(b=>b.id===id);
   if(!bill || !bill.phone) return toast('Bill or customer mobile is missing');
-  if(!bill.waReceiptConsent) return toast('Confirm customer permission before sending the bill');
+  if(!bill.waReceiptConsent && !confirm('Has this customer agreed to receive this bill on WhatsApp?')) return;
+  // Manual wa.me sharing never triggers the automatic API sender.
   waOpen(bill.phone,billText(bill));
 }
 // API delivery is server-verified. UI never supplies the recipient or receipt amount.
@@ -3112,7 +3113,7 @@ function scrGateway(){
                   <td class="n font-bold">${money(b.total)}</td>
                   <td>
                     <button class="btn sm g" onclick="printBill('${b.id}','bill')" title="Print">Print</button>
-                    <button class="btn sm wa" onclick="${b.phone ? `waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))` : `waOwner(billText(getBill('${b.id}')))`}" title="WhatsApp">WhatsApp</button>
+                    <button class="btn sm wa" onclick="${b.phone ? `waReceiptShare('${b.id}')` : `waOwner(billText(getBill('${b.id}')))`}" title="WhatsApp">WhatsApp</button>
                   </td>
                 </tr>
               `).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:18px">No bills yet today</td></tr>'}
@@ -4748,7 +4749,7 @@ function scrBills(){
             <td style="white-space:nowrap">
               <button class="btn sm g" onclick="printBill('${b.id}','bill')">Bill</button>
               <button class="btn sm g" onclick="printBill('${b.id}','kot')">KOT</button>
-              <button class="btn wa sm" onclick="${b.phone ? `waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))` : `waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WhatsApp</button>
+              <button class="btn wa sm" onclick="${b.phone ? `waReceiptShare('${b.id}')` : `waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WhatsApp</button>
               ${b.cancelled ? '' : `<button class="btn sm" onclick="editBill('${b.id}')">Edit</button><button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}
             </td>
           </tr>
