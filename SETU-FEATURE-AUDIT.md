@@ -66,7 +66,7 @@ Status: ✅ implemented and working (tested) · 🟡 partial · ❌ missing · �
 | Bulk import (Excel / CSV) without duplicates | ✅ | bulk purchase / stock import; test: same file twice = no double |
 | Average cost, valuation, recipe cost, food cost | ✅ | `avgCost` 4168; reports `inventory-valuation`, `food-cost` |
 | Low stock alert | ✅ | `stock-alerts` report, dashboard |
-| Batch / expiry | ❌ | report note at html 8339: "Setu does not track expiry / batches yet" 🏗 |
+| Batch / expiry | ✅ (Phase 2) | item flag `exp`, purchase `batch` / `exp`, `stockBatches()` FIFO, report `expiry`; `tests/inventory.js` |
 | Stock timing | — | deduction happens when the **final bill** is saved (`used` on the bill); KOT does not deduct. Kept as is |
 
 ### Expenses, gas, assets, suppliers (roadmap Phase 3) — built on 26 Oct

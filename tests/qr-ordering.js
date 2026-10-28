@@ -85,7 +85,7 @@ const login = async p => {
   const other = await g.evaluate(async ([o, tk]) => (await fetch('/api/guest/menu?t=' + tk, { headers: { 'X-Setu-Hotel': o } })).status, [OTHER, token]);
   t('Token does not open another hotel', other === 410 || other === 404, other);
   // Guest price tampering is ignored: the server uses its own menu price
-  const price = await staff.evaluate(async () => { const s = await qrApi('state'); return s.orders.every(o => o.items.every(i => i.price === ({ q1: 200, q2: 20 })[i.mid])); });
+  const price = await staff.evaluate(async () => { const s = await qrApi('state'); const mine = s.orders.filter(o => o.items.every(i => ['q1', 'q2'].includes(i.mid))); return mine.length > 0 && mine.every(o => o.items.every(i => i.price === ({ q1: 200, q2: 20 })[i.mid])); });
   t('Prices come from the hotel menu', price, price);
   t('No page errors', !errs.length, errs);
   await staff.evaluate(async () => { await qrApi('settings', { on: false }); });

@@ -409,3 +409,10 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 - **App:** `qrPoll()` every 10 s (2 min when off), `QR n` pill + chime, `qrPanel()` Accept / Reject / calls, `qrApply()` = the Captain App path (`kacchaToB` → `saveKacchaBill`), KOT gets `src: 'qr'`, `qr: <order id>`; `D.qrDone` (ids) stops double adds, `D.qrLog` feeds the **QR Ordering** report. Auto-accept runs on the counter PC (or phone-only hotels' devices). The screen's own open bill is never mixed: if that table has unsent items, the order waits.
 - **Menu (M → Edit):** optional Veg / Non-veg, hide on guest menu, photo link (https), short description.
 - **Tests:** `tests/qr-ordering.js` (17 checks: one KOT on double accept, only new items on the next KOT, bill once, idempotent order, revoked token, other hotel, server prices).
+
+## Inventory Phase 2 (28 Oct 2026)
+
+- **Batch & expiry:** item flag `exp` (Stock → Edit → "Track batch & expiry"). Purchase lines of such items take `batch` + `exp` (saved on the Purchase txn). `stockBatches(sid)` = stock on hand assigned to the newest purchases (oldest used first), the rest is "Opening". `expPill()` in the stock list, report **Batch & Expiry** (`expiry`), Setu Doctor check "Expiry" (≤ 2 days). Stock movement and deduction timing are unchanged.
+- **Out of stock:** stock list shows "Out of stock" at 0 (and "Inactive" instead of the old "Band"). Optional `D.settings.qrHideOut` (Q screen): the guest QR menu hides dishes whose recipe ingredient has no stock (worker `guest()` reads `D.stock` / `D.stockAlias`).
+- **Purchase Rate History** report (`purchase-rate-history`): rate per base unit of every purchase and change % from the previous one.
+- **Tests:** `tests/inventory.js` (100 kg Atta in 4 buys, 70 used → 30, 50 − 10 = 40, rate history, FIFO batches, expiry report, out of stock, guest menu hiding).

@@ -4170,6 +4170,29 @@ const activeStock = () => D.stock.filter(s => !s.merged && s.active !== false);
 // Units: the item's own unit plus any "1 bag = 25 kg" conversions
 const unitList = s => [[s.unit || 'pcs', 1]].concat((s.conv || []).filter(c => c.u && +c.f > 0).map(c => [c.u, +c.f]));
 // Weighted average purchase cost per unit (all purchases saved with quantity), else the last rate
+// Batches with an expiry date: what is left of each purchase, oldest used first (FIFO). Stock on hand is
+// assigned to the newest purchases; anything older than all purchases is opening stock (no date).
+function stockBatches(sid){
+  const s = stockItem(sid);
+  if(!s) return [];
+  const ps = D.txns.filter(t => t.type === 'Purchase' && t.sid && sidOf(t.sid) === s.id && +t.qty > 0).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  let left = Math.max(0, +s.qty || 0);
+  const out = [];
+  for(let i = ps.length - 1; i >= 0 && left > 0; i--){
+    const q = Math.min(+ps[i].qty, left);
+    left = r3(left - q);
+    out.unshift({id: ps[i].id, date: ps[i].date, batch: ps[i].batch || '', exp: ps[i].exp || '', party: ps[i].party || '', bought: +ps[i].qty, left: r3(q)});
+  }
+  if(left > 0) out.unshift({id: '', date: '', batch: 'Opening', exp: '', party: '', bought: left, left});
+  return out;
+}
+const daysTo = d => Math.round((Date.parse(d) - Date.parse(today())) / 864e5);
+const EXP_SOON = 7;
+function expPill(sid){
+  const b = stockBatches(sid).filter(x => x.exp), bad = b.filter(x => daysTo(x.exp) < 0), soon = b.filter(x => daysTo(x.exp) >= 0 && daysTo(x.exp) <= EXP_SOON);
+  return bad.length ? ' <span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Expired</span>'
+    : soon.length ? ` <span class="status-pill" style="color:#9a3412;background:#ffedd5;border-color:#fdba74">Expires in ${Math.min(...soon.map(x => daysTo(x.exp)))} d</span>` : '';
+}
 function avgCost(sid){
   const ps = D.txns.filter(t => t.type === 'Purchase' && t.sid && sidOf(t.sid) === sid && +t.qty > 0 && +t.amount > 0);
   const q = sum(ps, 'qty'), a = sum(ps, 'amount');
@@ -4863,7 +4886,7 @@ function scrPurchase(){
     <div style="overflow:auto;margin-top:10px"><table>
       <thead><tr><th>Item</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate (per unit)</th><th class="n">Amount</th><th></th></tr></thead>
       <tbody>${PF.lines.map((l, i) => { const s = stockItem(l.sid); return `<tr>
-        <td><select onchange="pfSet(${i},'sid',this.value)">${opts(l.sid)}</select></td>
+        <td><select onchange="pfSet(${i},'sid',this.value)">${opts(l.sid)}</select>${s && s.exp ? `<div style="display:flex;gap:6px;margin-top:4px"><input placeholder="Batch no." value="${esc(l.batch || '')}" style="width:110px" oninput="pfSet(${i},'batch',this.value,1)"><input type="date" title="Expiry date" value="${esc(l.exp || '')}" style="width:150px" oninput="pfSet(${i},'exp',this.value,1)"></div>` : ''}</td>
         <td class="n"><input type="number" step="any" value="${l.qty}" style="width:90px" oninput="pfSet(${i},'qty',this.value,1)"></td>
         <td><select style="width:auto" onchange="pfSet(${i},'f',+this.value)">${s ? unitList(s).map(([u, f]) => `<option value="${f}" ${+l.f === f ? 'selected' : ''}>${esc(u)}</option>`).join('') : '<option>-</option>'}</select></td>
         <td class="n"><input type="number" step="any" value="${l.rate}" style="width:100px" oninput="pfSet(${i},'rate',this.value,1)"></td>
@@ -4914,6 +4937,8 @@ function savePurchase(){
     save(); PF = pfNew(); toast('Order saved. When the goods arrive press "Goods Received" (stock goes up then).'); scrPurchase(); return;
   }
   if(t.pending > 0 && !party){ toast('A supplier name is required for an unpaid balance'); return; }
+  const noExp = lines.filter(l => (stockItem(l.sid) || {}).exp && !l.exp);
+  if(noExp.length && !confirm(`No expiry date for: ${noExp.map(l => stockItem(l.sid).name).join(', ')}.\nSave without it?`)) return;
   if(t.total < 0){ toast('The total cannot be negative'); return; }
   const invId = uid(), time = PF.date === today() ? nowTime() : '12:00', credit = t.pending > 0, adj = r2(t.total - t.items);
   let left = adj;
@@ -4924,7 +4949,8 @@ function savePurchase(){
     const amount = r2(amt0 + share), unitName = (unitList(s).find(([, f]) => f === (+l.f || 1)) || [s.unit])[0];
     D.txns.push({id: uid(), type: 'Purchase', date: PF.date, time, head: s.name, desc: `${fq(l.qty)} ${unitName}${+l.f !== 1 ? ` (${fq(base)} ${s.unit})` : ''} @ ₹${l.rate}`,
       party, amount, mode: credit ? 'Credit' : PF.mode, sid: s.id, qty: base, mv: 1, by: curUser(), at: Date.now(),
-      inv: {id: invId, no: PF.no, disc: +PF.disc || 0, tax: +PF.tax || 0, due: credit ? PF.due : '', total: t.total, paid: t.paid, n: lines.length}, ...(PF.remark ? {remark: PF.remark} : {})});
+      inv: {id: invId, no: PF.no, disc: +PF.disc || 0, tax: +PF.tax || 0, due: credit ? PF.due : '', total: t.total, paid: t.paid, n: lines.length}, ...(PF.remark ? {remark: PF.remark} : {}),
+      ...(l.exp ? {exp: l.exp} : {}), ...(l.batch ? {batch: String(l.batch).slice(0, 30)} : {})});
     if(base) s.rate = r2(+l.rate / (+l.f || 1));
     if(party && !s.sup) s.sup = party;
   });
@@ -5693,7 +5719,7 @@ function scrStock(){
               <td class="n">${fq(s.min)}</td>
               <td class="n">${r2(ac)}</td>
               <td class="n font-bold">${money(Math.max(0, s.qty) * ac)}</td>
-              <td>${s.active === false ? '<span class="status-pill">Band</span>' : neg ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Minus!</span>' : l ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Low</span>' : '<span class="status-pill">OK</span>'}</td>
+              <td>${s.active === false ? '<span class="status-pill">Inactive</span>' : neg ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Minus!</span>' : +s.qty === 0 ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Out of stock</span>' : l ? '<span class="status-pill" style="color:var(--bad);background:var(--bad-light);border-color:var(--bad)">Low</span>' : '<span class="status-pill">OK</span>'}${s.exp ? expPill(s.id) : ''}</td>
               <td style="white-space:nowrap">
                 <button class="btn sm g" onclick="itemHistory('${s.id}')">History</button>
                 <button class="btn sm g" onclick="stockOut('${s.id}','waste')">Waste</button>
@@ -5728,6 +5754,7 @@ function editStock(id){
       <div><label>Default Supplier</label><input id="s_sup" list="s_sups" value="${esc(s.sup || '')}"><datalist id="s_sups">${sups.map(n => `<option>${esc(n)}</option>`).join('')}</datalist></div>
       <div><label>Bada unit (optional)</label><div style="display:flex;gap:6px;align-items:center">1 <input id="s_cu" value="${esc(conv.u || '')}" placeholder="bag" style="width:80px"> = <input id="s_cf" type="number" step="any" value="${conv.f || ''}" placeholder="25" style="width:80px"> <span class="muted">${esc(s.unit || 'unit')}</span></div></div>
       <div style="grid-column:1/-1"><label>Notes</label><input id="s_notes" value="${esc(s.notes || '')}"></div>
+      <div style="grid-column:1/-1"><label style="display:flex;align-items:center;gap:8px;margin:0"><input type="checkbox" id="s_exp" style="width:auto;margin:0" ${s.exp ? 'checked' : ''}> Track batch & expiry date (milk, paneer, sauces, packed items…)</label></div>
     </div>
     <div id="s_dup" class="red" style="font-size:13px;margin-top:6px"></div>
     <div class="btns">
@@ -5757,7 +5784,7 @@ function saveStock(id){
   const v = {
     name, type: $('#s_type').value, cat: $('#s_cat').value.trim(), unit: $('#s_unit').value.trim() || 'pcs',
     min: +$('#s_min').value || 0, rate: +$('#s_rate').value || 0, sup: $('#s_sup').value.trim(), notes: $('#s_notes').value.trim(),
-    conv: cu && cf > 0 ? [{u: cu, f: cf}] : []
+    conv: cu && cf > 0 ? [{u: cu, f: cf}] : [], exp: $('#s_exp').checked || undefined
   };
   if(id) Object.assign(D.stock.find(x => x.id === id), v);
   else {
@@ -8131,7 +8158,8 @@ async function drawQrDirect(){
   el.innerHTML = `<h3 style="margin-top:0">Direct QR ordering <span class="tag ${QRS.on ? 'ok' : ''}">${QRS.on ? 'ON' : 'OFF'}</span></h3>
     <p style="font-size:13px">Guests scan the table's QR, order from their phone, and the order comes here (QR button at the top). Accept it and the KOT goes to the kitchen like a waiter's order. Needs internet on this PC.</p>
     ${mgr ? `<div class="btns"><button class="btn ${QRS.on ? 'g' : 'ok'}" onclick="qrSet({on:${!QRS.on}})">${QRS.on ? 'Switch off' : 'Switch on'}</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;width:auto;margin:0"><input type="checkbox" style="width:auto;margin:0" ${QRS.auto ? 'checked' : ''} onchange="qrSet({auto:this.checked})"> Accept orders automatically</label></div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;width:auto;margin:0"><input type="checkbox" style="width:auto;margin:0" ${QRS.auto ? 'checked' : ''} onchange="qrSet({auto:this.checked})"> Accept orders automatically</label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;width:auto;margin:0"><input type="checkbox" style="width:auto;margin:0" ${D.settings.qrHideOut ? 'checked' : ''} onchange="D.settings.qrHideOut=this.checked;save();toast('Saved')"> Hide dishes whose ingredient stock is finished</label></div>
     <table style="margin-top:8px"><tr><th>Table</th><th>QR</th><th></th></tr>${qrTables().map(t => { const x = T[t]; return `<tr><td><b>${esc(t)}</b></td>
       <td>${x ? (x.on === false ? '<span class="tag">Off</span>' : '<span class="tag ok">Active</span>') : '<span class="muted">No code yet</span>'}</td>
       <td style="white-space:nowrap">${x ? `<button class="btn g sm" onclick="qrPrint(['${esc(t)}'])">Print</button><button class="btn g sm" onclick="qrTable('${esc(t)}','${x.on === false ? 'on' : 'off'}')">${x.on === false ? 'Switch on' : 'Switch off'}</button><button class="btn g sm" onclick="qrTable('${esc(t)}','new',true)">New code</button>` : `<button class="btn sm" onclick="qrTable('${esc(t)}','new')">Make QR</button>`}</td></tr>`; }).join('')}</table>
@@ -8514,6 +8542,35 @@ const AN_REPORTS = [
         total: ['TOTAL', '', '', '', tv, ''], cards: [['Items', rows.length, 'n'], ['Stock Value', tv, 'm']],
         note: 'Value today (point-in-time).'};
     }},
+  {id: 'expiry', cat: 'inventory', title: 'Batch & Expiry', desc: 'Stock left from each purchase of items that track expiry (oldest used first): expired, expiring soon, OK.', filters: [], now: true,
+    build(){
+      const rows = [];
+      activeStock().filter(x => x.exp).forEach(x => stockBatches(x.id).forEach(b => {
+        const d = b.exp ? daysTo(b.exp) : null;
+        rows.push([x.name, b.batch || '-', b.exp || '', b.date || '', b.party || '', b.left, x.unit || '', d === null ? 'No date' : d < 0 ? 'Expired' : d <= EXP_SOON ? `${d} days left` : 'OK', d === null ? 99999 : d]);
+      }));
+      rows.sort((a, b) => a[8] - b[8]);
+      const ex = rows.filter(r => r[8] < 0).length, soon = rows.filter(r => r[8] >= 0 && r[8] <= EXP_SOON).length;
+      return {cols: [C('Item'), C('Batch'), C('Expiry', 'd'), C('Bought on', 'd'), C('Supplier'), C('Left', 'q'), C('Unit'), C('Status')], rows: rows.map(r => r.slice(0, 8)),
+        cards: [['Expired batches', ex, 'n'], [`Expiring in ${EXP_SOON} days`, soon, 'n'], ['Items tracked', activeStock().filter(x => x.exp).length, 'n']],
+        note: 'Turn on "Track batch & expiry" in the item (Stock → Edit), then enter the batch and expiry on each purchase. What is left is worked out oldest-first; use Waste for expired stock.'};
+    }},
+  {id: 'purchase-rate-history', cat: 'purchase', title: 'Purchase Rate History', desc: 'Every purchase rate of each item with the change from its previous purchase.', filters: [],
+    build(){
+      const ps = D.txns.filter(t => t.type === 'Purchase' && t.sid && +t.qty > 0 && +t.amount > 0).sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+      const last = {}, rows = [];
+      ps.forEach(t => {
+        const sid = sidOf(t.sid), st = stockItem(sid) || {name: t.head, unit: ''}, rate = r2(+t.amount / +t.qty), prev = last[sid];
+        last[sid] = rate;
+        if(t.date < AN.from || t.date > AN.to) return;
+        rows.push([t.date, st.name, t.party || '', +t.qty, st.unit || '', pz(rate), prev ? pz(prev) : null, prev ? Math.round((rate - prev) / prev * 1000) / 10 : null]);
+      });
+      rows.reverse();
+      const up = rows.filter(r => r[7] > 0).length;
+      return {cols: [C('Date', 'd'), C('Item'), C('Supplier'), C('Qty', 'q'), C('Unit'), C('Rate / Unit', 'm'), C('Previous Rate', 'm'), C('Change %', 'n')], rows,
+        cards: [['Purchases', rows.length, 'n'], ['Rate went up', up, 'n']], ids: null,
+        note: 'Rate per base unit (e.g. per kg) including the invoice discount / GST share.'};
+    }},
   {id: 'stock-alerts', cat: 'inventory', title: 'Low Stock Alerts', desc: 'Items that are low or out of stock, and who supplied them last.', filters: [], now: true,
     build(){
       const lastSup = {};
@@ -8521,7 +8578,7 @@ const AN_REPORTS = [
       const list = D.stock.filter(s => +s.qty <= +s.min);
       return {cols: [C('Item'), C('Current Stock', 'q'), C('Minimum', 'q'), C('Shortage', 'q'), C('Unit'), C('Last Supplier'), C('Status')],
         rows: list.map(s => [s.name, +s.qty || 0, +s.min || 0, Math.max(0, (+s.min || 0) - (+s.qty || 0)), s.unit || '', lastSup[s.id] || '', +s.qty <= 0 ? 'Out of Stock' : 'Low Stock']),
-        note: 'The minimum level is set in Stock Summary (S). Setu does not track expiry / batches yet.'};
+        note: 'The minimum level is set in Stock Summary (S). Expiry dates: see the Batch & Expiry report.'};
     }},
   // ---------- Purchase & Suppliers ----------
   {id: 'purchase-register', cat: 'purchase', title: 'Purchase Register', desc: 'What was bought, from whom, when, how much and at what rate. Credit shown separately.', filters: ['supplier', 'paymode'],
@@ -9013,6 +9070,8 @@ function doctorChecks(){
   const neg = activeStock().filter(s => +s.qty < 0);
   add('Stock', 'Minus stock', neg.length ? 'warn' : 'ok', neg.length ? `${neg.map(s => `${s.name} (${fq(s.qty)} ${s.unit})`).slice(0, 5).join(', ')}. A purchase entry is missing or a recipe is wrong. Count and fix with "Count".` : 'No item has negative stock.', neg.length ? ['Open Stock', "go('stock')"] : null);
   const low = lowStock();
+  const expB = activeStock().filter(x => x.exp).flatMap(x => stockBatches(x.id).filter(b => b.exp && daysTo(b.exp) <= 2).map(b => `${x.name}${b.batch && b.batch !== 'Opening' ? ' (' + b.batch + ')' : ''} ${daysTo(b.exp) < 0 ? 'expired' : 'expires ' + dmy(b.exp)}`));
+  if(activeStock().some(x => x.exp)) add('Stock', 'Expiry', expB.length ? 'warn' : 'ok', expB.length ? `${expB.slice(0, 5).join(', ')}. Use it first, or record it as Waste.` : 'No batch expires in the next 2 days.', expB.length ? ['Batch & Expiry report', "go('analytics');setTimeout(()=>anOpen('expiry'),50)"] : null);
   add('Stock', 'Low stock', low.length ? 'info' : 'ok', low.length ? `${low.length} items below their minimum level: ${low.slice(0, 5).map(s => s.name).join(', ')}` : 'All items are above their minimum level.', low.length ? ['Make a Purchase', "go('purchase')"] : null);
   const stale = Object.entries(D.kaccha || {}).filter(([, k]) => k.cart && k.cart.length && k.updatedAt && Date.now() - new Date(k.updatedAt.length <= 5 ? today() + 'T' + k.updatedAt : k.updatedAt).getTime() > 12 * 36e5);
   if(stale.length) add('Stock', 'Old open tables', 'warn', `${stale.map(([t]) => t).join(', ')} have had an open order for more than 12 hours. Make the bill or remove the order.`, ['Open Billing', "go('bill')"]);
