@@ -900,6 +900,8 @@ export class SetuHotel extends DurableObject {
       const id = String(b.id || '');
       if(!/^[A-Za-z0-9_-]{8,40}$/.test(id)) return json(400, { error: 'bad order id' });
       const same = this.sql.exec('SELECT * FROM guestorder WHERE id = ?', 'g' + id).toArray()[0];
+      // Retry keys are table-scoped: an ID used at another table must never reveal its order state.
+      if(same && same.tbl !== tbl) return json(409, { error: 'Order ID already used. Please retry with a new cart.' });
       if(same) return json(200, { id: same.id, status: same.status, again: true });   // the same order sent twice (slow network)
       const pend = this.sql.exec(`SELECT COUNT(*) AS n FROM guestorder WHERE tbl = ? AND status = 'pending'`, tbl).toArray()[0].n;
       if(pend >= 5) return json(429, { error: 'Your earlier orders are still waiting for the staff. Please wait a moment.' });
