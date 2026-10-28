@@ -90,14 +90,14 @@ Status: ✅ implemented and working (tested) · 🟡 partial · ❌ missing · �
 | 12 Refund & cancellation | refund-cancellation | ✅ (Setu has cancel, not partial refund) |
 | 13 Expense category · 14 Regular expenses · 15 Day book / cash close · 16 P&L · 17 Supplier outstanding | expense-category, regular-expenses, day-book-cash-close, profit-loss, supplier-payments-due | ✅ (P&L is a management estimate) |
 | 18 Purchase register · 19 Supplier ledger · 20 Stock movement · 21 Opening & closing · 23 Recipe consumption & variance · 24 Valuation · 25 Wastage | purchase-register, supplier-ledger, stock-movement, stock-opening-closing, recipe-consumption, inventory-valuation, waste | ✅ |
-| 22 Low stock / expiry | stock-alerts | 🟡 low stock yes, expiry no |
+| 22 Low stock / expiry | stock-alerts, expiry | ✅ (Phase 2) |
 | 26 Customers · 27 Retention · 28 Staff sales · 30 Reservations · 33 Attendance & payroll | customers, retention, staff-sales, reservations, staff-attendance-payroll | ✅ |
-| 29 Table turnover | — | ❌ pending: bills do not store when the table was opened |
-| 31 Delivery | — | ❌ Setu has no delivery module |
-| 32 Branch & channel | branch-channel-sales | 🟡 channels yes; branches only as imported outlet totals |
+| 29 Table turnover | table-turnover | ✅ (Phase 4; bills now keep `opened`) |
+| 31 Delivery | delivery | 🟡 (Phase 4: Zomato / Swiggy / takeaway by day; no own delivery module) |
+| 32 Branch & channel | branch-channel-sales, branch-sales | ✅ (Phase 4; other branches from imported outlet summaries) |
 | 34 GST & CA centre | gst-ca-centre (+ J, Tally) | ✅ (draft, for the CA) |
 | Extra: Gas refill history · Item lifetime · Maintenance & repair | gas-history, item-lifetime, maintenance | ✅ |
-| Extra: QR ordering report | — | ❌ (needs Phase 1) |
+| Extra: QR ordering report | qr-orders | ✅ (Phase 1) |
 | Scheduled email reports | — | ❌ needs an email service |
 
 ### Platform
@@ -165,3 +165,7 @@ Status: ✅ implemented and working (tested) · 🟡 partial · ❌ missing · �
 
 ### Rollback
 QR ordering is off by default for every hotel; switching it off hides the customer page and the alerts. Code rollback: redeploy the previous commit (cloud) and reinstall the previous EXE (e.g. Setu-Setup-v1.0.29.exe); the new `guestorder` table is ignored by older code, and `D` keeps working (new fields are optional).
+
+
+## Update after Phases 1–5
+See `SETU-RELEASE-NOTES.md`: QR ordering, batch / expiry, part-paid gas and supplier ledger, table turnover / delivery / branch reports, and the full test run (76/76 on a local cloud).

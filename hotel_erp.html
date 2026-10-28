@@ -4075,6 +4075,8 @@ function finalizePakkaBill(approvedDisc){
     loyaltyDisc: Math.min(loyaltyDisc, t.disc),
     token,
     by: activeUser ? activeUser.name : '',
+    // When the table's running order started (table turnover report)
+    ...(B.channel === 'Dine-In' && D.kaccha[tbl] && D.kaccha[tbl].createdAt ? {opened: D.kaccha[tbl].createdAt} : {}),
     used: Object.entries(used).map(([sid, qty]) => ({sid, qty}))
   };
 
@@ -8540,6 +8542,45 @@ const AN_REPORTS = [
       return {cols: [C('Status'), C('Reservations', 'n'), C('Guests', 'n')], rows: list.map(([k, x]) => [k, x.n, x.g]),
         total: ['TOTAL', list.reduce((a, [, x]) => a + x.n, 0), list.reduce((a, [, x]) => a + x.g, 0)]};
     }},
+  {id: 'table-turnover', cat: 'operations', title: 'Table Turnover & Revenue', desc: 'Per table: bills (turns), revenue, average bill and how long a table stays occupied.', filters: [],
+    build(){
+      const mins = t => { const [h, m] = String(t || '').split(':').map(Number); return h * 60 + m; }, m = {}, days = new Set();
+      anBills(false, {}).filter(b => (b.channel || 'Dine-In') === 'Dine-In' && b.table && !/parcel|takeaway/i.test(b.table)).forEach(b => {
+        const x = m[b.table] || (m[b.table] = {n: 0, v: 0, occ: 0, k: 0}); x.n++; x.v += pz(b.total); days.add(b.date);
+        if(b.opened){ const d = mins(b.time) - mins(b.opened); if(d >= 0 && d < 720){ x.occ += d; x.k++; } }
+      });
+      const nd = days.size || 1, list = Object.entries(m).sort((a, b) => b[1].v - a[1].v);
+      const T = list.reduce((a, [, x]) => ({n: a.n + x.n, v: a.v + x.v, occ: a.occ + x.occ, k: a.k + x.k}), {n: 0, v: 0, occ: 0, k: 0});
+      return {cols: [C('Table'), C('Bills (turns)', 'n'), C('Turns / day', 'n'), C('Revenue', 'm'), C('Avg. bill', 'm'), C('Avg. minutes occupied', 'n')],
+        rows: list.map(([t, x]) => [t, x.n, Math.round(x.n / nd * 10) / 10, x.v, Math.round(x.v / x.n), x.k ? Math.round(x.occ / x.k) : '']),
+        total: ['TOTAL', T.n, Math.round(T.n / nd * 10) / 10, T.v, T.n ? Math.round(T.v / T.n) : 0, T.k ? Math.round(T.occ / T.k) : ''],
+        cards: [['Dine-in bills', T.n, 'n'], ['Table revenue', T.v, 'm'], ['Days with sales', days.size, 'n']],
+        note: 'Minutes occupied = from the first KOT of the table to the final bill. Bills made before this version have no start time and only count in revenue.'};
+    }},
+  {id: 'delivery', cat: 'operations', title: 'Delivery & Online Orders', desc: 'Zomato, Swiggy and takeaway orders by day: orders, value and average order.', filters: [],
+    build(){
+      const CH = ['Zomato', 'Swiggy', 'Takeaway'], m = {};
+      anBills(false, {}).filter(b => CH.includes(b.channel)).forEach(b => { const x = m[b.date] || (m[b.date] = {Zomato: [0, 0], Swiggy: [0, 0], Takeaway: [0, 0]}); x[b.channel][0]++; x[b.channel][1] += pz(b.total); });
+      const list = Object.entries(m).sort((a, b) => b[0].localeCompare(a[0])), tot = c => list.reduce((a, [, x]) => [a[0] + x[c][0], a[1] + x[c][1]], [0, 0]);
+      const row = (d, x) => [d, ...CH.flatMap(c => [x[c][0], x[c][1]]), CH.reduce((a, c) => a + x[c][1], 0)];
+      const T = Object.fromEntries(CH.map(c => [c, tot(c)]));
+      return {cols: [C('Date', 'd'), C('Zomato orders', 'n'), C('Zomato value', 'm'), C('Swiggy orders', 'n'), C('Swiggy value', 'm'), C('Takeaway orders', 'n'), C('Takeaway value', 'm'), C('Total', 'm')],
+        rows: list.map(([d, x]) => row(d, x)), total: row('TOTAL', T),
+        cards: CH.map(c => [c + ' orders', T[c][0], 'n']),
+        note: 'Setu has no own delivery-boy / delivery-zone module yet; Zomato / Swiggy orders are entered by hand. Settlement is in Channel Sales.'};
+    }},
+  {id: 'branch-sales', cat: 'channels', title: 'Branch Sales (Outlets)', desc: 'This outlet and every outlet summary imported in Multi-Outlet (O): bills, sales, expenses, purchases, net.', filters: [],
+    build(){
+      const keep = [olFrom, olTo];
+      olFrom = AN.from; olTo = AN.to;
+      const outs = allOutlets().map(o => ({o, r: outletRange(o)}));
+      [olFrom, olTo] = keep;
+      const T = k => outs.reduce((a, x) => a + pz(x.r[k]), 0);
+      return {cols: [C('Outlet'), C('Bills', 'n'), C('Sales', 'm'), C('Dine-in', 'm'), C('Takeaway', 'm'), C('Zomato', 'm'), C('Swiggy', 'm'), C('Expenses', 'm'), C('Purchases', 'm'), C('Net', 'm')],
+        rows: outs.map(({o, r}) => [(o.name || o.code) + (o.isThis ? ' (this outlet)' : ''), r.bills, pz(r.sales), pz(r.dine), pz(r.take), pz(r.zom), pz(r.swg), pz(r.exp), pz(r.pur), pz(r.net)]),
+        total: ['TOTAL', outs.reduce((a, x) => a + x.r.bills, 0), T('sales'), T('dine'), T('take'), T('zom'), T('swg'), T('exp'), T('pur'), T('net')],
+        note: 'Other outlets come from the summary file each outlet exports (Multi-Outlet Dashboard, O). Their days must be imported for this date range.'};
+    }},
   {id: 'qr-orders', cat: 'operations', title: 'QR Ordering', desc: 'Guest orders from the table QR: accepted, rejected, value and how fast staff answered.', filters: [],
     build(){
       const L = (D.qrLog || []).filter(x => x.date >= AN.from && x.date <= AN.to), m = {};
@@ -8706,8 +8747,7 @@ const AN_REPORTS = [
 ];
 
 // Reports that need data Setu does not record yet (shown in the centre so nothing is missed)
-const AN_PENDING = [['table-turnover', 'operations', 'Table Turnover', 'Needs the order start time saved on the bill'],
-  ['delivery', 'operations', 'Delivery', 'Setu has no delivery module'], ['waste', 'inventory', 'Waste', 'Needs a waste entry feature'],
+const AN_PENDING = [['waste', 'inventory', 'Waste', 'Needs a waste entry feature'],
   ['stock-movement', 'inventory', 'Stock Movement Ledger', 'Needs a stock movement log'], ['stock-opening-closing', 'inventory', 'Opening & Closing Stock', 'After the stock movement log'],
   ['recipe-consumption', 'inventory', 'Recipe Consumption & Variance', 'Physical count workflow + movement log'], ['supplier-invoices', 'purchase', 'Invoice-wise Dues', 'Needs invoice no. / due date on purchases'],
   ['scheduled', 'sales', 'Scheduled Email Reports', 'Needs an email service']];
