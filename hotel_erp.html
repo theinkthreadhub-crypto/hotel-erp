@@ -3812,7 +3812,7 @@ function drawItems(){
 function addItem(id){
   const m = D.menu.find(x => x.id === id);
   if(!m) return;
-  const c = B.cart.find(x => x.mid === id);
+  const c = B.cart.find(x => x.mid === id && !x.qrKey);
   if(c) c.qty++;
   else B.cart.push({mid: id, name: m.name, price: +m.price, qty: 1});
   drawCart();
@@ -3824,7 +3824,7 @@ function setQty(i, v){
   if(!c) return;
   // A slip of the keyboard (1000000000) must not make a crore-rupee bill
   if(v > 9999){ toast('Quantity too large. Max 9999.'); v = 9999; }
-  const newQty = v > 0 ? v : 0, sentQty = (B.sent || {})[c.mid] || 0;
+  const newQty = v > 0 ? v : 0, sentQty = (B.sent || {})[c.qrKey || c.mid] || 0;
   const apply = () => {
     const ci = B.cart.indexOf(c);
     if(ci < 0) return;
@@ -6679,7 +6679,7 @@ function importOrder(txt){
   } else {
     switchTable(matchTable(tb));
     items.forEach(i => {
-      const c = B.cart.find(x => x.mid === i.mid);
+      const c = B.cart.find(x => x.mid === i.mid && !x.qrKey);
       if(c) c.qty += i.qty;
       else B.cart.push({...i});
     });
@@ -7349,7 +7349,7 @@ function captainSend(){
   const tbl = cap.table, k = D.kaccha[tbl];
   B = k ? kacchaToB(k) : newB(tbl, 'Dine-In');
   cap.cart.forEach(i => {
-    const c = B.cart.find(x => x.mid === i.mid);
+    const c = B.cart.find(x => x.mid === i.mid && !x.qrKey);
     if(c) c.qty += i.qty;
     else B.cart.push({...i});
   });
