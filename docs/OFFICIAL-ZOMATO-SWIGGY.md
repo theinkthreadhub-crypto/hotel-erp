@@ -26,7 +26,7 @@ Never describe a manually typed, synthetic or imported sample order as a real pl
 - Each hotel's Cloudflare Durable Object has `agg_inbox` SQL with replay/deduplication protection, outside mutable sync JSON.
 - **GET /api/aggregators/inbox** is available only to authenticated staff, and **POST /api/aggregators/ack** to manager or main counter. Windows server proxies both over the existing authenticated Setu Cloud link.
 - **Online Orders Desk** has a separate **Verified Partner Webhook Inbox**. Staff may import an order only after confirming acceptance on the official platform device, matching every item uniquely to the Setu menu, and matching the order amount.
-- Imported orders retain `source=approved_partner_webhook`, `platform`, `outletId`, `orderId` to prevent confusion with manual entries.
+- Imported orders retain `source=authenticated_partner_webhook`, `platform`, `outletId`, `orderId` to prevent confusion with manual entries.
 - KOT is created by staff when the order is accepted in Setu. **No automatic provider accept/reject API call is implemented yet**.
 - **Finalized accounting is deliberately blocked** for imported partner orders pending actual fees, taxes, discounts and settlement reconciliation. This prevents incorrect GST/sales/revenue.
 
