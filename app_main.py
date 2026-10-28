@@ -1135,6 +1135,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(code, j)
             if not self.role():
                 return self.send_json(401, {'error': 'pin required'})
+            if path == '/api/aggregators/inbox':
+                if self.role() not in ('local', 'admin', 'manager', 'cashier'):
+                    return self.send_json(403, {'error': 'staff only'})
+                return self.qr_proxy('GET', path)
             if path == '/api/qr/state':
                 return self.qr_proxy('GET', path)
             if path == '/api/receipt/status':
@@ -1196,6 +1200,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 # Bulk delete: the vendor's one-time code is checked on Hotel Setu Cloud (Manager / counter only)
                 if self.role() not in ('local', 'admin'):
                     return self.send_json(403, {'error': 'manager only'})
+                return self.qr_proxy('POST', path, self.read_json())
+            if path == '/api/aggregators/ack':
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'Manager or main counter only'})
                 return self.qr_proxy('POST', path, self.read_json())
             if path.startswith('/api/qr/'):
                 # Any staff device may accept orders; QR settings and table codes are for the manager
