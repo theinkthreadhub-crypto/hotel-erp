@@ -5163,6 +5163,7 @@ function miscToTpl(){
 const gasRefills = () => D.txns.filter(x => x.type === 'Expense' && x.gas);
 function expGas(){
   const rf = gasRefills(), ev = D.gasLog || [], mode = D.settings.gasMode || 'expense', m = today().slice(0, 7);
+  const invOut = Object.fromEntries(supInvoices().map(x => [x.id, x.out]));
   const got = sum(rf, x => +x.gas.n || 0), used = sum(ev.filter(e => e.type === 'empty'), 'n'), back = sum(rf, x => +x.gas.empty || 0);
   const dep = sum(D.txns.filter(x => x.head === DEPOSIT_HEAD), 'amount') - sum(D.txns.filter(x => x.head === DEPOSIT_BACK), 'amount');
   const mon = rf.filter(x => x.date.startsWith(m));
@@ -5185,13 +5186,14 @@ function expGas(){
       <div><label>Rate per cylinder (₹) *</label><input id="g_rate" type="number" step="any" value="${EF.rate || ((rf[rf.length - 1] || {}).gas || {}).rate || ''}" oninput="gasTot()"></div>
       <div><label>Total (₹)</label><input id="g_amt" type="number" step="any"></div>
       ${payPick('g_mode', true)}
+      <div><label>Paid now (₹) — empty = full</label><input id="g_paid" type="number" step="any" placeholder="all paid"></div>
       ${mode === 'qty' ? '<div><label>Empty cylinders returned</label><input id="g_empty" type="number" step="1" value="0"></div>' : ''}
       <div style="grid-column:1/-1"><label>Remarks</label><input id="g_rem"></div>
     </div>
     <div class="btns"><button class="btn ok" onclick="saveGas()">Save Refill</button></div>
     <p class="muted" style="font-size:12px;margin:6px 0 0">Setu does not estimate how much LPG was used. Deposits are not counted as an expense.</p></div>
   <div class="card" style="padding:0;overflow:auto"><h3 style="margin:10px 12px">Refill History</h3><table><thead><tr><th>Date</th><th>Supplier</th><th class="n">Cylinders</th><th>Size</th><th class="n">Rate</th><th class="n">Amount</th><th>Payment</th>${mode === 'qty' ? '<th class="n">Empties returned</th>' : ''}<th></th></tr></thead>
-    <tbody>${rf.slice().sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)).map(x => `<tr><td>${dmy(x.date)}</td><td>${esc(x.party)}</td><td class="n">${x.gas.n}</td><td>${esc(x.gas.size || '')}</td><td class="n">${money(x.gas.rate)}</td><td class="n">${money(x.amount)}</td><td>${x.mode === 'Credit' ? '<span class="red">Unpaid</span>' : esc(x.mode)}</td>${mode === 'qty' ? `<td class="n">${x.gas.empty || 0}</td>` : ''}<td><button class="btn bad sm" onclick="delTx('${x.id}')">Delete</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">No refills yet</td></tr>'}</tbody></table></div>`;
+    <tbody>${rf.slice().sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)).map(x => `<tr><td>${dmy(x.date)}</td><td>${esc(x.party)}</td><td class="n">${x.gas.n}</td><td>${esc(x.gas.size || '')}</td><td class="n">${money(x.gas.rate)}</td><td class="n">${money(x.amount)}</td><td>${x.mode === 'Credit' ? (pend => pend > 0 ? `<span class="red">Pending ${money(pend)}</span>${pend < x.amount ? ` <span class="muted">(paid ${money(x.amount - pend)})</span>` : ''}` : '<span class="green">Paid later</span>')((invOut[(x.inv && x.inv.id) || x.id] ?? x.amount)) : esc(x.mode)}</td>${mode === 'qty' ? `<td class="n">${x.gas.empty || 0}</td>` : ''}<td><button class="btn bad sm" onclick="delTx('${x.id}')">Delete</button></td></tr>`).join('') || '<tr><td colspan="9" class="muted">No refills yet</td></tr>'}</tbody></table></div>`;
   gasTot();
 }
 function gasTot(){ const n = +($('#g_n') || {}).value || 0, r = +($('#g_rate') || {}).value || 0, a = $('#g_amt'); if(a) a.value = r2(n * r) || ''; }
@@ -5200,9 +5202,17 @@ function saveGas(){
   EF = {date: $('#g_date').value, party: $('#g_party').value.trim(), n, rate, size: $('#g_size').value, mode: $('#g_mode').value};
   if(!(n > 0) || !EF.party){ toast('Enter the supplier and number of cylinders'); return; }
   const empty = Math.round(+($('#g_empty') || {}).value || 0), rem = $('#g_rem').value.trim();
-  if(!pushExpense({type: 'Expense', kind: 'regular', date: EF.date || today(), head: 'Gas Cylinder', desc: `${n} × ${EF.size} @ ₹${rate}`, party: EF.party, amount, mode: EF.mode,
-    gas: {n, size: EF.size, rate, ...(empty ? {empty} : {})}, ...(rem ? {remark: rem} : {})})) return;
-  save(); EF = {}; toast('Gas refill saved'); scrExpense();
+  // Part paid: the refill is on credit and the paid part is a supplier payment on it (not a second expense)
+  const pv = ($('#g_paid') || {}).value, paid = pv === '' || pv === undefined ? null : Math.max(0, +pv || 0), part = EF.mode && EF.mode !== 'Credit' && paid !== null && paid < amount;
+  if(paid !== null && paid > amount){ toast('Paid cannot be more than the total'); return; }
+  const t = pushExpense({type: 'Expense', kind: 'regular', date: EF.date || today(), head: 'Gas Cylinder', desc: `${n} × ${EF.size} @ ₹${rate}`, party: EF.party, amount, mode: part ? 'Credit' : EF.mode,
+    gas: {n, size: EF.size, rate, ...(empty ? {empty} : {})}, ...(rem ? {remark: rem} : {})});
+  if(!t) return;
+  if(part){
+    t.inv = {id: t.id, total: amount, paid};
+    if(paid > 0) D.txns.push({id: uid(), type: 'Expense', date: t.date, time: t.time, head: 'Supplier Payment', desc: 'Payment on gas refill', party: t.party, amount: paid, mode: EF.mode, by: curUser(), inv: {id: t.id}});
+  }
+  save(); EF = {}; toast(part ? `Gas refill saved · ${money(amount - paid)} pending with ${t.party}` : 'Gas refill saved'); scrExpense();
 }
 function gasEmpty(){
   const sz = ((gasRefills().slice(-1)[0] || {}).gas || {}).size || '';
@@ -7516,9 +7526,17 @@ function savePaySupplier(key){
 
 function supLedger(key){
   const s = suppliers().find(x => x.key === key);
-  const rows = D.txns.filter(t => supKeyA(t.party) === key && (t.type === 'Purchase' || isSupPay(t) || isSupCredit(t))).sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time));
+  // Every bill from this supplier (purchases and expenses such as gas, paid or on credit) and every payment to them
+  const isBill = t => t.type === 'Purchase' || (t.type === 'Expense' && !isSupPay(t) && !NON_EXPENSE_HEADS.includes(t.head));
+  const rows = D.txns.filter(t => supKeyA(t.party) === key && (isBill(t) || isSupPay(t))).sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time));
+  const mon = {};
+  rows.forEach(t => { const k = t.date.slice(0, 7), x = mon[k] || (mon[k] = {bill: 0, credit: 0, paid: 0}); if(isSupPay(t)) x.paid += +t.amount || 0; else { x.bill += +t.amount || 0; if(isSupCredit(t)) x.credit += +t.amount || 0; } });
+  const life = Object.values(mon).reduce((a, x) => ({bill: a.bill + x.bill, credit: a.credit + x.credit, paid: a.paid + x.paid}), {bill: 0, credit: 0, paid: 0});
   let bal = 0;
   modal(`${s ? s.name : ''} — Ledger`, `
+    <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:8px">${[['All bills (lifetime)', life.bill], ['On credit', life.credit], ['Paid against credit', life.paid], ['Due now', r2(life.credit - life.paid)]].map(([l, v]) => `<div class="card" style="margin:0;padding:8px 10px"><div class="muted" style="font-size:12px">${l}</div><b>${money(v)}</b></div>`).join('')}</div>
+    <details style="margin-bottom:8px"><summary style="cursor:pointer;font-weight:600">Month-wise</summary><table><thead><tr><th>Month</th><th class="n">Bills</th><th class="n">On credit</th><th class="n">Payments</th></tr></thead>
+      <tbody>${Object.entries(mon).sort((a, b) => b[0].localeCompare(a[0])).map(([k, x]) => `<tr><td>${k}</td><td class="n">${money(x.bill)}</td><td class="n">${money(x.credit)}</td><td class="n">${money(x.paid)}</td></tr>`).join('')}</tbody></table></details>
     <table>
       <thead><tr><th>Date</th><th>Details</th><th>Mode</th><th class="n">Bill / Credit</th><th class="n">Paid</th><th class="n">Balance</th></tr></thead>
       <tbody>${rows.map(t => {
@@ -8824,10 +8842,12 @@ AN_REPORTS.push(
     build(){
       const list = anTx('Expense').filter(t => t.gas), n = list.reduce((a, t) => a + (+t.gas.n || 0), 0), a = list.reduce((s, t) => s + pz(t.amount), 0);
       const mon = new Set(list.map(t => t.date.slice(0, 7))).size || 1;
-      return {cols: [C('Date', 'd'), C('Supplier'), C('Cylinders', 'n'), C('Size'), C('Rate', 'm'), C('Amount', 'm'), C('Payment'), C('Empty Returned', 'n')],
-        rows: list.map(t => [t.date, t.party || '', +t.gas.n || 0, t.gas.size || '', pz(t.gas.rate), pz(t.amount), t.mode === 'Credit' ? 'Unpaid' : t.mode, t.gas.empty || '']),
-        total: ['TOTAL', list.length + ' refills', n, '', '', a, '', ''],
-        cards: [['Refill entries', list.length, 'n'], ['Cylinders', n, 'n'], ['Total spent', a, 'm'], ['Monthly average', Math.round(a / mon), 'm']]};
+      const out = Object.fromEntries(supInvoices().map(x => [x.id, x.out])), pend = t => t.mode === 'Credit' ? (out[(t.inv && t.inv.id) || t.id] ?? +t.amount) : 0;
+      const pp = list.reduce((s, t) => s + pz(pend(t)), 0);
+      return {cols: [C('Date', 'd'), C('Supplier'), C('Cylinders', 'n'), C('Size'), C('Rate', 'm'), C('Amount', 'm'), C('Paid', 'm'), C('Pending', 'm'), C('Payment'), C('Empty Returned', 'n')],
+        rows: list.map(t => [t.date, t.party || '', +t.gas.n || 0, t.gas.size || '', pz(t.gas.rate), pz(t.amount), pz(+t.amount - pend(t)), pz(pend(t)), t.mode === 'Credit' ? (pend(t) > 0 ? 'Credit' : 'Paid later') : t.mode, t.gas.empty || '']),
+        total: ['TOTAL', list.length + ' refills', n, '', '', a, a - pp, pp, '', ''],
+        cards: [['Refill entries', list.length, 'n'], ['Cylinders', n, 'n'], ['Total spent', a, 'm'], ['Pending', pp, 'm'], ['Monthly average', Math.round(a / mon), 'm']]};
     }},
   {id: 'monthly-purchase-expense', cat: 'expenses', title: 'Monthly Purchase & Expense', desc: 'Every month: purchases, running expenses, misc, gas, staff, assets and supplier payments.', filters: [],
     build(){

@@ -416,3 +416,9 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 - **Out of stock:** stock list shows "Out of stock" at 0 (and "Inactive" instead of the old "Band"). Optional `D.settings.qrHideOut` (Q screen): the guest QR menu hides dishes whose recipe ingredient has no stock (worker `guest()` reads `D.stock` / `D.stockAlias`).
 - **Purchase Rate History** report (`purchase-rate-history`): rate per base unit of every purchase and change % from the previous one.
 - **Tests:** `tests/inventory.js` (100 kg Atta in 4 buys, 70 used → 30, 50 − 10 = 40, rate history, FIFO batches, expiry report, out of stock, guest menu hiding).
+
+## Expenses Phase 3 (28 Oct 2026)
+
+- **Gas refill part paid:** "Paid now" in the gas form. Less than the total → the refill is saved on Credit with `inv: {id: <own id>, total, paid}` and the paid part is a `Supplier Payment` on it (same pattern as a part-paid purchase; never a second expense). Refill History and the Gas Refill History report show Paid / Pending (from `supInvoices()`).
+- **Supplier ledger (U → Ledger):** lifetime cards (all bills, on credit, paid, due), month-wise table, and paid expenses to that supplier (e.g. every gas refill) are listed too; the balance still moves only with credit and payments.
+- **Tests:** `tests/expenses.js` (3 gas refills kept, ₹800 pending, ₹250 bulb in maintenance, ₹5,000 − ₹3,000 = ₹2,000, paying it is not a second expense, report totals = source entries).
