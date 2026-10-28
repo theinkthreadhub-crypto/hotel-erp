@@ -31,7 +31,7 @@ async function connect(){
     if(u.connection==='close'){
       qr='';connected=false;sock=null;
       if(u.lastDisconnect?.error?.output?.statusCode===DisconnectReason.loggedOut)return;
-      if(!reconnect)reconnect=setTimeout(()=>{reconnect=null;connect().catch(()=>{});},7000);
+      if(!reconnect)reconnect=setTimeout(()=>{reconnect=null;reconnectSafe();},7000);
     }
   });
   // No inbound handlers, no auto-replies, no contact discovery or bulk messaging.
@@ -71,4 +71,12 @@ createServer(async(req,res)=>{
   }
   return json(res,404,{error:'Not found'});
 }).listen(Number(process.env.PORT||3000),'0.0.0.0');
-connect().catch(()=>{console.error('WhatsApp session initialization failed');});
+async function reconnectSafe(){
+  try{await connect();}
+  catch(e){
+    connected=false;sock=null;qr='';
+    console.error('WhatsApp session initialization failed; retrying without exposing credentials');
+    if(!reconnect)reconnect=setTimeout(()=>{reconnect=null;reconnectSafe();},10000);
+  }
+}
+reconnectSafe();
