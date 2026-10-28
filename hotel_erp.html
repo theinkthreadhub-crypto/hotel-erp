@@ -608,6 +608,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
       License: Active
     </button>
     <button class="sub-pill" id="top-cloud-pill" onclick="go('settings')" style="display:none" title="Hotel Setu Cloud Sync status — open Settings"></button>
+    <button class="sub-pill bad" id="top-qr-pill" onclick="qrPanel()" style="display:none" title="QR table orders and calls"></button>
     <button class="btn g sm" id="btn-pwa-install" onclick="triggerPWAInstall()" style="border-color:rgba(255,255,255,0.2);background:rgba(255,255,255,0.08);color:#e2e8f0;display:inline-flex" title="Install Desktop App on Computer">
       Install PC App
     </button>
@@ -810,6 +811,9 @@ function ensureGrowth(s){
   if(!s.att || typeof s.att !== 'object') s.att = {};
   if(!s.outlets || typeof s.outlets !== 'object') s.outlets = {};
   if(!Array.isArray(s.reservations)) s.reservations = [];
+  // QR self-ordering: ids of guest orders already added to a table (never added twice), and a log for the report
+  if(!Array.isArray(s.qrDone)) s.qrDone = [];
+  if(!Array.isArray(s.qrLog)) s.qrLog = [];
   if(!Array.isArray(s.audit)) s.audit = [];
   if(!s.monthlySent || typeof s.monthlySent !== 'object') s.monthlySent = {};
   if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
@@ -2495,6 +2499,7 @@ function pushKot(t){
     note: t.note || '',
     token: t.token || 0,
     by: activeUser ? activeUser.name : '',
+    ...(t.src ? {src: t.src, qr: t.qr || ''} : {}),
     status: 'new'
   };
   D.kots.push(k);
@@ -6099,6 +6104,13 @@ function editMenu(id){
       <div><label>Category</label><input id="m_cat" list="mcats" value="${esc(m.cat)}" placeholder="e.g. Main Course"><datalist id="mcats">${[...new Set(D.menu.map(x => x.cat))].map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
       <div><label>Selling Price (₹)</label><input id="m_price" type="number" step="any" value="${m.price}"></div>
     </div>
+    <details style="margin-top:10px"${m.img || m.desc || m.veg !== undefined || m.qrOff ? ' open' : ''}><summary style="cursor:pointer;font-weight:600">Guest QR menu (optional)</summary>
+      <div class="grid" style="margin-top:6px">
+        <div><label>Veg / Non-veg</label><select id="m_veg"><option value="">Not shown</option><option value="1" ${m.veg === true ? 'selected' : ''}>Veg</option><option value="0" ${m.veg === false ? 'selected' : ''}>Non-veg</option></select></div>
+        <div><label>On the guest QR menu</label><select id="m_qr"><option value="">Show</option><option value="off" ${m.qrOff ? 'selected' : ''}>Hide (not available)</option></select></div>
+        <div><label>Photo link (https://…)</label><input id="m_img" value="${esc(m.img || '')}" placeholder="https://…/paneer.jpg"></div>
+        <div><label>Short description</label><input id="m_desc" maxlength="160" value="${esc(m.desc || '')}"></div>
+      </div></details>
     <label style="margin-top:14px">Recipe — raw material used per plate (for automatic stock deduction)</label>
     <div id="ings">${(m.recipe || []).map(r => ingRow(r.sid, r.qty)).join('')}</div>
     <button class="btn g sm" onclick="$('#ings').insertAdjacentHTML('beforeend',ingRow())">Add Ingredient</button>
@@ -6117,6 +6129,9 @@ function saveMenu(id){
     qty: +r.querySelector('input').value
   })).filter(r => r.sid && r.qty > 0);
   const v = {name, cat: $('#m_cat').value.trim() || 'General', price, recipe};
+  // Guest QR menu fields: only kept when set, so other menus stay as they were
+  const veg = $('#m_veg').value, img = $('#m_img').value.trim(), desc = $('#m_desc').value.trim();
+  Object.assign(v, {veg: veg === '' ? undefined : veg === '1', qrOff: $('#m_qr').value === 'off' || undefined, img: /^https:\/\//.test(img) ? img : undefined, desc: desc || undefined});
   const old = id && D.menu.find(x => x.id === id);
   if(old && +old.price !== price) audit('Menu Rate Change', `${name}: ₹${old.price} → ₹${price}`, r2(price - old.price), id);
   if(id) Object.assign(D.menu.find(x => x.id === id), v);
@@ -6159,7 +6174,7 @@ function scrKitchen(){
         return `
         <div class="kcard ${cls}">
           <h4><span>KOT #${esc(k.no)} · ${esc(k.table)}</span><span class="${cls === 'late' ? 'red' : 'muted'}">${m} min</span></h4>
-          <div>${tag(k.channel)} <span class="muted" style="font-size:12px">${k.time}</span></div>
+          <div>${tag(k.channel)}${k.src === 'qr' ? ' <span class="tag" style="background:#ffedd5;color:#9a3412">QR order</span>' : ''} <span class="muted" style="font-size:12px">${k.time}</span></div>
           <ul>${k.items.map(i => `<li>${i.qty} × ${esc(i.name)}</li>`).join('')}</ul>
           ${k.note ? `<div class="red" style="font-size:13px;margin-bottom:8px">Note: ${esc(k.note)}</div>` : ''}
           <div style="display:flex;gap:6px">
@@ -6494,8 +6509,10 @@ const tableUrl = t => {
 
 function scrQR(){
   const st = D.settings;
+  setTimeout(drawQrDirect, 0);
   main.innerHTML = `
   <div class="title"><span>QR Menu & Table Orders</span><span class="r">Table orders → straight to the kitchen KOT</span></div>
+  <div class="card" id="qr-direct" style="border-left:4px solid #ea580c"><p class="muted">Loading…</p></div>
   <div class="bill">
     <div>
       <div class="card">
@@ -7984,6 +8001,163 @@ document.addEventListener('keydown', e => {
   if(l && !l.contains(e.target)){ e.preventDefault(); e.stopImmediatePropagation(); }
 }, true);
 
+/* ================= QR SELF-ORDERING (guest orders from the table QR) ================= */
+// Guests order on Hotel Setu Cloud (cloud/static/qr.html); their orders wait there. Staff accept them here, and only
+// then they join the table's running order the same way as the Captain App (KOT for the new items only). The cloud
+// never writes this hotel's data, and D.qrDone keeps an accepted order from being added twice.
+let QRS = null, QR_ERR = '';
+const QR_SEEN = new Set(), QR_BUSY = new Set();
+const qrReady = () => SRV.on && !!activeUser && !SRV.readOnly && (SRV.cloud || SRV.local || !!SRV.token);
+// Auto-accept runs on the main counter PC, or on a phone-only hotel's devices (the cloud lets only one accept win)
+const qrAutoDevice = () => SRV.local || (SRV.cloud && !(D.saas && D.saas.webMax !== undefined));
+async function qrApi(path, body){
+  const r = await srvFetch('/api/qr/' + path, body ? {method: 'POST', body: JSON.stringify(body)} : {});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw Object.assign(new Error(j.error || 'HTTP ' + r.status), {status: r.status, data: j});
+  return j;
+}
+// Accepted (on any device) but not in this hotel's data yet, for over a minute: the device stopped half-way
+const qrStuck = () => (QRS && QRS.orders || []).filter(o => o.status === 'accepted' && !D.qrDone.includes(o.id) && Date.now() - (o.decided || 0) > 60000);
+async function qrPoll(){
+  clearTimeout(qrPoll.t);
+  let next = 120000;
+  try{
+    if(qrReady()){
+      QRS = await qrApi('state'); QR_ERR = '';
+      if(QRS.on){
+        next = 10000;
+        const fresh = QRS.orders.filter(o => o.status === 'pending' && !QR_SEEN.has(o.id)), calls = QRS.calls.filter(c => !QR_SEEN.has(c.id));
+        [...fresh, ...calls].forEach(x => QR_SEEN.add(x.id));
+        if(fresh.length || calls.length){
+          playOrderChime();
+          toast(fresh.length ? `New QR order: ${[...new Set(fresh.map(o => 'Table ' + o.tbl))].join(', ')}` : `Table ${calls[0].tbl}: ${QR_CALL[calls[0].kind] || 'needs help'}`);
+        }
+        if(QRS.auto && qrAutoDevice()){
+          for(const o of QRS.orders.filter(o => o.status === 'pending')) await qrDecide(o.id, 'accept', true);
+          for(const o of qrStuck()) await qrApply(o, 'Auto');
+        }
+      }
+    }
+  }catch(e){ QR_ERR = e.message; }
+  qrPill();
+  if($('#qr-panel')) qrPanel(true);
+  qrPoll.t = setTimeout(qrPoll, next);
+}
+setTimeout(qrPoll, 6000);
+const QR_CALL = {waiter: 'Call waiter', water: 'Water please', bill: 'Request bill'};
+function qrPill(){
+  const el = $('#top-qr-pill');
+  if(!el) return;
+  const n = QRS && QRS.on ? QRS.orders.filter(o => o.status === 'pending').length + QRS.calls.length + qrStuck().length : 0;
+  el.style.display = n ? '' : 'none';
+  el.textContent = `QR ${n}`;
+}
+function qrLog(o, status, by){
+  D.qrLog.push({id: o.id, at: Date.now(), date: today(), table: o.tbl, status, by, n: sum(o.items, 'qty'), value: r2(sum(o.items, i => i.qty * i.price)), wait: Math.max(0, Date.now() - (o.at || Date.now()))});
+  if(D.qrLog.length > 3000) D.qrLog.splice(0, D.qrLog.length - 3000);
+}
+async function qrDecide(id, action, auto){
+  if(QR_BUSY.has(id)) return;
+  let reason = '';
+  if(action === 'reject' && !auto){
+    reason = prompt('Reason (the guest sees it):', 'Sorry, this item is not available now');
+    if(reason === null) return;
+  }
+  QR_BUSY.add(id);
+  const by = auto ? 'Auto' : (activeUser && activeUser.name) || 'Staff';
+  try{
+    const r = await qrApi('decide', {id, action, by, reason});
+    qrLog(r.order, action === 'accept' ? 'accepted' : 'rejected', by);
+    if(action === 'accept') await qrApply(r.order, by); else save();
+  }catch(e){
+    toast(e.status === 409 ? `This order was already ${(e.data && e.data.status) || 'handled'}${e.data && e.data.by ? ' by ' + e.data.by : ''}` : 'QR order: ' + e.message);
+  }finally{
+    QR_BUSY.delete(id);
+    if(!auto) qrPoll();
+  }
+}
+// Add an accepted guest order to its table: same steps as captainSend(), the screen's own bill is kept as it was
+async function qrApply(o, by){
+  if(D.qrDone.includes(o.id)){ qrApi('applied', {id: o.id}).catch(() => {}); return true; }
+  const tbl = o.tbl, keep = B, same = keep && keep.table === tbl && keep.channel === 'Dine-In';
+  if(same && JSON.stringify(sentMap(keep.cart)) !== JSON.stringify(keep.sent || {})){
+    toast(`Table ${tbl} is open on this screen with items not sent yet. Save it (KOT) first; the QR order waits in "QR".`);
+    return false;
+  }
+  const items = (o.items || []).map(i => { const m = D.menu.find(x => x.id === i.mid); return {mid: i.mid, name: m ? m.name : i.name, price: m ? +m.price : +i.price, qty: +i.qty}; }).filter(i => i.qty > 0);
+  if(!items.length) return false;
+  const k = D.kaccha[tbl], n0 = D.kots.length;
+  B = k ? kacchaToB(k) : newB(tbl, 'Dine-In');
+  items.forEach(i => { const c = B.cart.find(x => x.mid === i.mid); if(c) c.qty = r2(c.qty + i.qty); else B.cart.push({...i}); });
+  if(o.name && !B.cust) B.cust = o.name;
+  if(o.note) B.note = (B.note ? B.note + ' | ' : '') + 'QR: ' + o.note;
+  saveKacchaBill(true, true);
+  const kot = D.kots.length > n0 ? D.kots[D.kots.length - 1] : null;
+  B = same && D.kaccha[tbl] ? kacchaToB(D.kaccha[tbl]) : keep;
+  if(!kot){ toast('The QR order could not be added (licence or table problem). It waits in "QR".'); return false; }
+  kot.src = 'qr'; kot.qr = o.id;
+  D.qrDone.push(o.id);
+  if(D.qrDone.length > 5000) D.qrDone.splice(0, D.qrDone.length - 5000);
+  D.kaccha[tbl].qr = [...new Set([...(D.kaccha[tbl].qr || []), o.id])];
+  audit('QR order accepted', `${tbl}: ${items.map(i => i.name + '×' + i.qty).join(', ')} · KOT #${kot.no}`, r2(sum(items, i => i.qty * i.price)), o.id, by);
+  save();
+  qrApi('applied', {id: o.id, kot: String(kot.no)}).catch(() => {});
+  toast(`Table ${tbl}: QR order added · KOT #${kot.no}`);
+  return true;
+}
+const qrDoneCall = async id => { try{ await qrApi('call', {id, by: (activeUser && activeUser.name) || 'Staff'}); }catch(e){ toast(e.message); } qrPoll(); };
+function qrPanel(refresh){
+  if(refresh && !$('#qr-panel')) return;
+  const ord = QRS && QRS.orders || [], pend = ord.filter(o => o.status === 'pending'), stuck = qrStuck(), calls = QRS && QRS.calls || [];
+  const tm = ms => new Date(ms).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'});
+  const card = (o, btns) => `<div class="card" style="margin:0 0 8px;padding:10px 12px"><div style="display:flex;justify-content:space-between"><b>Table ${esc(o.tbl)}</b><span class="muted">${tm(o.at)}</span></div>
+    <div>${o.items.map(i => `${i.qty} × ${esc(i.name)}`).join(', ')} · <b>${money(sum(o.items, i => i.qty * i.price))}</b></div>
+    ${o.note ? `<div class="red" style="font-size:13px">Note: ${esc(o.note)}</div>` : ''}${o.name ? `<div class="muted" style="font-size:12px">Guest: ${esc(o.name)}</div>` : ''}<div class="btns" style="margin-top:6px">${btns}</div></div>`;
+  modal('QR orders & calls', `<div id="qr-panel">
+    ${QR_ERR ? `<p class="red">${esc(QR_ERR)}</p>` : ''}
+    ${pend.map(o => card(o, `<button class="btn ok" onclick="qrDecide('${o.id}','accept')">Accept & send KOT</button><button class="btn g" onclick="qrDecide('${o.id}','reject')">Reject</button>`)).join('') || '<p class="muted">No new orders.</p>'}
+    ${stuck.length ? '<h4>Accepted, not added yet</h4>' + stuck.map(o => card(o, `<button class="btn ok" onclick="qrApply(QRS.orders.find(x=>x.id==='${o.id}'),activeUser.name).then(()=>qrPoll())">Add to table now</button>`)).join('') : ''}
+    ${calls.length ? '<h4>Calls from tables</h4>' + calls.map(c => `<div class="card" style="margin:0 0 8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center"><span><b>Table ${esc(c.tbl)}</b> · ${esc(QR_CALL[c.kind] || c.kind)} <span class="muted">${tm(c.at)}</span></span><button class="btn g sm" onclick="qrDoneCall('${c.id}')">Done</button></div>`).join('') : ''}
+    <div class="btns"><button class="btn g" onclick="closeModal();go('qr')">QR settings (Q)</button><button class="btn g" onclick="closeModal()">Close</button></div></div>`);
+}
+// Q screen: switch on, auto-accept, one secure QR per table (print / new code / switch off)
+const qrTables = () => (D.settings.tables || []).filter(t => t && !/parcel|takeaway/i.test(t));
+async function drawQrDirect(){
+  const el = $('#qr-direct');
+  if(!el) return;
+  if(!qrReady()){ el.innerHTML = '<h3 style="margin-top:0">Direct QR ordering</h3><p class="muted">Needs the Setu PC app connected to Hotel Setu Cloud (or Setu on the cloud).</p>'; return; }
+  try{ QRS = await qrApi('state'); }catch(e){ el.innerHTML = `<h3 style="margin-top:0">Direct QR ordering</h3><p class="red">${esc(e.message)}</p>`; return; }
+  const mgr = !!QRS.tables, T = QRS.tables || {};
+  el.innerHTML = `<h3 style="margin-top:0">Direct QR ordering <span class="tag ${QRS.on ? 'ok' : ''}">${QRS.on ? 'ON' : 'OFF'}</span></h3>
+    <p style="font-size:13px">Guests scan the table's QR, order from their phone, and the order comes here (QR button at the top). Accept it and the KOT goes to the kitchen like a waiter's order. Needs internet on this PC.</p>
+    ${mgr ? `<div class="btns"><button class="btn ${QRS.on ? 'g' : 'ok'}" onclick="qrSet({on:${!QRS.on}})">${QRS.on ? 'Switch off' : 'Switch on'}</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;width:auto;margin:0"><input type="checkbox" style="width:auto;margin:0" ${QRS.auto ? 'checked' : ''} onchange="qrSet({auto:this.checked})"> Accept orders automatically</label></div>
+    <table style="margin-top:8px"><tr><th>Table</th><th>QR</th><th></th></tr>${qrTables().map(t => { const x = T[t]; return `<tr><td><b>${esc(t)}</b></td>
+      <td>${x ? (x.on === false ? '<span class="tag">Off</span>' : '<span class="tag ok">Active</span>') : '<span class="muted">No code yet</span>'}</td>
+      <td style="white-space:nowrap">${x ? `<button class="btn g sm" onclick="qrPrint(['${esc(t)}'])">Print</button><button class="btn g sm" onclick="qrTable('${esc(t)}','${x.on === false ? 'on' : 'off'}')">${x.on === false ? 'Switch on' : 'Switch off'}</button><button class="btn g sm" onclick="qrTable('${esc(t)}','new',true)">New code</button>` : `<button class="btn sm" onclick="qrTable('${esc(t)}','new')">Make QR</button>`}</td></tr>`; }).join('')}</table>
+    <div class="btns"><button class="btn" onclick="qrMakeAll()">Make QR for all tables</button><button class="btn g" onclick="qrPrint(qrTables().filter(t => T_ON(t)))">Print all table QRs (A4)</button></div>
+    <p class="muted" style="font-size:12px">"New code" makes the old printed QR stop working (use it if a QR was copied or misused).</p>` : '<p class="muted">The owner / manager sets this up.</p>'}`;
+}
+const T_ON = t => QRS && QRS.tables && QRS.tables[t] && QRS.tables[t].on !== false;
+const qrSet = async v => { try{ await qrApi('settings', v); toast('Saved'); }catch(e){ toast(e.message); } drawQrDirect(); qrPoll(); };
+async function qrTable(t, action, ask){
+  if(ask && !confirm(`Make a new QR for table ${t}? The old printed QR stops working.`)) return;
+  try{ await qrApi('table', {table: t, action}); }catch(e){ toast(e.message); }
+  drawQrDirect();
+}
+async function qrMakeAll(){
+  for(const t of qrTables()) if(!(QRS.tables || {})[t]) { try{ await qrApi('table', {table: t, action: 'new'}); }catch(e){ toast(e.message); break; } }
+  drawQrDirect();
+}
+function qrPrint(ts){
+  if(!QRS || !QRS.tables || !ts.length){ toast('Make the table QR codes first'); return; }
+  const st = D.settings;
+  $('#print').style.removeProperty('--pw');
+  $('#print').innerHTML = `<div class="qrsheet">${ts.filter(T_ON).map(t => `<div class="t"><div>${esc(st.name)}</div>${qrSvg(QRS.base + QRS.tables[t].token)}
+    <b>TABLE ${esc(t)}</b><div>Scan · Order from your phone</div></div>`).join('')}</div>`;
+  setTimeout(() => appPrint(), 80);
+}
+
 /* ================= WEBSITE BILLING FOR A COUNTER-PC HOTEL ================= */
 // The website is for emergencies (PC broken, no power): a few bills a day. The cloud counts them too.
 const isWebOfCounter = () => SRV.cloud && D.saas && D.saas.webMax !== undefined;
@@ -8319,6 +8493,17 @@ const AN_REPORTS = [
       const list = Object.entries(m);
       return {cols: [C('Status'), C('Reservations', 'n'), C('Guests', 'n')], rows: list.map(([k, x]) => [k, x.n, x.g]),
         total: ['TOTAL', list.reduce((a, [, x]) => a + x.n, 0), list.reduce((a, [, x]) => a + x.g, 0)]};
+    }},
+  {id: 'qr-orders', cat: 'operations', title: 'QR Ordering', desc: 'Guest orders from the table QR: accepted, rejected, value and how fast staff answered.', filters: [],
+    build(){
+      const L = (D.qrLog || []).filter(x => x.date >= AN.from && x.date <= AN.to), m = {};
+      L.forEach(x => { const r = m[x.table] || (m[x.table] = {a: 0, r: 0, v: 0, w: 0}); if(x.status === 'accepted'){ r.a++; r.v += pz(x.value); } else r.r++; r.w += x.wait || 0; });
+      const list = Object.entries(m).sort((a, b) => b[1].v - a[1].v), mins = x => x.a + x.r ? Math.round(x.w / (x.a + x.r) / 6000) / 10 : 0;
+      const T = list.reduce((t, [, x]) => ({a: t.a + x.a, r: t.r + x.r, v: t.v + x.v, w: t.w + x.w}), {a: 0, r: 0, v: 0, w: 0});
+      return {cols: [C('Table'), C('Accepted', 'n'), C('Rejected', 'n'), C('Order Value', 'm'), C('Avg. answer (min)', 'n')],
+        rows: list.map(([t, x]) => [t, x.a, x.r, x.v, mins(x)]), total: ['TOTAL', T.a, T.r, T.v, mins(T)],
+        cards: [['QR orders', T.a + T.r, 'n'], ['Accepted', T.a, 'n'], ['Value', T.v, 'm']],
+        note: 'Value = menu price × quantity when accepted (the final bill can have discount / GST).'};
     }},
   // ---------- Inventory ----------
   {id: 'inventory-valuation', cat: 'inventory', title: 'Inventory Valuation', desc: 'Value of the stock on hand now (qty × cost). Date filter does not apply.', filters: [], now: true,

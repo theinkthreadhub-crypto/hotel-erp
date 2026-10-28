@@ -658,6 +658,10 @@ export class SetuHotel extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS chunk (slot TEXT NOT NULL, i INTEGER NOT NULL, s TEXT NOT NULL, PRIMARY KEY (slot, i))`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS payment (id TEXT PRIMARY KEY, plan TEXT, days INTEGER, amount INTEGER, at INTEGER, lic TEXT)`);
+    // QR self-ordering: guests' orders and calls wait here; staff accept them into the hotel's data (never written from here)
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS guestorder (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, items TEXT NOT NULL, note TEXT, name TEXT,
+      status TEXT NOT NULL, at INTEGER, by TEXT, decided INTEGER, kot TEXT, reason TEXT)`);
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS guestcall (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, kind TEXT, at INTEGER, done INTEGER DEFAULT 0, by TEXT)`);
     this.meta = this.kvGet('meta') || { version: 0, savedAt: 0, day: '' };
     this.account = this.kvGet('account');
     if(this.account && !this.account.config) this.account.config = newConfig('restaurant', 'premium');
@@ -833,6 +837,135 @@ export class SetuHotel extends DurableObject {
     if(used + fresh.length > max)
       return { error: `Website billing limit reached (${max} bills a day). Please bill on the Setu PC app (Install for PC), or ask Aghanya Devanya Enterprises for an emergency unlock.` };
     return { tagged: true };
+  }
+
+  // ---------- QR self-ordering ----------
+  qrConf(){ return this.kvGet('qr') || { on: false, auto: false, tables: {} }; }
+  qrTable(token){
+    const c = this.qrConf(), t = String(token || '');
+    if(!c.on || !/^[a-f0-9]{32}$/.test(t)) return null;
+    const hit = Object.entries(c.tables || {}).find(([, v]) => v && v.on !== false && sameText(v.token, t));
+    return hit ? hit[0] : null;
+  }
+  menuData(){
+    let d = {};
+    try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+    return d;
+  }
+  guestOrders(tbl){
+    return this.sql.exec('SELECT * FROM guestorder WHERE tbl = ? AND at > ? ORDER BY at', tbl, Date.now() - 12 * 3600e3).toArray();
+  }
+  // A guest sees: hotel name, table, the menu (prices from the hotel's own menu), and this table's own orders. Nothing else.
+  async guest(request, path, method, body){
+    const url = new URL(request.url), b = method === 'POST' ? body() : {};
+    const token = method === 'POST' ? b.t : url.searchParams.get('t');
+    const tbl = this.qrTable(token);
+    if(!tbl) return json(410, { error: 'This QR code is not active. Please ask the staff.' });
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+    const d = this.menuData(), st = d.settings || {};
+    if(method === 'GET' && path === '/api/guest/menu'){
+      const items = (Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && m.name && !m.qrOff && m.active !== false)
+        .map(m => ({ id: m.id, name: str(m.name, 80), cat: str(m.cat, 40) || 'Menu', price: +m.price || 0, veg: m.veg, img: /^https:\/\//.test(m.img || '') ? m.img : undefined, desc: str(m.desc, 160) || undefined }));
+      return json(200, { hotel: str(st.name || this.account.name, 80), table: tbl, items, gst: +st.gst || 0, incl: !!st.gstInclusive });
+    }
+    if(method === 'GET' && path === '/api/guest/status'){
+      const kots = Array.isArray(d.kots) ? d.kots : [];
+      const orders = this.guestOrders(tbl).map(o => {
+        const k = kots.filter(x => x && x.qr === o.id);
+        const kot = k.length ? (k.every(x => x.status === 'served') ? 'served' : k.some(x => x.status === 'ready') ? 'ready' : 'preparing') : '';
+        return { id: o.id, at: o.at, status: o.status, items: JSON.parse(o.items), kot, reason: o.reason || '' };
+      });
+      const calls = this.sql.exec('SELECT id, kind, at, done FROM guestcall WHERE tbl = ? AND at > ? ORDER BY at', tbl, Date.now() - 3 * 3600e3).toArray();
+      return json(200, { table: tbl, orders, calls });
+    }
+    // Rate limits: per phone network and per table
+    const hit = this.kvGet('gip:' + ip) || { n: 0, at: Date.now() };
+    if(Date.now() - hit.at > 3600e3){ hit.n = 0; hit.at = Date.now(); }
+    if(hit.n >= 40) return json(429, { error: 'Too many requests. Please ask the staff.' });
+    if(method === 'POST' && path === '/api/guest/order'){
+      const id = String(b.id || '');
+      if(!/^[A-Za-z0-9_-]{8,40}$/.test(id)) return json(400, { error: 'bad order id' });
+      const same = this.sql.exec('SELECT * FROM guestorder WHERE id = ?', 'g' + id).toArray()[0];
+      if(same) return json(200, { id: same.id, status: same.status, again: true });   // the same order sent twice (slow network)
+      const pend = this.sql.exec(`SELECT COUNT(*) AS n FROM guestorder WHERE tbl = ? AND status = 'pending'`, tbl).toArray()[0].n;
+      if(pend >= 5) return json(429, { error: 'Your earlier orders are still waiting for the staff. Please wait a moment.' });
+      const menu = new Map((Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && !m.qrOff && m.active !== false).map(m => [m.id, m]));
+      const lines = [];
+      for(const x of (Array.isArray(b.items) ? b.items : []).slice(0, 40)){
+        const m = menu.get(String(x && x.mid || '')), q = Math.round(+(x && x.qty) || 0);
+        if(!m || q < 1 || q > 50) continue;
+        const ex = lines.find(l => l.mid === m.id);
+        if(ex) ex.qty = Math.min(50, ex.qty + q); else lines.push({ mid: m.id, name: str(m.name, 80), price: +m.price || 0, qty: q });
+      }
+      if(!lines.length) return json(400, { error: 'Please add an item' });
+      hit.n++; this.kvSet('gip:' + ip, hit);
+      this.sql.exec(`INSERT INTO guestorder (id, tbl, items, note, name, status, at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+        'g' + id, tbl, JSON.stringify(lines), str(b.note, 200), str(b.name, 60), Date.now());
+      return json(200, { id: 'g' + id, status: 'pending' });
+    }
+    if(method === 'POST' && path === '/api/guest/call'){
+      const kind = ['waiter', 'bill', 'water'].includes(b.kind) ? b.kind : 'waiter';
+      const open = this.sql.exec('SELECT id FROM guestcall WHERE tbl = ? AND kind = ? AND done = 0', tbl, kind).toArray()[0];
+      if(open) return json(200, { id: open.id, again: true });
+      hit.n++; this.kvSet('gip:' + ip, hit);
+      const cid = 'c' + randomHex(8);
+      this.sql.exec('INSERT INTO guestcall (id, tbl, kind, at) VALUES (?, ?, ?, ?)', cid, tbl, kind, Date.now());
+      return json(200, { id: cid });
+    }
+    return json(404, { error: 'not found' });
+  }
+  // Staff: settings and table QR tokens (Manager / counter), pending orders, accept / reject, calls
+  async qrStaff(request, path, method, body, role, url){
+    const b = method === 'POST' ? body() : {};
+    const c = this.qrConf(), manager = ['sync', 'admin'].includes(role);
+    if(method === 'GET' && path === '/api/qr/state'){
+      const orders = this.sql.exec(`SELECT * FROM guestorder WHERE status IN ('pending', 'accepted') OR at > ? ORDER BY at`, Date.now() - 6 * 3600e3).toArray()
+        .map(o => ({ ...o, items: JSON.parse(o.items) }));
+      const calls = this.sql.exec('SELECT * FROM guestcall WHERE done = 0 ORDER BY at').toArray();
+      return json(200, { on: !!c.on, auto: !!c.auto, base: url.origin + '/q/' + this.account.code + '/',
+        tables: manager ? c.tables || {} : undefined, orders, calls });
+    }
+    if(method !== 'POST') return json(404, { error: 'not found' });
+    if(path === '/api/qr/settings'){
+      if(!manager) return json(403, { error: 'manager only' });
+      if(b.on !== undefined) c.on = !!b.on;
+      if(b.auto !== undefined) c.auto = !!b.auto;
+      this.kvSet('qr', c);
+      return json(200, { on: c.on, auto: c.auto });
+    }
+    if(path === '/api/qr/table'){
+      if(!manager) return json(403, { error: 'manager only' });
+      const t = str(b.table, 30);
+      if(!t) return json(400, { error: 'table required' });
+      c.tables = c.tables || {};
+      const cur = c.tables[t];
+      if(b.action === 'new' || (!cur && b.action !== 'remove')) c.tables[t] = { token: randomHex(16), on: true, at: Date.now() };
+      else if(b.action === 'off' && cur) cur.on = false;
+      else if(b.action === 'on' && cur) cur.on = true;
+      else if(b.action === 'remove') delete c.tables[t];
+      this.kvSet('qr', c);
+      return json(200, { tables: c.tables });
+    }
+    if(path === '/api/qr/decide'){
+      const o = this.sql.exec('SELECT * FROM guestorder WHERE id = ?', String(b.id || '')).toArray()[0];
+      if(!o) return json(404, { error: 'order not found' });
+      // First decision wins: the Durable Object runs one request at a time, so two staff cannot both accept
+      if(o.status !== 'pending') return json(409, { error: 'already ' + o.status, status: o.status, by: o.by });
+      const accept = b.action === 'accept';
+      this.sql.exec('UPDATE guestorder SET status = ?, by = ?, decided = ?, reason = ? WHERE id = ?',
+        accept ? 'accepted' : 'rejected', str(b.by, 60), Date.now(), accept ? '' : str(b.reason, 120), o.id);
+      return json(200, { id: o.id, status: accept ? 'accepted' : 'rejected', order: { ...o, items: JSON.parse(o.items) } });
+    }
+    if(path === '/api/qr/applied'){
+      // The accepted order is now in the table's running order with this KOT
+      this.sql.exec(`UPDATE guestorder SET status = 'done', kot = ? WHERE id = ? AND status = 'accepted'`, str(b.kot, 20), String(b.id || ''));
+      return json(200, { ok: true });
+    }
+    if(path === '/api/qr/call'){
+      this.sql.exec('UPDATE guestcall SET done = 1, by = ? WHERE id = ?', str(b.by, 60), String(b.id || ''));
+      return json(200, { ok: true });
+    }
+    return json(404, { error: 'not found' });
   }
 
   // Re-save the current data so devices pick up new config / keys
@@ -1172,6 +1305,8 @@ export class SetuHotel extends DurableObject {
     if(method === 'GET' && path === '/api/info') return json(200, { setu: true, cloud: true, saas: true, local: false, ips: [] });
     if(method === 'POST' && path === '/api/login') return this.login(request, text);
     if(method === 'POST' && path === '/api/counter/restore') return this.counterRestore(request, text);
+    // QR self-ordering, guest side: no login, only a table's QR token
+    if(path.startsWith('/api/guest/')) return this.guest(request, path, method, body);
 
     const role = await this.role(request);
     if(!role) return json(401, { error: 'pin required' });
@@ -1181,6 +1316,8 @@ export class SetuHotel extends DurableObject {
     if(method === 'GET' && path === '/api/db') return rawJson(200, this.dbText());
     if(method === 'GET' && path === '/api/billing') return json(200, this.billingInfo());
     if(role === 'support') return json(403, { error: 'read only' });   // support can only look
+    // QR self-ordering, staff side (the counter PC through its sync key, or a logged-in device)
+    if(path.startsWith('/api/qr/')) return this.qrStaff(request, path, method, body, role, url);
     if(method === 'GET' && path === '/api/printers') return json(200, { printers: [], default: '', cloud: true });
     if(method === 'POST' && path === '/api/print') return json(501, { error: 'Direct printing is not available from the cloud. Please print from the Main Counter PC.' });
 
@@ -1721,6 +1858,8 @@ export default {
     const url = new URL(request.url), path = url.pathname;
     if(!path.startsWith('/api/')){
       if(path === '/' || path === '/index.html') return Response.redirect(url.origin + '/hotel_erp.html', 302);
+      // Table QR: /q/<HOTEL>/<token> opens the guest menu page (the page reads the code and token from the address)
+      if(/^\/q\/[A-Z0-9]{4,12}\/[a-f0-9]{32}\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL('/qr', url), request));
       return env.ASSETS.fetch(request);
     }
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);

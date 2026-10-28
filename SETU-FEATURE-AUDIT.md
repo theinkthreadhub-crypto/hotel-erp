@@ -48,7 +48,7 @@ Status: ✅ implemented and working (tested) · 🟡 partial · ❌ missing · �
 | Downloadable `menu.html`, customer sends order on WhatsApp | ✅ | `scrQR` 6495, `dlMenuPage` 6622 |
 | Table QR print (all tables, A4) | ✅ | `printTableQR` 6600, `qrSvg` 2399 — the QR opens the menu link / WhatsApp, not a per-table secure link |
 | Counter pastes the WhatsApp order → table running order + KOT | ✅ | `importOrder` (adds to cart, KOT only for new items) |
-| Live direct ordering (customer phone → counter without WhatsApp) | ❌ | No guest API, no pending-order queue, no order status |
+| Live direct ordering (customer phone → counter without WhatsApp) | ✅ (Phase 1) | `qr.html`, `guest()` / `qrStaff()` in worker.js, `qrApply()`; `tests/qr-ordering.js` 17/17 |
 | Per-table secure / revocable QR token | ❌ | QR has only the table name in the WhatsApp text |
 | Staff accept / reject, auto-accept, order source on KOT | ❌ | `pushKot` has no source field |
 | Customer order status, add more, call waiter, request bill | ❌ | — |

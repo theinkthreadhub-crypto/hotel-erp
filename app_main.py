@@ -1052,6 +1052,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return 'local'
             return store.tokens.get(self.headers.get('X-Setu-Token', ''))
 
+        def qr_proxy(self, method, path, body=None):
+            # QR self-ordering lives on Hotel Setu Cloud; this PC forwards with its own sync key (never given to devices)
+            if not cloud:
+                return self.send_json(503, {'error': 'QR ordering needs Hotel Setu Cloud'})
+            try:
+                code, j = cloud.support(method, path, body)
+            except ValueError as e:
+                return self.send_json(400, {'error': str(e).replace('Help & Support', 'QR ordering')})
+            except Exception:
+                return self.send_json(502, {'error': 'Could not reach Hotel Setu Cloud. QR orders need the internet.'})
+            return self.send_json(code, j)
+
         def send_json(self, code, obj):
             body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
             self.send_response(code)
@@ -1123,6 +1135,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(code, j)
             if not self.role():
                 return self.send_json(401, {'error': 'pin required'})
+            if path == '/api/qr/state':
+                return self.qr_proxy('GET', path)
             if path == '/api/clock':
                 # Setu Doctor: how far this PC's clock is from the cloud's (wrong date breaks licence and SSL)
                 try:
@@ -1174,6 +1188,11 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception:
                     return self.send_json(502, {'error': 'Could not reach the cloud. Check the internet.'})
                 return self.send_json(code, j)
+            if path.startswith('/api/qr/'):
+                # Any staff device may accept orders; QR settings and table codes are for the manager
+                if not self.role() or (path in ('/api/qr/settings', '/api/qr/table') and self.role() not in ('local', 'admin')):
+                    return self.send_json(403, {'error': 'manager only'})
+                return self.qr_proxy('POST', path, self.read_json())
             if path == '/api/support/ticket':
                 if self.role() not in ('local', 'admin') or not cloud:
                     return self.send_json(403, {'error': 'manager only'})
