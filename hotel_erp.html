@@ -3213,8 +3213,8 @@ async function refreshOfficialAggOrders(){
   scrOnline();
 }
 function officialOrderImported(o){
-  return (D.onlineOrders||[]).some(x=>x.source==='approved_partner_webhook' && x.platform===o.platform && x.orderId===o.orderId) ||
-    (D.bills||[]).some(b=>b.source==='approved_partner_webhook' && b.channel.toLowerCase()===o.platform && b.orderId===o.orderId);
+  return (D.onlineOrders||[]).some(x=>x.source==='authenticated_partner_webhook' && x.platform===o.platform && x.orderId===o.orderId) ||
+    (D.bills||[]).some(b=>b.source==='authenticated_partner_webhook' && b.channel.toLowerCase()===o.platform && b.orderId===o.orderId);
 }
 function importOfficialOrder(provider,id){
   const o=officialAggOrders.find(o=>o.platform===provider && o.orderId===id);
@@ -3233,7 +3233,7 @@ function importOfficialOrder(provider,id){
   if(!confirm('Confirm '+provider.toUpperCase()+' #'+o.orderId+' is already accepted on the OFFICIAL PARTNER TABLET, then import for KOT?'))return;
   const channel=provider==='zomato'?'Zomato':'Swiggy';
   D.onlineOrders=D.onlineOrders||[];
-  D.onlineOrders.push({id:uid(),source:'approved_partner_webhook',platform:provider,outletId:o.outletId,
+  D.onlineOrders.push({id:uid(),source:'authenticated_partner_webhook',platform:provider,outletId:o.outletId,
     channel,orderId:o.orderId,status:'new',custName:'Online Customer',custPhone:'',address:'See partner app',
     createdAt:nowTime(),time:nowTime(),date:today(),items:mapped,total:o.total,sub:itemTotal,disc:0,tax:0,
     taxable:itemTotal,round:0,note:o.note||'',otp:'',riderName:'',
@@ -3428,7 +3428,7 @@ function acceptOnlineOrder(id){
   const o = (D.onlineOrders || []).find(x => x.id === id);
   if(!o) return;
   if(o.status!=='new')return toast('Order is not pending');
-  if(o.source==='approved_partner_webhook' && !o.partnerAcceptedOnTablet)return toast('Accept it on the partner tablet first');
+  if(o.source==='authenticated_partner_webhook' && !o.partnerAcceptedOnTablet)return toast('Accept it on the partner tablet first');
   o.status = 'accepted';
   pushKot({table: `${o.channel} #${o.orderId}`, channel: o.channel, items: o.items, note: o.note || ''});
   save();
@@ -3449,7 +3449,7 @@ function markOnlineReady(id){
 function handoverOnlineOrder(id){
   const o = (D.onlineOrders || []).find(x => x.id === id);
   if(!o) return;
-  if(o.source==='approved_partner_webhook' && !o.financialVerified)return toast('Partner fees/taxes/settlement are not reconciled: do not finalize this sale yet');
+  if(o.source==='authenticated_partner_webhook' && !o.financialVerified)return toast('Partner fees/taxes/settlement are not reconciled: do not finalize this sale yet');
   // A second click (or another device) must not bill the same Zomato / Swiggy order again
   if(o.status === 'completed' || D.bills.some(b => o.orderId && b.orderId === o.orderId && b.channel === o.channel && !b.cancelled)){
     toast('This order is already billed');
@@ -3500,7 +3500,7 @@ function handoverOnlineOrder(id){
 
 function rejectOnlineOrder(id){
   const o=(D.onlineOrders||[]).find(x=>x.id===id);
-  if(o?.source==='approved_partner_webhook')return toast('Reject on the partner app, and retain the Setu audit trail');
+  if(o?.source==='authenticated_partner_webhook')return toast('Reject on the partner app, and retain the Setu audit trail');
   if(!confirm('Reject this online order?')) return;
   D.onlineOrders = (D.onlineOrders || []).filter(x => x.id !== id);
   save();
