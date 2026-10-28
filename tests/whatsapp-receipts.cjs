@@ -40,9 +40,9 @@ class SqlFake{
     throw Error('Unknown SQL mock '+q);
   }
 }
-const receiptClass = new Function('DAY','str','fetch','AbortSignal',
+const receiptClass = new Function('DAY','str','fetch','AbortSignal','SqlFake',
   'return class ReceiptHarness { constructor(data,options){this.hotel=data;this.env=options||{};this.account={name:"Hotel Foo"};this.sql=new (SqlFake)();} data(){return JSON.stringify(this.hotel);} blocked(){return false;}'+receiptMethods+'}')(
-  864e5,(x,n)=>String(x).slice(0,n),metaFetch,{timeout:()=>({})});
+  864e5,(x,n)=>String(x).slice(0,n),metaFetch,{timeout:()=>({})},SqlFake);
 let good=0;
 async function test(name,task){await task();good++;console.log('PASS '+name);}
 (async()=>{
