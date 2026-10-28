@@ -187,21 +187,29 @@ async function place(){
 const ST = {pending: ['Waiting for the staff', 'w'], accepted: ['Accepted', 'ok'], done: ['Sent to the kitchen', 'ok'], rejected: ['Not accepted', 'bad']};
 const KT = {preparing: 'Preparing', ready: 'Ready — coming to your table', served: 'Served'};
 function openOrders(){
-  const os = (STATUS && STATUS.orders || []).slice().reverse();
-  sheet('orders', `<h3>My orders · Table ${esc(MENU.table)}</h3>${os.map(o => {
-    const s = ST[o.status] || [o.status, ''];
-    return `<div class="st"><span class="tag ${s[1]}">${o.kot && o.status === 'done' ? esc(KT[o.kot] || o.kot) : s[0]}</span> <small style="color:var(--mut)">${new Date(o.at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</small>
-      <b style="margin-top:6px">${o.items.map(i => esc(i.qty + ' × ' + i.name)).join(', ')}</b>${o.reason ? `<small>${esc(o.reason)}</small>` : ''}</div>`;
-  }).join('') || '<p style="color:var(--mut)">No order yet. Choose items from the menu.</p>'}
-    <div class="row" style="display:flex;gap:8px;margin-top:12px"><button class="btn g" onclick="closeSheet()">Order more</button><button class="btn" onclick="ask('bill')">Request bill</button></div>`);
+ const os=(STATUS&&STATUS.orders||[]).slice().reverse();
+ const cards=os.map(o=>{
+  const st=ST[o.status]||[o.status,''];
+  const kitchen=o.kot&&o.status==='done'?(KT[o.kot]||o.kot):st[0];
+  return '<div class="st"><div style="display:flex;justify-content:space-between;align-items:center"><span class="tag '+st[1]+'">'+esc(kitchen)+'</span><small class="muted">'+new Date(o.at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})+'</small></div>'+
+   '<b>'+o.items.map(i=>i.qty+' × '+esc(i.name)+((i.mods||[]).length?' ('+i.mods.map(m=>esc(m.name)).join(', ')+')':'')).join(', ')+'</b>'+
+   (o.reason?'<small style="color:#dc2626">'+esc(o.reason)+'</small>':'')+'</div>';
+ }).join('');
+ const needsBill=STATUS&&STATUS.calls&&STATUS.calls.some(c=>c.kind==='bill'&&!c.done);
+ sheet('orders','<h3>Order tracking · '+esc(MENU.table)+'</h3>'+
+  (cards||'<p class="muted">Your placed orders will appear here.</p>')+
+  '<div style="display:flex;gap:8px;margin-top:14px"><button class="btn g" onclick="closeSheet()">Order more</button><button class="btn" '+(needsBill?'disabled':'')+' onclick="ask(\'bill\')">'+(needsBill?'Bill requested':'Request bill')+'</button></div>');
 }
 function openHelp(){
-  sheet('help', `<h3>Need help?</h3><div style="display:flex;flex-direction:column;gap:8px">
-    <button class="btn" onclick="ask('waiter')">Call waiter</button><button class="btn g" onclick="ask('water')">Water please</button><button class="btn g" onclick="ask('bill')">Request bill</button>
-    <button class="btn g" onclick="closeSheet()">Close</button></div>`);
+ const calls=STATUS&&STATUS.calls||[];
+ const has=k=>calls.some(c=>c.kind===k&&!c.done);
+ sheet('help','<h3>How can we help?</h3><p class="muted">Our team receives your request at the counter.</p>'+
+  ['waiter','water','bill'].map(k=>'<button class="btn '+(has(k)?'g':'')+'" style="width:100%;margin:6px 0" '+(has(k)?'disabled':'')+' onclick="ask(\''+k+'\')">'+
+   (has(k)?'Requested · ': '')+(k==='waiter'?'Call waiter':k==='water'?'Bring water':'Request bill')+'</button>').join('')+
+  '<button class="btn g" style="width:100%;margin-top:8px" onclick="closeSheet()">Back to menu</button>');
 }
 async function ask(kind){
-  try{ await call('/api/guest/call', {kind}); closeSheet(); toast(kind === 'bill' ? 'The bill is on its way.' : 'The staff has been told. Please wait.'); }
+  try{ await call('/api/guest/call', {kind}); closeSheet(); toast(kind === 'bill' ? 'Bill request sent to the counter.' : 'Request sent to the staff.'); await poll(); }
   catch(e){ toast(e.message); }
 }
 async function poll(){
