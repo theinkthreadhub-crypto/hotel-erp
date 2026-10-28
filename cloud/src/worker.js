@@ -910,6 +910,13 @@ export class SetuHotel extends DurableObject {
       for(const x of requests){
         const m = menu.get(String(x && x.mid || '')), q = +(x && x.qty);
         if(!m || !Number.isInteger(q) || q < 1 || q > 50) return json(400, { error: 'An item or quantity is invalid' });
+        if(st.qrHideOut && (m.recipe || []).some(r => {
+          let sid = r && r.sid;
+          const alias = d.stockAlias || {};
+          for(let i = 0; i < 6 && alias[sid]; i++) sid = alias[sid];
+          const stocked = (Array.isArray(d.stock) ? d.stock : []).find(z => z && z.id === sid);
+          return r && +r.qty > 0 && stocked && (+stocked.qty || 0) <= 0;
+        })) return json(409, { error: 'This dish is temporarily unavailable. Please refresh the menu.' });
         const groups = this.qrOptionGroups(m);
         const selections = Array.isArray(x.mods) ? x.mods : [];
         if(selections.length > groups.length) return json(400, { error: 'Too many add-ons selected' });
