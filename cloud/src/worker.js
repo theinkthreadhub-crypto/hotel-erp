@@ -848,7 +848,13 @@ export class SetuHotel extends DurableObject {
     const template = String(e.WHATSAPP_RECEIPT_TEMPLATE || 'setu_receipt_v1');
     const language = String(e.WHATSAPP_RECEIPT_LANGUAGE || 'en_US');
     const version = String(e.WHATSAPP_GRAPH_VERSION || 'v24.0');
-    return {token,sender,template,language,version,configured:!!(token && /^\d{8,30}$/.test(sender) && /^[a-z0-9_]{3,80}$/.test(template))};
+    const provider = e.WHATSAPP_PROVIDER === 'baileys' ? 'baileys' : 'meta';
+    const gateway = String(e.BAILEYS_GATEWAY_URL || '').replace(/\/$/, '');
+    const gatewaySecret = String(e.BAILEYS_GATEWAY_SECRET || '');
+    const gatewayValid = /^https:\/\/[a-zA-Z0-9.-]+(?::443)?$/.test(gateway) && gatewaySecret.length >= 32;
+    return {provider, token,sender,template,language,version,gateway,gatewaySecret,
+      configured:provider === 'baileys' ? gatewayValid :
+        !!(token && /^\d{8,30}$/.test(sender) && /^[a-z0-9_]{3,80}$/.test(template))};
   }
   receiptLog(id){return this.sql.exec('SELECT * FROM receipt_send WHERE id = ?',id).toArray()[0] || null;}
   receiptData(id){
@@ -879,7 +885,16 @@ export class SetuHotel extends DurableObject {
     if(!bill || !this.receiptEligible(bill,settings))return {status:'ineligible',error:'Bill receipt permission missing'};
     const prior=this.receiptLog(bill.id);
     if(prior)return {status:prior.status,id:prior.provider_id||'',error:prior.error||''};
-    if(!c.configured)return {status:'not_configured',error:'Vendor has not configured WhatsApp Cloud API'};
+    if(!c.configured)return {status:'not_configured',error:'WhatsApp sender is not configured'};
+    // Baileys needs a separate Node.js service. If disconnected, do not create an outbox
+    // record: the bill remains eligible for a later sync or manager-triggered attempt.
+    if(c.provider === 'baileys'){
+      try{
+        const r=await fetch(c.gateway+'/health',{signal:AbortSignal.timeout(4000)});
+        const j=await r.json().catch(()=>({}));
+        if(!r.ok || !j.connected)return {status:'not_connected',error:'WhatsApp linked device offline; reconnect it first'};
+      }catch(e){return {status:'not_connected',error:'WhatsApp gateway is unreachable'};}
+    }
     const used=this.sql.exec('SELECT COUNT(*) AS n FROM receipt_send WHERE at >= ?',Date.now()-DAY).toArray()[0].n;
     if(used>=100)return {status:'daily_limit',error:'Daily WhatsApp receipt limit reached'};
     const to='91'+String(bill.phone).replace(/\D/g,'').slice(-10);
@@ -887,16 +902,37 @@ export class SetuHotel extends DurableObject {
     const payload={messaging_product:'whatsapp',to,type:'template',
       template:{name:c.template,language:{code:c.language},components:[{type:'body',
         parameters:this.receiptTextParams(bill,settings).map(text=>({type:'text',text}))}]}};
-    let result={status:'unknown',error:'Network outcome unknown; do not retry before checking Meta'};
+    let result={status:'unknown',error:'Network outcome uncertain; check sender before manually sharing'};
     try{
-      const response=await fetch('https://graph.facebook.com/'+c.version+'/'+c.sender+'/messages',
-        {method:'POST',headers:{Authorization:'Bearer '+c.token,'Content-Type':'application/json'},
-         body:JSON.stringify(payload),signal:AbortSignal.timeout(12000)});
-      const j=await response.json().catch(()=>({}));
-      const id=j.messages && j.messages[0] && j.messages[0].id || '';
-      result=response.ok&&id ? {status:'submitted',id} :
-        {status:'failed',error:str(j.error?.message||'Meta HTTP '+response.status,180)};
-    }catch(e){ result={status:'unknown',error:'Connection uncertain; check Meta dashboard before manual resend'}; }
+      if(c.provider === 'baileys'){
+        const p=this.receiptTextParams(bill,settings);
+        const message='*'+p[0]+'*\nReceipt #'+p[1]+' · '+p[2]+'\n\n'+p[3]+
+          '\n\n*Bill total: Rs.'+p[4]+'*\nThank you for visiting.';
+        const resp=await fetch(c.gateway+'/send',{
+          method:'POST',headers:{'Authorization':'Bearer '+c.gatewaySecret,'Content-Type':'application/json'},
+          body:JSON.stringify({hotel:this.account.code,billId:bill.id,to:bill.phone,text:message}),
+          signal:AbortSignal.timeout(16000)
+        });
+        const j=await resp.json().catch(()=>({}));
+        result=j.status==='not_connected'&&resp.status===503 ? {status:'not_connected',error:'Linked WhatsApp disconnected'} :
+          resp.ok && j.status==='submitted' && j.id ? {status:'submitted',id:String(j.id)} :
+          resp.ok && ['sending','unknown','submitted'].includes(j.status) ?
+            {status:j.status,error:String(j.error||'')} :
+          {status:'failed',error:str(j.error||'WhatsApp gateway HTTP '+resp.status,180)};
+      }else{
+        const response=await fetch('https://graph.facebook.com/'+c.version+'/'+c.sender+'/messages',
+          {method:'POST',headers:{Authorization:'Bearer '+c.token,'Content-Type':'application/json'},
+           body:JSON.stringify(payload),signal:AbortSignal.timeout(12000)});
+        const j=await response.json().catch(()=>({}));
+        const id=j.messages && j.messages[0] && j.messages[0].id || '';
+        result=response.ok&&id ? {status:'submitted',id} :
+          {status:'failed',error:str(j.error?.message||'Meta HTTP '+response.status,180)};
+      }
+    }catch(e){result={status:'unknown',error:'Connection uncertain; do not retry blindly'};}
+    if(result.status==='not_connected'){
+      this.sql.exec('DELETE FROM receipt_send WHERE id = ?',bill.id);
+      return result;
+    }
     this.sql.exec('UPDATE receipt_send SET status=?,provider_id=?,error=? WHERE id=?',
       result.status,result.id||'',result.error||'',bill.id);
     return result;
