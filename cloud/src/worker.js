@@ -848,7 +848,7 @@ export class SetuHotel extends DurableObject {
     const template = String(e.WHATSAPP_RECEIPT_TEMPLATE || 'setu_receipt_v1');
     const language = String(e.WHATSAPP_RECEIPT_LANGUAGE || 'en_US');
     const version = String(e.WHATSAPP_GRAPH_VERSION || 'v24.0');
-    return {token,sender,template,language,version,configured:!!(token && /^\\d{8,30}$/.test(sender) && /^[a-z0-9_]{3,80}$/.test(template))};
+    return {token,sender,template,language,version,configured:!!(token && /^\d{8,30}$/.test(sender) && /^[a-z0-9_]{3,80}$/.test(template))};
   }
   receiptLog(id){return this.sql.exec('SELECT * FROM receipt_send WHERE id = ?',id).toArray()[0] || null;}
   receiptData(id){
@@ -857,14 +857,14 @@ export class SetuHotel extends DurableObject {
     return {bill:(d.bills || []).find(b=>b && b.id===id),settings:d.settings||{},data:d};
   }
   receiptEligible(b,st){
-    const n=String(b?.phone||'').replace(/\\D/g,'').replace(/^91(?=\\d{10}$)/,'');
+    const n=String(b?.phone||'').replace(/\D/g,'').replace(/^91(?=\d{10}$)/,'');
     return !!(b && b.id && b.waReceiptConsent === true && +b.waConsentAt > Date.now()-7*DAY &&
       +b.waConsentAt <= Date.now()+60000 && !b.cancelled &&
-      !['Zomato','Swiggy'].includes(b.channel) && /^[6-9]\\d{9}$/.test(n) &&
+      !['Zomato','Swiggy'].includes(b.channel) && /^[6-9]\d{9}$/.test(n) &&
       ['auto','manual'].includes(st.waReceiptMode) && Number.isFinite(+b.total) && +b.total>=0);
   }
   receiptTextParams(b,st){
-    const clean=(v,n)=>String(v==null?'':v).replace(/[\\r\\n\\t]+/g,' ').replace(/\\s+/g,' ').slice(0,n);
+    const clean=(v,n)=>String(v==null?'':v).replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').slice(0,n);
     const items=(b.items||[]).slice(0,30).map(i=>clean(i.name,55)+' x'+(+i.qty||0)+' Rs.'+(Math.round((+i.price||0)*(+i.qty||0)*100)/100).toFixed(2));
     let line=items.join('; ');
     if((b.items||[]).length>30)line+='; more items on printed bill';
@@ -882,7 +882,7 @@ export class SetuHotel extends DurableObject {
     if(!c.configured)return {status:'not_configured',error:'Vendor has not configured WhatsApp Cloud API'};
     const used=this.sql.exec('SELECT COUNT(*) AS n FROM receipt_send WHERE at >= ?',Date.now()-DAY).toArray()[0].n;
     if(used>=100)return {status:'daily_limit',error:'Daily WhatsApp receipt limit reached'};
-    const to='91'+String(bill.phone).replace(/\\D/g,'').slice(-10);
+    const to='91'+String(bill.phone).replace(/\D/g,'').slice(-10);
     this.sql.exec("INSERT OR IGNORE INTO receipt_send (id,phone,status,provider_id,error,at) VALUES (?,?,'sending','','',?)",bill.id,to,Date.now());
     const payload={messaging_product:'whatsapp',to,type:'template',
       template:{name:c.template,language:{code:c.language},components:[{type:'body',
