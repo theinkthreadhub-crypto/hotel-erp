@@ -852,6 +852,16 @@ export class SetuHotel extends DurableObject {
     try{ d = JSON.parse(this.data()) || {}; }catch(e){}
     return d;
   }
+  // QR menu modifiers are hotel-configured but public input is never trusted.
+  qrOptionGroups(item){
+    return (Array.isArray(item.qrMods) ? item.qrMods : []).slice(0, 4).map(g => ({
+      id: str(g.id, 32), name: str(g.name, 50), required: !!g.required,
+      options: (Array.isArray(g.options) ? g.options : []).slice(0, 10).map(o => ({
+        id: str(o.id, 32), name: str(o.name, 50),
+        price: Number.isFinite(+o.price) ? Math.max(0, Math.min(5000, Math.round(+o.price * 100) / 100)) : 0
+      })).filter(o => o.id && o.name)
+    })).filter(g => g.id && g.name && g.options.length);
+  }
   guestOrders(tbl){
     return this.sql.exec('SELECT * FROM guestorder WHERE tbl = ? AND at > ? ORDER BY at', tbl, Date.now() - 12 * 3600e3).toArray();
   }
@@ -869,7 +879,7 @@ export class SetuHotel extends DurableObject {
       const qtyOf = sid => { let x = sid; for(let i = 0; i < 6 && alias[x]; i++) x = alias[x]; const it = stock.get(x); return it ? +it.qty || 0 : 1; };
       const outOf = m => st.qrHideOut && (m.recipe || []).some(r => r && +r.qty > 0 && qtyOf(r.sid) <= 0);
       const items = (Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && m.name && !m.qrOff && m.active !== false && !outOf(m))
-        .map(m => ({ id: m.id, name: str(m.name, 80), cat: str(m.cat, 40) || 'Menu', price: +m.price || 0, veg: m.veg, img: /^https:\/\//.test(m.img || '') ? m.img : undefined, desc: str(m.desc, 160) || undefined }));
+        .map(m => ({ id: m.id, name: str(m.name, 80), cat: str(m.cat, 40) || 'Menu', price: +m.price || 0, veg: m.veg, img: /^https:\/\//.test(m.img || '') ? m.img : undefined, desc: str(m.desc, 160) || undefined, mods: this.qrOptionGroups(m) }));
       return json(200, { hotel: str(st.name || this.account.name, 80), table: tbl, items, gst: +st.gst || 0, incl: !!st.gstInclusive });
     }
     if(method === 'GET' && path === '/api/guest/status'){
@@ -890,16 +900,45 @@ export class SetuHotel extends DurableObject {
       const id = String(b.id || '');
       if(!/^[A-Za-z0-9_-]{8,40}$/.test(id)) return json(400, { error: 'bad order id' });
       const same = this.sql.exec('SELECT * FROM guestorder WHERE id = ?', 'g' + id).toArray()[0];
+      // Retry keys are table-scoped: an ID used at another table must never reveal its order state.
+      if(same && same.tbl !== tbl) return json(409, { error: 'Order ID already used. Please retry with a new cart.' });
       if(same) return json(200, { id: same.id, status: same.status, again: true });   // the same order sent twice (slow network)
       const pend = this.sql.exec(`SELECT COUNT(*) AS n FROM guestorder WHERE tbl = ? AND status = 'pending'`, tbl).toArray()[0].n;
       if(pend >= 5) return json(429, { error: 'Your earlier orders are still waiting for the staff. Please wait a moment.' });
       const menu = new Map((Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && !m.qrOff && m.active !== false).map(m => [m.id, m]));
       const lines = [];
-      for(const x of (Array.isArray(b.items) ? b.items : []).slice(0, 40)){
-        const m = menu.get(String(x && x.mid || '')), q = Math.round(+(x && x.qty) || 0);
-        if(!m || q < 1 || q > 50) continue;
-        const ex = lines.find(l => l.mid === m.id);
-        if(ex) ex.qty = Math.min(50, ex.qty + q); else lines.push({ mid: m.id, name: str(m.name, 80), price: +m.price || 0, qty: q });
+      const requests = Array.isArray(b.items) ? b.items : [];
+      if(!requests.length || requests.length > 40) return json(400, { error: 'Choose 1 to 40 menu items' });
+      for(const x of requests){
+        const m = menu.get(String(x && x.mid || '')), q = +(x && x.qty);
+        if(!m || !Number.isInteger(q) || q < 1 || q > 50) return json(400, { error: 'An item or quantity is invalid' });
+        if(st.qrHideOut && (m.recipe || []).some(r => {
+          let sid = r && r.sid;
+          const alias = d.stockAlias || {};
+          for(let i = 0; i < 6 && alias[sid]; i++) sid = alias[sid];
+          const stocked = (Array.isArray(d.stock) ? d.stock : []).find(z => z && z.id === sid);
+          return r && +r.qty > 0 && stocked && (+stocked.qty || 0) <= 0;
+        })) return json(409, { error: 'This dish is temporarily unavailable. Please refresh the menu.' });
+        const groups = this.qrOptionGroups(m);
+        const selections = Array.isArray(x.mods) ? x.mods : [];
+        if(selections.length > groups.length) return json(400, { error: 'Too many add-ons selected' });
+        const chosen = [], seen = new Set();
+        for(const choice of selections){
+          const g = groups.find(v => v.id === String(choice && choice.gid || ''));
+          const o = g && g.options.find(v => v.id === String(choice && choice.oid || ''));
+          if(!g || !o || seen.has(g.id)) return json(400, { error: 'Invalid size or add-on selected. Refresh the menu.' });
+          seen.add(g.id);
+          chosen.push({ gid: g.id, oid: o.id, name: o.name, price: o.price });
+        }
+        if(groups.some(g => g.required && !seen.has(g.id))) return json(400, { error: 'Please select all required options' });
+        chosen.sort((a,b) => a.gid.localeCompare(b.gid));
+        const key = String(m.id) + ':' + chosen.map(y => y.gid + '=' + y.oid).join(',');
+        const price = Math.round(((+m.price || 0) + chosen.reduce((a,y) => a + y.price, 0)) * 100) / 100;
+        const ex = lines.find(l => l.key === key);
+        if(ex) {
+          if(ex.qty + q > 50) return json(400, { error: 'Maximum 50 of one item' });
+          ex.qty += q;
+        } else lines.push({ key, mid: m.id, name: str(m.name, 80), price, qty: q, mods: chosen });
       }
       if(!lines.length) return json(400, { error: 'Please add an item' });
       hit.n++; this.kvSet('gip:' + ip, hit);

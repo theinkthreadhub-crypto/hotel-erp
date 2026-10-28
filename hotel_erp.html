@@ -2477,15 +2477,16 @@ You can use it to pay on your next visit. Thank you!`);
 function cartDelta(cart, sent){
   const left = {...(sent || {})}, out = [];
   cart.forEach(c => {
-    const already = Math.min(left[c.mid] || 0, c.qty);
-    left[c.mid] = (left[c.mid] || 0) - already;
+    const key = c.qrKey || c.mid;
+    const already = Math.min(left[key] || 0, c.qty);
+    left[key] = (left[key] || 0) - already;
     if(c.qty - already > 0) out.push({mid: c.mid, name: c.name, qty: r2(c.qty - already)});
   });
   return out;
 }
 function sentMap(cart){
   const m = {};
-  cart.forEach(c => m[c.mid] = (m[c.mid] || 0) + c.qty);
+  cart.forEach(c => {const key = c.qrKey || c.mid; m[key] = (m[key] || 0) + c.qty;});
   return m;
 }
 function pushKot(t){
@@ -3811,7 +3812,7 @@ function drawItems(){
 function addItem(id){
   const m = D.menu.find(x => x.id === id);
   if(!m) return;
-  const c = B.cart.find(x => x.mid === id);
+  const c = B.cart.find(x => x.mid === id && !x.qrKey);
   if(c) c.qty++;
   else B.cart.push({mid: id, name: m.name, price: +m.price, qty: 1});
   drawCart();
@@ -3823,7 +3824,7 @@ function setQty(i, v){
   if(!c) return;
   // A slip of the keyboard (1000000000) must not make a crore-rupee bill
   if(v > 9999){ toast('Quantity too large. Max 9999.'); v = 9999; }
-  const newQty = v > 0 ? v : 0, sentQty = (B.sent || {})[c.mid] || 0;
+  const newQty = v > 0 ? v : 0, sentQty = (B.sent || {})[c.qrKey || c.mid] || 0;
   const apply = () => {
     const ci = B.cart.indexOf(c);
     if(ci < 0) return;
@@ -6143,6 +6144,40 @@ function ingRow(sid, qty){
   </div>`;
 }
 
+// One selectable option per group. Add * to a group name to make selection mandatory.
+// Example: Size*: Half=0 | Full=80    or    Add-ons: Cheese=30 | Butter=20
+const qrSlug = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0,28);
+function qrModText(m){
+  return (m.qrMods || []).map(g => g.name + (g.required ? '*' : '') + ': ' +
+    (g.options || []).map(o => o.name + '=' + o.price).join(' | ')).join('\n');
+}
+function qrParseMods(text){
+  const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  if(lines.length > 4) throw new Error('Maximum four option groups per dish');
+  const groups = [], groupIds = new Set();
+  for(const line of lines){
+    const n = line.indexOf(':');
+    if(n < 1) throw new Error('Use Group: Option=Price | Option=Price');
+    const raw = line.slice(0, n).trim(), required = raw.endsWith('*'), name = (required ? raw.slice(0,-1) : raw).trim();
+    const gid = qrSlug(name);
+    if(!gid || name.length > 50 || groupIds.has(gid)) throw new Error('Invalid or duplicate QR option group: ' + name);
+    groupIds.add(gid);
+    const cells = line.slice(n+1).split('|').map(x=>x.trim()).filter(Boolean);
+    if(cells.length < 1 || cells.length > 10) throw new Error('Use 1–10 options in ' + name);
+    const options=[], seen=new Set();
+    for(const cell of cells){
+      const pos = cell.lastIndexOf('=');
+      const label = (pos < 0 ? cell : cell.slice(0,pos)).trim();
+      const value = pos < 0 ? '0' : cell.slice(pos+1).trim();
+      const price = Number(value), oid = qrSlug(label);
+      if(!oid || label.length > 50 || seen.has(oid) || !Number.isFinite(price) || price < 0 || price > 5000)
+        throw new Error('Invalid or duplicate option in ' + name + ': ' + cell);
+      seen.add(oid); options.push({id: oid, name: label, price: Math.round(price*100)/100});
+    }
+    groups.push({id: gid, name, required, options});
+  }
+  return groups;
+}
 function editMenu(id){
   const m = D.menu.find(x => x.id === id) || {name: '', cat: '', price: '', recipe: []};
   modal(id ? 'Edit Menu Item' : 'New Menu Item', `
@@ -6151,12 +6186,16 @@ function editMenu(id){
       <div><label>Category</label><input id="m_cat" list="mcats" value="${esc(m.cat)}" placeholder="e.g. Main Course"><datalist id="mcats">${[...new Set(D.menu.map(x => x.cat))].map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
       <div><label>Selling Price (₹)</label><input id="m_price" type="number" step="any" value="${m.price}"></div>
     </div>
-    <details style="margin-top:10px"${m.img || m.desc || m.veg !== undefined || m.qrOff ? ' open' : ''}><summary style="cursor:pointer;font-weight:600">Guest QR menu (optional)</summary>
+    <details style="margin-top:10px"${m.img || m.desc || m.veg !== undefined || m.qrOff || (m.qrMods||[]).length ? ' open' : ''}><summary style="cursor:pointer;font-weight:600">Guest QR menu (optional)</summary>
       <div class="grid" style="margin-top:6px">
         <div><label>Veg / Non-veg</label><select id="m_veg"><option value="">Not shown</option><option value="1" ${m.veg === true ? 'selected' : ''}>Veg</option><option value="0" ${m.veg === false ? 'selected' : ''}>Non-veg</option></select></div>
         <div><label>On the guest QR menu</label><select id="m_qr"><option value="">Show</option><option value="off" ${m.qrOff ? 'selected' : ''}>Hide (not available)</option></select></div>
         <div><label>Photo link (https://…)</label><input id="m_img" value="${esc(m.img || '')}" placeholder="https://…/paneer.jpg"></div>
         <div><label>Short description</label><input id="m_desc" maxlength="160" value="${esc(m.desc || '')}"></div>
+      </div>
+      <div style="margin-top:8px"><label>QR Size / Add-ons (one option from each group)</label>
+        <textarea id="m_qrmods" rows="3" placeholder="Size*: Half=0 | Full=90&#10;Add-ons: Cheese=30 | Butter=20">${esc(qrModText(m))}</textarea>
+        <small class="muted">One group per line. Add * to make a choice mandatory. Prices are extra ₹ per dish. Leave empty for no options.</small>
       </div></details>
     <label style="margin-top:14px">Recipe — raw material used per plate (for automatic stock deduction)</label>
     <div id="ings">${(m.recipe || []).map(r => ingRow(r.sid, r.qty)).join('')}</div>
@@ -6175,7 +6214,9 @@ function saveMenu(id){
     sid: r.querySelector('select').value,
     qty: +r.querySelector('input').value
   })).filter(r => r.sid && r.qty > 0);
-  const v = {name, cat: $('#m_cat').value.trim() || 'General', price, recipe};
+  let qrMods;
+  try{ qrMods = qrParseMods($('#m_qrmods').value); }catch(e){ toast(e.message); return; }
+  const v = {name, cat: $('#m_cat').value.trim() || 'General', price, recipe, qrMods};
   // Guest QR menu fields: only kept when set, so other menus stay as they were
   const veg = $('#m_veg').value, img = $('#m_img').value.trim(), desc = $('#m_desc').value.trim();
   Object.assign(v, {veg: veg === '' ? undefined : veg === '1', qrOff: $('#m_qr').value === 'off' || undefined, img: /^https:\/\//.test(img) ? img : undefined, desc: desc || undefined});
@@ -6638,7 +6679,7 @@ function importOrder(txt){
   } else {
     switchTable(matchTable(tb));
     items.forEach(i => {
-      const c = B.cart.find(x => x.mid === i.mid);
+      const c = B.cart.find(x => x.mid === i.mid && !x.qrKey);
       if(c) c.qty += i.qty;
       else B.cart.push({...i});
     });
@@ -7308,7 +7349,7 @@ function captainSend(){
   const tbl = cap.table, k = D.kaccha[tbl];
   B = k ? kacchaToB(k) : newB(tbl, 'Dine-In');
   cap.cart.forEach(i => {
-    const c = B.cart.find(x => x.mid === i.mid);
+    const c = B.cart.find(x => x.mid === i.mid && !x.qrKey);
     if(c) c.qty += i.qty;
     else B.cart.push({...i});
   });
@@ -8375,11 +8416,17 @@ async function qrApply(o, by){
     toast(`Table ${tbl} is open on this screen with items not sent yet. Save it (KOT) first; the QR order waits in "QR".`);
     return false;
   }
-  const items = (o.items || []).map(i => { const m = D.menu.find(x => x.id === i.mid); return {mid: i.mid, name: m ? m.name : i.name, price: m ? +m.price : +i.price, qty: +i.qty}; }).filter(i => i.qty > 0);
+  const items = (o.items || []).map(i => {
+    const m = D.menu.find(x => x.id === i.mid);
+    const names = (i.mods || []).map(x => x.name).filter(Boolean);
+    return {mid: i.mid, qrKey: i.key || (i.mid + ':' + (i.mods || []).map(x => x.gid + '=' + x.oid).join(',')),
+      name: (m ? m.name : i.name) + (names.length ? ' (' + names.join(', ') + ')' : ''),
+      price: +i.price, qty: +i.qty};
+  }).filter(i => i.qty > 0 && Number.isFinite(i.price) && i.price >= 0);
   if(!items.length) return false;
   const k = D.kaccha[tbl], n0 = D.kots.length;
   B = k ? kacchaToB(k) : newB(tbl, 'Dine-In');
-  items.forEach(i => { const c = B.cart.find(x => x.mid === i.mid); if(c) c.qty = r2(c.qty + i.qty); else B.cart.push({...i}); });
+  items.forEach(i => { const c = B.cart.find(x => (x.qrKey || x.mid) === i.qrKey); if(c) c.qty = r2(c.qty + i.qty); else B.cart.push({...i}); });
   if(o.name && !B.cust) B.cust = o.name;
   if(o.note) B.note = (B.note ? B.note + ' | ' : '') + 'QR: ' + o.note;
   saveKacchaBill(true, true);

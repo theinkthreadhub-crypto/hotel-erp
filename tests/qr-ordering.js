@@ -78,6 +78,68 @@ const login = async p => {
   const bill = await winner.evaluate(() => { B = kacchaToB(D.kaccha['T-5']); B.mode = 'Cash'; const n = D.bills.length; finalizePakkaBill(); const x = D.bills[D.bills.length - 1];
     return { made: D.bills.length - n, items: x.items.map(i => i.qty + 'x' + i.name).join(','), total: x.sub }; });
   t('Final bill: QR items once', bill.made === 1 && bill.items === '2xPaneer Tikka,5xRoti' && bill.total === 500, bill);
+  // New: QR modifier parity — configured sizes and add-ons, required choice, tamper-proof price, separate KOT lines.
+  await winner.evaluate(() => {
+    const item = D.menu.find(m => m.id === 'q1');
+    item.qrMods = [
+      {id: 'size', name: 'Size', required: true, options: [{id: 'half', name: 'Half', price: 0}, {id: 'full', name: 'Full', price: 80}]},
+      {id: 'extra', name: 'Extra', required: false, options: [{id: 'cheese', name: 'Cheese', price: 30}]}
+    ];
+    save();
+  });
+  // Wait until the counter's menu change has reached the Hotel Setu Cloud.
+  let visible = false;
+  for(let attempt = 0; attempt < 12 && !visible; attempt++){
+    await g.waitForTimeout(1500);
+    visible = await g.evaluate(async () => {
+      try{ const j = await call('/api/guest/menu'); return (j.items.find(i => i.id === 'q1')?.mods || []).length === 2; }
+      catch(e){ return false; }
+    });
+  }
+  t('Configured size and add-ons reach guest menu', visible, visible);
+  if(visible){
+    const modResult = await g.evaluate(async () => {
+      const make = async (id, items) => {
+        try{ return {ok: await call('/api/guest/order', {id, items})}; }
+        catch(e){ return {status: e.status, error: e.message}; }
+      };
+      const seed = Date.now();
+      const required = await make('required' + seed, [{mid:'q1', qty:1}]);
+      const forged = await make('forged' + seed, [{mid:'q1', qty:1, mods:[{gid:'size',oid:'fake'}]}]);
+      const valid = await make('validmod' + seed, [{mid:'q1', qty:1, price:0.01, mods:[{gid:'size',oid:'full'},{gid:'extra',oid:'cheese'}]},
+        {mid:'q1',qty:1,mods:[{gid:'size',oid:'half'}]}]);
+      return {required,forged,valid};
+    });
+    t('Required option prevents incomplete order', modResult.required.status === 400, modResult.required);
+    t('Forged modifier is rejected server-side', modResult.forged.status === 400, modResult.forged);
+    t('Two size variants accepted in one guest order', !!modResult.valid.ok?.id, modResult.valid);
+    if(modResult.valid.ok?.id){
+      const kotMod = await winner.evaluate(async id => {
+        await qrPoll();
+        await qrDecide(id, 'accept');
+        const kot = D.kots[D.kots.length - 1];
+        const lines = D.kaccha['T-5'].cart.filter(x=>x.mid==='q1');
+        return {items:kot.items.map(x=>x.name),lines:lines.map(x=>({name:x.name,price:x.price,qrKey:x.qrKey}))};
+      }, modResult.valid.ok.id);
+      t('KOT prints options and keeps variants separate', kotMod.items.some(x=>x.includes('Full')&&x.includes('Cheese')) &&
+        kotMod.items.some(x=>x.includes('Half')) && kotMod.lines.length===2, kotMod);
+      t('Price from hotel, not guest: full+cheese = 310, half = 200',
+        kotMod.lines.some(x=>x.price===310)&&kotMod.lines.some(x=>x.price===200), kotMod.lines);
+      const finalQrBill = await winner.evaluate(() => {
+        B = kacchaToB(D.kaccha['T-5']); B.mode = 'Cash';
+        const n = D.bills.length;
+        finalizePakkaBill();
+        const bill = D.bills[D.bills.length - 1];
+        return {count:D.bills.length - n,items:bill.items.map(i=>({name:i.name,price:i.price,qty:i.qty})),subtotal:bill.sub};
+      });
+      t('Final QR bill preserves both size variants and correct total',
+        finalQrBill.count === 1 && finalQrBill.items.length === 2 &&
+        finalQrBill.items.some(i=>i.name.includes('Full')&&i.name.includes('Cheese')&&i.price===310) &&
+        finalQrBill.items.some(i=>i.name.includes('Half')&&i.price===200) &&
+        finalQrBill.subtotal === 510, finalQrBill);
+    }
+  }
+
   // 8. New code → old QR stops working; 9. another hotel cannot use this token
   const old = await staff.evaluate(async () => { await qrApi('table', { table: 'T-5', action: 'new' }); return true; });
   const gone = await g.evaluate(async () => { try{ await call('/api/guest/menu'); return 'worked'; }catch(e){ return e.status; } });
@@ -85,7 +147,15 @@ const login = async p => {
   const other = await g.evaluate(async ([o, tk]) => (await fetch('/api/guest/menu?t=' + tk, { headers: { 'X-Setu-Hotel': o } })).status, [OTHER, token]);
   t('Token does not open another hotel', other === 410 || other === 404, other);
   // Guest price tampering is ignored: the server uses its own menu price
-  const price = await staff.evaluate(async () => { const s = await qrApi('state'); const mine = s.orders.filter(o => o.items.every(i => ['q1', 'q2'].includes(i.mid))); return mine.length > 0 && mine.every(o => o.items.every(i => i.price === ({ q1: 200, q2: 20 })[i.mid])); });
+  const price = await staff.evaluate(async () => {
+    const s = await qrApi('state');
+    const mine = s.orders.filter(o => o.items.every(i => ['q1','q2'].includes(i.mid)));
+    return mine.length > 0 && mine.every(o => o.items.every(i => {
+      const base = ({q1:200,q2:20})[i.mid];
+      const extras = (i.mods||[]).reduce((n,m)=>n+(+m.price||0),0);
+      return Math.abs(i.price - (base + extras)) < 0.01;
+    }));
+  });
   t('Prices come from the hotel menu', price, price);
   t('No page errors', !errs.length, errs);
   await staff.evaluate(async () => { await qrApi('settings', { on: false }); });

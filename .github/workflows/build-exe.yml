@@ -5,6 +5,7 @@ name: Build Setu EXE
 
 on:
   push:
+    branches: [ccr-89eaafa4-mxbfj2]
     paths:
       - 'app_main.py'
       - 'hotel_erp.html'
@@ -82,6 +83,7 @@ jobs:
         run: Compress-Archive -Path Setu-POS-Setup -DestinationPath Setu-POS-Setup.zip -Force
 
       - name: Update setu-latest release
+        if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -98,6 +100,7 @@ jobs:
   # Publish the new installer on Hotel Setu Cloud (/download/), so counter PCs update themselves
   # and the website's "Install for PC" gets it. Same steps as setu-cloud-deploy.yml.
   publish-cloud:
+    if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
     needs: build
     runs-on: ubuntu-latest
     concurrency:

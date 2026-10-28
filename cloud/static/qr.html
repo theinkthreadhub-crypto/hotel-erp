@@ -4,38 +4,30 @@
 <meta name="theme-color" content="#0f172a"><meta name="robots" content="noindex">
 <title>Order at your table</title>
 <style>
-  :root{ --ink:#0f172a; --mut:#64748b; --line:#e2e8f0; --bg:#f8fafc; --card:#fff; --ok:#16a34a; --acc:#ea580c; --bad:#dc2626 }
-  *{ box-sizing:border-box } body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); padding-bottom:110px }
-  header{ background:var(--ink); color:#fff; padding:16px 16px 12px; position:sticky; top:0; z-index:5 }
-  header h1{ margin:0; font-size:19px } header .t{ color:#fdba74; font-weight:700; font-size:14px; margin-top:2px }
-  .cats{ display:flex; gap:8px; overflow-x:auto; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:62px; z-index:4; scrollbar-width:none }
-  .cats::-webkit-scrollbar{ display:none }
-  .cat{ flex:none; border:1px solid var(--line); background:var(--card); border-radius:99px; padding:7px 14px; font-weight:600; font-size:14px; color:var(--ink) }
-  .cat.on{ background:var(--ink); color:#fff; border-color:var(--ink) }
-  main{ padding:8px 16px }
-  h2{ font-size:15px; margin:16px 0 8px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px }
-  .it{ display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:8px }
-  .it img{ width:64px; height:64px; object-fit:cover; border-radius:10px; flex:none }
-  .it .n{ flex:1; min-width:0 } .it b{ display:block; font-size:15px } .it small{ color:var(--mut) } .it .p{ font-weight:700; margin-top:3px }
-  .veg{ display:inline-block; width:12px; height:12px; border:2px solid var(--ok); border-radius:2px; margin-right:6px; vertical-align:-1px; position:relative }
-  .veg.nv{ border-color:var(--bad) } .veg::after{ content:''; position:absolute; inset:2px; border-radius:50%; background:currentColor; color:var(--ok) } .veg.nv::after{ color:var(--bad) }
-  .q{ display:flex; align-items:center; gap:6px } .q button{ width:34px; height:34px; border-radius:10px; border:1px solid var(--line); background:var(--card); font-size:20px; font-weight:700; color:var(--ink) }
-  .q span{ min-width:20px; text-align:center; font-weight:700 } .add{ border:1px solid var(--acc); color:var(--acc); background:#fff7ed; border-radius:10px; padding:8px 16px; font-weight:700; font-size:14px }
-  .bar{ position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); z-index:6 }
-  .bar .row{ display:flex; gap:8px } .btn{ flex:1; border:0; border-radius:12px; padding:13px; font-weight:700; font-size:15px; background:var(--acc); color:#fff }
-  .btn.g{ background:#f1f5f9; color:var(--ink) } .btn:disabled{ opacity:.5 }
-  .sheet{ position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:flex-end; z-index:9 } .sheet.open{ display:flex }
-  .box{ background:var(--card); width:100%; max-height:88vh; overflow:auto; border-radius:18px 18px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom)) }
-  .box h3{ margin:0 0 10px } .line{ display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--line) }
-  textarea,input{ width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit; margin-top:8px }
-  .st{ border-radius:12px; padding:12px; margin:8px 0; background:#f1f5f9 } .st b{ display:block }
-  .tag{ display:inline-block; border-radius:99px; padding:3px 10px; font-size:12px; font-weight:700; background:#e2e8f0 }
-  .tag.ok{ background:#dcfce7; color:#166534 } .tag.w{ background:#ffedd5; color:#9a3412 } .tag.bad{ background:#fee2e2; color:#991b1b }
-  .msg{ text-align:center; padding:60px 20px; color:var(--mut) } .toast{ position:fixed; left:16px; right:16px; bottom:96px; background:var(--ink); color:#fff; padding:12px; border-radius:12px; text-align:center; display:none; z-index:10 }
-  .foot{ text-align:center; color:var(--mut); font-size:11px; margin:20px 0 }
+:root{--ink:#14213a;--mut:#718096;--bg:#f7f7fb;--white:#fff;--line:#e8ebf2;--orange:#f97316;--ok:#16a34a;--bad:#dc2626}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);padding-bottom:110px}
+button,input,textarea{font:inherit}button{cursor:pointer}button:disabled{cursor:default;opacity:.5}
+header{background:linear-gradient(125deg,#12253e,#233959 70%,#29344e);color:#fff;padding:24px max(20px,calc((100% - 1080px)/2));position:relative}
+.brand{font-size:11px;font-weight:800;letter-spacing:2px;color:#fb923c;margin-bottom:8px}
+header h1{font-size:clamp(22px,4vw,32px);margin:0 0 6px}header .t{display:inline-flex;background:rgba(255,255,255,.12);padding:6px 10px;border-radius:99px;font-weight:700;font-size:12px}header p{font-size:13px;color:#dbe3ef;margin:12px 0 0}
+.toolbar{max-width:1080px;margin:0 auto;padding:16px 20px 0}.search{width:100%;border:1px solid var(--line);background:#fff;border-radius:14px;padding:14px 16px;outline:none}.search:focus{border-color:var(--orange)}
+.cats{max-width:1080px;margin:0 auto;display:flex;gap:8px;overflow-x:auto;padding:14px 20px 10px;scrollbar-width:none}.cat{white-space:nowrap;flex:none;border:1px solid var(--line);background:#fff;border-radius:99px;padding:9px 17px;font-weight:700;font-size:13px;color:#344256}.cat.on{background:#172940;color:white;border-color:#172940}
+main{max-width:1080px;margin:0 auto;padding:0 20px}main h2{font-size:18px;margin:18px 0 12px}.menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px}
+.it{display:flex;gap:14px;align-items:center;border:1px solid var(--line);background:#fff;padding:13px;border-radius:18px;box-shadow:0 8px 25px rgba(15,23,42,.04)}
+.it img,.img-placeholder{width:92px;height:94px;border-radius:14px;object-fit:cover;flex-shrink:0}.img-placeholder{display:grid;place-items:center;background:#fff1e8;font-size:32px}
+.it .n{flex:1;min-width:0}.it b{font-size:15px;display:block;line-height:1.35}.it small{font-size:12px;color:var(--mut);display:block;margin-top:5px}.it .p{font-size:16px;font-weight:800;margin-top:8px}.it .act{display:flex;align-items:center;gap:7px;margin-top:7px}
+.veg{display:inline-block;width:12px;height:12px;border:2px solid var(--ok);border-radius:2px;margin-right:5px;vertical-align:-1px}.veg.nv{border-color:var(--bad)}.veg:after{content:"";display:block;margin:2px;width:4px;height:4px;border-radius:50%;background:var(--ok)}.veg.nv:after{background:var(--bad)}
+.q{display:inline-flex;align-items:center;gap:8px}.q button{width:31px;height:31px;background:#fff;border:1px solid #d8dde7;border-radius:9px;font-weight:800;font-size:18px}.q span{min-width:18px;text-align:center;font-weight:800}
+.add{border:1px solid #fed7aa;color:#c2410c;background:#fff7ed;padding:8px 14px;border-radius:11px;font-weight:800;font-size:13px}
+.bar{position:fixed;bottom:0;left:0;right:0;padding:12px max(14px,calc((100% - 1080px)/2)) calc(12px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--line);z-index:6;box-shadow:0 -12px 40px rgba(0,0,0,.06)}.bar .row{display:flex;gap:8px}.btn{background:var(--orange);color:#fff;border:0;border-radius:12px;padding:13px 14px;font-size:14px;font-weight:800;flex:1}.btn.g{color:var(--ink);background:#edf1f6}
+.sheet{position:fixed;inset:0;z-index:9;background:rgba(15,23,42,.58);display:none;align-items:flex-end}.sheet.open{display:flex}.box{background:#fff;border-radius:24px 24px 0 0;padding:22px max(18px,calc((100% - 680px)/2)) calc(24px + env(safe-area-inset-bottom));width:100%;max-height:90vh;overflow-y:auto}.box h3{font-size:20px;margin:0 0 12px}.line{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 0;border-bottom:1px solid var(--line)}textarea,.box input[type=text],.box input:not([type]){width:100%;border:1px solid var(--line);padding:12px;border-radius:12px;margin:8px 0;font-size:14px}
+.grp{padding:14px;border:1px solid var(--line);border-radius:14px;margin:12px 0}.grp h4{margin:0 0 8px;font-size:14px}.opt{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:11px;margin-top:7px;border-radius:10px;background:#f8fafc;border:1px solid #e7ebf1;font-weight:600;font-size:13px}.opt.selected{border-color:var(--orange);background:#fff7ed}.opt input{accent-color:var(--orange)}
+.st{border:1px solid var(--line);background:#f8fafc;padding:14px;border-radius:14px;margin:9px 0}.st b{display:block;margin:7px 0}.tag{display:inline-block;padding:4px 10px;border-radius:99px;background:#e2e8f0;font-size:12px;font-weight:800}.tag.ok{background:#dcfce7;color:#166534}.tag.w{background:#ffedd5;color:#9a3412}.tag.bad{background:#fee2e2;color:#991b1b}.msg{padding:55px 10px;text-align:center;color:var(--mut)}.toast{position:fixed;z-index:12;display:none;left:16px;right:16px;bottom:90px;border-radius:12px;background:#172940;color:#fff;text-align:center;padding:13px}.foot{text-align:center;font-size:11px;color:#94a3b8;padding:25px 0}.muted{color:var(--mut);font-size:12px}
+@media(max-width:760px){.menu-grid{grid-template-columns:1fr}.it img,.img-placeholder{width:94px;height:98px}header{padding:23px 19px}.bar .btn{padding:12px 9px;font-size:12px}}
 </style></head>
 <body>
-<header><h1 id="h">Menu</h1><div class="t" id="tb"></div></header>
+<header><div class="brand">SETU • SCAN & DINE</div><h1 id="h">Menu</h1><div class="t" id="tb"></div><p>Freshly prepared, served at your table. No app needed.</p></header>
+<div class="toolbar"><input class="search" id="search" type="search" placeholder="Search dishes, drinks, starters…" autocomplete="off" oninput="draw()"></div>
 <div class="cats" id="cats"></div>
 <main id="m"><div class="msg">Loading the menu…</div></main>
 <div class="bar" id="bar" style="display:none"><div class="row">
@@ -49,9 +41,14 @@
 const parts = location.pathname.split('/').filter(Boolean), HOTEL = parts[1] || '', TOKEN = parts[2] || '';
 const $ = s => document.querySelector(s), esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const rs = n => '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN');
-let MENU = null, CART = {}, CAT = '', STATUS = null, NOTE = '', NAME = '';
-try{ CART = JSON.parse(sessionStorage.getItem('cart:' + TOKEN) || '{}'); }catch(e){}
-const keepCart = () => { try{ sessionStorage.setItem('cart:' + TOKEN, JSON.stringify(CART)); }catch(e){} };
+let MENU = null, CART = [], CAT = '', STATUS = null, NOTE = '', NAME = '', PICKID = '', PICKS = {};
+try{
+  const saved = JSON.parse(sessionStorage.getItem('cart:' + TOKEN) || '[]');
+  CART = Array.isArray(saved) ? saved : Object.entries(saved).map(([mid, qty]) => ({mid, qty, mods: []}));
+}catch(e){}
+const keepCart = () => {
+  try{ sessionStorage.setItem('cart:' + TOKEN, JSON.stringify(CART)); sessionStorage.removeItem('oid:' + TOKEN); }catch(e){}
+};
 async function call(path, body){
   const r = await fetch(path + (body ? '' : (path.includes('?') ? '&' : '?') + 't=' + TOKEN), {method: body ? 'POST' : 'GET', cache: 'no-store',
     headers: {'X-Setu-Hotel': HOTEL, 'Content-Type': 'application/json'}, body: body ? JSON.stringify({...body, t: TOKEN}) : undefined});
@@ -64,39 +61,118 @@ async function load(){
   try{ MENU = await call('/api/guest/menu'); }
   catch(e){ $('#m').innerHTML = `<div class="msg"><b>${esc(e.message)}</b><br><br>${e.status === 410 ? 'The QR code may be old. Please ask the staff for help.' : 'Please check the internet and scan again.'}</div>`; return; }
   document.title = MENU.hotel; $('#h').textContent = MENU.hotel; $('#tb').textContent = 'Table ' + MENU.table;
-  Object.keys(CART).forEach(k => { if(!MENU.items.some(i => i.id === k)) delete CART[k]; });
+  CART = CART.filter(l => MENU.items.some(i => i.id === l.mid) && l.qty > 0);
   $('#bar').style.display = ''; draw(); poll();
 }
-function cats(){ return [...new Set(MENU.items.map(i => i.cat))]; }
-function draw(){
-  const cs = cats();
-  $('#cats').innerHTML = cs.map(c => `<button class="cat ${CAT === c ? 'on' : ''}" onclick="jump('${esc(c).replace(/'/g, '&#39;')}')">${esc(c)}</button>`).join('');
-  $('#m').innerHTML = cs.map(c => `<h2 id="c-${encodeURIComponent(c)}">${esc(c)}</h2>` + MENU.items.filter(i => i.cat === c).map(i => {
-    const n = CART[i.id] || 0;
-    return `<div class="it">${i.img ? `<img src="${esc(i.img)}" alt="" loading="lazy">` : ''}<div class="n"><b>${i.veg === true ? '<span class="veg"></span>' : i.veg === false ? '<span class="veg nv"></span>' : ''}${esc(i.name)}</b>${i.desc ? `<small>${esc(i.desc)}</small>` : ''}<div class="p">${rs(i.price)}</div></div>
-      ${n ? `<div class="q"><button onclick="qty('${i.id}',-1)">−</button><span>${n}</span><button onclick="qty('${i.id}',1)">+</button></div>` : `<button class="add" onclick="qty('${i.id}',1)">ADD</button>`}</div>`;
-  }).join('')).join('') + '<div class="foot">Powered by Setu · Aghanya Devanya Enterprises</div>';
-  const n = Object.values(CART).reduce((a, b) => a + b, 0), t = MENU.items.reduce((a, i) => a + (CART[i.id] || 0) * i.price, 0);
-  $('#cartbtn').disabled = !n; $('#cartbtn').textContent = n ? `Cart (${n}) · ${rs(t)}` : 'Cart';
+function menuItem(id){return MENU && MENU.items.find(i => i.id === id);}
+function linePrice(l){
+ const m=menuItem(l.mid);if(!m)return 0;
+ return (+m.price||0)+(l.mods||[]).reduce((a,sel)=>{
+   const g=(m.mods||[]).find(v=>v.id===sel.gid);
+   const opt=g&&(g.options||[]).find(o=>o.id===sel.oid);
+   return a+(opt?+opt.price||0:0);
+ },0);
 }
-function jump(c){ CAT = c; draw(); const e = document.getElementById('c-' + encodeURIComponent(c)); if(e) window.scrollTo({top: e.offsetTop - 120, behavior: 'smooth'}); }
-function qty(id, d){ CART[id] = Math.max(0, Math.min(50, (CART[id] || 0) + d)); if(!CART[id]) delete CART[id]; keepCart(); draw(); if($('#sh').classList.contains('open') && $('#box').dataset.v === 'cart') openCart(); }
-function sheet(v, html){ const b = $('#box'); b.dataset.v = v; b.innerHTML = html; $('#sh').classList.add('open'); }
-function closeSheet(){ $('#sh').classList.remove('open'); }
+function lineNames(l){
+ const m=menuItem(l.mid);
+ const labels=(l.mods||[]).map(sel=>{
+   const g=m&&(m.mods||[]).find(v=>v.id===sel.gid);
+   const opt=g&&(g.options||[]).find(o=>o.id===sel.oid);
+   return opt?opt.name:'';
+ }).filter(Boolean);
+ return labels.join(', ');
+}
+function itemCount(id){return CART.filter(l=>l.mid===id).reduce((a,l)=>a+l.qty,0);}
+function cartCount(){return CART.reduce((a,l)=>a+l.qty,0);}
+function cartTotal(){return CART.reduce((a,l)=>a+l.qty*linePrice(l),0);}
+function cats(){return [...new Set(MENU.items.map(i=>i.cat||'Menu'))];}
+function draw(){
+ if(!MENU)return;
+ const q=($('#search')?.value||'').trim().toLowerCase();
+ const all=cats();
+ $('#cats').innerHTML=['',...all].map(c=>'<button class="cat'+(CAT===c?' on':'')+'" data-cat="'+esc(encodeURIComponent(c))+'">'+(c?esc(c):'All')+'</button>').join('');
+ document.querySelectorAll('[data-cat]').forEach(btn=>btn.onclick=()=>jump(decodeURIComponent(btn.dataset.cat)));
+ const visible=MENU.items.filter(i=>(!CAT||i.cat===CAT)&&(!q||(i.name+' '+i.cat+' '+(i.desc||'')).toLowerCase().includes(q)));
+ const sections=[...new Set(visible.map(i=>i.cat))];
+ $('#m').innerHTML=sections.map(c=>{
+   const cards=visible.filter(i=>i.cat===c).map(i=>{
+     const n=itemCount(i.id),opts=(i.mods||[]).length>0;
+     return '<article class="it">'+(i.img?'<img loading="lazy" src="'+esc(i.img)+'" alt="'+esc(i.name)+'">':'<div class="img-placeholder">🍽</div>')+
+       '<div class="n"><b>'+(i.veg===true?'<span class="veg"></span>':i.veg===false?'<span class="veg nv"></span>':'')+esc(i.name)+'</b>'+
+       (i.desc?'<small>'+esc(i.desc)+'</small>':'')+
+       (opts?'<small>Customise size & add-ons</small>':'')+
+       '<div class="p">'+rs(i.price)+(opts?' <small style="display:inline">onwards</small>':'')+'</div><div class="act">'+
+       (n?'<span class="tag ok">'+n+' in cart</span>':'')+
+       '<button class="add" data-add="'+esc(encodeURIComponent(i.id))+'">'+(opts?'Customise +':'ADD +')+'</button></div></div></article>';
+   }).join('');
+   return '<h2>'+esc(c)+'</h2><div class="menu-grid">'+cards+'</div>';
+ }).join('')+(visible.length?'':'<div class="msg">No dishes found. Try another search.</div>')+'<div class="foot">Powered by Setu Pro · Aghanya Devanya Enterprises</div>';
+ document.querySelectorAll('[data-add]').forEach(btn=>btn.onclick=()=>chooseItem(decodeURIComponent(btn.dataset.add)));
+ const n=cartCount();$('#cartbtn').disabled=!n;$('#cartbtn').textContent=n?'View cart · '+n+' items · '+rs(cartTotal()):'Cart';
+}
+function jump(c){CAT=c;draw();}
+function chooseItem(id){
+ const m=menuItem(id);if(!m)return;
+ if(!(m.mods||[]).length){addLine(id,[]);return;}
+ PICKID=id;PICKS={};renderPicker();
+}
+function renderPicker(){
+ const m=menuItem(PICKID);if(!m)return;
+ const groups=(m.mods||[]).map(g=>{
+  const options=(g.options||[]).map(o=>'<label class="opt'+(PICKS[g.id]===o.id?' selected':'')+'"><span><input type="radio" name="pick_'+esc(g.id)+'" data-group="'+esc(g.id)+'" data-option="'+esc(o.id)+'" '+(PICKS[g.id]===o.id?'checked':'')+'> '+esc(o.name)+'</span><b>'+(o.price?'+'+rs(o.price):'Included')+'</b></label>').join('');
+  return '<div class="grp"><h4>'+esc(g.name)+(g.required?' <span class="muted">(Required)</span>':' <span class="muted">(Optional)</span>')+'</h4>'+
+   (g.required?'':'<label class="opt'+(!PICKS[g.id]?' selected':'')+'"><span><input type="radio" name="pick_'+esc(g.id)+'" data-group="'+esc(g.id)+'" data-option="" '+(!PICKS[g.id]?'checked':'')+'> No extra</span></label>')+options+'</div>';
+ }).join('');
+ const fake={mid:m.id,qty:1,mods:Object.entries(PICKS).filter(([,oid])=>oid).map(([gid,oid])=>({gid,oid}))};
+ sheet('item','<h3>Customise '+esc(m.name)+'</h3><div class="muted">Choose your size and add-ons</div>'+groups+
+ '<div class="line"><b>Price per item</b><b id="pick-price">'+rs(linePrice(fake))+'</b></div>'+
+ '<div class="row" style="display:flex;gap:8px;margin-top:14px"><button class="btn g" onclick="closeSheet()">Cancel</button><button class="btn" onclick="addPicked()">Add to cart</button></div>');
+ document.querySelectorAll('[data-group]').forEach(r=>r.onchange=()=>{PICKS[r.dataset.group]=r.dataset.option;if(!PICKS[r.dataset.group])delete PICKS[r.dataset.group];renderPicker();});
+}
+function addPicked(){
+ const m=menuItem(PICKID);if(!m)return;
+ if((m.mods||[]).some(g=>g.required&&!PICKS[g.id])){toast('Please choose required options');return;}
+ const mods=Object.entries(PICKS).filter(([,oid])=>oid).map(([gid,oid])=>({gid,oid})).sort((a,b)=>a.gid.localeCompare(b.gid));
+ addLine(PICKID,mods);closeSheet();
+}
+function addLine(mid,mods){
+ const key=mid+':'+mods.map(m=>m.gid+'='+m.oid).sort().join(',');
+ const old=CART.find(l=>l.key===key||(!l.key&&l.mid===mid&&!(l.mods||[]).length&&!mods.length));
+ if(old)old.qty=Math.min(50,old.qty+1);else CART.push({key,mid,mods,qty:1});
+ keepCart();draw();toast('Added to cart');
+}
+function qty(id,d){
+ const m=menuItem(id);if(!m)return;
+ if(d>0){chooseItem(id);return;}
+ const idx=CART.findIndex(l=>l.mid===id);if(idx>=0)cartChange(idx,-1);
+}
+function saveDraft(){if($('#note'))NOTE=$('#note').value;if($('#nm'))NAME=$('#nm').value;}
+function cartChange(index,delta){
+ if(!CART[index])return;
+ saveDraft();CART[index].qty=Math.min(50,CART[index].qty+delta);
+ if(CART[index].qty<=0)CART.splice(index,1);
+ keepCart();draw();
+ if($('#sh').classList.contains('open')&&$('#box').dataset.v==='cart')openCart();
+}
+function sheet(v,html){const b=$('#box');b.dataset.v=v;b.innerHTML=html;$('#sh').classList.add('open');}
+function closeSheet(){$('#sh').classList.remove('open');}
 function openCart(){
-  const lines = MENU.items.filter(i => CART[i.id]);
-  if(!lines.length){ closeSheet(); return; }
-  const t = lines.reduce((a, i) => a + CART[i.id] * i.price, 0);
-  sheet('cart', `<h3>Your order · Table ${esc(MENU.table)}</h3>${lines.map(i => `<div class="line"><span>${esc(i.name)}<br><small style="color:var(--mut)">${rs(i.price)} each</small></span>
-      <div class="q"><button onclick="qty('${i.id}',-1)">−</button><span>${CART[i.id]}</span><button onclick="qty('${i.id}',1)">+</button></div></div>`).join('')}
-    <div class="line"><b>Total</b><b>${rs(t)}</b></div>${MENU.gst && !MENU.incl ? `<small style="color:var(--mut)">GST ${MENU.gst}% is added on the bill.</small>` : ''}
-    <textarea id="note" rows="2" maxlength="200" placeholder="Cooking notes (less spicy, no onion…)">${esc(NOTE)}</textarea>
-    <input id="nm" maxlength="60" placeholder="Your name (optional)" value="${esc(NAME)}">
-    <div class="row" style="display:flex;gap:8px;margin-top:12px"><button class="btn g" onclick="closeSheet()">Add more</button><button class="btn" id="place" onclick="place()">Place order</button></div>`);
+ if(!CART.length){closeSheet();return;}
+ const rows=CART.map((l,index)=>{
+  const m=menuItem(l.mid);return '<div class="line"><span><b>'+esc(m?m.name:l.mid)+'</b>'+(lineNames(l)?'<small class="muted" style="display:block">'+esc(lineNames(l))+'</small>':'')+
+    '<small class="muted">'+rs(linePrice(l))+' each</small></span><div class="q">'+
+    '<button onclick="cartChange('+index+',-1)">−</button><span>'+l.qty+'</span><button onclick="cartChange('+index+',1)">+</button></div></div>';
+ }).join('');
+ sheet('cart','<h3>Your cart · Table '+esc(MENU.table)+'</h3>'+rows+
+  '<div class="line"><b>Subtotal</b><b>'+rs(cartTotal())+'</b></div>'+
+  (MENU.gst&&!MENU.incl?'<small class="muted">GST '+MENU.gst+'% calculated at billing.</small>':'')+
+  '<textarea id="note" rows="2" maxlength="200" placeholder="Any cooking instructions?">'+esc(NOTE)+'</textarea>'+
+  '<input id="nm" maxlength="60" placeholder="Your name (optional)" value="'+esc(NAME)+'">'+
+  '<div style="display:flex;gap:8px;margin-top:12px"><button class="btn g" onclick="saveDraft();closeSheet()">Add more</button><button class="btn" id="place" onclick="place()">Place order · '+rs(cartTotal())+'</button></div>');
 }
 async function place(){
   NOTE = $('#note').value; NAME = $('#nm').value;
-  const items = Object.entries(CART).map(([mid, qty]) => ({mid, qty}));
+  const items = CART.map(l => ({mid: l.mid, qty: l.qty, mods: l.mods || []}));
   if(!items.length) return;
   const btn = $('#place'); btn.disabled = true; btn.textContent = 'Sending…';
   // One id per cart: a retry after a slow network sends the same id, so the order is never made twice
@@ -104,28 +180,36 @@ async function place(){
   if(!id){ id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 32); sessionStorage.setItem('oid:' + TOKEN, id); }
   try{
     await call('/api/guest/order', {id, items, note: NOTE, name: NAME});
-    CART = {}; NOTE = ''; keepCart(); sessionStorage.removeItem('oid:' + TOKEN);
+    CART = []; NOTE = ''; keepCart(); sessionStorage.removeItem('oid:' + TOKEN);
     draw(); toast('Order sent! The staff will confirm it.'); await poll(); openOrders();
   }catch(e){ btn.disabled = false; btn.textContent = 'Place order'; toast(e.message); }
 }
 const ST = {pending: ['Waiting for the staff', 'w'], accepted: ['Accepted', 'ok'], done: ['Sent to the kitchen', 'ok'], rejected: ['Not accepted', 'bad']};
 const KT = {preparing: 'Preparing', ready: 'Ready — coming to your table', served: 'Served'};
 function openOrders(){
-  const os = (STATUS && STATUS.orders || []).slice().reverse();
-  sheet('orders', `<h3>My orders · Table ${esc(MENU.table)}</h3>${os.map(o => {
-    const s = ST[o.status] || [o.status, ''];
-    return `<div class="st"><span class="tag ${s[1]}">${o.kot && o.status === 'done' ? esc(KT[o.kot] || o.kot) : s[0]}</span> <small style="color:var(--mut)">${new Date(o.at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</small>
-      <b style="margin-top:6px">${o.items.map(i => esc(i.qty + ' × ' + i.name)).join(', ')}</b>${o.reason ? `<small>${esc(o.reason)}</small>` : ''}</div>`;
-  }).join('') || '<p style="color:var(--mut)">No order yet. Choose items from the menu.</p>'}
-    <div class="row" style="display:flex;gap:8px;margin-top:12px"><button class="btn g" onclick="closeSheet()">Order more</button><button class="btn" onclick="ask('bill')">Request bill</button></div>`);
+ const os=(STATUS&&STATUS.orders||[]).slice().reverse();
+ const cards=os.map(o=>{
+  const st=ST[o.status]||[o.status,''];
+  const kitchen=o.kot&&o.status==='done'?(KT[o.kot]||o.kot):st[0];
+  return '<div class="st"><div style="display:flex;justify-content:space-between;align-items:center"><span class="tag '+st[1]+'">'+esc(kitchen)+'</span><small class="muted">'+new Date(o.at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})+'</small></div>'+
+   '<b>'+o.items.map(i=>i.qty+' × '+esc(i.name)+((i.mods||[]).length?' ('+i.mods.map(m=>esc(m.name)).join(', ')+')':'')).join(', ')+'</b>'+
+   (o.reason?'<small style="color:#dc2626">'+esc(o.reason)+'</small>':'')+'</div>';
+ }).join('');
+ const needsBill=STATUS&&STATUS.calls&&STATUS.calls.some(c=>c.kind==='bill'&&!c.done);
+ sheet('orders','<h3>Order tracking · '+esc(MENU.table)+'</h3>'+
+  (cards||'<p class="muted">Your placed orders will appear here.</p>')+
+  '<div style="display:flex;gap:8px;margin-top:14px"><button class="btn g" onclick="closeSheet()">Order more</button><button class="btn" '+(needsBill?'disabled':'')+' onclick="ask(\'bill\')">'+(needsBill?'Bill requested':'Request bill')+'</button></div>');
 }
 function openHelp(){
-  sheet('help', `<h3>Need help?</h3><div style="display:flex;flex-direction:column;gap:8px">
-    <button class="btn" onclick="ask('waiter')">Call waiter</button><button class="btn g" onclick="ask('water')">Water please</button><button class="btn g" onclick="ask('bill')">Request bill</button>
-    <button class="btn g" onclick="closeSheet()">Close</button></div>`);
+ const calls=STATUS&&STATUS.calls||[];
+ const has=k=>calls.some(c=>c.kind===k&&!c.done);
+ sheet('help','<h3>How can we help?</h3><p class="muted">Our team receives your request at the counter.</p>'+
+  ['waiter','water','bill'].map(k=>'<button class="btn '+(has(k)?'g':'')+'" style="width:100%;margin:6px 0" '+(has(k)?'disabled':'')+' onclick="ask(\''+k+'\')">'+
+   (has(k)?'Requested · ': '')+(k==='waiter'?'Call waiter':k==='water'?'Bring water':'Request bill')+'</button>').join('')+
+  '<button class="btn g" style="width:100%;margin-top:8px" onclick="closeSheet()">Back to menu</button>');
 }
 async function ask(kind){
-  try{ await call('/api/guest/call', {kind}); closeSheet(); toast(kind === 'bill' ? 'The bill is on its way.' : 'The staff has been told. Please wait.'); }
+  try{ await call('/api/guest/call', {kind}); closeSheet(); toast(kind === 'bill' ? 'Bill request sent to the counter.' : 'Request sent to the staff.'); await poll(); }
   catch(e){ toast(e.message); }
 }
 async function poll(){
