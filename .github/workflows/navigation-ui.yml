@@ -1,0 +1,26 @@
+name: Setu Navigation Regression
+
+on:
+  push:
+    branches: [feat/systematic-navigation]
+    paths:
+      - 'hotel_erp.html'
+      - 'tests/navigation-ui.cjs'
+      - '.github/workflows/navigation-ui.yml'
+  pull_request:
+    branches: [feat/official-aggregator-inbox]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  navigation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify syntax, all module links and permissions
+        run: node tests/navigation-ui.cjs

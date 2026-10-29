@@ -397,6 +397,87 @@ body.kitchen-mode .kcard ul{font-size:19px}
   body>*:not(#print){display:none!important}
   #print{display:block}
 }
+
+/* Setu Systematic Navigation — presentation-only; existing screens and role guards remain authoritative. */
+#wrap{min-width:0}
+#main{min-width:0}
+#side{order:-1;flex:0 0 254px;width:254px;min-width:254px;background:linear-gradient(180deg,#102139 0%,#102036 58%,#0b1729 100%);
+  border-right:1px solid #213952;border-left:0;padding:16px 10px;box-shadow:3px 0 20px rgba(16,32,54,.07);
+  gap:0;color:#d5e3f2}
+#side .nav-brand{padding:4px 12px 12px;color:#fff;display:flex;justify-content:space-between;align-items:center}
+#side .nav-brand b{font-size:17px;letter-spacing:.3px}
+#side .nav-brand small{display:block;color:#99b0ca;font-size:11px;margin-top:3px}
+#side .nav-kicker{color:#849bb7;font-size:10px;font-weight:800;letter-spacing:1.5px;padding:16px 12px 7px}
+#side .nav-home,#side .nav-section,#side .nav-leaf{display:flex;align-items:center;min-height:38px;color:#d4e1f2;border:1px solid transparent;border-radius:11px;
+  width:100%;padding:8px 10px;gap:9px;text-align:left;font-size:12px;font-weight:650;cursor:pointer}
+#side .nav-home:hover,#side .nav-section:hover,#side .nav-leaf:hover{background:#213850;color:#fff}
+#side .nav-home.active,#side .nav-leaf.active{background:#275c9e;color:#fff;border-color:#4e8bd4}
+#side .nav-section.expanded{color:#fff;background:rgba(255,255,255,.055)}
+#side .nav-symbol{display:inline-flex;align-items:center;justify-content:center;min-width:24px;width:24px;height:26px;
+  font-size:16px;background:rgba(150,187,226,.14);border-radius:7px}
+#side .nav-caret{margin-left:auto;font-size:13px;color:#8fa9c5;font-weight:800}
+#side .nav-children{padding:2px 0 6px 10px;border-left:1px solid #33506d;margin:0 0 3px 21px}
+#side .nav-leaf{min-height:32px;font-size:11.6px;font-weight:520;color:#bfd1e5;padding:6px 9px 6px 12px}
+#side .nav-leaf .nav-key{font-size:10px;color:#a0b7d0;margin-left:auto;min-width:20px;text-align:center}
+#side .nav-count{display:inline-grid;place-items:center;margin-left:auto;padding:2px 6px;border-radius:999px;
+  font-size:10px;font-weight:800;background:#c83a3a;color:#fff}
+#side .nav-footer{border-top:1px solid #2d445c;margin-top:16px;padding:11px 7px 18px;display:grid;gap:7px}
+#side .nav-footer button{display:flex;justify-content:center;background:#20446b;color:#e6f3ff;font-weight:700;font-size:12px}
+#side .nav-footer button:hover{background:#2d6298;color:#fff}
+.nav-toggle{display:none;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.09);color:#fff;border-radius:9px;
+  padding:9px 12px;font-size:17px;font-weight:800;margin-right:5px;cursor:pointer}
+#nav-backdrop{display:none}
+.setu-module-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:2px 0 11px}
+.setu-module-title strong{font-size:17px;color:#172b46}
+.setu-module-title span{font-size:12px;color:#64748b}
+.setu-module-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:11px;margin-bottom:17px}
+.setu-module-tile{display:flex;align-items:flex-start;gap:11px;text-align:left;background:#fff;border:1px solid #e3e9f2;border-radius:14px;
+  padding:14px 12px;cursor:pointer;min-height:87px;box-shadow:0 2px 12px rgba(24,55,86,.035);transition:transform .14s,border-color .14s}
+.setu-module-tile:hover{border-color:#60a5fa;transform:translateY(-2px)}
+.setu-module-tile .tile-icon{display:grid;place-items:center;flex:0 0 40px;height:40px;border-radius:11px;font-size:22px;background:#e7f2ff}
+.setu-module-tile .tile-copy{flex:1;min-width:0}
+.setu-module-tile strong{display:block;font-size:12.6px;color:#18324f;margin:1px 0 5px}
+.setu-module-tile small{display:block;color:#708198;font-size:11px;line-height:1.5}
+.setu-module-tile[data-theme="mint"] .tile-icon{background:#d9f8ee}
+.setu-module-tile[data-theme="peach"] .tile-icon{background:#fff1de}
+.setu-module-tile[data-theme="purple"] .tile-icon{background:#efe3ff}
+.setu-module-tile[data-theme="pink"] .tile-icon{background:#ffe8ec}
+.setu-module-tile[data-theme="cyan"] .tile-icon{background:#ddf7fd}
+.setu-module-tile[data-theme="yellow"] .tile-icon{background:#fff6c9}
+@media(min-width:961px){#side{display:flex}}
+@media(max-width:960px){
+  .nav-toggle{display:inline-flex}
+  #side{display:flex;position:fixed;z-index:500;left:0;top:0;bottom:0;max-width:85vw;width:285px;min-width:0;
+    transform:translateX(-110%);transition:transform .19s ease;box-shadow:14px 0 45px rgba(0,0,0,.18)}
+  body.setu-nav-open #side{transform:translateX(0)}
+  body.setu-nav-open #nav-backdrop{display:block;position:fixed;z-index:490;inset:0;background:rgba(8,20,40,.55)}
+  #main{padding:12px 12px 18px}
+  .setu-module-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .setu-module-tile{padding:10px;min-height:82px}
+  .setu-module-tile .tile-icon{flex-basis:34px;height:34px;font-size:18px}
+  .setu-module-tile strong{font-size:11.4px}
+}
+@media(max-width:420px){
+ .setu-module-grid{grid-template-columns:1fr}
+ .setu-module-title span{display:none}
+}
+
+
+.setu-home-layout{display:grid;grid-template-columns:minmax(0,1fr) 282px;gap:14px;align-items:start;margin-bottom:8px}
+.setu-home-modules{min-width:0}
+.setu-home-modules .setu-module-grid{grid-template-columns:repeat(auto-fit,minmax(175px,1fr))}
+.setu-home-rail{display:grid;gap:12px}
+.setu-hub-panel{background:#fff;border:1px solid #dfe8f3;border-radius:13px;padding:12px;box-shadow:0 3px 12px rgba(16,38,62,.035)}
+.setu-hub-panel h3{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#183454;margin:0}
+.setu-hub-panel h3 span{display:grid;place-items:center;border-radius:9px;color:#1c62b2;background:#e5f1ff;width:30px;height:30px;font-size:19px}
+.setu-hub-panel p{font-size:11px;color:#75869b;margin:7px 0 11px}
+.setu-hub-panel button{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;
+  border:0;border-top:1px solid #eef1f5;background:#fff;padding:10px 5px;color:#2d4765;cursor:pointer;font-size:11.7px;font-weight:600}
+.setu-hub-panel button:hover{background:#f3f8fe;color:#1160a9}
+.setu-hub-arrow{font-size:18px;color:#8fa3be}
+@media(max-width:1220px){.setu-home-layout{grid-template-columns:minmax(0,1fr)}.setu-home-rail{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.setu-home-rail{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -581,6 +662,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
 
 <!-- Header -->
 <header id="top">
+  <button type="button" class="nav-toggle" aria-label="Open modules navigation" onclick="toggleSetuNavigation()">☰</button>
   <div class="brand-wrap" onclick="go('gateway')">
     <img src="favicon.ico" alt="AD" style="width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);display:block;box-shadow:0 2px 8px rgba(0,0,0,0.25);background:#fff">
     <div style="display:flex;flex-direction:column;line-height:1.2">
@@ -628,6 +710,7 @@ body.kitchen-mode .kcard ul{font-size:19px}
   <main id="main"></main>
   <aside id="side"></aside>
 </div>
+<div id="nav-backdrop" onclick="closeSetuNavigation()" aria-hidden="true"></div>
 
 <!-- Persistent App Footer -->
 <footer id="app-footer">
@@ -2719,6 +2802,9 @@ function go(s, approved){
     return;
   }
   cur = s;
+  closeSetuNavigation();
+  const navGroup=SETU_NAV.find(g=>g.items.includes(s));
+  if(navGroup)setuNavExpanded=navGroup.id;
   clearInterval(kdsTimer);
   if(s !== 'kitchen' && s !== 'tokens') document.body.classList.remove('kitchen-mode');
   closeModal();
@@ -2735,26 +2821,94 @@ function go(s, approved){
   updateOnlinePills();
 }
 
+
+/* Structural navigation: only registered MENU/SCREENS are linked; same role & plan checks as before. */
+const SETU_NAV = [
+ {id:'billing', title:'Billing & POS', icon:'🧾',theme:'blue',detail:'Billing, payments, bill history',items:['bill','bills']},
+ {id:'tables',title:'Tables & Orders',icon:'🍽️',theme:'mint',detail:'QR, reservations, captain',items:['qr','captain','reservations']},
+ {id:'kitchen',title:'Kitchen & Service',icon:'👨‍🍳',theme:'peach',detail:'KOT display and tokens',items:['kitchen','tokens']},
+ {id:'online',title:'Online Orders',icon:'🛵',theme:'pink',detail:'Zomato, Swiggy and manual',items:['online','settlement']},
+ {id:'inventory',title:'Inventory & Menu',icon:'📦',theme:'purple',detail:'Stock, dishes, recipe data',items:['stock','menu']},
+ {id:'purchases',title:'Purchase & Suppliers',icon:'🚚',theme:'cyan',detail:'Purchases and payable ledger',items:['purchase','suppliers']},
+ {id:'accounts',title:'Accounts & Expenses',icon:'💳',theme:'yellow',detail:'Expenses and other receipts',items:['expense','income']},
+ {id:'customers',title:'Customers & Loyalty',icon:'👥',theme:'mint',detail:'Customer CRM and offers',items:['customers']},
+ {id:'staff',title:'Staff & Payroll',icon:'🪪',theme:'blue',detail:'Attendance and salary',items:['staff']},
+ {id:'outlets',title:'Multi-Outlet',icon:'🏨',theme:'purple',detail:'Owner and outlet overview',items:['outlets']},
+ {id:'reports',title:'Reports',icon:'📊',theme:'cyan',detail:'Sales, GST, stock and export',items:['analytics','reports','daybook','cash','report','monthly','audit']},
+ {id:'settings',title:'Settings',icon:'⚙️',theme:'peach',detail:'Hotel, printing, data and licence',items:['settings','printers','data','license','doctor']},
+ {id:'tools',title:'Help & Utilities',icon:'🛠️',theme:'blue',detail:'AI, support and error logs',items:['ai','support','errors']}
+];
+let setuNavExpanded = null;
+function setuNavAllowed(id){
+  if(!SCREENS[id] || !screenOn(id))return false;
+  if(activeUser && activeUser.access === 'captain' && !CAPTAIN_ALLOW.includes(id))return false;
+  const allow = userPerms();
+  return !(allow.length && !isManager() && !allow.includes(id));
+}
+function setuNavGroups(){
+  return SETU_NAV.map(g=>({...g,items:g.items.filter(setuNavAllowed)})).filter(g=>g.items.length);
+}
+function closeSetuNavigation(){document.body.classList.remove('setu-nav-open');}
+function toggleSetuNavigation(){document.body.classList.toggle('setu-nav-open');}
+function setuToggleGroup(id){setuNavExpanded=setuNavExpanded===id?'':id;drawSide();}
+function setuLaunchTiles(){
+  const groups=setuNavGroups();
+  const core=groups.filter(g=>!['reports','settings','tools'].includes(g.id));
+  const tiles=core.map(g=>{
+    const target=g.items[0],labels=g.items.slice(0,3).map(id=>MENU.find(m=>m[2]===id)?.[1]||id);
+    return '<button class="setu-module-tile" data-theme="'+g.theme+'" type="button" onclick="go(\''+target+'\')">'+
+      '<span class="tile-icon">'+g.icon+'</span><span class="tile-copy"><strong>'+esc(g.title)+'</strong>'+
+      '<small>'+esc(labels.join(' · '))+'</small></span></button>';
+  }).join('');
+  const panel=(id,title,icon)=> {
+    const group=groups.find(g=>g.id===id);
+    if(!group)return '';
+    return '<section class="setu-hub-panel" aria-label="'+esc(title)+'"><h3><span>'+icon+'</span> '+esc(title)+
+      '</h3><p>'+esc(group.detail)+'</p>'+
+      group.items.map(item=>{
+        const m=MENU.find(x=>x[2]===item);
+        if(!m)return '';
+        return '<button type="button" onclick="go(\''+item+'\')">'+
+          '<span>'+esc(m[1])+'</span><span class="setu-hub-arrow">›</span></button>';
+      }).join('')+'</section>';
+  };
+  const aside=panel('reports','Reports','▥')+panel('settings','Settings','⚙');
+  return '<section class="setu-home-layout" aria-label="Modules and configuration">'+
+    '<div class="setu-home-modules"><div class="setu-module-title"><strong>Modules &amp; Sub-modules</strong>'+
+    '<span>Select a module to open its existing screens</span></div>'+
+    '<div class="setu-module-grid">'+tiles+'</div></div>'+
+    (aside?'<div class="setu-home-rail">'+aside+'</div>':'')+'</section>';
+}
+
 function drawSide(){
-  let cat = '';
-  let html = `<button class="${cur==='gateway'?'active':''}" onclick="go('gateway')"><u>Esc</u> Gateway</button>`;
-  const allowed = userPerms();
-  MENU.forEach(m => {
-    if(!screenOn(m[2])) return;   // module not in this hotel's Hotel Setu Cloud plan
-    if(allowed.length && !isManager() && !allowed.includes(m[2])) return;   // staff limited to some screens
-    if(m[3] !== cat){
-      cat = m[3];
-      html += `<div class="side-cat">${cat}</div>`;
-    }
-    const isOnline = m[2] === 'online';
-    const pendingCount = isOnline ? (D.onlineOrders || []).filter(o => o.status === 'new').length : 0;
-    html += `
-      <button class="${cur===m[2]?'active':''}" onclick="go('${m[2]}')">
-        <u>${m[0]}</u> ${m[1]}
-        ${pendingCount ? `<span style="margin-left:auto;background:var(--bad);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount}</span>` : ''}
-      </button>`;
-  });
-  $('#side').innerHTML = html;
+  const groups=setuNavGroups();
+  const current=groups.find(g=>g.items.includes(cur));
+  if(current && setuNavExpanded===null)setuNavExpanded=current.id;
+  const home='<button type="button" class="nav-home '+(cur==='gateway'?'active':'')+
+    '" onclick="go(\'gateway\')"><span class="nav-symbol">⌂</span>Dashboard</button>';
+  const body=groups.map(g=>{
+    const expanded=setuNavExpanded===g.id;
+    const pending=g.id==='online'?(D.onlineOrders||[]).filter(x=>x.status==='new').length:0;
+    const header='<button type="button" class="nav-section '+(expanded?'expanded':'')+
+      '" aria-expanded="'+(expanded?'true':'false')+'" onclick="setuToggleGroup(\''+g.id+'\')">'+
+      '<span class="nav-symbol">'+g.icon+'</span><span>'+esc(g.title)+'</span>'+
+      (pending?'<span class="nav-count">'+pending+'</span>':'<span class="nav-caret">'+(expanded?'⌄':'›')+'</span>')+'</button>';
+    const children=expanded?'<div class="nav-children">'+g.items.map(id=>{
+      const m=MENU.find(x=>x[2]===id);
+      if(!m)return '';
+      return '<button type="button" class="nav-leaf '+(cur===id?'active':'')+
+      '" onclick="go(\''+id+'\')"><span>'+esc(m[1])+'</span><span class="nav-key">'+esc(m[0])+'</span></button>';
+    }).join('')+'</div>':'';
+    return header+children;
+  }).join('');
+  const footer='<div class="nav-footer">'+
+    (setuNavAllowed('bill')?'<button type="button" onclick="go(\'bill\')">＋ New Bill</button>':'')+
+    (setuNavAllowed('analytics')?'<button type="button" onclick="go(\'analytics\')">▥ Reports Centre</button>':'')+
+    '</div>';
+  const pane=$('#side');
+  pane.innerHTML='<div class="nav-brand"><span><b>SETU PRO</b><small>Hotel ERP & POS</small></span>'+
+    '<span style="font-size:21px;color:#5fa9f7">◈</span></div>'+home+
+    '<div class="nav-kicker">MODULES</div>'+body+footer;
 }
 
 setInterval(() => {
@@ -2899,6 +3053,7 @@ function scrGateway(){
   const shown = ['welcome', 'license', 'alerts', 'launchpad', 'charts', 'channels', 'top', 'recent', 'waReport'].some(on) || kpis.length;
 
   main.innerHTML = `
+    ${setuLaunchTiles()}
     ${isManager() ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn g sm" onclick="dashSetup()">Customize Dashboard</button></div>` : ''}
     ${shown ? '' : `<div class="card" style="text-align:center;padding:30px"><b>The dashboard is empty</b><p class="muted">${isManager() ? 'Use "Customize Dashboard" to choose what to show.' : 'Ask your manager to customize the dashboard.'}</p></div>`}
     <!-- Top Welcome Banner -->
