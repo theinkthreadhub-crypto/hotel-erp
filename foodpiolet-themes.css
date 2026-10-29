@@ -1,0 +1,68 @@
+/* Foodpiolet customer-selectable visual themes. Classic and legacy themes are untouched. */
+html[data-theme="premium-dark"]{
+  color-scheme:dark;--primary:#f97316;--primary-dark:#ea580c;--primary-light:#432415;--accent:#ffb454;
+  --bg:#090f1e;--panel:#121d31;--surface:#19263d;--border:#2d3b51;--border-focus:#fb923c;
+  --text:#eef5ff;--text-muted:#a5b4cc;--topbar:#070d19;
+  --ok-light:#103c30;--bad-light:#461c25;--warn-light:#48320d;--radius:16px;
+  --card-shadow:0 7px 22px rgba(0,0,0,.30);--card-shadow-hover:0 12px 32px rgba(0,0,0,.42)
+}
+html[data-theme="premium-dark"] .m-hero,html[data-theme="premium-dark"] .dash-welcome{
+  background:linear-gradient(115deg,#1b2d4d,#18233b 58%,#5b2d19)!important;border:1px solid #334565
+}
+html[data-theme="premium-dark"] :is(.card,.m-card,.m-kpi){border-color:#293850}
+html[data-theme="premium-dark"] :is(input,select,textarea){background:#182438;color:var(--text)}
+html[data-theme="premium-dark"] :is(th,td){color:var(--text);border-color:var(--border)!important}
+html[data-theme="premium-dark"] th{background:#182438!important}
+html[data-theme="premium-dark"] tr:hover td{background:#22304a!important}
+html[data-theme="premium-dark"] :is(.m-ico,.m-quick button){background:#2a354b}
+html[data-theme="premium-dark"] .muted{color:var(--text-muted)!important}
+html[data-theme="clean-white"]{
+  color-scheme:light;--primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#e9f0ff;--accent:#1ca6a1;
+  --bg:#f8fbff;--panel:#ffffff;--surface:#f0f5fb;--border:#dce7f3;--border-focus:#3b82f6;
+  --text:#162b43;--text-muted:#637991;--topbar:#19314c;--radius:12px;
+  --card-shadow:0 3px 10px rgba(35,69,103,.055);--card-shadow-hover:0 8px 23px rgba(35,69,103,.11)
+}
+html[data-theme="clean-white"] :is(.card,.m-card,.m-kpi){border:1px solid #dce7f3}
+html[data-theme="clean-white"] .m-hero{background:linear-gradient(110deg,#19314c,#315e8f)}
+html[data-theme="clean-white"] .m-kpi b{letter-spacing:-.7px}
+html[data-theme="touch-pos"]{
+  color-scheme:light;--primary:#d95b14;--primary-dark:#b9460c;--primary-light:#fff0e0;--accent:#14a38b;
+  --bg:#fff8f0;--panel:#ffffff;--surface:#fff1e5;--border:#efdaca;--border-focus:#f97316;
+  --text:#292724;--text-muted:#72695f;--topbar:#322a25;--radius:18px;
+  --card-shadow:0 5px 15px rgba(109,62,22,.09);--card-shadow-hover:0 10px 25px rgba(109,62,22,.16)
+}
+html[data-theme="touch-pos"] .m-hero{background:linear-gradient(110deg,#55331d,#a34d13)}
+html[data-theme="touch-pos"] .m-quick button{padding:15px 18px;min-height:52px;border-radius:14px}
+html[data-theme="touch-pos"] .m-kpi{min-height:145px;padding:22px}
+html[data-theme="touch-pos"] :is(.btn,#side button,.cat,.tbl-chip,.quick-tile){min-height:44px}
+html[data-theme="touch-pos"] :is(button,input,select){touch-action:manipulation}
+html[data-theme="touch-pos"] .m-kpis{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+html[data-theme="analytics-pro"]{
+  color-scheme:light;--primary:#6d28d9;--primary-dark:#5420ab;--primary-light:#ede9fe;--accent:#0891b2;
+  --bg:#f5f5fd;--panel:#ffffff;--surface:#eeeefd;--border:#dddaf5;--border-focus:#8b5cf6;
+  --text:#211b3c;--text-muted:#746d91;--topbar:#211940;--radius:17px;
+  --card-shadow:0 5px 17px rgba(65,46,126,.08);--card-shadow-hover:0 11px 25px rgba(65,46,126,.14)
+}
+html[data-theme="analytics-pro"] .m-hero{background:linear-gradient(118deg,#24154d,#5b21b6 72%,#0e7490)}
+html[data-theme="analytics-pro"] .m-kpi{border-top:3px solid var(--primary)}
+html[data-theme="analytics-pro"] .m-row{grid-template-columns:minmax(0,3fr) minmax(260px,1fr)}
+html[data-theme="analytics-pro"] .m-row>div:first-child>.card{box-shadow:0 8px 22px rgba(95,69,155,.09)}
+html[data-theme="analytics-pro"] .m-card h3{letter-spacing:-.3px}
+html[data-theme="custom"]{
+  color-scheme:light;--primary:#0d9488;--primary-dark:#0f766e;--primary-light:#dcfce7;--accent:#ea580c;
+  --bg:#f2faf8;--panel:#fff;--surface:#e6f4f1;--border:#cde5df;--border-focus:#14b8a6;
+  --text:#143a35;--text-muted:#567a74;--topbar:#15443f;--radius:15px;
+  --card-shadow:0 5px 16px rgba(20,87,77,.08);--card-shadow-hover:0 10px 24px rgba(20,87,77,.13)
+}
+html[data-theme="custom"] .m-hero{background:linear-gradient(115deg,var(--topbar),var(--primary-dark))}
+html[data-theme="custom"] :is(.card,.m-card,.m-kpi){border-color:var(--border)}
+#look-card .fp-custom-panel{margin-top:18px;padding:14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
+#look-card .fp-custom-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:10px}
+#look-card .fp-custom-grid label{display:flex;align-items:center;gap:10px;margin:0;font-size:12px;font-weight:600}
+#look-card .fp-custom-grid input[type=color]{height:40px;width:48px;min-width:48px;padding:3px;cursor:pointer}
+#look-card .fp-custom-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:1100px){html[data-theme="analytics-pro"] .m-row{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){
+ html[data-theme="premium-dark"] *,html[data-theme="clean-white"] *,html[data-theme="touch-pos"] *,
+ html[data-theme="analytics-pro"] *,html[data-theme="custom"] *{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
