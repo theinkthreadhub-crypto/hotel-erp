@@ -59,7 +59,9 @@ jobs:
           name: SetuHotelAdmin
           path: android-admin/SetuHotelAdmin.apk
           retention-days: 90
+      # Only the work branch publishes; other branches just build (test the APK before it reaches phones)
       - name: Add to setu-latest release
+        if: github.ref == 'refs/heads/ccr-89eaafa4-mxbfj2'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

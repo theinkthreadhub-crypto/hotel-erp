@@ -10,146 +10,228 @@
 <link rel="icon" href="favicon.ico">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-  :root{ --bg:#f3f5f9; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e5e9f0; --pri:#2563eb; --pri-ink:#fff; --brand:#1e3a8a; --ok:#16a34a; --bad:#dc2626; --warn:#d97706; --soft:#f8fafc; }
+  /* Setu Hotel Admin — Material 3 style, built for the Android app (also used in a browser) */
+  :root{ --bg:#f7f9fc; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --pri:#1e3a8a; --pri2:#2563eb; --pri-ink:#fff; --brand:#1e3a8a;
+    --tonal:#e0e7ff; --tonal-ink:#1e3a8a; --ok:#15803d; --bad:#dc2626; --warn:#b45309; --soft:#f1f5f9; --gold:#a16207;
+    --e1:0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.05); --e2:0 4px 14px rgba(15,23,42,.10); --e3:0 10px 30px rgba(15,23,42,.18);
+    --ease:cubic-bezier(.2,0,0,1); --bar:64px }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
-  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif }
-  svg.i{ width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none }
-  header{ padding:14px 16px 16px; padding-top:max(14px, env(safe-area-inset-top)); background:linear-gradient(135deg, #1e3a8a, #2563eb); color:#fff; position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:10px }
-  header .t{ flex:1; min-width:0 } header h1{ font-size:18px; margin:0 } header small{ opacity:.8; font-size:12px }
-  header button{ background:#ffffff26; color:#fff; border:0; width:40px; height:40px; border-radius:12px; display:grid; place-items:center; padding:0 }
-  h2{ font-size:17px; margin:0 0 10px } h3{ font-size:14px; margin:16px 0 8px }
-  nav{ display:flex; position:fixed; left:0; right:0; bottom:0; background:#fff; border-top:1px solid var(--line); z-index:6; padding-bottom:env(safe-area-inset-bottom) }
-  nav button{ flex:1; background:transparent; color:var(--muted); border:0; border-radius:0; padding:8px 2px 9px; font-size:11px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:2px; position:relative }
-  nav button svg.i{ width:22px; height:22px } nav button.on{ color:var(--pri) }
-  nav .badge{ position:absolute; top:4px; left:calc(50% + 6px) }
-  main{ padding:14px 14px 96px; max-width:760px; margin:0 auto }
-  input, button, select, textarea{ font:inherit; padding:10px 12px; border-radius:12px; border:1px solid var(--line); background:var(--card); color:var(--ink); max-width:100% }
-  input:focus, select:focus, textarea:focus{ outline:2px solid #bfdbfe; border-color:var(--pri) }
-  button{ cursor:pointer; background:var(--pri); color:var(--pri-ink); border:0; font-weight:600 }
-  button.g{ background:var(--card); color:var(--ink); border:1px solid var(--line) }
+  [hidden]{ display:none !important }
+  html{ overscroll-behavior-y:contain }
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing:antialiased }
+  /* An app does not select text or show the long-press menu, except where you type or copy */
+  body{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none }
+  input, textarea, code, .keybox, .sel{ -webkit-user-select:text; user-select:text }
+  svg.i{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none }
+  button, .hc, .li, .tile, .chip, .plan, a{ touch-action:manipulation }
+
+  /* ---------- top app bar (large title that shrinks on scroll) ---------- */
+  header{ position:sticky; top:0; z-index:5; background:var(--bg); display:flex; align-items:center; gap:4px; padding:8px 8px 8px 16px; min-height:var(--bar); transition:box-shadow .2s, background .2s }
+  header.lifted{ box-shadow:0 1px 0 var(--line), 0 2px 6px rgba(15,23,42,.05); background:#fff }
+  header .t{ flex:1; min-width:0 }
+  header h1{ font-size:22px; font-weight:600; margin:0; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:font-size .2s var(--ease) }
+  header.lifted h1{ font-size:19px }
+  header small{ color:var(--muted); font-size:12.5px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:opacity .2s, height .2s }
+  header.lifted small{ opacity:0; height:0 }
+  .ib{ background:transparent; color:var(--ink); border:0; width:44px; height:44px; border-radius:50%; display:grid; place-items:center; padding:0; position:relative; overflow:hidden; flex:none }
+  .ib:active{ background:rgba(15,23,42,.08) }
+  #hback{ margin-left:-10px; display:none } header.sub #hback{ display:grid }
+
+  /* ---------- bottom navigation bar with the active pill ---------- */
+  nav{ display:flex; position:fixed; left:0; right:0; bottom:0; background:#fff; z-index:6; padding:6px 0 calc(8px + env(safe-area-inset-bottom)); box-shadow:0 -1px 0 var(--line) }
+  nav button{ flex:1; background:transparent; color:var(--muted); border:0; border-radius:0; padding:4px 2px 2px; font-size:12px; font-weight:500; display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; overflow:visible }
+  nav button .pill{ width:60px; height:32px; border-radius:16px; display:grid; place-items:center; transition:background .25s var(--ease); position:relative; overflow:hidden }
+  nav button.on{ color:var(--ink); font-weight:700 } nav button.on .pill{ background:var(--tonal); color:var(--tonal-ink) }
+  nav .badge{ position:absolute; top:-2px; left:calc(50% + 8px); z-index:1 }
+  main{ padding:4px 16px 120px; max-width:760px; margin:0 auto }
+  main.enter{ opacity:0; transform:translateY(10px) }
+  main.shown{ transition:opacity .22s var(--ease), transform .26s var(--ease) }
+
+  /* ---------- controls ---------- */
+  input, button, select, textarea{ font:inherit; padding:12px 14px; border-radius:12px; border:1px solid #cbd5e1; background:var(--card); color:var(--ink); max-width:100% }
+  input:focus, select:focus, textarea:focus{ outline:0; border-color:var(--pri); box-shadow:0 0 0 1px var(--pri) }
+  button{ cursor:pointer; background:var(--pri); color:var(--pri-ink); border:0; font-weight:600; border-radius:22px; padding:11px 20px; position:relative; overflow:hidden; transition:box-shadow .2s, transform .1s }
+  button:active{ transform:scale(.98) }
+  button.g{ background:var(--card); color:var(--pri); border:1px solid #cbd5e1 }
   button.bad{ background:var(--bad); color:#fff } button.okb{ background:var(--ok); color:#fff }
-  button.big{ width:100%; padding:14px; font-size:16px; border-radius:14px }
-  button:disabled{ opacity:.5; cursor:default }
-  label{ display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; font-weight:600 }
-  .card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:12px }
+  button.big{ width:100%; padding:15px; font-size:16px; border-radius:28px }
+  button:disabled{ opacity:.45; cursor:default }
+  label{ display:block; font-size:12.5px; color:var(--muted); margin:14px 0 6px; font-weight:600; letter-spacing:.1px }
+  .card{ background:var(--card); border-radius:20px; padding:18px; margin-bottom:12px; box-shadow:var(--e1) }
+  .card > h2:first-child{ margin-top:0 }
+  .card > input:not([type=checkbox]), .card > select, .card > textarea{ width:100% }
   .muted{ color:var(--muted) } .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
   .err{ color:var(--bad); font-weight:600 } .ok{ color:var(--ok); font-weight:600 }
-  code{ font:12px ui-monospace, Consolas, monospace; background:var(--soft); padding:2px 6px; border-radius:6px; word-break:break-all }
-  .badge{ background:var(--bad); color:#fff; border-radius:20px; font-size:10px; padding:1px 6px; font-weight:700 }
-  /* hotels list */
-  .search{ display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:0 12px; margin-bottom:10px; color:var(--muted) }
-  .search input{ border:0; flex:1; padding:12px 0; outline:0 }
-  .chips{ display:flex; gap:8px; overflow-x:auto; margin:0 -14px 12px; padding:0 14px; scrollbar-width:none } .chips::-webkit-scrollbar{ display:none }
-  .chip{ flex:none; background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:99px; padding:7px 14px; font-size:13px; font-weight:600 }
-  .chip.on{ background:var(--ink); color:#fff; border-color:var(--ink) } .chip b{ margin-left:4px; opacity:.7 }
-  .hc{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:10px; cursor:pointer }
-  .hc:active{ transform:scale(.99) }
+  code{ font:12px ui-monospace, "Roboto Mono", Consolas, monospace; background:var(--soft); padding:3px 7px; border-radius:6px; word-break:break-all }
+  .badge{ background:var(--bad); color:#fff; border-radius:20px; font-size:10px; padding:1px 6px; font-weight:700; min-width:16px; text-align:center }
+  h2{ font-size:18px; font-weight:600; margin:0 0 10px; letter-spacing:-.1px } h3{ font-size:14px; margin:18px 0 8px; font-weight:700 }
+  /* M3 switch for every checkbox */
+  input[type=checkbox]{ -webkit-appearance:none; appearance:none; width:44px !important; height:26px; border-radius:13px; background:#cbd5e1; border:0; padding:0; position:relative; flex:none; transition:background .2s; cursor:pointer; margin:0 }
+  input[type=checkbox]::after{ content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:transform .2s var(--ease) }
+  input[type=checkbox]:checked{ background:var(--pri) } input[type=checkbox]:checked::after{ transform:translateX(18px) }
+  input[type=checkbox]:focus{ box-shadow:none }
+  .ripple{ position:absolute; border-radius:50%; transform:scale(0); background:currentColor; opacity:.16; pointer-events:none; animation:rip .5s var(--ease) forwards }
+  @keyframes rip{ to{ transform:scale(2.6); opacity:0 } }
+
+  /* ---------- hotels list ---------- */
+  .search{ display:flex; align-items:center; gap:10px; background:#e9eef5; border-radius:28px; padding:0 16px; margin:4px 0 12px; color:var(--muted); height:52px }
+  .search input{ border:0; flex:1; padding:12px 0; outline:0; background:transparent; box-shadow:none }
+  .chips{ display:flex; gap:8px; overflow-x:auto; margin:0 -16px 14px; padding:0 16px; scrollbar-width:none } .chips::-webkit-scrollbar{ display:none }
+  .chip{ flex:none; background:var(--card); color:var(--ink); border:1px solid #cbd5e1; border-radius:10px; padding:7px 14px; font-size:13.5px; font-weight:500; height:36px }
+  .chip.on{ background:var(--tonal); color:var(--tonal-ink); border-color:transparent; font-weight:700 } .chip b{ margin-left:6px; opacity:.6; font-weight:600 }
+  .hc{ background:var(--card); border-radius:20px; padding:14px 16px; margin-bottom:10px; cursor:pointer; box-shadow:var(--e1); position:relative; overflow:hidden; transition:transform .12s var(--ease) }
+  .hc:active{ transform:scale(.985) }
   .hc .top{ display:flex; align-items:center; gap:12px }
-  .av{ width:42px; height:42px; border-radius:12px; display:grid; place-items:center; color:#fff; font-weight:800; font-size:17px; flex:none }
-  .hc .mid{ flex:1; min-width:0 } .hc b.nm{ display:block; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-  .hc small{ color:var(--muted); font-size:12px }
-  .tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px }
-  .tag{ font-size:11px; font-weight:600; padding:3px 8px; border-radius:8px; background:var(--soft); color:var(--muted) }
+  .av{ width:44px; height:44px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; font-size:18px; flex:none }
+  .hc .mid{ flex:1; min-width:0 } .hc b.nm{ display:block; font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .hc small{ color:var(--muted); font-size:12.5px }
+  .tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px }
+  .tag{ font-size:11.5px; font-weight:600; padding:4px 9px; border-radius:8px; background:var(--soft); color:#475569 }
   .tag.ok{ background:#dcfce7; color:#166534 } .tag.warn{ background:#fef3c7; color:#92400e } .tag.bad{ background:#fee2e2; color:#991b1b }
-  .st{ font-size:11px; font-weight:700; padding:4px 9px; border-radius:99px; white-space:nowrap }
+  .st{ font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:99px; white-space:nowrap }
   .st.ok{ background:#dcfce7; color:#166534 } .st.warn{ background:#fef3c7; color:#92400e } .st.bad{ background:#fee2e2; color:#991b1b } .st.off{ background:#e2e8f0; color:#334155 }
-  .strip{ margin-top:8px; font-size:12px; font-weight:600; padding:6px 10px; border-radius:10px }
+  .strip{ margin-top:10px; font-size:12.5px; font-weight:600; padding:8px 12px; border-radius:12px }
   .strip.warn{ background:#fef3c7; color:#92400e } .strip.bad{ background:#fee2e2; color:#991b1b }
-  /* one hotel */
-  .hero{ display:flex; gap:12px; align-items:center; margin-bottom:12px } .hero .av{ width:52px; height:52px; font-size:21px; border-radius:14px }
-  .hero h2{ margin:0; font-size:18px }
-  .quick{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px }
-  .quick a{ display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:14px; text-decoration:none; font-weight:700; background:var(--soft); color:var(--ink); border:1px solid var(--line) }
-  .quick a.wa{ background:#16a34a; color:#fff; border-color:#16a34a }
-  .facts{ border:1px solid var(--line); border-radius:14px; overflow:hidden; margin-bottom:14px }
-  .facts div{ display:flex; justify-content:space-between; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); font-size:14px } .facts div:last-child{ border-bottom:0 }
-  .facts span{ color:var(--muted) } .facts b{ text-align:right }
+  .sum{ display:flex; gap:12px; align-items:center; padding:16px; border-radius:20px; background:linear-gradient(135deg, #1e3a8a, #2563eb); color:#fff; margin-bottom:12px; box-shadow:var(--e2) }
+  .sum .big{ font-size:28px; font-weight:700; line-height:1 } .sum small{ opacity:.85 } .sum .err{ color:#fecaca }
+  .fab{ position:fixed; right:16px; bottom:calc(96px + env(safe-area-inset-bottom)); z-index:7; display:flex; align-items:center; gap:10px; height:56px; padding:0 20px 0 16px; border-radius:16px; background:var(--tonal); color:var(--tonal-ink); box-shadow:var(--e3); font-weight:700; font-size:15px; transition:width .25s var(--ease), padding .25s var(--ease) }
+  .fab.mini span{ display:none } .fab.mini{ padding:0 16px }
+
+  /* ---------- one hotel (bottom sheet) ---------- */
+  .hero{ display:flex; gap:14px; align-items:center; margin-bottom:14px } .hero .av{ width:56px; height:56px; font-size:22px }
+  .hero h2{ margin:0; font-size:20px }
+  .quick{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px }
+  .quick a{ display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:24px; text-decoration:none; font-weight:700; background:var(--tonal); color:var(--tonal-ink); position:relative; overflow:hidden }
+  .quick a.wa{ background:#dcfce7; color:#166534 }
+  .facts{ background:var(--card); border-radius:20px; overflow:hidden; margin-bottom:14px; box-shadow:var(--e1) }
+  .facts div{ display:flex; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--soft); font-size:14px } .facts div:last-child{ border-bottom:0 }
+  .facts span{ color:var(--muted) } .facts b{ text-align:right; font-weight:600 }
   .tiles{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px }
-  .tile{ background:var(--card); color:var(--ink); border:1px solid var(--line); border-radius:14px; padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; font-weight:700; text-align:center; line-height:1.2 }
-  .tile svg.i{ width:24px; height:24px } .tile small{ font-weight:500; color:var(--muted); font-size:10px }
-  .tile.blue{ color:var(--pri) } .tile.red{ color:var(--bad) } .tile.amber{ color:var(--warn) } .tile.green{ color:var(--ok) }
-  .tile.on{ background:#fef2f2; border-color:#fecaca }
-  /* keygen */
+  .tile{ background:var(--card); color:var(--ink); border:0; border-radius:20px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12.5px; font-weight:700; text-align:center; line-height:1.2; box-shadow:var(--e1) }
+  .tile svg.i{ width:26px; height:26px; padding:8px; box-sizing:content-box; border-radius:50%; background:var(--soft) } .tile small{ font-weight:500; color:var(--muted); font-size:10.5px }
+  .tile.blue svg.i{ color:var(--pri); background:var(--tonal) } .tile.red svg.i{ color:var(--bad); background:#fee2e2 } .tile.amber svg.i{ color:var(--warn); background:#fef3c7 } .tile.green svg.i{ color:var(--ok); background:#dcfce7 }
+  .tile.on{ outline:2px solid #fecaca }
+  /* ---------- keygen ---------- */
   .plans{ display:grid; grid-template-columns:repeat(2, 1fr); gap:8px }
-  .plan{ background:var(--card); color:var(--ink); border:2px solid var(--line); border-radius:14px; padding:12px; text-align:left; font-weight:700 }
-  .plan small{ display:block; color:var(--muted); font-weight:500; font-size:11px } .plan.on{ border-color:var(--pri); background:#eff6ff }
-  .keybox{ font:13px/1.5 ui-monospace, Consolas, monospace; background:#0f172a; color:#e2e8f0; padding:12px; border-radius:12px; word-break:break-all; user-select:all }
-  .steps{ margin:0; padding-left:20px } .steps li{ margin:4px 0 }
-  .switch{ display:flex; align-items:center; gap:10px; margin-top:12px; font-size:14px } .switch input{ width:20px; height:20px }
-  /* lists */
-  .li{ display:flex; align-items:center; gap:12px; padding:14px; background:var(--card); border:1px solid var(--line); border-radius:14px; margin-bottom:8px; cursor:pointer; font-weight:600; width:100%; color:var(--ink); text-align:left }
-  .li .ico{ width:38px; height:38px; border-radius:11px; display:grid; place-items:center; background:#eff6ff; color:var(--pri) } .li > span:not(.ico){ flex:1 } .li .ico{ flex:none } .li small{ display:block; color:var(--muted); font-weight:500; font-size:12px }
-  .msg{ max-width:85%; padding:8px 11px; border-radius:12px; margin:6px 0; white-space:pre-wrap } .msg.hotel{ background:var(--soft); border:1px solid var(--line) } .msg.admin{ background:#dcfce7; color:#14532d; margin-left:auto }
+  .plan{ background:var(--card); color:var(--ink); border:1.5px solid #cbd5e1; border-radius:16px; padding:12px 14px; text-align:left; font-weight:700 }
+  .plan small{ display:block; color:var(--muted); font-weight:500; font-size:11.5px } .plan.on{ border-color:var(--pri); background:var(--tonal); color:var(--tonal-ink) }
+  .keybox{ font:13px/1.5 ui-monospace, "Roboto Mono", Consolas, monospace; background:#0f172a; color:#e2e8f0; padding:14px; border-radius:14px; word-break:break-all }
+  .steps{ margin:0; padding-left:20px } .steps li{ margin:6px 0 }
+  .switch{ display:flex; align-items:center; gap:12px; margin-top:14px; font-size:14px; color:var(--ink) }
+  /* ---------- lists ---------- */
+  .li{ display:flex; align-items:center; gap:14px; padding:14px 16px; background:var(--card); border:0; border-radius:0; margin:0; cursor:pointer; font-weight:500; width:100%; color:var(--ink); text-align:left; box-shadow:none }
+  .group{ background:var(--card); border-radius:20px; overflow:hidden; margin-bottom:14px; box-shadow:var(--e1) } .group .li + .li{ border-top:1px solid var(--soft) }
+  .gh{ font-size:12.5px; font-weight:700; color:var(--pri); margin:18px 4px 8px; letter-spacing:.3px }
+  .li .ico{ width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:var(--tonal); color:var(--tonal-ink); flex:none } .li > span:not(.ico){ flex:1 } .li small{ display:block; color:var(--muted); font-weight:400; font-size:12.5px }
+  .li .chev{ color:#94a3b8 }
+  .lr{ display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--soft) } .lr:last-child{ border-bottom:0 } .lr .x{ flex:1; min-width:0 } .lr b{ font-weight:600 }
+  .lr small{ display:block; color:var(--muted); font-size:12px } .lr.click{ cursor:pointer } .lr.click:active{ background:var(--soft) }
+  .msg{ max-width:85%; padding:10px 13px; border-radius:18px; margin:6px 0; white-space:pre-wrap } .msg.hotel{ background:var(--soft); border-bottom-left-radius:6px } .msg.admin{ background:var(--tonal); color:#172554; margin-left:auto; border-bottom-right-radius:6px }
   .msg small{ display:block; color:var(--muted); font-size:11px }
-  /* sheets */
-  #sheet, #ask{ position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; z-index:15; align-items:flex-end; justify-content:center }
-  #ask{ z-index:30; align-items:center; padding:16px }
-  #sheet.open, #ask.open{ display:flex }
-  #sheet .box{ background:var(--bg); width:100%; max-width:640px; border-radius:20px 20px 0 0; max-height:94vh; overflow:auto; padding:10px 16px 24px; padding-bottom:max(24px, env(safe-area-inset-bottom)) }
-  #sheet .grab{ width:42px; height:5px; border-radius:9px; background:#cbd5e1; margin:0 auto 12px }
-  #ask .box{ background:var(--card); width:100%; max-width:420px; border-radius:18px; padding:18px }
-  #sheet textarea, #sheet input, #sheet select, #ask textarea, #ask input{ width:100% }
-  .btns{ display:flex; gap:8px; margin-top:14px } .btns button{ flex:1; padding:12px }
-  #toast{ position:fixed; bottom:84px; left:50%; transform:translateX(-50%); background:#0f172a; color:#fff; padding:10px 16px; border-radius:12px; display:none; z-index:40; max-width:90vw; text-align:center; font-size:14px }
-  #toast.err{ background:var(--bad) }
-  /* login */
-  #login{ max-width:400px; margin:0 auto; padding:10vh 16px 0 }
-  #login input{ width:100% }
-  /* advanced (old full settings) */
+  .hcard{ padding:12px 0; border-bottom:1px solid var(--soft) } .hcard:last-child{ border-bottom:0 }
+  /* ---------- bottom sheet, dialog, snackbar ---------- */
+  #sheet, #ask{ position:fixed; inset:0; background:rgba(15,23,42,0); display:none; z-index:15; align-items:flex-end; justify-content:center; transition:background .25s }
+  #ask{ z-index:30; align-items:center; padding:24px }
+  #sheet.open, #ask.open{ display:flex } #sheet.in, #ask.in{ background:rgba(15,23,42,.42) }
+  #sheet .box{ background:var(--bg); width:100%; max-width:640px; border-radius:28px 28px 0 0; max-height:94vh; overflow:auto; padding:8px 16px 24px; padding-bottom:max(24px, env(safe-area-inset-bottom)); transform:translateY(100%); transition:transform .32s var(--ease); overscroll-behavior:contain }
+  #sheet.in .box{ transform:none } #sheet .box.drag{ transition:none }
+  #sheet .grab{ width:36px; height:4px; border-radius:9px; background:#94a3b8; margin:8px auto 16px; opacity:.6 }
+  #ask .box{ background:#fff; width:100%; max-width:400px; border-radius:28px; padding:24px; transform:scale(.92); opacity:0; transition:transform .22s var(--ease), opacity .18s; box-shadow:var(--e3) }
+  #ask.in .box{ transform:none; opacity:1 } #ask h2{ font-size:20px; margin-bottom:12px }
+  #sheet textarea, #sheet input:not([type=checkbox]), #sheet select, #ask textarea, #ask input:not([type=checkbox]){ width:100% }
+  .btns{ display:flex; gap:8px; margin-top:18px } .btns button{ flex:1; padding:12px }
+  #ask .btns{ justify-content:flex-end } #ask .btns button{ flex:none; min-width:96px }
+  #toast{ position:fixed; bottom:calc(92px + env(safe-area-inset-bottom)); left:16px; right:16px; margin:0 auto; max-width:560px; background:#1e293b; color:#f1f5f9; padding:14px 16px; border-radius:12px; display:block; z-index:40; font-size:14px; box-shadow:var(--e3); transform:translateY(24px); opacity:0; pointer-events:none; transition:transform .25s var(--ease), opacity .2s }
+  #toast.show{ transform:none; opacity:1 } #toast.err{ background:#991b1b }
+  /* pull to refresh */
+  #ptr{ position:fixed; top:var(--bar); left:50%; width:40px; height:40px; margin-left:-20px; border-radius:50%; background:#fff; box-shadow:var(--e2); z-index:8; display:grid; place-items:center; color:var(--pri); transform:translateY(-70px); opacity:0; pointer-events:none }
+  #ptr svg.i{ width:22px; height:22px } #ptr.spin svg.i, .ib.spin svg.i{ animation:spin .8s linear infinite }
+  @keyframes spin{ to{ transform:rotate(360deg) } }
+  /* skeleton while a screen loads */
+  .sk{ border-radius:20px; background:linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%); background-size:200% 100%; animation:sk 1.2s infinite linear; margin-bottom:10px }
+  @keyframes sk{ from{ background-position:200% 0 } to{ background-position:-200% 0 } }
+  /* ---------- login ---------- */
+  #login{ max-width:420px; margin:0 auto; padding:12vh 20px 24px; min-height:100vh; display:flex; flex-direction:column }
+  #login .logo{ width:84px; height:84px; border-radius:24px; box-shadow:var(--e2); background:#fff }
+  .field{ position:relative; margin-top:8px }
+  .field input{ width:100%; height:56px; padding:22px 48px 6px 16px; border-radius:12px; font-size:16px }
+  .field span{ position:absolute; left:16px; top:18px; color:var(--muted); pointer-events:none; transition:all .15s var(--ease); font-size:16px }
+  .field input:focus + span, .field input:not(:placeholder-shown) + span{ top:7px; font-size:12px; color:var(--pri); font-weight:600 }
+  .field .eye{ position:absolute; right:4px; top:6px; color:var(--muted) }
+  /* ---------- full-screen hotel page (all settings) ---------- */
   .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px }
   .grid > div > input, .grid > div > select{ width:100% }
   .stats{ display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:12px }
-  .stat{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px }
-  .stat b{ display:block; font-size:21px }
+  .stat{ background:var(--card); border-radius:18px; padding:14px; box-shadow:var(--e1) }
+  .stat b{ display:block; font-size:22px; font-weight:700 }
   table{ width:100%; border-collapse:collapse }
-  th, td{ text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:middle }
+  th, td{ text-align:left; padding:10px; border-bottom:1px solid var(--soft); vertical-align:middle }
   th{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em }
   tr.click{ cursor:pointer }
-  .pill{ padding:2px 8px; border-radius:99px; font-size:12px; font-weight:700; white-space:nowrap }
+  .pill{ padding:3px 9px; border-radius:99px; font-size:12px; font-weight:700; white-space:nowrap }
   .p-active{ background:#dcfce7; color:#166534 } .p-trial{ background:#e0f2fe; color:#075985 }
   .p-expired{ background:#fee2e2; color:#991b1b } .p-suspended{ background:#e2e8f0; color:#334155 } .p-pending{ background:#fef3c7; color:#92400e }
   .h-ok{ background:#dcfce7; color:#166534 } .h-warn{ background:#fef3c7; color:#92400e } .h-bad{ background:#fee2e2; color:#991b1b }
-  .tabs{ display:flex; gap:4px; border-bottom:1px solid var(--line); margin:12px 0; overflow-x:auto }
-  .tabs button{ background:transparent; color:var(--muted); border-radius:10px 10px 0 0; white-space:nowrap }
-  .tabs button.on{ color:var(--ink); background:var(--soft); border:1px solid var(--line); border-bottom-color:var(--soft) }
-  .feat{ display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--line); border-radius:12px; background:var(--soft) }
+  .tabs{ display:flex; gap:0; border-bottom:1px solid var(--line); margin:0 -16px 14px; padding:0 8px; overflow-x:auto; scrollbar-width:none; position:sticky; top:var(--bar); background:#fff; z-index:2 }
+  .tabs::-webkit-scrollbar{ display:none }
+  .tabs button{ flex:none; background:transparent; color:var(--muted); border-radius:0; white-space:nowrap; padding:14px 14px 12px; font-weight:600; border-bottom:3px solid transparent }
+  .tabs button.on{ color:var(--pri); border-bottom-color:var(--pri) }
+  .feat{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; background:var(--card); box-shadow:var(--e1) }
   .feat select{ margin-left:auto }
   .two{ display:grid; grid-template-columns:1fr 300px; gap:16px } @media (max-width:820px){ .two{ grid-template-columns:1fr } }
   .rcpt{ background:#fff; color:#000; font:12px/1.35 ui-monospace, Consolas, monospace; padding:10px; border:1px dashed #94a3b8; margin:0 auto }
   .rcpt .c{ text-align:center } .rcpt hr{ border:0; border-top:1px dashed #000 } .rcpt .r{ text-align:right } .rcpt td{ padding:1px 0; border:0 }
-  #drawer{ position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; z-index:20; overflow:auto; padding:16px 10px }
-  #drawer .panel{ max-width:980px; margin:0 auto; background:var(--card); border-radius:16px; padding:16px; border:1px solid var(--line) }
+  #drawer{ position:fixed; inset:0; background:var(--bg); display:none; z-index:20; overflow:auto; transform:translateX(100%); transition:transform .3s var(--ease); overscroll-behavior:contain }
+  #drawer.in{ transform:none }
+  #drawer .dbar{ position:sticky; top:0; z-index:3; background:#fff; display:flex; align-items:center; gap:4px; padding:8px; min-height:var(--bar); box-shadow:0 1px 0 var(--line) }
+  #drawer .dbar .t{ flex:1; min-width:0 } #drawer .dbar b{ display:block; font-size:18px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis } #drawer .dbar small{ color:var(--muted); font-size:12px }
+  #drawer .panel{ max-width:980px; margin:0 auto; padding:0 16px 40px }
+  #drawer .panel input:not([type=checkbox]), #drawer .panel select, #drawer .panel textarea{ max-width:100% }
+  @media (min-width:900px){ main{ padding-top:12px } }
 </style>
 </head>
 <body>
 <div id="login">
-  <div style="text-align:center"><img src="icon-192.png" alt="" style="width:72px;height:72px;border-radius:18px;box-shadow:0 8px 24px #1e3a8a33">
-    <h2 style="margin:14px 0 2px;font-size:21px">Setu Hotel Admin</h2>
-    <p class="muted" style="margin:0 0 18px">Run all your hotels from one place</p></div>
-  <div class="card"><form id="lf"><label style="margin-top:0">Admin Key</label><input id="key" type="password" placeholder="Apni Admin Key daaliye" autocomplete="off" required>
-    <label style="display:flex;gap:8px;align-items:center;margin:12px 0;font-size:13px;color:var(--ink);font-weight:500"><input id="remember" type="checkbox" style="width:20px;height:20px" checked> Remember on this phone</label>
-    <button class="big">Open</button></form>
-  <p id="lerr" class="err"></p></div>
-  <p class="muted" style="text-align:center;font-size:12px">Aghanya Devanya Enterprises</p>
+  <div style="text-align:center"><img class="logo" src="icon-192.png" alt="">
+    <h2 style="margin:18px 0 4px;font-size:24px">Setu Hotel Admin</h2>
+    <p class="muted" style="margin:0 0 28px">Saare hotels ek jagah se chalaiye</p></div>
+  <form id="lf">
+    <div class="field"><input id="key" type="password" placeholder=" " autocomplete="off" required><span>Admin Key</span>
+      <button type="button" class="ib eye" aria-label="Show key" onclick="const k=$('#key');k.type=k.type==='password'?'text':'password'"></button></div>
+    <label class="switch" style="margin:18px 2px 22px;font-weight:500"><input id="remember" type="checkbox" checked> Is phone par yaad rakhein</label>
+    <button class="big">Open</button>
+    <p id="lerr" class="err" style="text-align:center"></p>
+  </form>
+  <p class="muted" style="text-align:center;font-size:12px;margin-top:auto;padding-top:24px">Aghanya Devanya Enterprises</p>
 </div>
 
 <div id="app" hidden>
-  <header>
+  <header id="hdr">
+    <button class="ib" id="hback" aria-label="Back" onclick="goBack()"></button>
     <div class="t"><h1 id="htitle">Hotels</h1><small id="hsub">Setu Hotel Admin</small></div>
-    <button onclick="show(VIEW)" title="Refresh" aria-label="Refresh"></button>
+    <button class="ib" id="hrefresh" onclick="refresh()" title="Refresh" aria-label="Refresh"></button>
   </header>
   <main id="main"></main>
   <nav id="nav"></nav>
 </div>
-<div id="drawer"><div class="panel" id="panel"></div></div>
+<div id="drawer"><div class="dbar"><button class="ib" aria-label="Back" onclick="closeHotel()" id="dback"></button><div class="t"><b id="dtitle"></b><small id="dsub"></small></div></div><div class="panel" id="panel"></div></div>
 <div id="sheet"><div class="box"><div class="grab"></div><div id="sbox"></div></div></div>
 <div id="ask"><div class="box" id="abox"></div></div>
+<div id="ptr"></div>
 <div id="toast"></div>
 
 <script>
 let KEY = '', META = null, HOTELS = [], VIEW = 'hotels', CUR = null, TAB = 'overview';
-// Remembered only on a device the vendor ticked (e.g. the Setu Admin phone app)
-try{ KEY = sessionStorage.getItem('setu_admin') || localStorage.getItem('setu_admin') || ''; }catch(e){}
+// The Setu Hotel Admin app (v2+) keeps the Admin Key in the phone's Keystore (SA.keyGet); a browser uses localStorage
+const APP = !!(window.SA && SA.keyGet);
+const keyRemember = k => { try{ if(APP) SA.keySet(k); else localStorage.setItem('setu_admin', k); }catch(e){} };
+const keyForget = () => { try{ if(APP) SA.keyClear(); localStorage.removeItem('setu_admin'); sessionStorage.removeItem('setu_admin'); }catch(e){} };
+try{
+  if(APP){ const old = localStorage.getItem('setu_admin'); if(old){ if(!SA.keyGet()) SA.keySet(old); localStorage.removeItem('setu_admin'); } }
+  KEY = sessionStorage.getItem('setu_admin') || (APP ? SA.keyGet() : localStorage.getItem('setu_admin')) || '';
+}catch(e){}
+const haptic = k => { try{ if(APP) SA.haptic(k); }catch(e){} };
+const bars = c => { try{ if(APP && SA.bars) SA.bars(c, true); }catch(e){} };
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const d8 = ms => ms ? new Date(ms).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '-';
@@ -192,12 +274,22 @@ const ICONS = {
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   block: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 5.6l12.8 12.8',
   out: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11',
-  share: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4'
+  share: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4',
+  back: 'M20 12H5M11 5l-7 7 7 7',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  chev: 'M9 6l6 6-6 6',
+  finger: 'M12 11v4M8.5 8.5A5 5 0 0 1 17 12v2M7 12.5V15a5 5 0 0 0 2 4M17 17a5 5 0 0 1-1 2.5M12 3a9 9 0 0 1 9 9v1M3 13v-1a9 9 0 0 1 4-7.5'
 };
 const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[n]}"/></svg>`;
-document.querySelector('header button').innerHTML = ic('refresh');
+$('#hrefresh').innerHTML = ic('refresh'); $('#hback').innerHTML = ic('back'); $('#dback').innerHTML = ic('back');
+$('#ptr').innerHTML = ic('refresh'); document.querySelector('#lf .eye').innerHTML = ic('eye');
 
-function toast(t, bad){ const e = $('#toast'); e.textContent = t; e.className = bad ? 'err' : ''; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', bad ? 5000 : 2600); }
+// Snackbar (bottom, above the navigation bar)
+function toast(t, bad){
+  const e = $('#toast'); e.textContent = t; e.className = (bad ? 'err ' : '') + 'show';
+  haptic(bad ? 'error' : 'tick');
+  clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), bad ? 5000 : 2800);
+}
 // Copy / share work in a browser and in the Setu Hotel Admin phone app (SA bridge)
 function copyText(t, label){
   if(window.SA && SA.copy){ SA.copy(t); return toast((label || 'Text') + ' copied'); }
@@ -237,15 +329,23 @@ const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ toast(e.mess
 let LAYERS = 0;
 function pushLayer(){ LAYERS++; try{ history.pushState({layer: LAYERS}, ''); }catch(e){} }
 function popLayer(){ if(LAYERS > 0){ try{ history.back(); }catch(e){ closeTop(); } } }
+// Open with a slide / fade: 'open' shows it, 'in' (next frame) animates it in; closing reverses
+function layerIn(el){ el.classList.add('open'); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in'))); }
+function layerOut(el, then){ el.classList.remove('in'); clearTimeout(el._t); el._t = setTimeout(() => { if(!el.classList.contains('in')){ el.classList.remove('open'); then && then(); } }, 280); }
 function closeTop(){
   LAYERS = Math.max(0, LAYERS - 1);
   if($('#ask').classList.contains('open')) return askDone(null);
   if($('#drawer').style.display === 'block') return closeHotelNow();
-  if($('#sheet').classList.contains('open')) return $('#sheet').classList.remove('open');
+  if($('#sheet').classList.contains('open')) return layerOut($('#sheet'));
 }
 window.addEventListener('popstate', closeTop);
 
-function sheet(html){ $('#sbox').innerHTML = html; if(!$('#sheet').classList.contains('open')){ $('#sheet').classList.add('open'); pushLayer(); } $('#sheet .box').scrollTop = 0; }
+function sheet(html){
+  $('#sbox').innerHTML = html;
+  const sh = $('#sheet');
+  if(!sh.classList.contains('open') || !sh.classList.contains('in')){ const was = sh.classList.contains('open'); layerIn(sh); if(!was) pushLayer(); }
+  $('#sheet .box').scrollTop = 0;
+}
 function closeSheet(){ if($('#sheet').classList.contains('open')) popLayer(); }
 $('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
 
@@ -253,7 +353,8 @@ $('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
 let ASK = null;
 function ask(title, html, ok, danger){
   $('#abox').innerHTML = `<h2>${title}</h2>${html || ''}<div class="btns"><button class="g" onclick="popLayer()">Cancel</button><button class="${danger ? 'bad' : ''}" id="ask-ok">${ok || 'OK'}</button></div>`;
-  $('#ask').classList.add('open'); pushLayer();
+  layerIn($('#ask')); pushLayer();
+  setTimeout(() => { const f = $('#abox input, #abox textarea'); f && f.focus(); }, 250);
   $('#ask-ok').onclick = () => {
     const v = {}; $('#abox').querySelectorAll('input, textarea, select').forEach(x => v[x.id] = x.type === 'checkbox' ? x.checked : x.value);
     // The box closes when its history entry is gone (popstate), so Android back stays in step
@@ -261,7 +362,7 @@ function ask(title, html, ok, danger){
   };
   return new Promise(res => ASK = res);
 }
-function askDone(v){ $('#ask').classList.remove('open'); const r = ASK; ASK = null; r && r(v); }
+function askDone(v){ layerOut($('#ask')); const r = ASK; ASK = null; r && r(v); }
 
 // ---------------- navigation ----------------
 const VIEWS = {hotels: ['Hotels', 'hotels'], keygen: ['Keygen', 'key'], tickets: ['Tickets', 'ticket'], more: ['More', 'more']};
@@ -269,13 +370,37 @@ const SUB = {dash: 'Dashboard', add: 'New Hotel', ai: 'Setu AI', audit: 'Activit
 let UNREAD = 0;
 function nav(){
   const top = SUB[VIEW] ? 'more' : VIEW;
-  $('#nav').innerHTML = Object.entries(VIEWS).map(([k, [v, i]]) => `<button class="${top === k ? 'on' : ''}" onclick="show('${k}')">${ic(i)}${v}${k === 'tickets' && UNREAD ? `<span class="badge">${UNREAD}</span>` : ''}</button>`).join('');
+  $('#nav').innerHTML = Object.entries(VIEWS).map(([k, [v, i]]) => `<button class="${top === k ? 'on' : ''}" onclick="${top === k ? `refresh()` : `show('${k}')`}"><span class="pill">${ic(i)}</span>${v}${k === 'tickets' && UNREAD ? `<span class="badge">${UNREAD}</span>` : ''}</button>`).join('');
   $('#htitle').textContent = SUB[VIEW] || VIEWS[VIEW][0];
-  $('#hsub').textContent = VIEW === 'hotels' && HOTELS.length ? HOTELS.length + ' hotels · Aghanya Devanya Enterprises' : 'Setu Hotel Admin';
+  $('#hsub').textContent = VIEW === 'hotels' && HOTELS.length ? HOTELS.length + ' hotels · Aghanya Devanya Enterprises' : SUB[VIEW] ? 'More' : 'Setu Hotel Admin';
+  $('#hdr').classList.toggle('sub', !!SUB[VIEW]);
 }
-const show = run(async v => { VIEW = v; nav(); window.scrollTo(0, 0);
-  await ({hotels: drawHotels, keygen: drawKeygen, tickets: drawTickets, more: drawMore, dash: drawDash, add: drawAdd, ai: drawAI, audit: drawAudit, blocked: drawBlocked, backups: drawBackups, security: drawSecurity, updates: drawUpdates})[v](); nav(); });
-const backBtn = () => `<button class="g" style="margin-bottom:12px" onclick="show('more')">‹ Back</button>`;
+// Grey placeholder cards while a screen loads (shown only if loading takes a moment)
+const SKEL = {hotels: () => '<div class="sk" style="height:84px"></div><div class="sk" style="height:52px;border-radius:28px"></div>' + '<div class="sk" style="height:112px"></div>'.repeat(5),
+  def: () => '<div class="sk" style="height:180px"></div><div class="sk" style="height:120px"></div><div class="sk" style="height:120px"></div>'};
+let FIRST = true;
+const show = run(async v => {
+  const changed = v !== VIEW;
+  VIEW = v; nav();
+  if(changed){ window.scrollTo(0, 0); haptic('tick'); }
+  const m = $('#main'), sk = setTimeout(() => { m.innerHTML = (SKEL[v] || SKEL.def)(); }, 140);
+  try{ await ({hotels: drawHotels, keygen: drawKeygen, tickets: drawTickets, more: drawMore, dash: drawDash, add: drawAdd, ai: drawAI, audit: drawAudit, blocked: drawBlocked, backups: drawBackups, security: drawSecurity, updates: drawUpdates})[v](); }
+  finally{ clearTimeout(sk); }
+  nav(); onScroll();
+  if(changed || FIRST){ m.classList.remove('shown'); m.classList.add('enter'); requestAnimationFrame(() => requestAnimationFrame(() => { m.classList.add('shown'); m.classList.remove('enter'); })); }
+  if(FIRST){ FIRST = false; try{ if(APP && SA.ready) SA.ready(); }catch(e){} }
+});
+const refresh = () => { $('#hrefresh').classList.add('spin'); return show(VIEW).finally(() => $('#hrefresh').classList.remove('spin')); };
+// Sub-screens of More get the app bar's back arrow instead of a button in the page
+const backBtn = () => '';
+function goBack(){ if(LAYERS) return popLayer(); if(SUB[VIEW]) return show('more'); if(VIEW !== 'hotels') return show('hotels'); }
+// Android back (the app asks the page first): close the top layer, then go up a screen; false = on the home list
+window.SAback = () => {
+  if(!$('#app') || $('#app').hidden) return false;
+  if(LAYERS){ popLayer(); return true; }
+  if(SUB[VIEW] || VIEW !== 'hotels'){ goBack(); return true; }
+  return false;
+};
 
 async function loadHotels(){ const j = await api('/api/admin/hotels'); HOTELS = j.hotels; UNREAD = j.ticketsUnread || 0; }
 
@@ -337,9 +462,11 @@ function setKF(k){ KF = k; drawHotelsBody(); }
 async function drawHotels(){
   await loadHotels();
   const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
-  $('#main').innerHTML = `<div class="card" style="display:flex;gap:10px;align-items:center;padding:12px 14px">${ic('chart')}<div style="flex:1"><b>All hotels today: ${today} bills</b>
-      <div class="muted" style="font-size:12px">${using} / ${live.length} hotels billed today${HOTELS.filter(notUsing).length ? ` · <span class="err">${HOTELS.filter(notUsing).length} hotels with no bills for 3+ days</span>` : ''}${HOTELS.filter(h => +h.errs).length ? ` · <span class="err" style="cursor:pointer" onclick="setKF('err')">${HOTELS.filter(h => +h.errs).length} hotels with errors</span>` : ''}</div></div></div>
-    <div class="search">${ic('search')}<input id="q" placeholder="Name, code, mobile or Install ID"></div><div id="kpis"></div><div id="cards"></div>`;
+  const idle = HOTELS.filter(notUsing).length, errs = HOTELS.filter(h => +h.errs).length;
+  $('#main').innerHTML = `<div class="sum"><div style="flex:1"><small>Aaj saare hotels</small><div class="big">${today} <span style="font-size:15px;font-weight:500">bills</span></div>
+      <small>${using} / ${live.length} hotels ne aaj bill banaya${idle ? ` · <b class="err" onclick="setKF('idle')">${idle} band (3+ din)</b>` : ''}${errs ? ` · <b class="err" onclick="setKF('err')">${errs} errors</b>` : ''}</small></div>${ic('chart')}</div>
+    <div class="search">${ic('search')}<input id="q" type="search" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>
+    <button class="fab" onclick="show('add')">${ic('plus')}<span>Naya hotel</span></button>`;
   $('#q').oninput = drawCards;
   drawHotelsBody();
 }
@@ -647,19 +774,39 @@ const kgRemove = run(async () => {
 
 // ---------------- More ----------------
 function drawMore(){
-  const row = (icon, t, s, fn) => `<button class="li" onclick="${fn}"><span class="ico">${ic(icon)}</span><span>${t}<small>${s}</small></span>›</button>`;
-  $('#main').innerHTML = row('chart', 'Dashboard', 'Hotels, payments, backups', "show('dash')")
-    + row('plus', 'Create New Hotel', 'Phone-app hotel without a PC', "show('add')")
-    + row('spark', 'Setu AI', 'Gemini key and daily limit', "show('ai')")
-    + row('download', 'Backups', 'Every hotel: last sync, last backup, size', "show('backups')")
-    + row('refresh', 'Software updates', 'Newest Setu EXE for all PCs, pause / release', "show('updates')")
+  const row = (icon, t, s, fn) => `<button class="li" onclick="${fn}"><span class="ico">${ic(icon)}</span><span>${t}<small>${s}</small></span><span class="chev">${ic('chev')}</span></button>`;
+  let lk = null;
+  try{ lk = APP && SA.lockState ? JSON.parse(SA.lockState()) : null; }catch(e){}
+  const appv = (navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/) || [])[1];
+  $('#main').innerHTML = `<div class="gh">HOTELS</div><div class="group">`
+    + row('chart', 'Dashboard', 'Hotels, payments, backups', "show('dash')")
+    + row('plus', 'Naya hotel banaiye', 'Phone-app hotel, bina PC ke', "show('add')")
+    + row('download', 'Backups', 'Har hotel: last sync, backup, size', "show('backups')")
+    + row('refresh', 'Software updates', 'Naya Setu EXE: pause / release', "show('updates')")
+    + `</div><div class="gh">SETTINGS</div><div class="group">`
+    + row('spark', 'Setu AI', 'Gemini key aur daily limit', "show('ai')")
+    + row('key', 'Keygen setup', 'Phone se key banane ke liye', "show('keygen').then(() => drawKeygenSetup())")
+    + row('list', 'Activity Log', 'Kya badla, kab badla', "show('audit')")
+    + row('block', 'Blocked computers', 'Delete karte waqt block kiye PC', "show('blocked')")
+    + `</div><div class="gh">SECURITY</div><div class="group">`
+    + (lk ? `<label class="li" style="cursor:pointer"><span class="ico">${ic('finger')}</span><span>App lock<small>${lk.available ? 'Kholte waqt fingerprint / screen lock' : 'Pehle phone mein screen lock lagaiye'}</small></span>
+        <input type="checkbox" id="applock" ${lk.on ? 'checked' : ''} ${lk.available ? '' : 'disabled'} onchange="appLock(this.checked)"></label>` : '')
     + row('key', 'Login security', 'Authenticator app (2-step login)', "show('security')")
-    + row('list', 'Activity Log', 'What you changed and when', "show('audit')")
-    + row('block', 'Blocked computers', 'PCs blocked when deleting', "show('blocked')")
-    + row('key', 'Keygen setup', 'To make keys from the phone', "show('keygen').then(() => drawKeygenSetup())")
-    + row('out', 'Logout', 'Remove the Admin Key from this phone', 'logout()')
-    + `<p class="muted" style="text-align:center;font-size:12px">${(navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/) || [])[1] ? 'Setu Hotel Admin app v' + navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/)[1] : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Newest Setu EXE: v' + esc(newestVer()) : ''}</p>`;
+    + row('out', 'Logout', 'Is phone se Admin Key hata dein', 'logoutAsk()')
+    + `</div><p class="muted" style="text-align:center;font-size:12px">${appv ? 'Setu Hotel Admin app v' + esc(appv) : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Newest Setu EXE: v' + esc(newestVer()) : ''}</p>`;
 }
+// App lock (native): turning it on or off asks for the fingerprint / screen lock; the answer comes back in SAevent
+function appLock(on){ try{ SA.lockSet(on); }catch(e){} }
+window.SAevent = (name, d) => {
+  if(name === 'lock'){
+    const c = $('#applock'); if(c) c.checked = !!d.on;
+    if(d.error === 'noscreenlock') toast('Pehle phone ki Settings mein screen lock lagaiye', true);
+    else if(d.error) toast('Fingerprint check nahi hua', true);
+    else toast(d.on ? 'App lock on: kholte waqt fingerprint maangega' : 'App lock off');
+  }
+  if(name === 'resume' && $('#app') && !$('#app').hidden && VIEW === 'hotels' && !LAYERS) loadHotels().then(drawHotelsBody).catch(() => {});
+};
+const logoutAsk = run(async () => { if(await ask('Logout?', '<p class="muted" style="margin-top:0">Admin Key is phone se hat jayegi. Dobara kholne ke liye key daalni padegi.</p>', 'Logout', true)) logout(); });
 
 // ---------------- dashboard ----------------
 async function drawDash(){
@@ -675,18 +822,12 @@ async function drawDash(){
     <div class="stats">${[['Total Hotels', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')],
       ['New (30 days)', HOTELS.filter(h => h.created > month).length], ['Payments (30 days)', rs(st.paid30.s / 100)], ['MRR (estimate)', rs(mrr)]]
       .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('')}</div>
-    <div class="two">
-      <div class="card"><h2>Expiring within 7 days</h2>
-        <table><tr><th>Hotel</th><th>Status</th><th>Valid until</th><th>Mobile</th></tr>
-        ${soon.map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')"><td><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></td><td>${pill(state(h))}</td><td>${d8(h.paid_until)}</td><td>${esc(h.phone)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">None</td></tr>'}</table>
-      </div>
-      <div class="card"><h2>Backup issues</h2><p class="muted" style="margin-top:-6px">No data from the counter PC for 2+ days</p>
-        <table>${HOTELS.filter(backupIssue).map(h => `<tr class="click" onclick="openHotel('${esc(h.code)}')"><td><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></td><td>${health(h.seen)}</td><td>${esc(h.phone)}</td></tr>`).join('') || '<tr><td class="ok">All hotels are backing up</td></tr>'}</table>
-      </div>
-      <div class="card"><h2>Recent payments</h2>
-        <table>${st.recent.map(p => `<tr><td>${esc(p.name || p.code)}<div class="muted">${esc(p.plan)} · ${dt(p.at)}</div></td><td class="r">${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</td></tr>`).join('') || '<tr><td class="muted">None yet</td></tr>'}</table>
-      </div>
-    </div>`;
+    <div class="gh">7 DIN MEIN KHATAM</div><div class="group">
+      ${soon.map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div><div style="text-align:right">${pill(state(h))}<small class="muted" style="display:block;margin-top:4px">${d8(h.paid_until)}</small></div></div>`).join('') || '<div class="lr muted">Koi nahi</div>'}</div>
+    <div class="gh">BACKUP NAHI (2+ DIN)</div><div class="group">
+      ${HOTELS.filter(backupIssue).map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div>${health(h.seen)}</div>`).join('') || '<div class="lr ok">Saare hotels backup ho rahe hain</div>'}</div>
+    <div class="gh">RECENT PAYMENTS</div><div class="group">
+      ${st.recent.map(p => `<div class="lr"><div class="x"><b>${esc(p.name || p.code)}</b><small>${esc(p.plan)} · ${dt(p.at)}</small></div><b>${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</b></div>`).join('') || '<div class="lr muted">Abhi koi nahi</div>'}</div>`;
 }
 
 const dlBackup = run(async code => {
@@ -865,10 +1006,10 @@ async function drawBackups(){
     <p class="muted" style="margin-top:-6px">Each hotel keeps ${30} end-of-day backups on Hotel Setu Cloud (compressed). Tap a hotel to download its data.</p>
     <input id="bk_q" placeholder="Search name, code or Install ID" value="${esc(q)}" oninput="drawBackups()" style="margin-bottom:8px">
     <div class="chips">${Object.entries(F).map(([k, v]) => `<button class="chip ${BKF === k ? 'on' : ''}" onclick="BKF='${k}';drawBackups()">${v} ${HOTELS.filter(h => k === 'all' || bkState(h)[0] === k).length}</button>`).join('')}</div>
-    <div style="overflow-x:auto"><table><tr><th>Hotel Code</th><th>Hotel</th><th>Device (Install ID)</th><th>Last sync</th><th>Last backup</th><th>Backups</th><th>Size</th><th>Status</th></tr>
-    ${L.map(h => { const st = bkState(h); return `<tr class="click" onclick="dlBackup('${esc(h.code)}')"><td><code>${esc(h.code)}</code></td><td>${esc(h.name)}</td><td><code>${esc(h.iid || '-')}</code></td>
-      <td>${h.seen ? ago(h.seen) : '-'}</td><td>${h.lastbk ? esc(h.lastbk) : '-'}</td><td>${+h.bkn || 0}</td><td>${h.bksize ? kb(+h.bksize) : '-'}${h.dsize ? `<div class="muted">live ${kb(+h.dsize)}</div>` : ''}</td>
-      <td><span class="tag ${st[2]}">${st[1]}</span></td></tr>`; }).join('') || '<tr><td colspan="8" class="muted">Nothing in this list</td></tr>'}</table></div></div>`;
+    </div><div class="group">
+    ${L.map(h => { const st = bkState(h); return `<div class="lr click" onclick="dlBackup('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b>
+      <small>${esc(h.code)} · sync ${h.seen ? ago(h.seen) : '-'} · backup ${h.lastbk ? esc(h.lastbk) : '-'}</small><small>${+h.bkn || 0} backups · ${h.bksize ? kb(+h.bksize) : '-'}${h.dsize ? ` · live ${kb(+h.dsize)}` : ''}</small></div>
+      <span class="tag ${st[2]}">${st[1]}</span></div>`; }).join('') || '<div class="lr muted">Is list mein kuch nahi</div>'}</div>`;
   const i = $('#bk_q'); if(q){ i.focus(); i.setSelectionRange(q.length, q.length); }
 }
 
@@ -922,23 +1063,24 @@ function drawAdd(){
 // ---------------- audit ----------------
 async function drawAudit(code){
   const j = await api('/api/admin/audit', {code: code || ''});
-  const html = `<table><tr><th>When</th><th>Action</th><th>Hotel</th><th>Detail</th><th>By</th></tr>
-    ${j.rows.map(r => `<tr><td>${dt(r.at)}</td><td><b>${esc(r.action)}</b></td><td><code>${esc(r.code)}</code></td><td>${esc(r.detail)}</td><td class="muted">${esc(r.actor)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Nothing yet</td></tr>'}</table>`;
+  const html = `<div class="group">${j.rows.map(r => `<div class="lr"><div class="x"><b>${esc(r.action)}</b> <code>${esc(r.code)}</code><small style="white-space:normal">${esc(r.detail)}</small><small>${dt(r.at)} · ${esc(r.actor)}</small></div></div>`).join('') || '<div class="lr muted">Abhi kuch nahi</div>'}</div>`;
   if(code) return html;
-  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Activity Log</h2><p class="muted">Every change, support session and new hotel is recorded here.</p><div style="overflow-x:auto">${html}</div></div>`;
+  $('#main').innerHTML = `<p class="muted" style="margin:0 4px 12px">Har badlav, support session aur naya hotel yahan likha jata hai.</p>${html}`;
 }
 
 // ---------------- one hotel ----------------
 const openHotel = run(async code => {
   CUR = await api('/api/admin/hotel', {code});
   TAB = 'overview';
-  if($('#drawer').style.display !== 'block'){ $('#drawer').style.display = 'block'; pushLayer(); }
-  $('#drawer').scrollTop = 0;
+  const dr = $('#drawer');
+  if(dr.style.display !== 'block'){ dr.style.display = 'block'; requestAnimationFrame(() => requestAnimationFrame(() => dr.classList.add('in'))); pushLayer(); bars('#FFFFFF'); }
+  dr.scrollTop = 0;
   drawHotel();
 });
 function closeHotel(){ popLayer(); }
 async function closeHotelNow(){
-  $('#drawer').style.display = 'none'; CUR = null;
+  const dr = $('#drawer'); dr.classList.remove('in'); CUR = null; onScroll();
+  setTimeout(() => { if(!dr.classList.contains('in')) dr.style.display = 'none'; }, 300);
   await loadHotels().catch(() => {});
   if(VIEW === 'hotels') drawHotelsBody();
   if($('#sheet').classList.contains('open')) hotelSheet(($('#sbox code') || {}).textContent || '');
@@ -952,10 +1094,9 @@ const update = run(async (u, msg) => {
 const TABS = {overview: 'Overview & Subscription', features: 'Plan & Features', billing: 'Billing Builder', rules: 'Rules', domains: 'Domains', support: 'Support', log: 'History'};
 function drawHotel(){
   const h = CUR;
-  $('#panel').innerHTML = `<div class="row"><div><h2 style="margin:0">${esc(h.name)} <code>${esc(h.code)}</code></h2>
-      <span class="muted">${esc((META.templates[h.businessType] || {}).label || '')} · ${esc(h.tierLabel)} · ${pill(state(h))} · Install ID: <code>${esc((h.counter || {}).installId || '-')}</code></span></div>
-      <button class="g" style="margin-left:auto" onclick="closeHotel()">Close</button></div>
-    <div class="tabs">${Object.entries(TABS).map(([k, v]) => `<button class="${TAB === k ? 'on' : ''}" onclick="TAB='${k}';drawHotel()">${v}</button>`).join('')}</div>
+  $('#dtitle').textContent = h.name;
+  $('#dsub').textContent = h.code + ' · ' + ((META.templates[h.businessType] || {}).label || '') + ' · ' + h.tierLabel;
+  $('#panel').innerHTML = `<div class="tabs">${Object.entries(TABS).map(([k, v]) => `<button class="${TAB === k ? 'on' : ''}" onclick="TAB='${k}';drawHotel()">${v}</button>`).join('')}</div>
     <div id="tab"></div>`;
   ({overview: tabOverview, features: tabFeatures, billing: tabBilling, rules: tabRules, domains: tabDomains, support: tabSupport, log: tabLog})[TAB]();
 }
@@ -1169,37 +1310,105 @@ const supportOpen = run(async () => {
   $('#s_out').innerHTML = `<p class="ok">Link created (${j.minutes} min): <a href="${esc(j.url)}" target="_blank" rel="noopener">Open the hotel Setu</a></p>`;
 });
 
-const tabLog = run(async () => { $('#tab').innerHTML = '<div style="overflow-x:auto">' + await drawAudit(CUR.code) + '</div>'; });
+const tabLog = run(async () => { $('#tab').innerHTML = await drawAudit(CUR.code); });
 
 const askThen = run(async (msg, fn) => { if(await ask(msg, '', 'Yes')) await fn(); });
 // Close every open layer at once (e.g. jumping to Keygen from a hotel)
 function closeAll(){
   if(ASK){ const r = ASK; ASK = null; r(null); }
-  $('#ask').classList.remove('open'); $('#sheet').classList.remove('open');
-  if($('#drawer').style.display === 'block'){ $('#drawer').style.display = 'none'; CUR = null; }
+  $('#ask').classList.remove('open', 'in'); $('#sheet').classList.remove('open', 'in');
+  if($('#drawer').style.display === 'block'){ $('#drawer').classList.remove('in'); $('#drawer').style.display = 'none'; CUR = null; }
   const n = LAYERS; LAYERS = 0;
   if(n) try{ history.go(-n); }catch(e){}
 }
 
+// ---------------- feel of a phone app ----------------
+// App bar lifts (white + line) once the list scrolls under it; the FAB shrinks to an icon while scrolling down
+let lastY = 0;
+function onScroll(){
+  const y = window.scrollY, h = $('#hdr'), lifted = y > 8;
+  if(h && h.classList.contains('lifted') !== lifted){ h.classList.toggle('lifted', lifted); if(!$('#drawer').classList.contains('in')) bars(lifted ? '#FFFFFF' : '#F7F9FC'); }
+  // Small jitters do not count: only a real move up / down changes the button
+  if(Math.abs(y - lastY) > 6){ const f = $('.fab'); if(f) f.classList.toggle('mini', y > lastY && y > 80); lastY = y; }
+}
+window.addEventListener('scroll', onScroll, {passive: true});
+// Touch ripple on everything you can press
+document.addEventListener('pointerdown', e => {
+  let b = e.target.closest('button, .hc, .li, .tile, .quick a, .lr.click, .plan, .chip');
+  if(!b || b.disabled || e.target.closest('input, select, textarea')) return;
+  if(b.matches('nav button')) b = b.querySelector('.pill');
+  const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height), sp = document.createElement('span');
+  sp.className = 'ripple';
+  sp.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+  if(getComputedStyle(b).position === 'static') b.style.position = 'relative';
+  b.style.overflow = 'hidden';
+  b.appendChild(sp);
+  setTimeout(() => sp.remove(), 550);
+}, {passive: true});
+// Pull down at the top of a list to refresh it
+let PT = null;
+document.addEventListener('touchstart', e => {
+  PT = !$('#app').hidden && !LAYERS && window.scrollY <= 0 && e.touches.length === 1 && !e.target.closest('.chips, input, textarea, select') ? {y: e.touches[0].clientY, d: 0} : null;
+}, {passive: true});
+document.addEventListener('touchmove', e => {
+  if(!PT) return;
+  PT.d = Math.max(0, e.touches[0].clientY - PT.y);
+  const d = Math.min(PT.d * .5, 110), p = $('#ptr');
+  p.style.transition = 'none';
+  p.style.opacity = Math.min(1, d / 60);
+  p.style.transform = `translateY(${d - 60}px) rotate(${d * 3}deg)`;
+}, {passive: true});
+document.addEventListener('touchend', () => {
+  if(!PT) return;
+  const p = $('#ptr'), go = PT.d * .5 > 70;
+  PT = null;
+  p.style.transition = 'transform .25s, opacity .25s';
+  if(!go){ p.style.opacity = 0; p.style.transform = 'translateY(-70px)'; return; }
+  haptic('tick');
+  p.style.transform = 'translateY(16px)'; p.classList.add('spin');
+  show(VIEW).finally(() => { p.classList.remove('spin'); p.style.opacity = 0; p.style.transform = 'translateY(-70px)'; });
+});
+// Bottom sheet: swipe down on it (when scrolled to its top) to close
+(() => {
+  const box = $('#sheet .box'); let y0 = null, dy = 0;
+  box.addEventListener('touchstart', e => { y0 = box.scrollTop <= 0 && !e.target.closest('input, textarea, select') ? e.touches[0].clientY : null; dy = 0; }, {passive: true});
+  box.addEventListener('touchmove', e => {
+    if(y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if(dy > 0){ box.classList.add('drag'); box.style.transform = `translateY(${dy}px)`; }
+  }, {passive: true});
+  box.addEventListener('touchend', () => {
+    if(y0 === null) return;
+    box.classList.remove('drag'); box.style.transform = '';
+    if(dy > 110){ haptic('tick'); closeSheet(); }
+    y0 = null;
+  });
+})();
+
 // ---------------- start ----------------
-function logout(){ try{ sessionStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin_otp'); }catch(e){} location.reload(); }
+function logout(){ keyForget(); try{ localStorage.removeItem('setu_admin_otp'); }catch(e){} location.reload(); }
 async function openPanel(){
   try{
     META = await api('/api/admin/meta');
-    try{ sessionStorage.setItem('setu_admin', KEY); if($('#remember') && $('#remember').checked) localStorage.setItem('setu_admin', KEY); }catch(e){}
+    try{ sessionStorage.setItem('setu_admin', KEY); }catch(e){}
+    if(!$('#remember') || $('#remember').checked) keyRemember(KEY);
     $('#login').hidden = true;
     $('#app').hidden = false;
     show('hotels');   // like Library ERP: open on the list, most urgent first
   }catch(e){
     // A remembered key that no longer works must not keep trying (it would lock this device)
-    if(/Invalid Admin Key/.test(e.message)){ try{ sessionStorage.removeItem('setu_admin'); localStorage.removeItem('setu_admin'); }catch(x){} KEY = ''; }
+    if(/Invalid Admin Key/.test(e.message)){ keyForget(); KEY = ''; }
     $('#lerr').textContent = e.message;
+    haptic('error');
+    try{ if(APP && SA.ready) SA.ready(); }catch(x){}
   }
 }
 $('#lf').onsubmit = e => { e.preventDefault(); KEY = $('#key').value.trim(); openPanel(); };
 $('#drawer').onclick = e => { if(e.target.id === 'drawer') closeHotel(); };
 document.addEventListener('keydown', e => { if(e.key === 'Escape' && LAYERS) popLayer(); });
+bars('#F7F9FC');
 if(KEY) openPanel();
+else try{ if(APP && SA.ready) SA.ready(); }catch(e){}
 </script>
 </body>
 </html>
