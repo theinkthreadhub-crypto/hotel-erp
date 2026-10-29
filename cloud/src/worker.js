@@ -2114,6 +2114,29 @@ async function aggregatorWebhook(request,env,provider){
   }));
 }
 
+// Cloudflare serves files up to 25 MiB; a bigger installer is published in parts (scripts/fetch-exe.sh) and joined here
+async function installerDownload(request, env, url){
+  const whole = await env.ASSETS.fetch(new Request(new URL('/download/Setu-POS-Setup.exe', url)));
+  if(whole.ok) return whole;
+  let m = {};
+  try{ const r = await env.ASSETS.fetch(new Request(new URL('/download/latest.json', url))); if(r.ok) m = await r.json(); }catch(e){}
+  const n = +m.parts || 0;
+  if(!n) return new Response('Not found', { status: 404 });
+  const { readable, writable } = new TransformStream();
+  (async () => {
+    try{
+      for(let i = 0; i < n; i++){
+        const part = await env.ASSETS.fetch(new Request(new URL(`/download/Setu-POS-Setup.exe.part${String(i).padStart(2, '0')}`, url)));
+        if(!part.ok) throw new Error('part ' + i);
+        await part.body.pipeTo(writable, { preventClose: true });
+      }
+      await writable.close();
+    }catch(e){ await writable.abort(e).catch(() => {}); }
+  })();
+  return new Response(readable, { headers: { 'Content-Type': 'application/octet-stream', 'Content-Length': String(m.size || ''),
+    'Content-Disposition': 'attachment; filename="Setu-POS-Setup.exe"', 'Cache-Control': 'no-cache' } });
+}
+
 export default {
   async fetch(request, env){
     const url = new URL(request.url), path = url.pathname;
@@ -2121,6 +2144,7 @@ export default {
       if(path === '/' || path === '/index.html') return Response.redirect(url.origin + '/hotel_erp.html', 302);
       // Table QR: /q/<HOTEL>/<token> opens the guest menu page (the page reads the code and token from the address)
       if(/^\/q\/[A-Z0-9]{4,12}\/[a-f0-9]{32}\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL('/qr', url), request));
+      if(path === '/download/Setu-POS-Setup.exe') return installerDownload(request, env, url);
       return env.ASSETS.fetch(request);
     }
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);
