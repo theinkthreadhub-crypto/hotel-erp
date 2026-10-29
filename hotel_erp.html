@@ -10706,6 +10706,7 @@ function scrSettings(){
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="update-card" style="border-left:4px solid #16a34a;display:none"></div>
+  <div class="card" id="ab-card" style="border-left:4px solid #0284c7;display:none"></div>
   <div class="card" id="look-card"></div>
   ${listsCard()}
   <div class="card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Owner Password</h3>
@@ -10910,6 +10911,7 @@ function scrSettings(){
   drawPrintCard();
   drawCloudCard();
   drawUpdateCard();
+  drawAutoBackup();
   drawLookCard();
 }
 
@@ -11107,6 +11109,55 @@ async function updApi(action){
   const j = await r.json().catch(() => ({}));
   if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
   return j;
+}
+/* ---------- Auto backup (main counter PC): another drive, pen drive or a Drive / OneDrive folder ---------- */
+const fmtSize = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';
+async function abCall(body){
+  const r = body ? await srvFetch('/api/autobackup', {method: 'POST', body: JSON.stringify(body)}) : await srvFetch('/api/autobackup');
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+  return j;
+}
+async function drawAutoBackup(j){
+  const el = $('#ab-card');
+  if(!el || !SRV.on || SRV.cloud || !isManager()) return;   // web / cloud: Hotel Setu Cloud keeps the backups
+  try{ j = j || await abCall(); }catch(e){ return; }
+  const ago = j.lastAt ? errAgo(j.lastAt) : 'never', old = !j.lastAt || Date.now() - j.lastAt > 26 * 3600e3;
+  const sameDrive = j.dataDrive && String(j.folder || '').toUpperCase().startsWith(j.dataDrive);
+  const others = (j.drives || []).filter(d => d.drive !== j.dataDrive);
+  el.style.display = '';
+  el.innerHTML = `<h3 style="margin-top:0">Auto Backup (another drive / pen drive)</h3>
+    <p style="margin-top:-4px">Last backup: <b class="${old ? 'red' : 'green'}">${ago}</b>${j.lastFile ? ` · <span class="muted">${esc(j.lastFile)}</span>` : ''} · ${j.count || 0} backups in the folder${j.free ? ` · ${fmtSize(j.free)} free` : ''}</p>
+    ${j.lastError ? `<p class="red">Last try failed: ${esc(j.lastError)}. Check the folder (pen drive plugged in?).</p>` : ''}
+    ${sameDrive ? `<p class="red" style="font-size:13px">The backups are on drive ${esc(j.dataDrive)}, the same drive as the data. If this drive fails both are lost — choose another drive or a pen drive.</p>` : ''}
+    <div class="grid">
+      <div style="grid-column:1/-1"><label>Backup folder</label><div style="display:flex;gap:6px;flex-wrap:wrap"><input id="ab_f" value="${esc(j.folder || '')}" style="flex:1;min-width:220px"><button class="btn g" onclick="abPick()">Choose folder…</button></div>
+        ${others.length ? `<div class="btns" style="margin-top:6px">${others.map(d => `<button class="btn g sm" onclick="$('#ab_f').value='${d.drive}\\\\Setu Backups'">${d.drive} (${fmtSize(d.free)} free)</button>`).join('')}</div>` : ''}
+        <p class="muted" style="font-size:12px;margin:4px 0 0">Tip: choose a Google Drive / OneDrive folder on this PC and the backups also go to the internet.</p></div>
+      <div><label>Back up every</label><select id="ab_e">${[1, 2, 4, 6, 12, 24].map(h => `<option value="${h}" ${+j.every === h ? 'selected' : ''}>${h} hour${h > 1 ? 's' : ''}</option>`).join('')}</select></div>
+      <div><label>Keep the newest</label><select id="ab_k">${[15, 30, 60, 120, 365].map(n => `<option ${+j.keep === n ? 'selected' : ''}>${n}</option>`).join('')}</select></div>
+      <div><label>Auto backup</label><select id="ab_on"><option value="1">On</option><option value="0" ${j.on === false ? 'selected' : ''}>Off</option></select></div>
+    </div>
+    <div class="btns"><button class="btn ok" onclick="abSave()">Save</button><button class="btn" onclick="abNow()">Back up now</button></div>
+    ${(j.files || []).length ? `<details style="margin-top:8px"><summary style="cursor:pointer;font-weight:600">Backups in the folder (newest first)</summary>${j.files.map(f => `<div class="m-list"><span>${esc(f.name)} <small class="muted">${fmtSize(f.size)}</small></span><button class="btn g sm" onclick="abRestore(${JSON.stringify(f.name).replace(/"/g, '&quot;')})">Restore</button></div>`).join('')}</details>` : ''}
+    <p class="muted" style="font-size:12px">Setu also backs up when it is closed. Each file is compressed (.json.gz) and has the whole data${j.count ? '' : ''}.</p>`;
+}
+async function abSave(){
+  try{ drawAutoBackup(await abCall({action: 'set', folder: $('#ab_f').value, every: +$('#ab_e').value, keep: +$('#ab_k').value, on: $('#ab_on').value === '1'})); toast('Auto backup saved'); }
+  catch(e){ toast('Could not use this folder: ' + e.message); }
+}
+async function abPick(){
+  try{ drawAutoBackup(await abCall({action: 'pick'})); }catch(e){ toast(e.message); }
+}
+async function abNow(){
+  toast('Backing up…');
+  try{ drawAutoBackup(await abCall({action: 'now'})); toast('Backup done'); }catch(e){ toast('Backup failed: ' + e.message); }
+}
+function abRestore(name){
+  if(!confirm(`Put back the data from ${name}?\n\nEverything entered after that time will be replaced. (The data of now is backed up first.)`)) return;
+  withManager('Restore backup ' + name, async () => {
+    try{ await abCall({action: 'restore', name}); toast('Restored. Reloading…'); setTimeout(() => location.reload(), 1200); }catch(e){ toast('Restore failed: ' + e.message); }
+  });
 }
 async function drawUpdateCard(){
   const el = $('#update-card');

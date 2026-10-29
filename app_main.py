@@ -29,6 +29,7 @@ import email.utils
 import base64
 import copy
 import hashlib
+import atexit
 
 APP_PORT = 8000
 APP_VERSION = 'dev'   # stamped by installer/stamp-version.py when the EXE is built
@@ -365,8 +366,11 @@ class SetuStore:
         self.version, self.saved_at, self.raw = version, saved_at, raw
         if self.on_write:
             self.on_write()
-        # One rolling backup per day (last write of the day wins)
+        # One rolling backup per day (last write of the day wins); at most every 10 minutes so big databases stay fast
         try:
+            if time.time() - getattr(self, '_last_copy', 0) < 600 and os.path.exists(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json')):
+                return
+            self._last_copy = time.time()
             shutil.copy2(self.path, os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json'))
             files = sorted(x for x in os.listdir(self.backup_dir) if x.startswith('setu-') and x.endswith('.json'))
             for old in files[:-KEEP_BACKUPS]:
@@ -1113,6 +1117,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not self.is_local() or not updater:
                     return self.send_json(403, {'error': 'main counter only'})
                 return self.send_json(200, updater.state)
+            if path == '/api/autobackup':
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                return self.send_json(200, store.autobackup.public())
             if path == '/api/log':
                 # Error Log screen: the newest lines of setu-server.log (main counter only)
                 if not self.is_local():
@@ -1249,6 +1257,35 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
                 return self.send_json(200, cloud.public())
+            if path == '/api/autobackup':
+                # Auto backup: change the folder / timing, back up now, pick a folder, restore (manager on the main counter)
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                ab = store.autobackup
+                try:
+                    b = self.read_json()
+                    act = b.get('action')
+                    if act == 'set':
+                        ab.set(b.get('folder'), b.get('every'), b.get('keep'), b.get('on'))
+                    elif act == 'now':
+                        ab.run('by hand')
+                    elif act == 'pick':
+                        if not self.is_local():
+                            return self.send_json(403, {'error': 'choose the folder on the main counter PC'})
+                        try:
+                            import webview
+                            res = webview.windows[0].create_file_dialog(webview.FOLDER_DIALOG, directory=ab.cfg['folder'])
+                        except Exception:
+                            return self.send_json(501, {'error': 'Folder window not available here: type the folder path'})
+                        if res:
+                            ab.set(res[0] if isinstance(res, (list, tuple)) else res)
+                    elif act == 'restore':
+                        ab.restore(b.get('name'))
+                    else:
+                        return self.send_json(400, {'error': 'unknown action'})
+                except (OSError, ValueError) as e:
+                    return self.send_json(400, {'error': str(e)[:200]})
+                return self.send_json(200, ab.public())
             if path == '/api/update':
                 # Check / download / install a new Setu (main counter PC only)
                 if not self.is_local() or not updater:
@@ -1353,6 +1390,140 @@ def port_busy(port):
         return s.connect_ex(('127.0.0.1', port)) == 0
 
 
+class AutoBackup:
+    """Compressed copies of the database (and the archive) into a folder the owner chooses:
+    another drive, a pen drive or a Google Drive / OneDrive folder. Every few hours and when Setu closes."""
+
+    def __init__(self, store):
+        self.store = store
+        self.cfg_path = os.path.join(store.dir, 'setu-autobackup.json')
+        self.cfg = _read_json(self.cfg_path, {}) or {}
+        self.cfg.setdefault('folder', os.path.join(os.path.expanduser('~'), 'Documents', 'Setu Backups'))
+        self.cfg.setdefault('every', 2)      # hours
+        self.cfg.setdefault('keep', 60)      # newest files kept
+        self.cfg.setdefault('on', True)
+        self.lock = threading.Lock()
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def public(self):
+        c = dict(self.cfg)
+        try:
+            files = self.files()
+            c['files'] = [{'name': n, 'size': os.path.getsize(os.path.join(c['folder'], n)), 'at': int(os.path.getmtime(os.path.join(c['folder'], n)) * 1000)} for n in files[:15]]
+            c['count'] = len(files)
+            u = shutil.disk_usage(c['folder'])
+            c['free'] = u.free
+        except OSError:
+            c['files'], c['count'] = [], 0
+        c['drives'] = self.drives()
+        c['dataDrive'] = os.path.splitdrive(os.path.abspath(self.store.dir))[0].upper()
+        return c
+
+    @staticmethod
+    def drives():
+        out = []
+        if os.name == 'nt':
+            import string
+            for L in string.ascii_uppercase:
+                root = L + ':\\'
+                if os.path.exists(root):
+                    try:
+                        u = shutil.disk_usage(root)
+                        out.append({'drive': L + ':', 'free': u.free, 'total': u.total})
+                    except OSError:
+                        pass
+        return out
+
+    def files(self):
+        f = self.cfg['folder']
+        return sorted((x for x in os.listdir(f) if x.startswith('Setu-Backup-') and x.endswith('.json.gz')), reverse=True) if os.path.isdir(f) else []
+
+    def set(self, folder=None, every=None, keep=None, on=None):
+        with self.lock:
+            if folder is not None:
+                folder = os.path.abspath(os.path.expanduser(str(folder).strip()))
+                os.makedirs(folder, exist_ok=True)
+                test = os.path.join(folder, '.setu-write-test')
+                with open(test, 'w') as f:      # fails here if the folder cannot be written (read-only / no pen drive)
+                    f.write('ok')
+                os.remove(test)
+                self.cfg['folder'] = folder
+            if every is not None:
+                self.cfg['every'] = max(1, min(24, int(every)))
+            if keep is not None:
+                self.cfg['keep'] = max(3, min(500, int(keep)))
+            if on is not None:
+                self.cfg['on'] = bool(on)
+            _write_json(self.cfg_path, self.cfg)
+
+    def run(self, why='auto'):
+        """One backup now. Returns the file name; raises when the folder cannot be written."""
+        import gzip
+        with self.lock:
+            folder = self.cfg['folder']
+            os.makedirs(folder, exist_ok=True)
+            hotel = ''
+            try:
+                d = self.store.data() or {}
+                hotel = ''.join(c for c in str((d.get('settings') or {}).get('name') or '') if c.isalnum())[:20]
+            except Exception:
+                pass
+            name = 'Setu-Backup-' + time.strftime('%Y-%m-%d_%H%M') + ('-' + hotel if hotel else '') + '.json.gz'
+            tmp = os.path.join(folder, name + '.tmp')
+            try:
+                with self.store.lock:
+                    raw = self.store.raw
+                    version = self.store.version
+                doc = '{"version": %d, "savedAt": %d, "data": %s}' % (version, int(time.time() * 1000), raw)
+                with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=6) as f:
+                    f.write(doc)
+                os.replace(tmp, os.path.join(folder, name))
+                arch = getattr(self.store, 'archive', None)
+                if arch:
+                    arch.copy_to(os.path.join(folder, 'Setu-Archive.db'))
+                for old in self.files()[self.cfg['keep']:]:
+                    os.remove(os.path.join(folder, old))
+                self.cfg.update({'lastAt': int(time.time() * 1000), 'lastFile': name, 'lastError': '', 'lastWhy': why})
+                _write_json(self.cfg_path, self.cfg)
+                return name
+            except Exception as e:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+                self.cfg.update({'lastError': str(e)[:200], 'lastErrorAt': int(time.time() * 1000)})
+                _write_json(self.cfg_path, self.cfg)
+                self.store.log(f'AUTO BACKUP FAILED to {folder!r}: {e!r}')
+                raise
+
+    def restore(self, name):
+        """Put a backup file back as the database (the current data is backed up first)."""
+        import gzip
+        name = os.path.basename(str(name))
+        if not (name.startswith('Setu-Backup-') and name.endswith('.json.gz')):
+            raise ValueError('not a Setu backup file')
+        with gzip.open(os.path.join(self.cfg['folder'], name), 'rt', encoding='utf-8') as f:
+            doc = json.load(f)
+        data = doc.get('data')
+        if not isinstance(data, dict) or 'settings' not in data:
+            raise ValueError('this backup file is damaged')
+        self.run('before restore')
+        with self.store.lock:
+            self.store.write(data)
+        self.store.log(f'Restored from auto backup {name}')
+
+    def _loop(self):
+        time.sleep(60)
+        while True:
+            try:
+                due = (time.time() * 1000 - self.cfg.get('lastAt', 0)) >= self.cfg['every'] * 3600 * 1000
+                if self.cfg.get('on', True) and due and self.store.version > 0:
+                    self.run('auto')
+            except Exception:
+                pass
+            time.sleep(600)
+
+
 def start_server(base_dir, data_dir, port):
     store = SetuStore(data_dir)
     cloud = CloudSync(store)
@@ -1361,6 +1532,8 @@ def start_server(base_dir, data_dir, port):
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
     updater = Updater(store)
+    store.autobackup = AutoBackup(store)
+    atexit.register(lambda: store.autobackup.run('Setu closed') if store.version > 0 else None)
     httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud, updater))
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, daemon=True)
