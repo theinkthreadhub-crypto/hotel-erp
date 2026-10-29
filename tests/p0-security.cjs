@@ -441,6 +441,23 @@ function evilServer() {
       } finally { await browser.close(); evil.close(); }
     });
 
+    await check('T06c', 'The Setu window picks up its launch secret from #launch= and clears it from the address', async () => {
+      const { chromium } = require('playwright');
+      const browser = await chromium.launch();
+      try {
+        const page = await browser.newPage();
+        const key = launchKey();
+        await page.goto(`${U}/hotel_erp.html#launch=${key}`);
+        await page.waitForTimeout(1500);
+        const got = await page.evaluate(() => ({ k: typeof SRV_LAUNCH === 'string' ? SRV_LAUNCH : null, hash: location.hash }));
+        assert.equal(got.k, key, 'page did not read the launch secret');
+        assert.equal(got.hash, '', 'secret left in the address bar');
+        const r = await page.evaluate(async () => (await srvFetch('/api/log')).status);
+        assert.notEqual(r, 403, 'launch header not sent by srvFetch');
+        return 'secret read, address cleared, srvFetch sends it';
+      } finally { await browser.close(); }
+    });
+
     // ---------- T10 (counter) ----------
     await check('T10a', 'Counter: a token used for another hotel ID is refused', async () => {
       let r = await api(U, '/api/db', { headers: hdr(M, { 'X-Setu-Hotel': 'SYN_B' }) });
