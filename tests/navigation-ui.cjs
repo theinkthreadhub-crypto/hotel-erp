@@ -23,7 +23,7 @@ assert.ok(reports.items.includes('analytics')&&reports.items.includes('reports')
 assert.ok(settings.items.includes('settings')&&settings.items.includes('data')&&settings.items.includes('printers'));
 assert.ok(!reports.items.some(x=>settings.items.includes(x)));
 const dashboard=setuLaunchTiles();
-for(const g of setuNavGroups().filter(x=>x.id!=='tools'))assert.ok(dashboard.includes(g.title),'Missing '+g.title);
+for(const g of setuNavGroups().filter(x=>x.id!=='tools'))assert.ok(dashboard.includes(g.title.replace(/&/g,'&amp;')),'Missing '+g.title);
 assert.deepEqual(build({manager:false,allowed:['bill','bills','kitchen']}).setuNavGroups().flatMap(g=>g.items).sort(),
   ['bill','bills','kitchen'].sort());
 assert.ok(build({access:'captain'}).setuNavGroups().flatMap(g=>g.items).every(x=>['captain','kitchen','tokens'].includes(x)));
