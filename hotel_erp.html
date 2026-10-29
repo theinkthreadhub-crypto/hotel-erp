@@ -1205,8 +1205,9 @@ function load(){
           registeredAt: ''
         };
       }
-      if(!s.settings.adminPin) s.settings.adminPin = '1234';
-      if(!s.settings.cashierPin) s.settings.cashierPin = '1111';
+      // Once the server keeps the PINs (hashed, never sent back) the flags say they exist: never re-add a default
+      if(!s.settings.adminPin && !s.settings.adminPinSet && !s.secure) s.settings.adminPin = '1234';
+      if(!s.settings.cashierPin && !s.settings.cashierPinSet && !s.secure) s.settings.cashierPin = '1111';
       if(!s.settings.tables || !s.settings.tables.length){
         s.settings.tables = ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8', 'Parcel'];
       }
@@ -1302,16 +1303,29 @@ function save(){
     }
     mirrorToIndexedDB(D);
   }
-  updateOnlinePills();
-  updateSubscriptionUI();
-  updateWaHeader();
-  drawSide();
+  // The first save() runs while the page is still loading, before these screens' code exists
+  try{
+    updateOnlinePills();
+    updateSubscriptionUI();
+    updateWaHeader();
+    drawSide();
+  }catch(e){ if(!(e instanceof ReferenceError)) throw e; }
 }
 
 /* ================= LAN SERVER SYNC (main counter PC + phones / tablets) ================= */
 // When Setu is served by app_main.py the database lives in one file on the main PC.
 // Every device keeps a copy in D, pushes its edits with the version it started from,
 // and on a version clash merges (base, mine, theirs) record by record.
+// The counter PC's own window gets a secret for this launch in #launch=… (other websites cannot know it)
+const SRV_LAUNCH = (() => {
+  let k = '';
+  try{
+    const m = /[#&]launch=([0-9a-f]{32,128})/.exec(location.hash || '');
+    if(m){ k = m[1]; sessionStorage.setItem('setu-launch', k); history.replaceState(null, '', location.pathname + location.search); }
+    else k = sessionStorage.getItem('setu-launch') || '';
+  }catch(e){}
+  return k;
+})();
 const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', hotelName: '', hostLocked: false, readOnly: false, blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
 const TOKEN_KEY = 'setu_device_token';
 const HOTEL_KEY = 'setu_hotel_code';
@@ -1384,13 +1398,17 @@ async function errSyncFlush(){
   }catch(e){}
 }
 setInterval(errSyncFlush, 60000);
-window.addEventListener('error', e => logError(e.message, `${(e.filename || '').split('/').pop()}:${e.lineno || ''} · screen: ${typeof cur !== 'undefined' ? cur : ''}`, e.error && e.error.stack));
-window.addEventListener('unhandledrejection', e => { const r = e.reason || {}; logError(r.message || String(r), `screen: ${typeof cur !== 'undefined' ? cur : ''}`, r.stack || ''); });
+// `cur` is declared further down: reading it earlier throws, so ask safely
+const curScreen = () => { try{ return cur; }catch(e){ return ''; } };
+window.addEventListener('error', e => logError(e.message, `${(e.filename || '').split('/').pop()}:${e.lineno || ''} · screen: ${curScreen()}`, e.error && e.error.stack));
+window.addEventListener('unhandledrejection', e => { const r = e.reason || {}; logError(r.message || String(r), `screen: ${curScreen()}`, r.stack || ''); });
 
 function srvFetch(path, opts = {}){
   const headers = {'Content-Type': 'application/json', ...(opts.headers || {})};
   if(SRV.token) headers['X-Setu-Token'] = SRV.token;
   if(SRV.hotel) headers['X-Setu-Hotel'] = SRV.hotel;
+  if(SRV_LAUNCH) headers['X-Setu-Launch'] = SRV_LAUNCH;
+  if(SRV.elev && SRV.elev.exp > Date.now()) headers['X-Setu-Elev'] = SRV.elev.id;
   return fetch(path, {...opts, headers, cache: 'no-store'});
 }
 
@@ -1548,8 +1566,10 @@ async function srvPush(){
   try{
     for(let attempt = 0; attempt < 6 && SRV.dirty; attempt++){
       const edits = SRV.edits, snapshot = JSON.stringify(D), force = SRV.forceNext;
+      const usedElev = SRV.elev && SRV.elev.exp > Date.now() ? SRV.elev.id : '';
       const r = await srvFetch('/api/db', {method: 'POST', body: `{"baseVersion":${SRV.version},"force":${force},"data":${snapshot}}`});
       if(r.ok){
+        if(usedElev && SRV.elev && SRV.elev.id === usedElev) SRV.elev = null;   // the server used up the approval
         const j = await r.json();
         SRV.version = j.version;
         SRV.base = JSON.parse(snapshot);
@@ -3267,10 +3287,9 @@ function promptWaResend(billId){
   setTimeout(() => $('#wa_resend_pin')?.focus(), 100);
 }
 
-function executeAuthorizedResend(billId){
+async function executeAuthorizedResend(billId){
   const pin = ($('#wa_resend_pin')?.value || '').trim();
-  const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password);
-  const isMgr = (activeUser && activeUser.role === 'admin') || (pin && (pin === validAdminPin || (staffByPin(pin)?.access === 'manager')));
+  const isMgr = (activeUser && activeUser.role === 'admin') || !!(await managerCheck(pin));
   if(!isMgr){
     const err = $('#wa_resend_err');
     if(err){ err.textContent = 'Incorrect Manager PIN. Authorization denied.'; err.style.display = 'block'; }
@@ -3546,7 +3565,23 @@ function walletBal(phone){
 const isManager = () => !!activeUser && activeUser.role === 'admin';
 const staffByPin = pin => pin ? (D.staff || []).find(x => !x.left && x.access && String(x.pin) === String(pin)) : null;
 
-// Returns the approver's name for a valid manager / owner PIN, else ''
+// Manager approval: on a server the PIN is checked there (the device never holds PINs) and a
+// 90-second grant lets the next save do the manager-only change. Returns the approver's name, else ''.
+async function managerCheck(pin){
+  pin = String(pin || '');
+  if(!pin) return '';
+  if(!SRV.on) return managerByPin(pin);
+  try{
+    const r = await srvFetch('/api/auth/verify', {method: 'POST', body: JSON.stringify({pin})});
+    const j = await r.json().catch(() => ({}));
+    if(r.status === 429) toast(j.error || 'Too many wrong PINs. Please wait.');
+    if(!r.ok || !j.ok) return '';
+    SRV.elev = {id: j.elev, exp: Date.now() + ((+j.expiresIn || 90) - 5) * 1000};
+    return j.name || 'Manager';
+  }catch(e){ toast('Server not reachable — manager approval needs the server'); return ''; }
+}
+
+// Returns the approver's name for a valid manager / owner PIN, else '' (offline / single-PC mode only)
 function managerByPin(pin){
   pin = String(pin || '');
   if(!pin) return '';
@@ -3565,9 +3600,9 @@ function withManager(label, fn){
       <div id="mgr_err" class="red" style="font-size:12px;margin-top:6px;display:none">Incorrect Manager PIN</div>
       <div class="btns"><button class="btn ok" type="submit">Approve</button><button class="btn g" type="button" onclick="closeModal()">Cancel</button></div>
     </form>`);
-  $('#mgr-form').onsubmit = ev => {
+  $('#mgr-form').onsubmit = async ev => {
     ev.preventDefault();
-    const by = managerByPin($('#mgr_pin').value.trim());
+    const by = await managerCheck($('#mgr_pin').value.trim());
     if(!by){
       $('#mgr_err').style.display = 'block';
       audit('Wrong Manager PIN', label);
@@ -8386,7 +8421,7 @@ async function saveFile(name, text, type, msg){
   }
   if(SRV.on && /^(127\.0\.0\.1|localhost)$/.test(location.hostname)){
     try{
-      const r = await fetch('/api/save-file', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(bin ? {name, b64: bytesB64(text)} : {name, text})});
+      const r = await srvFetch('/api/save-file', {method: 'POST', body: JSON.stringify(bin ? {name, b64: bytesB64(text)} : {name, text})});
       const j = await r.json().catch(() => ({}));
       if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
       toast((msg ? msg + ' ' : '') + 'Saved: ' + j.path);
@@ -9006,7 +9041,7 @@ function editStaff(id){
       <div><label>Software Access</label><select id="sf_access">
         ${[['','None (payroll only)'],['captain','Captain (order taking)'],['cashier','Cashier (billing)'],['manager','Manager (full access + approvals)']].map(([v,l]) => `<option value="${v}" ${(s.access||'')===v?'selected':''}>${l}</option>`).join('')}
       </select></div>
-      <div><label>Login PIN (4-6 digit)</label><input id="sf_pin" type="password" inputmode="numeric" value="${esc(s.pin || '')}" autocomplete="new-password"></div>
+      <div><label>Login PIN (4-6 digit)</label><input id="sf_pin" type="password" inputmode="numeric" value="${esc(s.pin || '')}" placeholder="${s.hasPin ? 'Saved — leave blank to keep' : ''}" autocomplete="new-password"></div>
     </div>
     <div style="margin-top:10px"><label>Allowed screens (optional — tick to limit this person; none ticked = normal access for the role)</label>
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px;margin-top:4px">
@@ -9034,12 +9069,14 @@ function saveStaff(id){
   if(!name){ toast('Please enter a name'); return; }
   if(!(+$('#sf_sal').value > 0)){ toast('Please enter the monthly salary (used for every month)'); $('#sf_sal').focus(); return; }
   const pin = $('#sf_pin').value.trim(), access = $('#sf_access').value;
-  if(access && !/^\d{4,6}$/.test(pin)){ toast('Software access requires a 4-6 digit PIN'); return; }
+  const prevS = id && D.staff.find(x => x.id === id), keepPin = !pin && prevS && prevS.hasPin;
+  if(access && !keepPin && !/^\d{4,6}$/.test(pin)){ toast('Software access requires a 4-6 digit PIN'); return; }
   if(pin && (pin === String(D.settings.adminPin) || pin === String(D.settings.cashierPin) || D.staff.some(x => x.id !== id && x.pin === pin))){
     toast('This PIN is already in use. Please choose another.'); return;
   }
   const perms = access && access !== 'manager' ? [...document.querySelectorAll('.sf_perm:checked')].map(x => x.value) : [];
-  const v = {name, role: $('#sf_role').value.trim(), phone: $('#sf_phone').value.trim(), salary: +$('#sf_sal').value || 0, pin: access ? pin : '', access, perms};
+  const v = {name, role: $('#sf_role').value.trim(), phone: $('#sf_phone').value.trim(), salary: +$('#sf_sal').value || 0, access, perms};
+  if(!keepPin) v.pin = access ? pin : '';
   const prev = id && D.staff.find(x => x.id === id);
   if(!prev || (prev.access || '') !== access) audit('Staff Access Change', `${name}: ${(prev && prev.access) || 'none'} → ${access || 'none'}`);
   if(id) Object.assign(D.staff.find(x => x.id === id), v);
@@ -12378,7 +12415,7 @@ function doctorChecks(){
   // ---- Security ----
   const weak = ['1234', '1111', '0000', '12345', '123456'];
   const staffPins = D.staff.filter(s => s.pin && !s.left).map(s => s.pin), dupPin = staffPins.filter((p, i) => staffPins.indexOf(p) !== i);
-  const weakList = [weak.includes(String(st.adminPin)) ? 'Manager PIN' : '', weak.includes(String(st.cashierPin)) ? 'Cashier PIN' : '', dupPin.length ? 'two staff share a PIN' : ''].filter(Boolean);
+  const weakList = [weak.includes(String(st.adminPin)) || st.adminPinWeak ? 'Manager PIN' : '', weak.includes(String(st.cashierPin)) || st.cashierPinWeak ? 'Cashier PIN' : '', st.credRotate ? 'PINs must be changed after the security update' : '', dupPin.length ? 'two staff share a PIN' : ''].filter(Boolean);
   add('Security', 'PIN', weakList.length ? 'warn' : 'ok', weakList.length ? `${weakList.join(', ')} is simple or shared. Anyone could guess it. Change it in Settings (G) / Staff (A).` : 'PINs are fine.', weakList.length ? ['Open Settings', "go('settings')"] : null);
   // ---- GST ----
   const gstOk = gstinCheck(st.gstin).ok;
@@ -12859,8 +12896,8 @@ function scrSettings(){
   <div class="card">
     <h3 style="margin-top:0">Operator Security PIN Settings</h3>
     <div class="grid">
-      ${f('adminPin', 'Manager / Admin Security PIN', 'password')}
-      ${f('cashierPin', 'Billing Staff / Cashier PIN', 'password')}
+      ${f('adminPin', 'Manager / Admin Security PIN', 'password').replace('<input ', `<input placeholder="${s.adminPinSet ? 'Saved — type a new one to change' : ''}" autocomplete="new-password" `)}
+      ${f('cashierPin', 'Billing Staff / Cashier PIN', 'password').replace('<input ', `<input placeholder="${s.cashierPinSet ? 'Saved — type a new one to change' : ''}" autocomplete="new-password" `)}
     </div>
     <div class="btns">
       <button class="btn ok" onclick="saveSettings()">Save Settings, PIN & Online Config</button>
@@ -13050,9 +13087,9 @@ const ownerAppText = (link, code) => `Setu owner app\n\nOpen in Chrome: ${link}\
 
 // Same rule as Setu Cloud: guessable passwords are refused on the internet
 const WEAK_PASS = ['1234', '1111', '0000', '4321', '9999', '123456', '111111', '000000', 'demo', 'admin', 'password'];
-function changeOwnerPass(){
+async function changeOwnerPass(){
   const cur = $('#op_cur').value, nw = $('#op_new').value.trim(), cf = $('#op_cf').value.trim();
-  if(cur !== String((D.auth || {}).password || '') && cur !== String(D.settings.adminPin || '')) return toast('Current password is wrong');
+  if(SRV.on ? !(await managerCheck(cur)) : (cur !== String((D.auth || {}).password || '') && cur !== String(D.settings.adminPin || ''))) return toast('Current password is wrong');
   if(nw.length < 6) return toast('New password: at least 6 characters');
   if(WEAK_PASS.includes(nw.toLowerCase()) || /^(.)\1+$/.test(nw)) return toast('Too simple — please choose a harder password');
   if(nw !== cf) return toast('The new passwords do not match');
@@ -13226,7 +13263,8 @@ function updateWaHeader(){
   const chip = $('#top-wa-credit-chip');
   if(!btn || !chip) return;
 
-  const isConnected = (WA && WA.state === 'open');
+  let isConnected = false;
+  try{ isConnected = WA.state === 'open'; }catch(e){ return; }   // called by save() before the WhatsApp section has loaded
   const credits = getWaCredits();
 
   // 1. Connection Button (Green Connected vs Bold Red Circle Cut / Slash)
@@ -13736,7 +13774,9 @@ async function runWaCleanup(){
 }
 
 function saveSettings(){
-  ['name','address','phone','gstin','sac','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa','waWebhookSecret'].forEach(k => {
+  // A PIN box left blank keeps the saved PIN (the server never sends PINs back)
+  ['adminPin', 'cashierPin'].forEach(k => { const el = $('#st_' + k); if(el && el.value.trim()) D.settings[k] = el.value.trim(); });
+  ['name','address','phone','gstin','sac','owner','footer','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa','waWebhookSecret'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = $('#st_'+k).value.trim();
   });
   ['ptsPer100','ptValue','minRedeem','kotLate','maxDiscPct'].forEach(k => {

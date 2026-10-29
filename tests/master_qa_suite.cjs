@@ -57,6 +57,7 @@ async function api(port, path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
     ...(defaultTokens[port] ? { 'X-Setu-Token': defaultTokens[port] } : {}),
+    'X-Setu-Launch': launchKey(port),
     ...(options.headers || {})
   };
   const res = await fetch(url, {
@@ -79,8 +80,13 @@ async function saveDb(port, mutateFn) {
   return { ok: res.ok, status: res.status, version: res.body?.version, data: cur.data, body: res.body };
 }
 
+// The test plays each counter PC's own Setu window: it sends that server's per-launch secret
+const dataDirs = {};
+const launchKey = port => { try { return fs.readFileSync(path.join(dataDirs[port], 'setu-launch.key'), 'utf8').trim(); } catch (e) { return ''; } };
+
 function startServer(port, dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
+  dataDirs[port] = dataDir;
   const py = process.platform === 'win32' ? 'python' : 'python3';
   const child = spawn(py, [
     path.join(BASE_DIR, 'app_main.py'),

@@ -18,7 +18,9 @@ const fake = http.createServer((req, res) => { let b = ''; req.on('data', c => b
   await new Promise(r => fake.listen(FAKE, '127.0.0.1', r));
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'setu-wa-'));
   const srv = spawn(process.env.PYTHON || 'python3', [path.join(__dirname, '..', 'app_main.py'), '--server', '--port', String(PORT), '--data', tmp], { stdio: 'ignore', env: { ...process.env, SETU_WA_URL: `http://127.0.0.1:${FAKE}` } });
-  const call = async (pa, body, hdr = {}) => { const r = await fetch(S + pa, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', ...hdr }, body: JSON.stringify(body) } : { headers: hdr }); return [r.status, await r.json().catch(() => ({}))]; };
+  // The test plays the counter PC's own Setu window (per-launch secret); the LAN checks below send none
+  const launch = () => { try{ return fs.readFileSync(path.join(tmp, 'setu-launch.key'), 'utf8').trim(); }catch(e){ return ''; } };
+  const call = async (pa, body, hdr = {}) => { hdr = { 'X-Setu-Launch': launch(), ...hdr }; const r = await fetch(S + pa, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', ...hdr }, body: JSON.stringify(body) } : { headers: hdr }); return [r.status, await r.json().catch(() => ({}))]; };
   const b = await chromium.launch(process.env.CHROMIUM ? { executablePath: process.env.CHROMIUM } : {});
   try{
     for(let i = 0; i < 50; i++){ try{ if((await fetch(S + '/api/ping')).ok) break; }catch(e){} await new Promise(r => setTimeout(r, 200)); }
@@ -39,7 +41,7 @@ const fake = http.createServer((req, res) => { let b = ''; req.on('data', c => b
     // The Setu page (cloud test hotel) with its /api/wa/* calls sent to this counter PC server
     const p = await (await b.newContext({ viewport: { width: 1280, height: 900 } })).newPage();
     const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
-    await p.route('**/api/wa/**', async route => { const rq = route.request(), u = new globalThis.URL(rq.url()); const r = await fetch(S + u.pathname, { method: rq.method(), headers: { 'Content-Type': 'application/json' }, body: rq.method() === 'POST' ? rq.postData() : undefined }); route.fulfill({ status: r.status, contentType: 'application/json', body: await r.text() }); });
+    await p.route('**/api/wa/**', async route => { const rq = route.request(), u = new globalThis.URL(rq.url()); const r = await fetch(S + u.pathname, { method: rq.method(), headers: { 'Content-Type': 'application/json', 'X-Setu-Launch': launch() }, body: rq.method() === 'POST' ? rq.postData() : undefined }); route.fulfill({ status: r.status, contentType: 'application/json', body: await r.text() }); });
     await p.goto(URL + '/hotel_erp.html'); await p.waitForTimeout(2000);
     await p.fill('#connect_hotel', HOTEL); await p.fill('#connect_pin', PIN); await p.click('#connect-form button'); await p.waitForTimeout(3500);
     const r = await p.evaluate(async () => {

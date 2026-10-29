@@ -31,6 +31,7 @@ import base64
 import copy
 import hashlib
 import atexit
+import setu_security as SEC
 import re
 
 APP_PORT = 8000
@@ -285,7 +286,72 @@ class SetuStore:
                 self.tokens = json.load(f)
         except Exception:
             pass
+        self.elev = {}              # manager approvals: grant id -> {token, exp, by}
+        self.fails = {}             # PIN guessing: ip -> [wrong tries, first try time, tries being checked]
+        self._guard_lock = threading.Lock()
+        self._pub = (None, 'null')
         self._load()
+        self._migrate_credentials()
+
+    def public_raw(self):
+        """JSON of the data without credentials (what every device gets); cached per saved version."""
+        if self._pub[0] is not self.raw:
+            try:
+                self._pub = (self.raw, json.dumps(SEC.public_view(json.loads(self.raw)), ensure_ascii=False))
+            except Exception:
+                self._pub = (self.raw, 'null')
+        return self._pub[1]
+
+    def _migrate_credentials(self):
+        """Plain PINs / owner password from older versions become salted hashes (once). The file as it was
+        is kept in Backups\\ first, so the old program can be put back (see docs/P0-SECURITY.md)."""
+        try:
+            d = json.loads(self.raw)
+        except Exception:
+            return
+        if not isinstance(d, dict) or not SEC.migrate_plaintext(d):
+            return
+        try:
+            if os.path.exists(self.path):
+                # Not named setu-*.json: the daily backup rotation must never delete it
+                os.makedirs(self.backup_dir, exist_ok=True)
+                shutil.copy2(self.path, os.path.join(self.backup_dir, 'before-credential-migration-' + time.strftime('%Y%m%d-%H%M%S') + '.json'))
+            with self.lock:
+                self.write(d)
+            self.log('Credentials moved to salted hashes (plain PINs removed from the data)')
+        except Exception as e:
+            self.log(f'CREDENTIAL MIGRATION FAILED: {e!r}')
+
+    def pin_guard(self, ip, ok=None):
+        """5 wrong PINs from one address lock it for 5 minutes. Returns seconds left of a lock (0 = free).
+        A check reserves a try at once, so many guesses sent at the same moment cannot get past the limit."""
+        with self._guard_lock:
+            now = time.time()
+            n, first, busy = self.fails.get(ip, [0, now, 0])
+            if now - first > 300:
+                n, first = 0, now
+            if ok is True:
+                self.fails.pop(ip, None)
+                return 0
+            if ok is False:
+                self.fails[ip] = [n + 1, first, max(0, busy - 1)]
+                return 0
+            if n + busy >= 5:
+                return max(1, int(300 - (now - first)))
+            self.fails[ip] = [n, first, busy + 1]
+            return 0
+
+    def hotel_id(self):
+        """This counter's own hotel ID (tokens belong to it, never to an ID the device names)."""
+        c = getattr(self, '_hid', (None, 'default'))
+        if c[0] is not self.raw:
+            try:
+                d = self.data() or {}
+            except Exception:
+                d = {}
+            c = (self.raw, str((d.get('settings') or {}).get('hotelId') or (d.get('auth') or {}).get('hotelId') or 'default').strip())
+            self._hid = c
+        return c[1]
 
     def add_token(self, role, hotel_id='default', name='Staff', expires_in_days=30):
         token = secrets.token_hex(16)
@@ -394,31 +460,12 @@ class SetuStore:
             d = self.data() or {}
         except Exception:
             return None
-        st = d.get('settings') or {}
-        auth = d.get('auth') or {}
-        pin = str(pin or '')
-        if not pin:
-            return None
-        if pin in (str(st.get('adminPin') or ''), str(auth.get('password') or '')):
-            return 'admin', auth.get('ownerName') or 'Manager'
-        for s in d.get('staff') or []:
-            access = s.get('access') or s.get('role')
-            if not s.get('left') and access and str(s.get('pin') or '') == pin:
-                return {'manager': 'admin'}.get(access, access), s.get('name') or 'Staff'
-        if pin == str(st.get('cashierPin') or ''):
-            return 'cashier', 'Cashier'
-        return None
+        return SEC.check_pin(d, pin)
 
     def has_users_or_pins(self):
         """Returns True if any user, staff member, or PIN is configured in the database."""
         try:
-            d = self.data() or {}
-            st = d.get('settings') or {}
-            auth = d.get('auth') or {}
-            staff = d.get('staff') or []
-            if st.get('adminPin') or st.get('cashierPin') or auth.get('password') or staff:
-                return True
-            return False
+            return SEC.has_credentials(self.data() or {})
         except Exception:
             return False
 
@@ -1495,7 +1542,7 @@ class CloudSync:
             (url or self.cfg['url']) + path,
             data=body.encode('utf-8') if body is not None else None,
             method=method,
-            headers={'X-Setu-Sync': key or self.cfg['key'], 'X-Setu-Hotel': hotel or self.cfg['hotel'],
+            headers={'X-Setu-Sync': key or self.cfg['key'], 'X-Setu-Hotel': hotel or self.cfg['hotel'], 'X-Setu-Caps': 'secure1',
                      'Content-Type': 'application/json',
                      'User-Agent': 'Setu-Main-Counter/1.0'})
         try:
@@ -1757,6 +1804,37 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
         def is_local(self):
             return self.client_address[0] in ('127.0.0.1', '::1', '::ffff:127.0.0.1')
 
+        def launch_ok(self):
+            # Per-launch secret: only the Setu window started on this PC knows it (never a web page)
+            got = self.headers.get('X-Setu-Launch', '')
+            return bool(got) and bool(getattr(store, 'launch', '')) and secrets.compare_digest(got, store.launch)
+
+        def counter_ok(self):
+            """Main-counter-only actions: this PC's own Setu window, not any program or web page on it."""
+            return self.is_local() and self.launch_ok()
+
+        def elevated(self):
+            # A manager typed their PIN on this device for one action (POST /api/auth/verify): valid 90 seconds
+            gid = self.headers.get('X-Setu-Elev', '')
+            g = store.elev.get(gid) if gid else None
+            if not g or g['exp'] < time.time():
+                return False
+            return g['token'] == (self.headers.get('X-Setu-Token', '') or ('launch' if self.launch_ok() else ''))
+
+        def request_refused(self, post):
+            """Host / Origin / Content-Type checks for every /api/ request (CSRF and DNS rebinding)."""
+            host = self.headers.get('Host', '')
+            if not SEC.host_allowed(host):
+                return 421, 'This address is not allowed. Open Setu by its IP address or localhost.'
+            if not SEC.origin_allowed(self.headers.get('Origin'), host):
+                return 403, 'Requests from another website are not allowed.'
+            path = self.path.split('?')[0]
+            if post and path not in ('/api/integrations/whatsapp/webhook', '/api/wa/callback'):
+                ctype = (self.headers.get('Content-Type') or '').split(';')[0].strip().lower()
+                if ctype != 'application/json':
+                    return 415, 'Send JSON (Content-Type: application/json).'
+            return None
+
         def role(self):
             token = self.headers.get('X-Setu-Token', '')
             if token:
@@ -1771,14 +1849,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     tok_hotel = str(tok.get('hotelId') or '').strip()
                     if req_hotel and tok_hotel and tok_hotel not in ('default', 'all') and req_hotel != tok_hotel:
                         return None  # cross-hotel token rejected
+                    own = store.hotel_id()
+                    if req_hotel and own != 'default' and req_hotel != own:
+                        return None  # this counter serves one hotel only
                     return tok.get('role', '').lower()
                 elif isinstance(tok, str):
                     return tok.lower()
 
             # Constrained bootstrap fallback:
-            # Tokenless local access is allowed ONLY during bootstrap/setup (when database has no PINs or users configured).
+            # Tokenless local access is allowed ONLY during bootstrap/setup (when database has no PINs or users configured),
+            # and only for this PC's own Setu window (per-launch secret), never for a web page open on this PC.
             # Once any PIN or user exists, localhost requests MUST require authentication.
-            if not store.has_users_or_pins() and self.is_local():
+            if not store.has_users_or_pins() and self.counter_ok():
                 req_role = (self.headers.get('X-User-Role') or '').strip().lower()
                 return req_role if req_role else 'local'
             return None
@@ -1843,7 +1925,17 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         'createdAt': time.strftime('%I:%M %p'), 'note': 'QR Order'
                     })
                     k['qr'] = list(set(k.get('qr', []) + [b.get('id', str(int(time.time())))]))
+                    menu = {str(m.get('id')): m for m in (d.get('menu') or []) if isinstance(m, dict)}
                     for it in items:
+                        # Price and name come from the menu, never from the guest's phone
+                        m = menu.get(str(it.get('mid')))
+                        if not m or m.get('out') or m.get('qrOff'):
+                            continue
+                        try:
+                            q = max(1, min(50, int(float(it.get('qty', 1)))))
+                        except (TypeError, ValueError):
+                            q = 1
+                        it = {**it, 'name': m.get('name'), 'price': m.get('price', 0), 'qty': q}
                         c = next((x for x in k['cart'] if x.get('mid') == it.get('mid')), None)
                         if c:
                             c['qty'] = round(float(c.get('qty', 0)) + float(it.get('qty', 1)), 2)
@@ -1854,7 +1946,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                                 'price': float(it.get('price', 0)),
                                 'qty': float(it.get('qty', 1))
                             })
-                    store.save(d)
+                    store.write(d)
                 return self.send_json(200, {'id': b.get('id', 'g1'), 'status': 'accepted'})
             if path == '/api/guest/call':
                 return self.send_json(200, {'id': 'c1'})
@@ -1870,8 +1962,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             self.wfile.write(body)
 
         def send_db(self):
-            # Data is already JSON text; avoid a parse/serialize round-trip on big databases
-            body = ('{"version": %d, "savedAt": %d, "data": %s}' % (store.version, store.saved_at, store.raw)).encode('utf-8')
+            # Never the credentials: devices get the public view (cached per version)
+            body = ('{"version": %d, "savedAt": %d, "data": %s}' % (store.version, store.saved_at, store.public_raw())).encode('utf-8')
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Cache-Control', 'no-store')
@@ -1892,15 +1984,29 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             super().end_headers()
 
         # ---------- routes ----------
+        def static_allowed(self, path):
+            # Only the app's own files: never app_main.py, keygen.py, keys, .dev.vars or test data next to it
+            return path in PUBLIC_FILES
+
+        def do_HEAD(self):
+            if not self.static_allowed(self.path.split('?')[0]):
+                return self.send_error(404)
+            return super().do_HEAD()
+
         def do_GET(self):
             path = self.path.split('?')[0]
             if not path.startswith('/api/'):
+                if not self.static_allowed(path):
+                    return self.send_error(404)
                 return super().do_GET()
+            bad = self.request_refused(False)
+            if bad:
+                return self.send_json(bad[0], {'error': bad[1]})
             if path == '/api/ping':
                 return self.send_json(200, {'setu': True, 'version': store.version, 'local': self.is_local(),
                                             'grace': cloud.grace() if cloud else None})
             if path == '/api/cloud':
-                if not self.is_local():
+                if not self.counter_ok():
                     return self.send_json(403, {'error': 'main counter only'})
                 return self.send_json(200, cloud.public() if cloud else {'configured': False})
             if path == '/api/info':
@@ -1918,7 +2024,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     'active': bool(auth.get('isRegistered') or store.version > 0)
                 })
             if path == '/api/update':
-                if not self.is_local() or not updater:
+                if not self.counter_ok() or not updater:
                     return self.send_json(403, {'error': 'main counter only'})
                 return self.send_json(200, updater.state)
             if path == '/api/autobackup':
@@ -1995,7 +2101,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(200, st)
             if path == '/api/log':
                 # Error Log screen: the newest lines of setu-server.log (main counter only)
-                if not self.is_local():
+                if not self.counter_ok():
                     return self.send_json(403, {'error': 'main counter only'})
                 try:
                     with open(os.path.join(store.dir, 'setu-server.log'), 'r', encoding='utf-8', errors='replace') as f:
@@ -2065,6 +2171,34 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
 
         def do_POST(self):
             path = self.path.split('?')[0]
+            bad = self.request_refused(True)
+            if bad:
+                return self.send_json(bad[0], {'error': bad[1]})
+            if path == '/api/auth/verify':
+                # Manager approval on a staff device: check a manager / owner PIN on the server, never on the device
+                tok = self.headers.get('X-Setu-Token', '')
+                if not self.role():
+                    return self.send_json(401, {'error': 'pin required'})
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many wrong PINs. Try again in {wait // 60 + 1} minutes.'})
+                try:
+                    pin = self.read_json().get('pin')
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                found = store.check_pin(pin)
+                if not found or found[0] != 'admin':
+                    store.pin_guard(ip, False)
+                    time.sleep(1)
+                    return self.send_json(403, {'ok': False, 'error': 'wrong pin'})
+                store.pin_guard(ip, True)
+                gid = secrets.token_hex(16)
+                now = time.time()
+                for k in [k for k, g in store.elev.items() if g['exp'] < now]:
+                    del store.elev[k]
+                store.elev[gid] = {'token': tok or ('launch' if self.launch_ok() else ''), 'exp': now + 90, 'by': found[1]}
+                return self.send_json(200, {'ok': True, 'name': found[1], 'elev': gid, 'expiresIn': 90})
             if path == '/api/hotel/auth':
                 try:
                     b = self.read_json()
@@ -2077,9 +2211,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 st = d.get('settings') or {}
                 auth = d.get('auth') or {}
                 expected_hid = str(st.get('hotelId') or auth.get('hotelId') or 'SETU001').strip()
-                expected_pw = str(auth.get('password') or st.get('adminPin') or '').strip()
+                has_pw = bool((d.get('secure') or {}).get('owner') or (d.get('secure') or {}).get('admin') or auth.get('password') or st.get('adminPin'))
 
-                if store.version == 0 and not expected_pw:
+                if store.version == 0 and not has_pw:
                     return self.send_json(200, {
                         'ok': True,
                         'bootstrap': True,
@@ -2091,9 +2225,15 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not h_id or (h_id.upper() != expected_hid.upper() and h_id.upper() != 'SETU001' and h_id != expected_hid):
                     return self.send_json(404, {'error': 'Hotel ID not found', 'code': 'HOTEL_NOT_FOUND'})
 
-                if not password or (password != expected_pw and password != st.get('adminPin')):
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many wrong tries. Try again in {wait // 60 + 1} minutes.'})
+                if not password or not SEC.check_master(d, password):
+                    store.pin_guard(ip, False)
                     time.sleep(1)
                     return self.send_json(403, {'error': 'Invalid Hotel Password', 'code': 'INVALID_PASSWORD'})
+                store.pin_guard(ip, True)
 
                 paid_until = int(d.get('paidUntil') or auth.get('paidUntil') or 0)
                 if paid_until and paid_until < int(time.time() * 1000):
@@ -2118,11 +2258,21 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     h_id = b.get('hotelId') or self.headers.get('X-Hotel-ID') or self.headers.get('X-Setu-Hotel') or 'default'
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many wrong PINs. Try again in {wait // 60 + 1} minutes.'})
                 found = store.check_pin(pin)
                 if not found:
+                    store.pin_guard(ip, False)
                     time.sleep(1)   # slow down PIN guessing
                     return self.send_json(403, {'error': 'wrong pin'})
+                own = store.hotel_id()
+                if own != 'default' and str(h_id).strip() not in ('default', own):
+                    return self.send_json(403, {'error': 'This PIN is for another hotel'})
+                store.pin_guard(ip, True)
                 role, name = found
+                h_id = own if own != 'default' else h_id
                 token = store.add_token(role, hotel_id=h_id, name=name)
                 return self.send_json(200, {'token': token, 'role': role, 'name': name, 'hotelId': h_id})
             if path.startswith('/api/guest/'):
@@ -2170,7 +2320,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(code, j)
             if path == '/api/save-file':
                 # The desktop window blocks downloads: backups / CSV / Tally files go to Downloads\Setu
-                if not self.is_local():
+                if not self.counter_ok():
                     return self.send_json(403, {'error': 'main counter only'})
                 try:
                     body = self.read_json()
@@ -2181,7 +2331,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(500, {'error': str(e)})
                 return self.send_json(200, {'path': saved})
             if path in ('/api/cloud/restore', '/api/cloud/join'):
-                if not self.is_local() or not cloud:
+                if not self.counter_ok() or not cloud:
                     return self.send_json(403, {'error': 'main counter only'})
                 try:
                     body = self.read_json()
@@ -2199,7 +2349,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(200, cloud.public())
             if path == '/api/cloud':
                 # Cloud URL + sync key are set only from the main counter PC itself
-                if not self.is_local() or not cloud:
+                if not self.counter_ok() or not cloud:
                     return self.send_json(403, {'error': 'main counter only'})
                 try:
                     body = self.read_json()
@@ -2328,7 +2478,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                                 'by': role
                             })
                             st_dict['waRecharges'] = recharges[:50]
-                            store.set_data(d)
+                            store.write(d)
                         return self.send_json(200, {'ok': True, 'credits': new_c, 'amount': amt})
                     if path == '/api/wa/send':
                         with store.lock:
@@ -2423,7 +2573,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                                     prev_c = int(st_set.get('waCredits', 500))
                                     st_set['waCredits'] = max(0, prev_c - 1)
                                     st_set['waTotalSent'] = int(st_set.get('waTotalSent', 0)) + 1
-                                    store.set_data(d_up)
+                                    store.write(d_up)
                             resp_payload = {'ok': code == 200, 'id': req_id, 'requestId': req_id, 'providerMsgId': p_id, 'message': updated}
                             if isinstance(j, dict):
                                 j_copy = dict(j)
@@ -2485,12 +2635,14 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 try:
                     b = self.read_json()
                     act = b.get('action')
+                    if act in ('set', 'restore') and not self.counter_ok():
+                        return self.send_json(403, {'error': 'Change backups on the main counter PC (Setu window)'})
                     if act == 'set':
-                        ab.set(b.get('folder'), b.get('every'), b.get('keep'), b.get('on'))
+                        ab.set(b.get('folder'), b.get('every'), b.get('keep'), b.get('on'), allow_network=b.get('network') is True)
                     elif act == 'now':
                         ab.run('by hand')
                     elif act == 'pick':
-                        if not self.is_local():
+                        if not self.counter_ok():
                             return self.send_json(403, {'error': 'choose the folder on the main counter PC'})
                         try:
                             import webview
@@ -2498,7 +2650,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         except Exception:
                             return self.send_json(501, {'error': 'Folder window not available here: type the folder path'})
                         if res:
-                            ab.set(res[0] if isinstance(res, (list, tuple)) else res)
+                            ab.set(res[0] if isinstance(res, (list, tuple)) else res, allow_network=b.get('network') is True)
                     elif act == 'restore':
                         ab.restore(b.get('name'))
                     else:
@@ -2508,7 +2660,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(200, ab.public())
             if path == '/api/update':
                 # Check / download / install a new Setu (main counter PC only)
-                if not self.is_local() or not updater:
+                if not self.counter_ok() or not updater:
                     return self.send_json(403, {'error': 'main counter only'})
                 try:
                     act = self.read_json().get('action')
@@ -2587,6 +2739,21 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         return self.send_json(403, {'error': 'main counter only'})
                     if not force and int(body.get('baseVersion', -1)) != store.version:
                         return self.send_db_conflict()
+                    if force and not (role == 'admin' or self.counter_ok()):
+                        return self.send_json(403, {'error': 'Restore needs a manager login on the main counter'})
+                    try:
+                        old = json.loads(store.raw) if store.version else {}
+                    except Exception:
+                        old = {}
+                    old = old if isinstance(old, dict) else {}
+                    elev = self.elevated()
+                    can_set = role in ('admin', 'local') or elev
+                    # Credentials: plain PINs become hashes (manager only), the stored hashes always stay
+                    changed = SEC.absorb_secrets(data, old, can_set)
+                    # Cashier / captain / kitchen: settings, logins, licence, audit and past records stay as stored
+                    blocked = [] if force else SEC.sanitize_write(role, old, data, elev)
+                    if blocked:
+                        store.log(f'BLOCKED by role {role}: ' + ', '.join(blocked[:20]))
                     try:
                         store.clean_and_validate_bills(data)
                     except ValueError as ve:
@@ -2596,11 +2763,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     except Exception as e:
                         store.log(f'SAVE FAILED v{store.version + 1}: {e!r}')
                         return self.send_json(500, {'error': 'save failed: ' + str(e)})
-                    return self.send_json(200, {'version': store.version, 'savedAt': store.saved_at})
+                    if elev:
+                        store.elev.pop(self.headers.get('X-Setu-Elev', ''), None)   # one approval = one save
+                    out = {'version': store.version, 'savedAt': store.saved_at}
+                    if changed or blocked:
+                        out['changed'] = True          # the device pulls the stored copy again
+                    if blocked:
+                        out['blocked'] = blocked
+                    return self.send_json(200, out)
             return self.send_json(404, {'error': 'not found'})
 
         def send_db_conflict(self):
-            body = ('{"conflict": true, "version": %d, "savedAt": %d, "data": %s}' % (store.version, store.saved_at, store.raw)).encode('utf-8')
+            body = ('{"conflict": true, "version": %d, "savedAt": %d, "data": %s}' % (store.version, store.saved_at, store.public_raw())).encode('utf-8')
             self.send_response(409)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Cache-Control', 'no-store')
@@ -2751,10 +2925,15 @@ class AutoBackup:
         f = self.cfg['folder']
         return sorted((x for x in os.listdir(f) if x.startswith('Setu-Backup-') and x.endswith('.json.gz')), reverse=True) if os.path.isdir(f) else []
 
-    def set(self, folder=None, every=None, keep=None, on=None):
+    def set(self, folder=None, every=None, keep=None, on=None, allow_network=False):
         with self.lock:
             if folder is not None:
-                folder = os.path.abspath(os.path.expanduser(str(folder).strip()))
+                raw = str(folder).strip()
+                # A network share would send the whole database (and its hashes) off this PC: only when the owner
+                # ticks "network folder" in the Setu window on the main counter
+                if SEC.is_network_path(raw) and not allow_network:
+                    raise ValueError('Network / UNC folders (\\\\server\\share) are not allowed for backups. Choose a drive on this PC or a pen drive.')
+                folder = os.path.abspath(os.path.expanduser(raw))
                 os.makedirs(folder, exist_ok=True)
                 test = os.path.join(folder, '.setu-write-test')
                 with open(test, 'w') as f:      # fails here if the folder cannot be written (read-only / no pen drive)
@@ -2837,8 +3016,33 @@ class AutoBackup:
             time.sleep(600)
 
 
+# Static files the local server may hand out (an allow-list; everything else is 404)
+PUBLIC_FILES = {'/', '/index.html', '/hotel_erp.html', '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.ico'}
+LAUNCH_FILE = 'setu-launch.key'
+
+
+def read_launch_key(data_dir):
+    try:
+        with open(os.path.join(data_dir, LAUNCH_FILE), 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except OSError:
+        return ''
+
+
 def start_server(base_dir, data_dir, port):
     store = SetuStore(data_dir)
+    # Per-launch secret: the Setu window gets it in its address (#launch=…); a web page on this PC cannot read it
+    store.launch = secrets.token_urlsafe(32)
+    try:
+        kp = os.path.join(data_dir, LAUNCH_FILE)
+        with open(kp, 'w', encoding='utf-8') as f:
+            f.write(store.launch)
+        try:
+            os.chmod(kp, 0o600)
+        except OSError:
+            pass
+    except OSError as e:
+        store.log(f'Launch key not written: {e!r}')
     cloud = CloudSync(store)
     store.on_write = cloud.wake.set
     store.log(f'Server start: port {port}, database version {store.version}')
@@ -2922,14 +3126,16 @@ def main():
         except KeyboardInterrupt:
             return
 
+    key = read_launch_key(data_dir)
+    win_url = url + ('#launch=' + key if key else '')
     try:
-        open_window(base_dir, data_dir, url)
+        open_window(base_dir, data_dir, win_url)
     except Exception as e:
         # No WebView2 runtime (old Windows 10 / 7) or a broken pywebview: the server is already
         # up, so run Setu in the normal browser instead of closing without a word.
         log_line(data_dir, f'Desktop window failed, opening browser: {e!r}')
         import webbrowser
-        webbrowser.open(url)
+        webbrowser.open(win_url)
         msg = ('The Setu window could not open, so Setu opened in your browser.\n\n'
                'For the window, install the Microsoft Edge WebView2 Runtime '
                '(go.microsoft.com/fwlink/p/?LinkId=2124703).\n\n'

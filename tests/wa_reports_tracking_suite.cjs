@@ -63,6 +63,7 @@ async function api(path, options = {}) {
     method: options.method || 'GET',
     headers: {
       'Content-Type': 'application/json',
+      'X-Setu-Launch': launchKey(),
       ...(options.headers || {})
     },
     body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined
@@ -75,8 +76,13 @@ async function api(path, options = {}) {
 
 let serverProc = null;
 
+// The test plays the counter PC's own Setu window: it sends the per-launch secret
+let launchDir = '';
+const launchKey = () => { try { return fs.readFileSync(path.join(launchDir, 'setu-launch.key'), 'utf8').trim(); } catch (e) { return ''; } };
+
 async function startServer(dataDir) {
   fs.mkdirSync(dataDir, { recursive: true });
+  launchDir = dataDir;
   serverProc = spawn(PY_CMD, ['app_main.py', '--server', '--port', String(PORT), '--data', dataDir], {
     cwd: BASE_DIR,
     stdio: 'pipe'

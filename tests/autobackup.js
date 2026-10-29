@@ -3,7 +3,9 @@
 const { spawn } = require('child_process'), fs = require('fs'), os = require('os'), path = require('path'), zlib = require('zlib');
 const PORT = 8791, U = `http://127.0.0.1:${PORT}`, tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'setu-ab-')), data = path.join(tmp, 'data'), dest = path.join(tmp, 'pendrive', 'Setu Backups');
 const R = [], t = (name, ok, got) => R.push({ name, ok: !!ok, got });
-const call = async (p, body) => { const r = await fetch(U + p, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); return [r.status, await r.json().catch(() => ({}))]; };
+// This test plays the counter PC's own Setu window: it sends the per-launch secret the window gets
+const launch = () => { try{ return fs.readFileSync(path.join(data, 'setu-launch.key'), 'utf8').trim(); }catch(e){ return ''; } };
+const call = async (p, body) => { const h = { 'X-Setu-Launch': launch() }; const r = await fetch(U + p, body ? { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(body) } : { headers: h }); return [r.status, await r.json().catch(() => ({}))]; };
 (async () => {
   const pyCmd = (process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3')).trim();
   const srv = spawn(pyCmd, [path.join(__dirname, '..', 'app_main.py'), '--server', '--port', String(PORT), '--data', data], { stdio: 'ignore' });

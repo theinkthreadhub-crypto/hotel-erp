@@ -16,6 +16,7 @@
 // once the paid period + grace ends or the hotel is suspended.
 import { DurableObject } from 'cloudflare:workers';
 import {normalizeAggregatorOrder,outletHotel} from './aggregators.js';
+import * as SEC from './security.js';
 
 const CHUNK = 500000;                 // chars per row; <= 1.5 MB UTF-8, under the 2 MB row limit
 const KEEP_BACKUPS = 30;              // end-of-day snapshots kept per hotel
@@ -745,6 +746,64 @@ export class SetuHotel extends DurableObject {
     return `{${extra}"version": ${this.meta.version}, "savedAt": ${this.meta.savedAt}, "data": ${this.data()}}`;
   }
 
+  // What a device may read: no credential hashes, no plain PINs (cached per version)
+  dbPublic(extra = ''){
+    if(!this.pubCache || this.pubCache.v !== this.meta.version || this.pubCache.raw !== this.raw){
+      let pub = 'null';
+      try{ pub = JSON.stringify(SEC.publicView(JSON.parse(this.data()))); }catch(e){}
+      this.pubCache = { v: this.meta.version, raw: this.raw, pub };
+    }
+    return `{${extra}"version": ${this.meta.version}, "savedAt": ${this.meta.savedAt}, "data": ${this.pubCache.pub}}`;
+  }
+
+  // Counter PC sync: the full data incl. hashes, but only for a counter that understands them
+  dbFor(role, request, extra = ''){
+    if(role !== 'sync') return this.dbPublic(extra);
+    return this.dbText(extra);
+  }
+  legacySync(role, request){
+    return role === 'sync' && !String(request.headers.get('X-Setu-Caps') || '').split(',').map(x => x.trim()).includes('secure1');
+  }
+
+  // One time: plain credentials in stored data / the account become salted hashes (copy kept in slot premig)
+  async ensureSecure(){
+    if(this.secureChecked) return;
+    this.secureChecked = true;
+    const a = this.account;
+    if(a && a.ownerPass){
+      a.ownerHash2 = await SEC.hashSecret(a.ownerPass);
+      delete a.ownerPass;
+      delete a.ownerHash;
+      this.saveAccount();
+    }
+    if(!this.meta.version) return;
+    let d;
+    try{ d = JSON.parse(this.data()); }catch(e){ return; }
+    if(!SEC.hasPlaintext(d)) return;
+    const before = this.data();
+    if(!(await SEC.migratePlaintext(d))) return;
+    this.ctx.storage.transactionSync(() => this.writeSlot('premig', before));
+    this.commit(d);
+  }
+  async ownerMatches(pw){
+    const a = this.account || {};
+    if(!pw) return false;
+    if(a.ownerHash2) return SEC.verifySecret(pw, a.ownerHash2);
+    if(!a.ownerHash || !sameText(await sha256(String(pw)), a.ownerHash)) return false;
+    // Old unsalted hash: replace it with the salted one now that the password is known
+    a.ownerHash2 = await SEC.hashSecret(pw);
+    delete a.ownerHash;
+    this.saveAccount();
+    return true;
+  }
+  // Manager approval on a staff device (POST /api/auth/verify): valid for 90 seconds, for that login only
+  elevated(request){
+    const gid = request.headers.get('X-Setu-Elev') || '', tok = request.headers.get('X-Setu-Token') || '';
+    if(!/^[0-9a-f]{32}$/.test(gid) || !tok) return false;
+    const g = this.kvGet('elev:' + gid);
+    return !!g && g.exp > Date.now() && sameText(g.token, tok);
+  }
+
   // Server-owned parts of the data: config, license keys, modules that are switched off.
   // Async (signing), so callers check the version AFTER this and then write synchronously.
   async prepare(d){
@@ -1235,18 +1294,10 @@ export class SetuHotel extends DurableObject {
     return true;
   }
 
-  checkPin(pin){
+  async checkPin(pin){
     let d;
     try{ d = JSON.parse(this.data()) || {}; }catch(e){ return null; }
-    const st = d.settings || {}, auth = d.auth || {};
-    pin = String(pin || '');
-    if(!pin) return null;
-    if(pin === String(st.adminPin || '') || pin === String(auth.password || '')) return { role: 'admin', name: auth.ownerName || 'Manager', pin };
-    for(const s of d.staff || []){
-      if(!s.left && s.access && String(s.pin || '') === pin) return { role: s.access === 'manager' ? 'admin' : s.access, name: s.name || 'Staff', pin };
-    }
-    if(pin === String(st.cashierPin || '')) return { role: 'cashier', name: 'Cashier', pin };
-    return null;
+    return SEC.checkPin(d, pin);
   }
 
   async role(request){
@@ -1276,11 +1327,12 @@ export class SetuHotel extends DurableObject {
     if(now - fails.at > FAIL_WINDOW){ fails.n = 0; fails.at = now; }
     if(now - all.at > FAIL_WINDOW){ all.n = 0; all.at = now; }
     if(fails.n >= FAIL_LIMIT || all.n >= GLOBAL_FAIL_LIMIT) return json(429, { error: 'too many tries' });
-    let found = this.checkPin(pin);
+    await this.ensureSecure();
+    let found = await this.checkPin(pin);
     // A hotel the Super Admin created has no data yet: the owner's first login uses the set password
     let setup = false;
     const a = this.account;
-    if(!found && !this.meta.version && a.ownerHash && pin && sameText(await sha256(String(pin)), a.ownerHash)){
+    if(!found && !this.meta.version && pin && await this.ownerMatches(String(pin))){
       found = { role: 'admin', name: a.owner || 'Manager', pin: String(pin) };
       setup = true;
     }
@@ -1310,8 +1362,10 @@ export class SetuHotel extends DurableObject {
     let ok = false, d = {};
     try{ d = JSON.parse(this.data()) || {}; }catch(e){}
     // The owner's own password only (not a staff Manager PIN): it moves the whole hotel to this PC
-    if(pw && (pw === String((d.settings || {}).adminPin || '') || pw === String((d.auth || {}).password || ''))) ok = true;
-    else if(!this.meta.version && a.ownerHash && pw && sameText(await sha256(pw), a.ownerHash)) ok = true;
+    await this.ensureSecure();
+    try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+    if(pw && await SEC.checkMaster(d, pw)) ok = true;
+    else if(!this.meta.version && pw && await this.ownerMatches(pw)) ok = true;
     if(!ok){
       fails.n++;
       this.kvSet('fail:' + ip, fails);
@@ -1415,14 +1469,17 @@ export class SetuHotel extends DurableObject {
     if(b.ownerPassword){
       const pw = String(b.ownerPassword);
       if(pw.length < 6 || isWeak(pw)) throw new Error('weak password');
-      a.ownerHash = await sha256(pw);
-      a.ownerPass = pw;
+      a.ownerHash2 = await SEC.hashSecret(pw);
+      delete a.ownerHash;
+      delete a.ownerPass;
       // Owner forgot the password: put the new one into the hotel's data, so it works on the
       // phone app now and on the counter PC after its next sync (also the Manager PIN there)
       if(this.meta.version){
         const d = JSON.parse(this.data());
+        const old = JSON.parse(this.data());
         d.auth = { ...(d.auth && typeof d.auth === 'object' ? d.auth : {}), password: pw };
         d.settings = { ...(d.settings || {}), adminPin: pw };
+        await SEC.absorbSecrets(d, old, true);      // stored as salted hashes only
         await this.prepare(d);
         this.commit(d);
       }
@@ -1448,7 +1505,7 @@ export class SetuHotel extends DurableObject {
         ...(b.lifetime ? { lifetime: true } : {}),
         created: Date.now(), paidUntil: b.paidUntil, status: b.status || 'trial', plan: b.plan || 'trial',
         syncHash: await sha256(syncKey), syncKey, pendingKeys: [], config: newConfig(b.businessType, b.tier),
-        ...(b.password ? { ownerHash: await sha256(b.password), ownerPass: b.password, initialDays: b.days } : {}) };
+        ...(b.password ? { ownerHash2: await SEC.hashSecret(b.password), initialDays: b.days } : {}) };
       let trialKey = '';
       if(b.installId && !b.noKey){
         trialKey = await makeLicenseKey(this.env, b.installId, b.days);
@@ -1482,7 +1539,7 @@ export class SetuHotel extends DurableObject {
       try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
       const syncKey = this.issuedSyncKey;
       this.issuedSyncKey = '';
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerPass || this.account.ownerHash) });
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerHash2 || this.account.ownerHash) });
     }
     if(path === '/internal/errors'){
       let d = null;
@@ -1525,9 +1582,30 @@ export class SetuHotel extends DurableObject {
     const role = await this.role(request);
     if(!role) return json(401, { error: 'pin required' });
     const isAdmin = ['sync', 'admin'].includes(role);
+    await this.ensureSecure();
+    // A counter PC on an older Setu would lose its PINs (they are hashes now): it must update first
+    if(this.legacySync(role, request) && path === '/api/db')
+      return json(426, { error: 'Update Setu on the main counter PC (Settings → Software Update). Cloud sync waits until then; billing on the PC goes on.' });
 
     if(method === 'GET' && path === '/api/version') return json(200, { version: this.meta.version, savedAt: this.meta.savedAt, blocked: this.blocked() });
-    if(method === 'GET' && path === '/api/db') return rawJson(200, this.dbText());
+    if(method === 'GET' && path === '/api/db') return rawJson(200, this.dbFor(role, request));
+    if(method === 'POST' && path === '/api/auth/verify'){
+      // Manager approval on a staff device: the PIN is checked here, never on the device
+      if(role === 'support') return json(403, { error: 'read only' });
+      const ip = request.headers.get('CF-Connecting-IP') || 'unknown', now = Date.now();
+      const fails = this.kvGet('fail:' + ip) || { n: 0, at: now };
+      if(now - fails.at > FAIL_WINDOW){ fails.n = 0; fails.at = now; }
+      if(fails.n >= FAIL_LIMIT) return json(429, { error: 'Too many wrong PINs. Please wait 15 minutes.' });
+      const found = await this.checkPin(body().pin);
+      if(!found || found.role !== 'admin'){
+        fails.n++; this.kvSet('fail:' + ip, fails);
+        return json(403, { ok: false, error: 'wrong pin' });
+      }
+      this.kvDel('fail:' + ip);
+      const gid = randomHex(16);
+      this.kvSet('elev:' + gid, { token: request.headers.get('X-Setu-Token') || '', exp: now + 90000, by: found.name });
+      return json(200, { ok: true, name: found.name, elev: gid, expiresIn: 90 });
+    }
     if(method === 'GET' && path === '/api/billing') return json(200, this.billingInfo());
     if(role === 'support') return json(403, { error: 'read only' });   // support can only look
     if(method === 'POST' && path === '/api/vendor/verify'){
@@ -1839,7 +1917,14 @@ export class SetuHotel extends DurableObject {
       const force = !!up.force;
       // First upload and forced restore / reset: main counter sync or a Manager login only
       if((this.meta.version === 0 || force) && !isAdmin) return json(403, { error: 'main counter only' });
-      if(!force && +up.baseVersion !== this.meta.version) return rawJson(409, this.dbText('"conflict": true, '));
+      if(!force && +up.baseVersion !== this.meta.version) return rawJson(409, this.dbFor(role, request, '"conflict": true, '));
+      // Credentials become hashes (manager / counter sync / manager approval only); cashier-type logins cannot
+      // change settings, logins, licence, audit or past records (put back from the stored copy)
+      let old = {};
+      try{ old = this.meta.version ? (JSON.parse(this.data()) || {}) : {}; }catch(e){}
+      const elev = this.elevated(request);
+      const secChanged = await SEC.absorbSecrets(data, old, isAdmin || elev, role === 'sync');
+      const blockedW = force ? [] : SEC.sanitizeWrite(role, old, data, elev);
       // Hotel with a counter PC, billing from the website (emergency only): a few bills a day, counted here
       let tagged = false;
       if(this.account.plan === 'counter' && this.meta.version){
@@ -1848,17 +1933,18 @@ export class SetuHotel extends DurableObject {
         tagged = w.tagged;
       }
       let changed;
-      try{ changed = (await this.prepare(data)) || tagged; }catch(e){ return json(500, { error: 'save failed: ' + e.message }); }
+      try{ changed = (await this.prepare(data)) || tagged || secChanged || blockedW.length > 0; }catch(e){ return json(500, { error: 'save failed: ' + e.message }); }
       // prepare() awaited: someone may have saved in between
-      if(!force && +up.baseVersion !== this.meta.version) return rawJson(409, this.dbText('"conflict": true, '));
+      if(!force && +up.baseVersion !== this.meta.version) return rawJson(409, this.dbFor(role, request, '"conflict": true, '));
       try{
         this.commit(data);
       }catch(e){
         return json(500, { error: 'save failed: ' + e.message });
       }
+      if(elev) this.kvDel('elev:' + request.headers.get('X-Setu-Elev'));   // one approval = one save
       // Automatic sending starts only after cloud persistence; failed/outcome-unknown sends are not retried blindly.
       this.ctx.waitUntil(this.receiptDispatch().catch(() => {}));
-      return json(200, { version: this.meta.version, savedAt: this.meta.savedAt, ...(changed ? { changed: true } : {}) });
+      return json(200, { version: this.meta.version, savedAt: this.meta.savedAt, ...(changed ? { changed: true } : {}), ...(blockedW.length ? { blocked: blockedW } : {}) });
     }
 
     if(method === 'POST' && path.startsWith('/api/billing/')){
