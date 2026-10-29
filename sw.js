@@ -1,8 +1,10 @@
 // Setu - Restaurant & Hotel POS - Service Worker
-const CACHE_NAME = 'setu-pos-v65';
+const CACHE_NAME = 'setu-pos-v66-foodpiolet-themes';
 const ASSETS = [
   './',
   './hotel_erp.html',
+  './foodpiolet-themes.css',
+  './foodpiolet-themes.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
