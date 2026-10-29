@@ -44,6 +44,7 @@ Source: "..\icon-192.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\icon-512.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\logo.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\favicon.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\whatsapp\*"; DestDir: "{app}\whatsapp"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWebView2
 
 [Icons]

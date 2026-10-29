@@ -1032,6 +1032,8 @@ class Updater:
             raise ValueError('Updates install only on Windows')
         import subprocess
         self.store.log('UPDATE: installing Setu ' + self.state['latest'])
+        if getattr(self.store, 'wa', None):
+            self.store.wa.kill()   # the WhatsApp helper's node.exe must not hold files the setup replaces
         # Silent install of the same per-user setup; it closes Setu, updates the program files and starts Setu again
         subprocess.Popen([self.file, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CLOSEAPPLICATIONS'],
                          close_fds=True, creationflags=0x00000008)   # DETACHED_PROCESS
@@ -1121,6 +1123,14 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if self.role() not in ('local', 'admin'):
                     return self.send_json(403, {'error': 'manager only'})
                 return self.send_json(200, store.autobackup.public())
+            if path == '/api/wa/status':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                st = store.wa.status()
+                if role not in ('local', 'admin'):
+                    st.pop('qr', None)   # only the manager sees the link QR
+                return self.send_json(200, st)
             if path == '/api/log':
                 # Error Log screen: the newest lines of setu-server.log (main counter only)
                 if not self.is_local():
@@ -1257,6 +1267,30 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
                 return self.send_json(200, cloud.public())
+            if path.startswith('/api/wa/'):
+                # WhatsApp link: connect / disconnect = manager; send a bill = any logged-in device
+                role = self.role()
+                if not role or (path != '/api/wa/send' and role not in ('local', 'admin')):
+                    return self.send_json(403, {'error': 'manager only'})
+                try:
+                    b = self.read_json() if int(self.headers.get('Content-Length') or 0) else {}
+                    if path == '/api/wa/start':
+                        store.wa.start()
+                        return self.send_json(200, store.wa.status())
+                    if path == '/api/wa/stop':
+                        store.wa.stop()
+                        return self.send_json(200, store.wa.status())
+                    if path == '/api/wa/logout':
+                        code, j = store.wa.call('/logout', {})
+                        return self.send_json(code, j)
+                    if path == '/api/wa/send':
+                        code, j = store.wa.call('/send', {k: b.get(k) for k in ('phone', 'text', 'pdf', 'image', 'fileName')}, timeout=120)
+                        return self.send_json(code, j)
+                except OSError as e:
+                    return self.send_json(503, {'ok': False, 'error': str(e)[:200]})
+                except ValueError:
+                    return self.send_json(400, {'error': 'bad request'})
+                return self.send_json(404, {'error': 'not found'})
             if path == '/api/autobackup':
                 # Auto backup: change the folder / timing, back up now, pick a folder, restore (manager on the main counter)
                 if self.role() not in ('local', 'admin'):
@@ -1388,6 +1422,85 @@ def setu_running(port):
 def port_busy(port):
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         return s.connect_ex(('127.0.0.1', port)) == 0
+
+
+class WhatsAppLink:
+    """The hotel's own WhatsApp, linked by QR (like WhatsApp Web), sends bill receipts.
+    Runs whatsapp/wa.js with the bundled node.exe on 127.0.0.1; only this server talks to it."""
+    PORT = 47130
+
+    def __init__(self, store):
+        self.store = store
+        self.cfg_path = os.path.join(store.dir, 'setu-whatsapp.json')
+        self.cfg = _read_json(self.cfg_path, {}) or {}
+        self.proc = None
+        self.url = os.environ.get('SETU_WA_URL') or f'http://127.0.0.1:{self.PORT}'   # tests point this at a fake
+        app_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        self.dir = os.path.join(app_dir, 'whatsapp')
+        if self.cfg.get('on'):
+            threading.Thread(target=self.start, daemon=True).start()
+        atexit.register(self.kill)
+
+    def available(self):
+        return bool(os.environ.get('SETU_WA_URL')) or os.path.exists(os.path.join(self.dir, 'wa.js'))
+
+    def _node(self):
+        exe = os.path.join(self.dir, 'node.exe')
+        return exe if os.path.exists(exe) else shutil.which('node')
+
+    def start(self):
+        self.cfg['on'] = True
+        _write_json(self.cfg_path, self.cfg)
+        if os.environ.get('SETU_WA_URL') or (self.proc and self.proc.poll() is None):
+            return
+        node = self._node()
+        if not node or not os.path.exists(os.path.join(self.dir, 'wa.js')):
+            raise OSError('The WhatsApp part is not installed. Install the newest Setu.')
+        import subprocess
+        flags = 0x08000000 if os.name == 'nt' else 0   # CREATE_NO_WINDOW
+        self.proc = subprocess.Popen([node, os.path.join(self.dir, 'wa.js'), str(self.PORT), os.path.join(self.store.dir, 'whatsapp-session')],
+                                     cwd=self.dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+        self.store.log('WhatsApp link started')
+
+    def kill(self):
+        try:
+            if self.proc and self.proc.poll() is None:
+                self.proc.terminate()
+        except Exception:
+            pass
+
+    def stop(self):
+        self.cfg['on'] = False
+        _write_json(self.cfg_path, self.cfg)
+        self.kill()
+
+    def call(self, path, body=None, timeout=10):
+        req = urllib.request.Request(self.url + path, data=json.dumps(body).encode('utf-8') if body is not None else None,
+                                     method='POST' if body is not None else 'GET', headers={'Content-Type': 'application/json'})
+        try:
+            # never through a proxy: the helper is on this PC
+            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=timeout) as r:
+                return r.status, json.loads(r.read().decode('utf-8') or '{}')
+        except urllib.error.HTTPError as e:
+            try:
+                return e.code, json.loads(e.read().decode('utf-8') or '{}')
+            except ValueError:
+                return e.code, {'error': f'HTTP {e.code}'}
+
+    def status(self):
+        base = {'available': self.available(), 'on': bool(self.cfg.get('on'))}
+        if not base['on']:
+            return {**base, 'state': 'off'}
+        if not os.environ.get('SETU_WA_URL') and self.proc and self.proc.poll() is not None:
+            try:
+                self.start()   # the helper stopped: start it again
+            except OSError as e:
+                return {**base, 'state': 'error', 'lastError': str(e)}
+        try:
+            code, j = self.call('/status', timeout=3)
+            return {**base, **j}
+        except Exception:
+            return {**base, 'state': 'starting'}
 
 
 class AutoBackup:
@@ -1533,6 +1646,7 @@ def start_server(base_dir, data_dir, port):
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
     updater = Updater(store)
     store.autobackup = AutoBackup(store)
+    store.wa = WhatsAppLink(store)
     atexit.register(lambda: store.autobackup.run('Setu closed') if store.version > 0 else None)
     httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud, updater))
     httpd.daemon_threads = True

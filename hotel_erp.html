@@ -2565,6 +2565,8 @@ function tryCloseModal(){
 $('#modal').addEventListener('mousedown', e => { if(e.target.id === 'modal') tryCloseModal(); });
 
 function waOpen(num, text){
+  // Linked WhatsApp (Settings → WhatsApp): send straight from the hotel's number, no browser window
+  if(WA.state === 'open' && SRV.on && !SRV.cloud) return waSend(num, text).then(r => toast(r.ok ? 'Sent on WhatsApp' : 'WhatsApp: ' + r.error));
   let n = String(num || '').replace(/\D/g, '');
   if(n.length === 10) n = '91' + n;
   if(!n){ toast('No WhatsApp number. Please add it in Settings.'); return; }
@@ -3703,6 +3705,7 @@ function dashCharts(){
 }
 
 function scrGateway(){
+  if(SRV.on && !SRV.cloud && Date.now() - (waStatus.at || 0) > 60000){ waStatus.at = Date.now(); waStatus(); }
   if(D.settings.dashStyle === 'modern'){ main.innerHTML = (isManager() ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn g sm" onclick="go('settings');setTimeout(()=>{const e=$('#look-card');if(e)e.scrollIntoView({behavior:'smooth'})},80)">Theme & Dashboard</button></div>` : '') + dashModern(); return; }
   const s = summary(today());
   const low = lowStock();
@@ -4962,6 +4965,7 @@ function finalizePakkaBill(approvedDisc){
 
   B = newB(tbl, B.channel);
   scrBill();
+  waAutoSend(bill);
 
   if(st.afterBill === 'none' || st.afterBill === 'print'){
     if(st.afterBill === 'print') printBill(bill.id, 'bill');
@@ -10707,6 +10711,7 @@ function scrSettings(){
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="update-card" style="border-left:4px solid #16a34a;display:none"></div>
   <div class="card" id="ab-card" style="border-left:4px solid #0284c7;display:none"></div>
+  <div class="card" id="wa-card" style="border-left:4px solid #25d366;display:none"></div>
   <div class="card" id="look-card"></div>
   ${listsCard()}
   <div class="card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Owner Password</h3>
@@ -10912,6 +10917,7 @@ function scrSettings(){
   drawCloudCard();
   drawUpdateCard();
   drawAutoBackup();
+  drawWaCard();
   drawLookCard();
 }
 
@@ -11109,6 +11115,47 @@ async function updApi(action){
   const j = await r.json().catch(() => ({}));
   if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
   return j;
+}
+/* ---------- WhatsApp link (main counter PC): the hotel scans a QR, Setu sends receipts from that number ---------- */
+let WA = {state: 'off'};
+async function waApi(path, body){
+  const r = await srvFetch('/api/wa/' + path, body ? {method: 'POST', body: JSON.stringify(body)} : {});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok && !('ok' in j)) throw new Error(j.error || 'HTTP ' + r.status);
+  return j;
+}
+async function waStatus(){ if(!SRV.on || SRV.cloud) return WA; try{ WA = await waApi('status'); }catch(e){} return WA; }
+async function waSend(phone, text){
+  try{ return await waApi('send', {phone, text}); }catch(e){ return {ok: false, error: e.message}; }
+}
+// After a bill: send the receipt to the customer's WhatsApp (only when a mobile number was entered)
+async function waAutoSend(b){
+  if(!D.settings.waAuto || !SRV.on || SRV.cloud || normPh(b.phone).length !== 10 || isAggregator(b.channel)) return;
+  const r = await waSend(b.phone, billText(b));
+  b.wa = r.ok ? 'sent' : 'failed';
+  if(!r.ok){ logError('WhatsApp receipt: ' + r.error, 'Bill #' + b.no); toast(`Bill #${b.no}: WhatsApp not sent — ${r.error}`); }
+  save();
+}
+async function drawWaCard(){
+  const el = $('#wa-card');
+  if(!el || !SRV.on || SRV.cloud || !isManager()) return;
+  const w = await waStatus();
+  if(!w.available) return;
+  clearTimeout(drawWaCard.t);
+  el.style.display = '';
+  const st = w.state, on = st === 'open';
+  el.innerHTML = `<h3 style="margin-top:0">WhatsApp — send bills from your own number</h3>
+    ${st === 'off' || st === 'loggedout' ? `<p>Link the hotel's WhatsApp once (like WhatsApp Web). Then every bill with a mobile number goes to the customer on WhatsApp by itself.</p>
+      <div class="btns"><button class="btn ok" onclick="waApi('start',{}).then(()=>drawWaCard()).catch(e=>toast(e.message))">Connect WhatsApp</button></div>`
+    : st === 'qr' ? `<div style="display:flex;gap:18px;flex-wrap:wrap;align-items:center"><img src="${w.qr}" alt="QR" style="width:230px;height:230px;background:#fff;padding:6px;border-radius:10px;border:1px solid var(--border)">
+      <ol style="margin:0;padding-left:18px;line-height:1.8"><li>Open <b>WhatsApp</b> on the hotel's phone</li><li>Tap <b>⋮ (Menu) → Linked devices</b></li><li>Tap <b>Link a device</b></li><li>Point the phone at this QR</li></ol></div><p class="muted" style="font-size:12px">The QR changes every few seconds; this card refreshes by itself.</p>`
+    : on ? `<p><b class="green">✓ Connected</b>${w.me ? ` · +${esc(w.me)}` : ''} · ${w.sentToday || 0} sent today (limit ${w.limit || 400})${w.queued ? ` · ${w.queued} waiting` : ''}</p>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" style="width:auto;margin:0" ${D.settings.waAuto ? 'checked' : ''} onchange="D.settings.waAuto=this.checked;save()"> Send the bill to the customer automatically (when a mobile number is entered)</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><input id="wa_t" placeholder="10-digit number for a test" inputmode="tel" style="width:220px"><button class="btn g" onclick="waSend($('#wa_t').value,'Test message from ' + (D.settings.name || 'Setu') + ' ✅').then(r=>toast(r.ok?'Test sent':'Not sent: '+r.error))">Send test</button>
+        <button class="btn bad" onclick="if(confirm('Unlink WhatsApp from Setu?'))waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>drawWaCard())">Disconnect</button></div>`
+    : `<p>${st === 'error' ? '<b class="red">Problem:</b> ' : 'Connecting to WhatsApp…'} ${esc(w.lastError || '')}</p><div class="btns"><button class="btn g" onclick="waApi('stop',{}).then(()=>drawWaCard())">Stop</button></div>`}
+    <p class="muted" style="font-size:12px;margin-bottom:0">Uses WhatsApp's "Linked devices" (not the paid WhatsApp Business API). Use the hotel's own number and send only bills to customers who gave their number: WhatsApp can block numbers that send too many or unwanted messages. Setu sends slowly and at most ${w.limit || 400} a day. The counter PC must be on and online.</p>`;
+  if(cur === 'settings' && !on) drawWaCard.t = setTimeout(drawWaCard, 2500);
 }
 /* ---------- Auto backup (main counter PC): another drive, pen drive or a Drive / OneDrive folder ---------- */
 const fmtSize = n => n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : n >= 1e6 ? (n / 1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1e3)) + ' KB';

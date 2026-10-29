@@ -4,7 +4,7 @@
 # and SETU_ADMIN_KEY (local cloud Admin Key, for the delete-code test).
 cd "$(dirname "$0")/.."
 fail=0
-for t in regression qr-ordering inventory expenses reports security data gst autobackup; do
+for t in regression qr-ordering inventory expenses reports security data gst autobackup whatsapp; do
   [ "$t" = data ] && [ -z "$SETU_ADMIN_KEY" ] && { echo 'data         skipped (set SETU_ADMIN_KEY)'; continue; }
   printf '%-12s ' "$t"
   out=$(node "tests/$t.js" 2>&1); code=$?
