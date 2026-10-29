@@ -326,6 +326,33 @@ tfoot td{font-weight:700;background:var(--surface);border-top:2px solid var(--bo
 .item{background:var(--panel);color:var(--text);border:1.5px solid var(--border);border-radius:8px;padding:12px;text-align:left;min-height:70px;transition:all .15s ease}
 .item:hover,.item.first{background:var(--primary-light);border-color:var(--primary);transform:translateY(-1px)}
 .item small{display:block;color:var(--primary);font-weight:700;font-size:14px;margin-top:4px}
+/* Smart Food Visuals: picture cards on the billing screen (off = the original text cards) */
+.items.pc-compact{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.items.pc-standard{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.items.pc-large{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+.item.pic{padding:0;overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.item.pic .ph{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--surface)}
+.items.pc-compact .item.pic{flex-direction:row;align-items:center;gap:8px;padding:6px}
+.items.pc-compact .item.pic .ph{width:52px;height:52px;aspect-ratio:auto;border-radius:6px;flex:none}
+.items.pc-large .item.pic .ph{aspect-ratio:1/1}
+.item.pic .tx{padding:8px 10px;display:block;min-width:0}
+.items.pc-compact .item.pic .tx{padding:0}
+.item.pic b{display:block;font-size:13px;line-height:1.25;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.vg{display:inline-block;width:11px;height:11px;border:2px solid #16a34a;border-radius:2px;margin-right:5px;vertical-align:-1px;position:relative}
+.vg.nv{border-color:#dc2626}.vg::after{content:'';position:absolute;inset:2px;border-radius:50%;background:#16a34a}.vg.nv::after{background:#dc2626}
+@media (max-width:700px){.items.pc-standard,.items.pc-large{grid-template-columns:repeat(auto-fill,minmax(130px,1fr))}}
+.dish-prev{width:120px;height:120px;border-radius:10px;object-fit:cover;background:var(--surface);flex:none}
+.dish-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;background:var(--surface);flex:none}
+.pic-chip{display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:2px 8px;background:var(--surface);color:var(--text-muted)}
+.pic-chip.ok{background:#dcfce7;color:#166534}.pic-chip.warn{background:#ffedd5;color:#9a3412}
+.pic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px;max-height:260px;overflow:auto;margin-top:6px}
+.pic-grid button{background:var(--panel);border:1.5px solid var(--border);border-radius:8px;padding:4px;text-align:center}
+.pic-grid button.on{border-color:var(--primary);background:var(--primary-light)}
+.pic-grid img{width:64px;height:64px;border-radius:6px;display:block;margin:0 auto}
+.pic-grid small{display:block;font-size:10px;line-height:1.2;margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.pic-row{display:flex;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)}
+.mi-rows{max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-top:6px}
+.mi-rows .pic-row{padding:4px 8px}.mi-rows select{width:auto;max-width:190px;padding:3px 6px;font-size:12px}
 .qty{display:flex;align-items:center;gap:4px}
 .qty button{width:28px;height:28px;border:1.5px solid var(--border);background:var(--panel);border-radius:5px;font-weight:700}
 .qty button:hover{background:var(--surface)}
@@ -985,6 +1012,7 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
 <div id="kot-popup-container" class="kot-popup-container"></div>
 <div id="print"></div>
 
+<script src="food/food-match.js"></script>
 <script>
 /* qrcode-generator 1.4.4 — (c) Kazuhiko Arase, MIT License */
 var qrcode=function(){var t=function(t,r){var e=t,n=g[r],o=null,i=0,a=null,u=[],f={},c=function(t,r){o=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(i=4*e+17),l(0,0),l(i-7,0),l(0,i-7),s(),h(),d(t,r),e>=7&&v(t),null==a&&(a=p(e,n,u)),w(a,r)},l=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||i<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||i<=r+n||(o[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},h=function(){for(var t=8;t<i-8;t+=1)null==o[t][6]&&(o[t][6]=t%2==0);for(var r=8;r<i-8;r+=1)null==o[6][r]&&(o[6][r]=r%2==0)},s=function(){for(var t=B.getPatternPosition(e),r=0;r<t.length;r+=1)for(var n=0;n<t.length;n+=1){var i=t[r],a=t[n];if(null==o[i][a])for(var u=-2;u<=2;u+=1)for(var f=-2;f<=2;f+=1)o[i+u][a+f]=-2==u||2==u||-2==f||2==f||0==u&&0==f}},v=function(t){for(var r=B.getBCHTypeNumber(e),n=0;n<18;n+=1){var a=!t&&1==(r>>n&1);o[Math.floor(n/3)][n%3+i-8-3]=a}for(n=0;n<18;n+=1){a=!t&&1==(r>>n&1);o[n%3+i-8-3][Math.floor(n/3)]=a}},d=function(t,r){for(var e=n<<3|r,a=B.getBCHTypeInfo(e),u=0;u<15;u+=1){var f=!t&&1==(a>>u&1);u<6?o[u][8]=f:u<8?o[u+1][8]=f:o[i-15+u][8]=f}for(u=0;u<15;u+=1){f=!t&&1==(a>>u&1);u<8?o[8][i-u-1]=f:u<9?o[8][15-u-1+1]=f:o[8][15-u-1]=f}o[i-8][8]=!t},w=function(t,r){for(var e=-1,n=i-1,a=7,u=0,f=B.getMaskFunction(r),c=i-1;c>0;c-=2)for(6==c&&(c-=1);;){for(var g=0;g<2;g+=1)if(null==o[n][c-g]){var l=!1;u<t.length&&(l=1==(t[u]>>>a&1)),f(n,c-g)&&(l=!l),o[n][c-g]=l,-1==(a-=1)&&(u+=1,a=7)}if((n+=e)<0||i<=n){n-=e,e=-e;break}}},p=function(t,r,e){for(var n=A.getRSBlocks(t,r),o=b(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=k(i[u],l.getLength()-1).mod(l);for(a[u]=new Array(l.getLength()-1),g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=s>=0?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};f.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=M(t);break;case"Alphanumeric":e=x(t);break;case"Byte":e=m(t);break;case"Kanji":e=L(t);break;default:throw"mode:"+r}u.push(e),a=null},f.isDark=function(t,r){if(t<0||i<=t||r<0||i<=r)throw t+","+r;return o[t][r]},f.getModuleCount=function(){return i},f.make=function(){if(e<1){for(var t=1;t<40;t++){for(var r=A.getRSBlocks(t,n),o=b(),i=0;i<u.length;i++){var a=u[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var g=0;for(i=0;i<r.length;i++)g+=r[i].dataCount;if(o.getLengthInBits()<=8*g)break}e=t}c(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){c(!0,e);var n=B.getLostPoint(f);(0==e||t>n)&&(t=n,r=e)}return r}())},f.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<f.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<f.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=f.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},f.createSvgTag=function(t,r,e,n){var o={};"object"==typeof arguments[0]&&(t=(o=arguments[0]).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,c,g=f.getModuleCount()*t+2*r,l="";for(c="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",l+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',l+=o.scalable?"":' width="'+g+'px" height="'+g+'px"',l+=' viewBox="0 0 '+g+" "+g+'" ',l+=' preserveAspectRatio="xMinYMin meet"',l+=n.text||e.text?' role="img" aria-labelledby="'+y([n.id,e.id].join(" ").trim())+'"':"",l+=">",l+=n.text?'<title id="'+y(n.id)+'">'+y(n.text)+"</title>":"",l+=e.text?'<description id="'+y(e.id)+'">'+y(e.text)+"</description>":"",l+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',l+='<path d="',a=0;a<f.getModuleCount();a+=1)for(u=a*t+r,i=0;i<f.getModuleCount();i+=1)f.isDark(a,i)&&(l+="M"+(i*t+r)+","+u+c);return l+='" stroke="transparent" fill="black"/>',l+="</svg>"},f.createDataURL=function(t,r){t=t||2,r=void 0===r?4*t:r;var e=f.getModuleCount()*t+2*r,n=r,o=e-r;return I(e,e,function(r,e){if(n<=r&&r<o&&n<=e&&e<o){var i=Math.floor((r-n)/t),a=Math.floor((e-n)/t);return f.isDark(a,i)?0:1}return 1})},f.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=f.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=f.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=y(e),o+='"'),o+="/>"};var y=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return f.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*f.getModuleCount()+2*t,u=t,c=a-t,g={"██":"█","█ ":"▀"," █":"▄","  ":" "},l={"██":"▀","█ ":"▀"," █":" ","  ":" "},h="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<c&&u<=r&&r<c&&f.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<c&&u<=r+1&&r+1<c&&f.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",h+=t<1&&r+1>=c?l[i]:g[i];h+="\n"}return a%2&&t>0?h.substring(0,h.length-a-1)+Array(a+1).join("▀"):h.substring(0,h.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=f.getModuleCount()*t+2*r,u=r,c=a-r,g=Array(t+1).join("██"),l=Array(t+1).join("  "),h="",s="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),s="",n=0;n<a;n+=1)i=1,u<=n&&n<c&&u<=e&&e<c&&f.isDark(o,Math.floor((n-u)/t))&&(i=0),s+=i?g:l;for(o=0;o<t;o+=1)h+=s+"\n"}return h.substring(0,h.length-1)},f.renderTo2dContext=function(t,r){r=r||2;for(var e=f.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=f.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},f};t.stringToBytes=(t.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,t.createStringToBytes=function(t,r){var e=function(){for(var e=S(t),n=function(){var t=e.read();if(-1==t)throw"eof";return t},o=0,i={};;){var a=e.read();if(-1==a)break;var u=n(),f=n()<<8|n();i[String.fromCharCode(a<<8|u)]=f,o+=1}if(o!=r)throw o+" != "+r;return i}(),n="?".charCodeAt(0);return function(t){for(var r=[],o=0;o<t.length;o+=1){var i=t.charCodeAt(o);if(i<128)r.push(i);else{var a=e[t.charAt(o)];"number"==typeof a?(255&a)==a?r.push(a):(r.push(a>>>8),r.push(255&a)):r.push(n)}}return r}};var r,e,n,o,i,a=1,u=2,f=4,c=8,g={L:1,M:0,Q:3,H:2},l=0,h=1,s=2,v=3,d=4,w=5,p=6,y=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],e=1335,n=7973,i=function(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r},(o={}).getBCHTypeInfo=function(t){for(var r=t<<10;i(r)-i(e)>=0;)r^=e<<i(r)-i(e);return 21522^(t<<10|r)},o.getBCHTypeNumber=function(t){for(var r=t<<12;i(r)-i(n)>=0;)r^=n<<i(r)-i(n);return t<<12|r},o.getPatternPosition=function(t){return r[t-1]},o.getMaskFunction=function(t){switch(t){case l:return function(t,r){return(t+r)%2==0};case h:return function(t,r){return t%2==0};case s:return function(t,r){return r%3==0};case v:return function(t,r){return(t+r)%3==0};case d:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case w:return function(t,r){return t*r%2+t*r%3==0};case p:return function(t,r){return(t*r%2+t*r%3)%2==0};case y:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},o.getErrorCorrectPolynomial=function(t){for(var r=k([1],0),e=0;e<t;e+=1)r=r.multiply(k([1,C.gexp(e)],0));return r},o.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case f:case c:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case f:return 16;case c:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case f:return 16;case c:return 12;default:throw"mode:"+t}}},o.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);i>5&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},o),C=function(){for(var t=new Array(256),r=new Array(256),e=0;e<8;e+=1)t[e]=1<<e;for(e=8;e<256;e+=1)t[e]=t[e-4]^t[e-5]^t[e-6]^t[e-8];for(e=0;e<255;e+=1)r[t[e]]=e;var n={glog:function(t){if(t<1)throw"glog("+t+")";return r[t]},gexp:function(r){for(;r<0;)r+=255;for(;r>=256;)r-=255;return t[r]}};return n}();function k(t,r){if(void 0===t.length)throw t.length+"/"+r;var e=function(){for(var e=0;e<t.length&&0==t[e];)e+=1;for(var n=new Array(t.length-e+r),o=0;o<t.length-e;o+=1)n[o]=t[o+e];return n}(),n={getAt:function(t){return e[t]},getLength:function(){return e.length},multiply:function(t){for(var r=new Array(n.getLength()+t.getLength()-1),e=0;e<n.getLength();e+=1)for(var o=0;o<t.getLength();o+=1)r[e+o]^=C.gexp(C.glog(n.getAt(e))+C.glog(t.getAt(o)));return k(r,0)},mod:function(t){if(n.getLength()-t.getLength()<0)return n;for(var r=C.glog(n.getAt(0))-C.glog(t.getAt(0)),e=new Array(n.getLength()),o=0;o<n.getLength();o+=1)e[o]=n.getAt(o);for(o=0;o<t.getLength();o+=1)e[o]^=C.gexp(C.glog(t.getAt(o))+r);return k(e,0).mod(t)}};return n}var A=function(){var t=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],r=function(t,r){var e={};return e.totalCount=t,e.dataCount=r,e},e={};return e.getRSBlocks=function(e,n){var o=function(r,e){switch(e){case g.L:return t[4*(r-1)+0];case g.M:return t[4*(r-1)+1];case g.Q:return t[4*(r-1)+2];case g.H:return t[4*(r-1)+3];default:return}}(e,n);if(void 0===o)throw"bad rs block @ typeNumber:"+e+"/errorCorrectionLevel:"+n;for(var i=o.length/3,a=[],u=0;u<i;u+=1)for(var f=o[3*u+0],c=o[3*u+1],l=o[3*u+2],h=0;h<f;h+=1)a.push(r(c,l));return a},e}(),b=function(){var t=[],r=0,e={getBuffer:function(){return t},getAt:function(r){var e=Math.floor(r/8);return 1==(t[e]>>>7-r%8&1)},put:function(t,r){for(var n=0;n<r;n+=1)e.putBit(1==(t>>>r-n-1&1))},getLengthInBits:function(){return r},putBit:function(e){var n=Math.floor(r/8);t.length<=n&&t.push(0),e&&(t[n]|=128>>>r%8),r+=1}};return e},M=function(t){var r=a,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+2<r.length;)t.put(o(r.substring(n,n+3)),10),n+=3;n<r.length&&(r.length-n==1?t.put(o(r.substring(n,n+1)),4):r.length-n==2&&t.put(o(r.substring(n,n+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return n},x=function(t){var r=u,e=t,n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=e,n=0;n+1<r.length;)t.put(45*o(r.charAt(n))+o(r.charAt(n+1)),11),n+=2;n<r.length&&t.put(o(r.charAt(n)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return n},m=function(r){var e=f,n=t.stringToBytes(r),o={getMode:function(){return e},getLength:function(t){return n.length},write:function(t){for(var r=0;r<n.length;r+=1)t.put(n[r],8)}};return o},L=function(r){var e=c,n=t.stringToBytesFuncs.SJIS;if(!n)throw"sjis not supported.";!function(){var t=n("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=n(r),i={getMode:function(){return e},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return i},D=function(){var t=[],r={writeByte:function(r){t.push(255&r)},writeShort:function(t){r.writeByte(t),r.writeByte(t>>>8)},writeBytes:function(t,e,n){e=e||0,n=n||t.length;for(var o=0;o<n;o+=1)r.writeByte(t[o+e])},writeString:function(t){for(var e=0;e<t.length;e+=1)r.writeByte(t.charCodeAt(e))},toByteArray:function(){return t},toString:function(){var r="";r+="[";for(var e=0;e<t.length;e+=1)e>0&&(r+=","),r+=t[e];return r+="]"}};return r},S=function(t){var r=t,e=0,n=0,o=0,i={read:function(){for(;o<8;){if(e>=r.length){if(0==o)return-1;throw"unexpected end of file./"+o}var t=r.charAt(e);if(e+=1,"="==t)return o=0,-1;t.match(/^\s$/)||(n=n<<6|a(t.charCodeAt(0)),o+=6)}var i=n>>>o-8&255;return o-=8,i}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return i},I=function(t,r,e){for(var n=function(t,r){var e=t,n=r,o=new Array(t*r),i={setPixel:function(t,r,n){o[r*e+t]=n},write:function(t){t.writeString("GIF87a"),t.writeShort(e),t.writeShort(n),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(e),t.writeShort(n),t.writeByte(0);var r=a(2);t.writeByte(2);for(var o=0;r.length-o>255;)t.writeByte(255),t.writeBytes(r,o,255),o+=255;t.writeByte(r.length-o),t.writeBytes(r,o,r.length-o),t.writeByte(0),t.writeString(";")}},a=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,i=u(),a=0;a<r;a+=1)i.add(String.fromCharCode(a));i.add(String.fromCharCode(r)),i.add(String.fromCharCode(e));var f,c,g,l=D(),h=(f=l,c=0,g=0,{write:function(t,r){if(t>>>r!=0)throw"length over";for(;c+r>=8;)f.writeByte(255&(t<<c|g)),r-=8-c,t>>>=8-c,g=0,c=0;g|=t<<c,c+=r},flush:function(){c>0&&f.writeByte(g)}});h.write(r,n);var s=0,v=String.fromCharCode(o[s]);for(s+=1;s<o.length;){var d=String.fromCharCode(o[s]);s+=1,i.contains(v+d)?v+=d:(h.write(i.indexOf(v),n),i.size()<4095&&(i.size()==1<<n&&(n+=1),i.add(v+d)),v=d)}return h.write(i.indexOf(v),n),h.write(e,n),h.flush(),l.toByteArray()},u=function(){var t={},r=0,e={add:function(n){if(e.contains(n))throw"dup key:"+n;t[n]=r,r+=1},size:function(){return r},indexOf:function(r){return t[r]},contains:function(r){return void 0!==t[r]}};return e};return i}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=D();n.write(a);for(var u=function(){var t=0,r=0,e=0,n="",o={},i=function(t){n+=String.fromCharCode(a(63&t))},a=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return o.writeByte=function(n){for(t=t<<8|255&n,r+=8,e+=1;r>=6;)i(t>>>r-6),r-=6},o.flush=function(){if(r>0&&(i(t<<6-r),t=0,r=0),e%3!=0)for(var o=3-e%3,a=0;a<o;a+=1)n+="="},o.toString=function(){return n},o}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return t}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||n>=57344?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
@@ -4213,7 +4241,9 @@ function drawLookCard(){
     <p class="muted" style="margin-top:-6px;font-size:13px">Choose a colour theme for this hotel's Setu. Classic is the original look. Bills, KOT and printing are not changed by a theme.</p>
     <div class="theme-pick">${Object.entries(THEMES).map(([k, x]) => `<button class="${cur === k ? 'on' : ''}" onclick="setTheme('${k}')"><div class="sw">${x.sw.map(c => `<i style="background:${c}"></i>`).join('')}</div><b style="font-size:13px">${x.name}</b>${cur === k ? '<div class="muted" style="font-size:11px">In use</div>' : ''}</button>`).join('')}</div>
     <label style="margin-top:14px">Dashboard style</label><p class="muted" style="margin:0;font-size:12px">Modern: each theme has its own dashboard design. Classic: the old dashboard with the new colours.</p>
-    <div class="btns" style="margin-top:4px"><button class="btn ${ds === 'classic' ? '' : 'g'}" onclick="setTheme(null,'classic')">Classic dashboard</button><button class="btn ${ds === 'modern' ? '' : 'g'}" onclick="setTheme(null,'modern')">Modern dashboard (cards & charts)</button></div>`;
+    <div class="btns" style="margin-top:4px"><button class="btn ${ds === 'classic' ? '' : 'g'}" onclick="setTheme(null,'classic')">Classic dashboard</button><button class="btn ${ds === 'modern' ? '' : 'g'}" onclick="setTheme(null,'modern')">Modern dashboard (cards & charts)</button></div>
+    <label style="margin-top:14px">Billing screen dish cards</label><p class="muted" style="margin:0;font-size:12px">Show dish pictures on the billing screen. Library pictures are illustrations picked from the dish name; your own photos (Menu Items → Edit) always come first. Bills, KOT and printing do not change.</p>
+    <div class="btns" style="margin-top:4px">${Object.entries(POS_CARDS).map(([k, l]) => `<button class="btn ${posCards() === k ? '' : 'g'}" onclick="setPosCards('${k}')">${l}</button>`).join('')}</div>`;
 }
 const M_ICO = {
   sales: '<path d="M3 17l6-6 4 4 8-8M14 7h7v7"/>', bill: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2zM9 8h6M9 12h6"/>', table: '<path d="M3 10h18M6 10v9M18 10v9M5 6h14"/>',
@@ -5733,13 +5763,17 @@ function filtered(){
 }
 
 function drawItems(){
-  const f = filtered(), q = $('#q').value.trim();
-  $('#items').innerHTML = f.map((m,i) => `
+  const f = filtered(), q = $('#q').value.trim(), pc = posCards(), box = $('#items');
+  box.className = 'items' + (pc === 'off' ? '' : ' pc-' + pc);
+  // Pictures are thumbnails, lazy-loaded: adding an item never waits for one
+  box.innerHTML = f.map((m,i) => pc === 'off' ? `
     <button class="item ${q && i===0 ? 'first' : ''}" onclick="addItem('${m.id}')">
       <b>${esc(m.name)}</b>
       <small>${rs(m.price)}</small>
     </button>
-  `).join('') || '<p class="muted">No items found. Add dishes under Menu Items (M).</p>';
+  ` : `<button class="item pic ${q && i===0 ? 'first' : ''}" onclick="addItem('${m.id}')">${dishImg(m, pc === 'large', 'ph', pc === 'compact' ? 52 : 160)}<span class="tx"><b>${m.veg === true ? '<i class="vg"></i>' : m.veg === false ? '<i class="vg nv"></i>' : ''}${esc(m.name)}</b><small>${rs(m.price)}</small></span></button>`
+  ).join('') || '<p class="muted">No items found. Add dishes under Menu Items (M).</p>';
+  if(pc !== 'off') mediaHydrate(box);
 }
 
 function addItem(id){
@@ -7968,6 +8002,7 @@ function scrMenu(){
     <button class="btn ok" onclick="bulkMenu()">+ Add Menu Items (Bulk)</button>
     <button class="btn" onclick="importMenu()">Menu Import (Excel / Paste)</button>
     <button class="btn g" onclick="editMenu()">Single Item + Recipe</button>
+    ${(() => { const s = picStats(); return D.menu.length ? `<button class="btn g" onclick="picReview()">Dish pictures: ${s.auto + s.own} shown · ${s.review} to review · ${s.placeholder} placeholder</button>` : ''; })()}
   </div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
@@ -7977,7 +8012,7 @@ function scrMenu(){
       <tbody>
         ${D.menu.map(m => `
           <tr>
-            <td><b>${esc(m.name)}</b></td>
+            <td><div style="display:flex;gap:8px;align-items:center">${dishImg(m, false, 'dish-thumb', 44)}<span><b>${esc(m.name)}</b><br>${picChip(m)}</span></div></td>
             <td><span class="status-pill" style="display:inline-block;padding:2px 8px;font-size:11px">${esc(m.cat)}</span></td>
             <td class="n font-bold">${rs(m.price)}</td>
             <td class="muted">${(m.recipe || []).map(r => {
@@ -7990,6 +8025,7 @@ function scrMenu(){
       </tbody>
     </table>
   </div>`;
+  mediaHydrate(main);
 }
 
 /* Bulk entry: keep typing rows, save everything once at the end */
@@ -8065,7 +8101,33 @@ function saveBulkMenu(){
 
 /* Menu import: paste lines like "Category, Dish, Price" / Excel (CSV), or a printed
    menu where category headings sit on their own line and dishes carry a ₹ price */
+// A file with a heading row (Item Code, Category, Item Name, Food Type, Selling Price, Unit, Available…): read by column names
+function parseMenuTable(txt){
+  const lines = String(txt || '').replace(/\r/g, '').split('\n').filter(l => l.trim());
+  if(lines.length < 2) return null;
+  const split = l => l.split(/\t|,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"').trim());
+  const head = split(lines[0]).map(h => h.toLowerCase().replace(/\(.*?\)/g, '').replace(/[^a-z]/g, ''));
+  const col = (...names) => head.findIndex(h => names.includes(h));
+  const iName = col('itemname', 'dish', 'dishname', 'name', 'item', 'itemsname'), iPrice = col('sellingprice', 'price', 'rate', 'mrp', 'amount'), iCat = col('category', 'group', 'menugroup', 'section');
+  if(iName < 0 || iPrice < 0) return null;
+  const iType = col('foodtype', 'type', 'vegnonveg', 'veg'), iAvail = col('available', 'availability', 'instock', 'status'), iCode = col('itemcode', 'code', 'sku');
+  const out = [];
+  for(const l of lines.slice(1)){
+    const c = split(l), name = c[iName] || '', price = +String(c[iPrice] || '').replace(/[^\d.]/g, '');
+    if(!name || !(price >= 0) || String(c[iPrice] || '').trim() === '') continue;
+    const it = {cat: (iCat >= 0 && c[iCat]) || 'General', name, price};
+    const t = iType >= 0 ? String(c[iType] || '').toLowerCase().replace(/[^a-z]/g, '') : '';
+    if(/^(nonveg|nonvegetarian|egg|nv)$/.test(t)) it.veg = false; else if(/^(veg|vegetarian|jain|v)$/.test(t)) it.veg = true;
+    if(iAvail >= 0 && /^(no|n|false|0|out|unavailable)$/i.test(String(c[iAvail] || '').trim())) it.out = true;
+    if(iCode >= 0 && c[iCode]) it.code = String(c[iCode]).slice(0, 30);
+    out.push(it);
+  }
+  return out;
+}
+
 function parseMenuText(txt){
+  const table = parseMenuTable(txt);
+  if(table) return table;
   const out = [];
   let cat = 'General';
   String(txt || '').replace(/\r/g, '').split('\n').forEach(raw => {
@@ -8091,7 +8153,7 @@ function parseMenuText(txt){
 function importMenu(){
   modal('Menu Import — Excel / Paste', `
     <p class="muted" style="margin:0 0 8px;font-size:12px">Choose an Excel / CSV file or paste your menu here. One line per dish: <b>Category, Dish, Price</b> — or paste a printed menu (heading lines become categories, lines with a ₹ price become dishes).</p>
-    <div class="btns" style="margin:0 0 8px"><button class="btn g sm" onclick="downloadTemplate('menu')">1. Download Template (Excel)</button><button class="btn g sm" onclick="downloadImportTemplate('menu')">or blank CSV</button><label class="btn sm" style="margin:0;cursor:pointer">2. Upload filled file<input type="file" accept=".xlsx,.csv,.txt" style="display:none" onchange="readMenuFile(this.files[0])"></label></div>
+    <div class="btns" style="margin:0 0 8px"><button class="btn g sm" onclick="MI_FIX={};downloadTemplate('menu')">1. Download Template (Excel)</button><button class="btn g sm" onclick="downloadImportTemplate('menu')">or blank CSV</button><label class="btn sm" style="margin:0;cursor:pointer">2. Upload filled file<input type="file" accept=".xlsx,.csv,.txt" style="display:none" onchange="readMenuFile(this.files[0])"></label></div>
     <textarea id="mi_txt" rows="10" placeholder="Roti, Tandoori Roti, 7&#10;Dal, Dal Fry, 70&#10;Thali, Special Thali, 120" oninput="previewMenuImport()"></textarea>
     <div id="mi_prev" class="muted" style="font-size:12px;margin-top:6px"></div>
     <div class="btns">
@@ -8102,33 +8164,72 @@ function importMenu(){
 
 function readMenuFile(f){
   // The template's heading row (Category, Dish, Price) is not a dish
-  readImportFile(f, '#mi_txt', () => { $('#mi_txt').value = $('#mi_txt').value.replace(/^"?Category"?\s*,\s*"?Dish"?\s*,\s*"?Price"?\s*\n?/i, ''); previewMenuImport(); });
+  readImportFile(f, '#mi_txt', () => { $('#mi_txt').value = $('#mi_txt').value.replace(/^"?Category"?\s*,\s*"?Dish"?\s*,\s*"?Price"?\s*\n?/i, ''); MI_FIX = {}; previewMenuImport(); });
 }
+// Owner's picture corrections in the import preview, by dish name (lower case): library picture id or 'none'
+let MI_FIX = {};
+function miFix(key, v){ if(v) MI_FIX[key] = v; else delete MI_FIX[key]; previewMenuImport(true); }
 
-function previewMenuImport(){
+function previewMenuImport(keepScroll){
   const items = parseMenuText($('#mi_txt').value);
   const cats = [...new Set(items.map(i => i.cat))];
   const dup = items.filter(i => D.menu.some(m => m.name.toLowerCase() === i.name.toLowerCase())).length;
-  $('#mi_prev').innerHTML = items.length
-    ? `<b class="green">${items.length} dishes</b> · ${cats.length} categories (${cats.map(esc).join(', ')})${dup ? ` · <span class="red">${dup} already on the menu (prices will be updated)</span>` : ''}`
-    : 'No dishes detected yet';
+  if(!items.length){ $('#mi_prev').innerHTML = 'No dishes detected yet'; return; }
+  // Smart Food Visuals: match every dish name now (offline), the owner corrects what is wrong
+  const f = FV(), rows = items.map(i => {
+    const key = i.name.toLowerCase(), fix = MI_FIX[key], have = D.menu.find(m => m.name.toLowerCase() === key);
+    const m = {name: i.name, cat: i.cat, lib: fix || (have && have.lib), photo: have && have.photo, img: have && have.img};
+    const r = f ? f.match(i.name, i.cat, i.veg === undefined ? '' : i.veg ? 'veg' : 'nonveg') : {status: 'placeholder', img: 'cat-generic', conf: 0};
+    const k = fix ? 'chosen' : dishPic(m).kind;
+    const st = k === 'review' ? 'review' : ['category', 'generic'].includes(k) ? 'placeholder' : 'matched';
+    return {i, key, r, m, st, k};
+  });
+  const n = {matched: 0, review: 0, placeholder: 0};
+  rows.forEach(x => n[x.st]++);
+  const lib = f ? [...new Map(f.dishes().map(d => [d.img, d.label])).entries()] : [];
+  const opts = cur => `<option value="">${cur ? 'Automatic' : 'Automatic'}</option>${lib.map(([id, l]) => `<option value="${id}" ${cur === id ? 'selected' : ''}>${esc(l)}</option>`).join('')}<option value="none" ${cur === 'none' ? 'selected' : ''}>No dish picture (category)</option>`;
+  const show = rows.filter(x => x.st !== 'matched').concat(rows.filter(x => x.st === 'matched')).slice(0, 400);
+  const box = $('#mi_rows'), top = box ? box.scrollTop : 0;
+  $('#mi_prev').innerHTML = `<b class="green">${items.length} dishes</b> · ${cats.length} categories${dup ? ` · <span class="red">${dup} already on the menu (prices will be updated)</span>` : ''}
+    <div style="margin-top:6px"><b>Dish pictures:</b> <span class="pic-chip ok">${n.matched} matched</span> <span class="pic-chip warn">${n.review} need review</span> <span class="pic-chip">${n.placeholder} category placeholder</span>
+    <span class="muted"> · pictures are illustrations; the import goes ahead even without them</span></div>
+    <div class="mi-rows" id="mi_rows">${show.map(x => `<div class="pic-row">${dishImg(x.m, false, 'dish-thumb', 44)}<div style="flex:1;min-width:0"><b>${esc(x.i.name)}</b><div class="muted" style="font-size:11px">${esc(x.i.cat)} · ${x.st === 'matched' ? 'Matched' : x.st === 'review' ? 'Review' : 'Placeholder'}${x.r.conf ? ' ' + Math.round(x.r.conf * 100) + '%' : ''}</div></div>
+      <select onchange="miFix(${esc(JSON.stringify(x.key))}, this.value)">${opts(MI_FIX[x.key] || '')}</select></div>`).join('')}
+      ${rows.length > show.length ? `<p class="muted" style="padding:6px 8px">…and ${rows.length - show.length} more matched dishes</p>` : ''}</div>`;
+  if(keepScroll && $('#mi_rows')) $('#mi_rows').scrollTop = top;
+  mediaHydrate($('#mi_prev'));
 }
 
 function doMenuImport(){
   const items = parseMenuText($('#mi_txt').value);
   if(!items.length){ toast('No dishes found. Format: Category, Dish, Price'); return; }
-  let added = 0, updated = 0;
+  let added = 0, updated = 0, pics = 0;
+  const seen = new Set();
   items.forEach(i => {
-    const old = D.menu.find(m => m.name.toLowerCase() === i.name.toLowerCase());
+    const key = i.name.toLowerCase();
+    if(seen.has(key)) return;           // the same dish twice in one file: added once
+    seen.add(key);
+    const old = D.menu.find(m => m.name.toLowerCase() === key), fix = MI_FIX[key];
     if(old){
       if(+old.price !== i.price){ audit('Menu Rate Change', `${old.name}: ₹${old.price} → ₹${i.price} (import)`, r2(i.price - old.price), old.id); old.price = i.price; updated++; }
       old.cat = i.cat;
-    } else { D.menu.push({id: uid(), name: i.name, cat: i.cat, price: i.price, recipe: []}); added++; }
+      if(old.veg === undefined && i.veg !== undefined) old.veg = i.veg;
+      if(fix){ old.lib = fix; pics++; }         // the picture choice never touches id, price or tax
+    } else {
+      const m = {id: uid(), name: i.name, cat: i.cat, price: i.price, recipe: []};
+      if(i.veg !== undefined) m.veg = i.veg;
+      if(i.out) m.out = true;
+      if(i.code) m.code = i.code;
+      if(fix){ m.lib = fix; pics++; }
+      D.menu.push(m); added++;
+    }
   });
+  MI_FIX = {};
   save();
   closeModal();
   scrMenu();
-  toast(`${added} dishes added${updated ? `, ${updated} prices updated` : ''}`);
+  const s = picStats();
+  toast(`${added} dishes added${updated ? `, ${updated} prices updated` : ''} · pictures: ${s.auto + s.own} shown, ${s.review} to review, ${s.placeholder} placeholder`);
 }
 
 function ingRow(sid, qty){
@@ -8149,6 +8250,7 @@ function editMenu(id){
       <div><label>Selling Price (₹)</label><input id="m_price" type="number" step="any" value="${m.price}"></div>
       <div><label>HSN / SAC (optional)</label><input id="m_hsn" value="${esc(m.hsn || '')}" maxlength="8" placeholder="${esc(sacDefault())} (restaurant service)"></div>
     </div>
+    ${picBoxHTML(m)}
     <details style="margin-top:10px"${m.img || m.desc || m.veg !== undefined || m.qrOff ? ' open' : ''}><summary style="cursor:pointer;font-weight:600">Guest QR menu (optional)</summary>
       <div class="grid" style="margin-top:6px">
         <div><label>Veg / Non-veg</label><select id="m_veg"><option value="">Not shown</option><option value="1" ${m.veg === true ? 'selected' : ''}>Veg</option><option value="0" ${m.veg === false ? 'selected' : ''}>Non-veg</option></select></div>
@@ -8164,6 +8266,8 @@ function editMenu(id){
       ${id ? `<button class="btn bad" onclick="delMenu('${id}')">Delete Dish</button>` : ''}
       <button class="btn g" onclick="closeModal()">Cancel</button>
     </div>`);
+  drawPicBox();
+  ['#m_name', '#m_cat', '#m_img'].forEach(s => { const e = $(s); if(e) e.addEventListener('change', drawPicBox); });
 }
 
 function saveMenu(id){
@@ -8179,6 +8283,8 @@ function saveMenu(id){
   // Guest QR menu fields: only kept when set, so other menus stay as they were
   const veg = $('#m_veg').value, img = $('#m_img').value.trim(), desc = $('#m_desc').value.trim();
   Object.assign(v, {veg: veg === '' ? undefined : veg === '1', qrOff: $('#m_qr').value === 'off' || undefined, img: /^https:\/\//.test(img) ? img : undefined, desc: desc || undefined});
+  // Dish picture: own photo (hash id) and/or a library choice; nothing set = automatic by name
+  if(PICEDIT) Object.assign(v, {photo: MEDIA_ID.test(PICEDIT.photo || '') ? PICEDIT.photo : undefined, lib: PICEDIT.lib === 'none' || (FV() && FV().isPicture(PICEDIT.lib)) ? PICEDIT.lib : undefined});
   const old = id && D.menu.find(x => x.id === id);
   if(old && +old.price !== price) audit('Menu Rate Change', `${name}: ₹${old.price} → ₹${price}`, r2(price - old.price), id);
   if(id) Object.assign(D.menu.find(x => x.id === id), v);
@@ -8194,6 +8300,250 @@ function delMenu(id){
   save();
   closeModal();
   scrMenu();
+}
+
+
+/* ================= SMART FOOD VISUALS (dish pictures) =================
+   Library pictures: food/lib|thumb/<id>.webp (original illustrations, see food/manifest.json), chosen by
+   food/food-match.js from the dish name. The restaurant's own photos: content-hashed ids (m.photo) stored on
+   the counter PC / cloud (/api/media/<id>) or, in browser-only mode, in IndexedDB — never in the data or
+   localStorage. Bills, KOT and printing never use pictures. */
+const FV = () => window.FoodVisuals || null;
+const MEDIA_ID = /^m_[0-9a-f]{32}$/;
+const MEDIA_URL = {};          // browser-only mode: object URLs of photos read from IndexedDB
+const PIC_LABEL = {custom: 'Own photo', link: 'Own photo link', chosen: 'Library picture (chosen)', auto: 'Automatic match', review: 'Needs review', category: 'Category picture', generic: 'Placeholder'};
+const PIC_TONE = {custom: 'ok', link: 'ok', chosen: 'ok', auto: 'ok', review: 'warn', category: '', generic: ''};
+
+function mediaUrl(id, thumb){
+  if(!MEDIA_ID.test(id || '')) return '';
+  if(SRV.on) return '/api/media/' + id + (thumb ? '.t' : '') + (SRV.cloud && SRV.hotel ? '?h=' + encodeURIComponent(SRV.hotel) : '');
+  return MEDIA_URL[id + (thumb ? '.t' : '')] || '';
+}
+function dishPic(m, big){
+  const f = FV(), p = f ? f.pick(m) : {src: 'cat-generic', kind: 'generic'};
+  const url = p.kind === 'custom' ? mediaUrl(p.src, !big) : p.kind === 'link' ? p.src : 'food/' + (big ? 'lib' : 'thumb') + '/' + p.src + '.webp';
+  return {...p, url};
+}
+function dishImg(m, big, cls, size){
+  const p = dishPic(m, big), wait = p.kind === 'custom' && !p.url;
+  return `<img class="${cls || 'dish-img'}" src="${esc(p.url || 'food/thumb/cat-generic.webp')}"${wait ? ` data-media="${p.src}${big ? '' : '.t'}"` : ''} alt="" loading="lazy" decoding="async"${size ? ` width="${size}" height="${size}"` : ''} onerror="dishImgFail(this)">`;
+}
+function dishImgFail(el){
+  if(!el.dataset.f){ el.dataset.f = '1'; el.src = 'food/thumb/cat-generic.webp'; }
+  else el.style.visibility = 'hidden';
+}
+function picChip(m){
+  const p = dishPic(m);
+  const conf = p.kind === 'auto' || p.kind === 'review' ? ` ${Math.round((p.conf || 0) * 100)}%` : '';
+  return `<span class="pic-chip ${PIC_TONE[p.kind] || ''}">${PIC_LABEL[p.kind] || p.kind}${conf}</span>`;
+}
+
+// ---- browser-only mode: photos in IndexedDB (no server) ----
+let mediaDb = null;
+function mediaIdb(){
+  if(mediaDb) return mediaDb;
+  mediaDb = new Promise((ok, bad) => {
+    const r = indexedDB.open('setu-media', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('m');
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => bad(r.error);
+  });
+  return mediaDb;
+}
+async function idbMedia(mode, key, val){
+  const db = await mediaIdb();
+  return new Promise((ok, bad) => {
+    const tx = db.transaction('m', mode), st = tx.objectStore('m');
+    const rq = mode === 'readonly' ? (key === null ? st.getAllKeys() : st.get(key)) : st.put(val, key);
+    rq.onsuccess = () => ok(rq.result);
+    rq.onerror = () => bad(rq.error);
+  });
+}
+async function mediaHydrate(root){
+  if(SRV.on) return;
+  for(const el of (root || document).querySelectorAll('img[data-media]')){
+    const k = el.dataset.media;
+    el.removeAttribute('data-media');
+    try{
+      if(!MEDIA_URL[k]){ const b = await idbMedia('readonly', k); if(b) MEDIA_URL[k] = URL.createObjectURL(b); }
+      if(MEDIA_URL[k]) el.src = MEDIA_URL[k];
+    }catch(e){}
+  }
+}
+
+// ---- own photo: checked, squared, shrunk and re-encoded here, so only a small WebP/JPEG ever leaves the device ----
+const bytesHex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+const blobB64 = b => new Promise((ok, bad) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = bad; r.readAsDataURL(b); });
+async function photoPrepare(file){
+  if(!file) throw new Error('No file chosen');
+  if(file.size > 12 * 1024 * 1024) throw new Error('This photo is larger than 12 MB. Choose a smaller one.');
+  const h = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const jpg = h[0] === 0xff && h[1] === 0xd8 && h[2] === 0xff, png = h[0] === 0x89 && h[1] === 0x50 && h[2] === 0x4e && h[3] === 0x47;
+  const webp = h[0] === 0x52 && h[1] === 0x49 && h[2] === 0x46 && h[3] === 0x46 && h[8] === 0x57 && h[9] === 0x45 && h[10] === 0x42 && h[11] === 0x50;
+  if(!(jpg || png || webp)) throw new Error('Only JPG, PNG or WebP photos can be used');
+  let bmp;
+  try{ bmp = await createImageBitmap(file); }catch(e){ throw new Error('This file is not a readable photo'); }
+  const enc = async (size, q) => {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const s = Math.min(bmp.width, bmp.height);
+    c.getContext('2d').drawImage(bmp, (bmp.width - s) / 2, (bmp.height - s) / 2, s, s, 0, 0, size, size);
+    let b = await new Promise(r => c.toBlob(r, 'image/webp', q));
+    if(!b || b.type !== 'image/webp') b = await new Promise(r => c.toBlob(r, 'image/jpeg', q));
+    return b;
+  };
+  const full = await enc(512, .82), thumb = await enc(160, .76);
+  const id = 'm_' + bytesHex(await crypto.subtle.digest('SHA-256', await full.arrayBuffer())).slice(0, 32);
+  return {id, full, thumb};
+}
+async function photoStore(p){
+  if(SRV.on){
+    const r = await srvFetch('/api/media', {method: 'POST', body: JSON.stringify({id: p.id, full: await blobB64(p.full), thumb: await blobB64(p.thumb)})});
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'The photo could not be saved (HTTP ' + r.status + ')');
+    return j.id;
+  }
+  await idbMedia('readwrite', p.id, p.full);
+  await idbMedia('readwrite', p.id + '.t', p.thumb);
+  MEDIA_URL[p.id] = URL.createObjectURL(p.full);
+  MEDIA_URL[p.id + '.t'] = URL.createObjectURL(p.thumb);
+  return p.id;
+}
+
+// ---- Menu item: picture box inside "Edit Menu Item" ----
+let PICEDIT = null;            // {photo, lib} being edited, applied by saveMenu()
+function picBoxHTML(m){
+  PICEDIT = {photo: m.photo, lib: m.lib};
+  return `<div class="card" style="margin:10px 0 4px;padding:10px" id="pic-box"></div>`;
+}
+function drawPicBox(){
+  const el = $('#pic-box');
+  if(!el || !PICEDIT) return;
+  const m = {name: $('#m_name').value, cat: $('#m_cat').value, img: $('#m_img') ? $('#m_img').value.trim() : '', photo: PICEDIT.photo, lib: PICEDIT.lib};
+  const auto = FV() ? FV().match(m.name, m.cat) : null, p = dishPic(m, true);
+  el.innerHTML = `<div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+    ${dishImg(m, true, 'dish-prev', 120)}
+    <div style="flex:1;min-width:220px">
+      <b>Dish picture</b> ${picChip(m)}
+      <div class="muted" style="font-size:12px;margin:4px 0 8px">${p.kind === 'custom' ? 'Your own photo is shown on the billing screen and the QR menu.' : p.kind === 'review' ? `Not sure: this looks like <b>${esc((FV().dishes().find(d => d.img === auto.img) || {}).label || auto.img)}</b>. Accept it, choose another, or upload your photo.` : p.kind === 'auto' ? 'Picked by the dish name. Library pictures are illustrations, not your actual dish.' : p.kind === 'link' ? 'Shown from your photo link.' : 'No matching picture: the category picture is shown.'}</div>
+      <div class="btns" style="margin:0">
+        <label class="btn sm" style="margin:0;cursor:pointer">${PICEDIT.photo ? 'Replace photo' : 'Upload photo'}<input type="file" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="picUpload(this.files[0]);this.value=''"></label>
+        ${PICEDIT.photo ? '<button class="btn sm bad" onclick="PICEDIT.photo=undefined;drawPicBox()">Remove own photo</button>' : ''}
+        ${p.kind === 'review' ? `<button class="btn sm ok" onclick="PICEDIT.lib='${auto.img}';drawPicBox()">Accept suggestion</button>` : ''}
+        <button class="btn sm g" onclick="picLibrary()">Choose from library</button>
+        ${PICEDIT.lib ? '<button class="btn sm g" onclick="PICEDIT.lib=undefined;drawPicBox()">Restore automatic picture</button>' : ''}
+        ${PICEDIT.lib !== 'none' && !PICEDIT.photo ? '<button class="btn sm g" onclick="PICEDIT.lib=\'none\';drawPicBox()">No dish picture</button>' : ''}
+      </div>
+      <div id="pic-lib" style="display:none;margin-top:8px"></div>
+    </div></div>`;
+  mediaHydrate(el);
+}
+async function picUpload(file){
+  try{
+    toast('Preparing the photo…');
+    const p = await photoPrepare(file);
+    PICEDIT.photo = await photoStore(p);
+    drawPicBox();
+    toast('Photo ready — press Save Dish');
+  }catch(e){ toast(e.message); }
+}
+function picLibrary(q){
+  const el = $('#pic-lib');
+  if(!el || !FV()) return;
+  el.style.display = '';
+  const f = FV(), all = [...f.dishes().map(d => ({id: d.img, label: d.label})), ...Object.entries(f.CATS).map(([k, v]) => ({id: 'cat-' + k, label: v + ' (category)'}))];
+  const seen = new Set(), list = all.filter(x => !seen.has(x.id) && seen.add(x.id) && (!q || x.label.toLowerCase().includes(q.toLowerCase()) || x.id.includes(q.toLowerCase())));
+  el.innerHTML = `<input placeholder="Search pictures (biryani, coffee…)" value="${esc(q || '')}" oninput="picLibrary(this.value);this.focus();this.setSelectionRange(this.value.length,this.value.length)">
+    <div class="pic-grid">${list.map(x => `<button type="button" title="${esc(x.label)}" class="${PICEDIT.lib === x.id ? 'on' : ''}" onclick="PICEDIT.lib='${x.id}';drawPicBox()"><img src="food/thumb/${x.id}.webp" alt="" loading="lazy" width="64" height="64"><small>${esc(x.label)}</small></button>`).join('')}</div>`;
+}
+
+// ---- Menu list: review of pictures that need a decision ----
+function picStats(){
+  const s = {auto: 0, review: 0, placeholder: 0, own: 0};
+  for(const m of D.menu){
+    const k = dishPic(m).kind;
+    if(k === 'review') s.review++; else if(k === 'category' || k === 'generic') s.placeholder++; else if(k === 'auto') s.auto++; else s.own++;
+  }
+  return s;
+}
+function picReview(){
+  const list = D.menu.filter(m => ['review', 'category', 'generic'].includes(dishPic(m).kind));
+  if(!list.length) return toast('Every dish has a picture. Nothing to review.');
+  modal(`Review dish pictures (${list.length})`, `<p class="muted" style="margin-top:0;font-size:12px">Accept a suggestion, keep the category picture, or open the dish to upload your own photo. Prices and dishes are not changed here.</p>
+    <div style="max-height:60vh;overflow:auto">${list.slice(0, 300).map(m => { const r = FV().match(m.name, m.cat), sug = r.status === 'review' ? r.img : '';
+      return `<div class="pic-row" id="pr-${m.id}">${dishImg(m, false, 'dish-thumb', 44)}<div style="flex:1;min-width:0"><b>${esc(m.name)}</b><div class="muted" style="font-size:11px">${esc(m.cat)} · ${picChip(m)}</div></div>
+        ${sug ? `<img src="food/thumb/${sug}.webp" class="dish-thumb" width="44" height="44" title="Suggestion"><button class="btn sm ok" onclick="picSet('${m.id}','${sug}')">Accept</button>` : ''}
+        <button class="btn sm g" onclick="picSet('${m.id}','none')">Keep category</button><button class="btn sm g" onclick="closeModal();editMenu('${m.id}')">Edit</button></div>`; }).join('')}
+    ${list.length > 300 ? `<p class="muted">…and ${list.length - 300} more</p>` : ''}</div>
+    <div class="btns"><button class="btn ok" onclick="closeModal();scrMenu()">Done</button></div>`);
+  mediaHydrate($('#modal'));
+}
+function picSet(id, lib){
+  const m = D.menu.find(x => x.id === id);
+  if(!m) return;
+  m.lib = lib;
+  save();
+  const row = $('#pr-' + id);
+  if(row) row.remove();
+}
+
+// ---- Billing screen: picture cards (Settings → Appearance; "Text only" keeps the original look) ----
+const POS_CARDS = {off: 'Text only (original)', compact: 'Compact', standard: 'Standard', large: 'Large image'};
+const posCards = () => POS_CARDS[D.settings.posCards] ? D.settings.posCards : 'off';
+function setPosCards(v){ D.settings.posCards = POS_CARDS[v] ? v : 'off'; save(); drawLookCard(); toast('Billing cards changed'); }
+
+// ---- Photos backup (separate from the data backup: photos are not in the data) ----
+async function mediaBackup(){
+  try{
+    const items = [];
+    if(SRV.on){
+      let after = '';
+      for(let i = 0; i < 500; i++){
+        const r = await srvFetch('/api/media-export?after=' + encodeURIComponent(after));
+        const j = await r.json();
+        if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+        items.push(...j.items);
+        if(!j.next) break;
+        after = j.next;
+      }
+    } else {
+      const keys = (await idbMedia('readonly', null)).filter(k => MEDIA_ID.test(k));
+      for(const k of keys){
+        const a = await idbMedia('readonly', k), b = await idbMedia('readonly', k + '.t');
+        if(a && b) items.push({id: k, full: await blobB64(a), thumb: await blobB64(b)});
+      }
+    }
+    if(!items.length) return toast('No own dish photos yet. Library pictures need no backup.');
+    await saveFile(`Setu-Photos-${today()}.json`, JSON.stringify({setuPhotos: 1, at: Date.now(), items}), 'application/json', `${items.length} photos saved in the backup file`);
+  }catch(e){ toast('Photos backup failed: ' + e.message); }
+}
+async function mediaRestore(file){
+  try{
+    const doc = JSON.parse(await file.text());
+    const items = (doc && doc.setuPhotos && Array.isArray(doc.items) ? doc.items : []).filter(x => x && MEDIA_ID.test(x.id) && typeof x.full === 'string' && typeof x.thumb === 'string');
+    if(!items.length) return toast('This is not a Setu photos backup');
+    let done = 0;
+    for(let i = 0; i < items.length; i += 20){
+      const part = items.slice(i, i + 20);
+      if(SRV.on){
+        const r = await srvFetch('/api/media-import', {method: 'POST', body: JSON.stringify({items: part})});
+        const j = await r.json().catch(() => ({}));
+        if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      } else {
+        for(const x of part){
+          const toBlob = s => new Blob([Uint8Array.from(atob(s), c => c.charCodeAt(0))], {type: 'image/webp'});
+          const full = toBlob(x.full), head = new Uint8Array(await full.slice(0, 12).arrayBuffer());
+          const ok = (head[0] === 0x52 && head[8] === 0x57) || (head[0] === 0xff && head[1] === 0xd8);
+          const id = 'm_' + bytesHex(await crypto.subtle.digest('SHA-256', await full.arrayBuffer())).slice(0, 32);
+          if(!ok || id !== x.id) continue;
+          await idbMedia('readwrite', x.id, full);
+          await idbMedia('readwrite', x.id + '.t', toBlob(x.thumb));
+        }
+      }
+      done += part.length;
+    }
+    toast(`${done} photos restored`);
+  }catch(e){ toast('Photos restore failed: ' + e.message); }
 }
 
 /* ================= KITCHEN DISPLAY (KOT SCREEN) ================= */
@@ -12984,6 +13334,8 @@ function scrSettings(){
       <label class="btn g" style="margin:0;cursor:pointer">Restore Backup File<input type="file" accept=".json" style="display:none" onchange="restore(this.files[0]);this.value=''"></label>
       <button class="btn bad" onclick="resetAll()">Reset All Data</button>
     </div>
+    <p class="muted" style="font-size:12px;margin-bottom:0">Your own dish photos are kept apart from the data${SRV.on && !SRV.cloud ? ' (the automatic backup copies them to its folder too)' : ''}. Keep a photos backup as well:</p>
+    <div class="btns"><button class="btn g" onclick="mediaBackup()">Download Photos Backup</button><label class="btn g" style="margin:0;cursor:pointer">Restore Photos Backup<input type="file" accept=".json" style="display:none" onchange="mediaRestore(this.files[0]);this.value=''"></label></div>
   </div>`;
   drawNetCard();
   drawPrintCard();

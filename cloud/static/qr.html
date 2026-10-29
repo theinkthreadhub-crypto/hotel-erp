@@ -15,7 +15,8 @@
   main{ padding:8px 16px }
   h2{ font-size:15px; margin:16px 0 8px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px }
   .it{ display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:8px }
-  .it img{ width:64px; height:64px; object-fit:cover; border-radius:10px; flex:none }
+  .it img{ width:64px; height:64px; object-fit:cover; border-radius:10px; flex:none; background:#f1f5f9 }
+  .it.off{ opacity:.55 } .it.off img{ filter:grayscale(1) }
   .it .n{ flex:1; min-width:0 } .it b{ display:block; font-size:15px } .it small{ color:var(--mut) } .it .p{ font-weight:700; margin-top:3px }
   .veg{ display:inline-block; width:12px; height:12px; border:2px solid var(--ok); border-radius:2px; margin-right:6px; vertical-align:-1px; position:relative }
   .veg.nv{ border-color:var(--bad) } .veg::after{ content:''; position:absolute; inset:2px; border-radius:50%; background:currentColor; color:var(--ok) } .veg.nv::after{ color:var(--bad) }
@@ -44,6 +45,7 @@
   <button class="btn" id="cartbtn" onclick="openCart()" disabled>Cart</button></div></div>
 <div class="sheet" id="sh" onclick="if(event.target.id==='sh')closeSheet()"><div class="box" id="box"></div></div>
 <div class="toast" id="toast"></div>
+<script src="/food/food-match.js"></script>
 <script>
 // Guest menu for one table. The address is /q/<HOTEL>/<token>; the token only allows this table's menu, orders and calls.
 const parts = location.pathname.split('/').filter(Boolean), HOTEL = parts[1] || '', TOKEN = parts[2] || '';
@@ -64,18 +66,25 @@ async function load(){
   try{ MENU = await call('/api/guest/menu'); }
   catch(e){ $('#m').innerHTML = `<div class="msg"><b>${esc(e.message)}</b><br><br>${e.status === 410 ? 'The QR code may be old. Please ask the staff for help.' : 'Please check the internet and scan again.'}</div>`; return; }
   document.title = MENU.hotel; $('#h').textContent = MENU.hotel; $('#tb').textContent = 'Table ' + MENU.table;
-  Object.keys(CART).forEach(k => { if(!MENU.items.some(i => i.id === k)) delete CART[k]; });
+  Object.keys(CART).forEach(k => { if(!MENU.items.some(i => i.id === k && !i.out)) delete CART[k]; });
   $('#bar').style.display = ''; draw(); poll();
 }
 function cats(){ return [...new Set(MENU.items.map(i => i.cat))]; }
+// Smart Food Visuals: the hotel's own photo, its own link, or a representative library picture (never a file path)
+function pic(i){
+  const FV = window.FoodVisuals, p = FV ? FV.pick(i) : (i.img ? {src: i.img, kind: 'link'} : null);
+  if(!p) return '';
+  const url = p.kind === 'custom' ? '/api/media/' + p.src + '.t?h=' + encodeURIComponent(HOTEL) : p.kind === 'link' ? p.src : '/food/thumb/' + p.src + '.webp';
+  return `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" width="64" height="64" onerror="this.style.visibility='hidden'">`;
+}
 function draw(){
   const cs = cats();
   $('#cats').innerHTML = cs.map(c => `<button class="cat ${CAT === c ? 'on' : ''}" onclick="jump('${esc(c).replace(/'/g, '&#39;')}')">${esc(c)}</button>`).join('');
   $('#m').innerHTML = cs.map(c => `<h2 id="c-${encodeURIComponent(c)}">${esc(c)}</h2>` + MENU.items.filter(i => i.cat === c).map(i => {
     const n = CART[i.id] || 0;
-    return `<div class="it">${i.img ? `<img src="${esc(i.img)}" alt="" loading="lazy">` : ''}<div class="n"><b>${i.veg === true ? '<span class="veg"></span>' : i.veg === false ? '<span class="veg nv"></span>' : ''}${esc(i.name)}</b>${i.desc ? `<small>${esc(i.desc)}</small>` : ''}<div class="p">${rs(i.price)}</div></div>
-      ${n ? `<div class="q"><button onclick="qty('${i.id}',-1)">−</button><span>${n}</span><button onclick="qty('${i.id}',1)">+</button></div>` : `<button class="add" onclick="qty('${i.id}',1)">ADD</button>`}</div>`;
-  }).join('')).join('') + '<div class="foot">Powered by Setu · Aghanya Devanya Enterprises</div>';
+    return `<div class="it${i.out ? ' off' : ''}">${pic(i)}<div class="n"><b>${i.veg === true ? '<span class="veg"></span>' : i.veg === false ? '<span class="veg nv"></span>' : ''}${esc(i.name)}</b>${i.desc ? `<small>${esc(i.desc)}</small>` : ''}<div class="p">${rs(i.price)}</div></div>
+      ${i.out ? '<span class="tag">Not available</span>' : n ? `<div class="q"><button onclick="qty('${i.id}',-1)">−</button><span>${n}</span><button onclick="qty('${i.id}',1)">+</button></div>` : `<button class="add" onclick="qty('${i.id}',1)">ADD</button>`}</div>`;
+  }).join('')).join('') + '<div class="foot">Pictures are for illustration. Powered by Setu · Aghanya Devanya Enterprises</div>';
   const n = Object.values(CART).reduce((a, b) => a + b, 0), t = MENU.items.reduce((a, i) => a + (CART[i.id] || 0) * i.price, 0);
   $('#cartbtn').disabled = !n; $('#cartbtn').textContent = n ? `Cart (${n}) · ${rs(t)}` : 'Cart';
 }

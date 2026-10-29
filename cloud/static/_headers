@@ -3,5 +3,11 @@
   Cache-Control: no-cache
 /hotel_erp.html
   Cache-Control: no-cache
+/food/food-match.js
+  Cache-Control: no-cache
+/food/lib/*
+  Cache-Control: public, max-age=604800
+/food/thumb/*
+  Cache-Control: public, max-age=604800
 /download/latest.json
   Cache-Control: no-cache

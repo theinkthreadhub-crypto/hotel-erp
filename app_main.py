@@ -32,6 +32,7 @@ import copy
 import hashlib
 import atexit
 import setu_security as SEC
+import setu_media as MEDIA
 import re
 
 APP_PORT = 8000
@@ -1896,7 +1897,11 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     'cat': m.get('cat', 'Menu'),
                     'price': float(m.get('price', 0)),
                     'veg': m.get('veg'),
-                    'desc': m.get('desc')
+                    'desc': m.get('desc'),
+                    'img': m.get('img') if str(m.get('img') or '').startswith('https://') else None,
+                    'photo': m.get('photo') if MEDIA.ID_RE.match(str(m.get('photo') or '')) else None,
+                    'lib': m.get('lib') if re.match(r'^[a-z0-9-]{2,40}$', str(m.get('lib') or '')) else None,
+                    'out': bool(m.get('out')) or None
                 } for m in d.get('menu', []) if m and m.get('id') and m.get('name') and not m.get('qrOff') and m.get('active') is not False]
                 return self.send_json(200, {
                     'hotel': st.get('name', 'Hotel Setu'),
@@ -1961,6 +1966,16 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             self.end_headers()
             self.wfile.write(body)
 
+        def send_media(self, got):
+            body, ctype = got
+            self.send_response(200)
+            self.send_header('Content-Type', ctype)
+            self.send_header('Cache-Control', 'public, max-age=31536000, immutable')   # the name is the content hash
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Length', str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
         def send_db(self):
             # Never the credentials: devices get the public view (cached per version)
             body = ('{"version": %d, "savedAt": %d, "data": %s}' % (store.version, store.saved_at, store.public_raw())).encode('utf-8')
@@ -1986,7 +2001,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
         # ---------- routes ----------
         def static_allowed(self, path):
             # Only the app's own files: never app_main.py, keygen.py, keys, .dev.vars or test data next to it
-            return path in PUBLIC_FILES
+            return path in PUBLIC_FILES or bool(FOOD_FILE_RE.match(path))
 
         def do_HEAD(self):
             if not self.static_allowed(self.path.split('?')[0]):
@@ -2002,6 +2017,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             bad = self.request_refused(False)
             if bad:
                 return self.send_json(bad[0], {'error': bad[1]})
+            m = MEDIA_PATH_RE.match(path)
+            if m:
+                # A dish photo: public like any picture on the menu (the name is a hash; nothing else can be asked for)
+                got = store.media.get(m.group(1), bool(m.group(2)))
+                return self.send_media(got) if got else self.send_json(404, {'error': 'not found'})
+            if path == '/api/media-export':
+                # Photos backup, one page at a time (manager)
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                items, nxt = store.media.export((qs.get('after') or [''])[0])
+                return self.send_json(200, {'v': 1, 'items': items, 'next': nxt})
             if path == '/api/ping':
                 return self.send_json(200, {'setu': True, 'version': store.version, 'local': self.is_local(),
                                             'grace': cloud.grace() if cloud else None})
@@ -2677,6 +2704,29 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception as e:
                     return self.send_json(502, {'error': _net_reason(e) if isinstance(e, urllib.error.URLError) else str(e)})
                 return self.send_json(200, updater.state)
+            if path in ('/api/media', '/api/media-import'):
+                # The restaurant's own dish photos (manager). Content is checked, named by its hash, kept out of the data
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                try:
+                    b = self.read_json()
+                    items = b.get('items') if path == '/api/media-import' else [b]
+                    if not isinstance(items, list) or not 0 < len(items) <= 50:
+                        return self.send_json(400, {'error': 'bad request'})
+                    ids = [store.media.put(it.get('full'), it.get('thumb'), it.get('id') or None) for it in items if isinstance(it, dict)]
+                except ValueError as e:
+                    return self.send_json(400, {'error': str(e)})
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                if cloud and cloud.configured():
+                    # The QR menu and phones on the internet need the same photos: copy them to Setu Cloud (best effort)
+                    def mirror(batch=items):
+                        try:
+                            cloud._request('POST', '/api/media-import', json.dumps({'items': batch}))
+                        except Exception as e:
+                            store.log(f'Photo copy to cloud failed: {e!r}')
+                    threading.Thread(target=mirror, daemon=True).start()
+                return self.send_json(200, {'ok': True, 'id': ids[0] if ids else '', 'ids': ids})
             if path == '/api/printer-jobs':
                 # Printer Health: remove stuck or repeated jobs (main counter or a Manager device)
                 if self.role() not in ('local', 'admin'):
@@ -2973,6 +3023,9 @@ class AutoBackup:
                 arch = getattr(self.store, 'archive', None)
                 if arch:
                     arch.copy_to(os.path.join(folder, 'Setu-Archive.db'))
+                media = getattr(self.store, 'media', None)
+                if media:
+                    media.copy_to(os.path.join(folder, 'Setu Media'))   # dish photos: only new ones are copied
                 for old in self.files()[self.cfg['keep']:]:
                     os.remove(os.path.join(folder, old))
                 self.cfg.update({'lastAt': int(time.time() * 1000), 'lastFile': name, 'lastError': '', 'lastWhy': why})
@@ -3002,6 +3055,9 @@ class AutoBackup:
         self.run('before restore')
         with self.store.lock:
             self.store.write(data)
+        media = getattr(self.store, 'media', None)
+        if media:
+            media.restore_from(os.path.join(self.cfg['folder'], 'Setu Media'))
         self.store.log(f'Restored from auto backup {name}')
 
     def _loop(self):
@@ -3017,7 +3073,10 @@ class AutoBackup:
 
 
 # Static files the local server may hand out (an allow-list; everything else is 404)
-PUBLIC_FILES = {'/', '/index.html', '/hotel_erp.html', '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.ico'}
+PUBLIC_FILES = {'/', '/index.html', '/hotel_erp.html', '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.ico',
+                '/food/food-match.js', '/food/manifest.json'}
+MEDIA_PATH_RE = re.compile(r'^/api/media/(m_[0-9a-f]{32})(\.t)?$')
+FOOD_FILE_RE = re.compile(r'^/food/(lib|thumb)/[a-z0-9-]{2,40}\.webp$')   # Smart Food Visuals library pictures
 LAUNCH_FILE = 'setu-launch.key'
 
 
@@ -3049,6 +3108,7 @@ def start_server(base_dir, data_dir, port):
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
     updater = Updater(store)
+    store.media = MEDIA.MediaStore(data_dir)
     store.autobackup = AutoBackup(store)
     store.wa = WhatsAppLink(store)
     atexit.register(lambda: store.autobackup.run('Setu closed') if store.version > 0 else None)

@@ -90,6 +90,25 @@ function randomHex(n){
 
 const sha256 = async text => hex(await crypto.subtle.digest('SHA-256', enc(text)));
 
+// ---- Smart Food Visuals: dish photo checks (same rules as the counter PC, setu_media.py) ----
+const MEDIA_MAX_FULL = 400 * 1024, MEDIA_MAX_THUMB = 60 * 1024, MEDIA_MAX_FILES = 3000, MEDIA_MAX_BYTES = 300 * 1024 * 1024;
+const unb64 = s => { const t = atob(s); const u = new Uint8Array(t.length); for(let i = 0; i < t.length; i++) u[i] = t.charCodeAt(i); return u; };
+const b64 = buf => { const u = new Uint8Array(buf); let s = ''; for(let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const sniffImg = u => u.length >= 12 && u[0] === 0x52 && u[1] === 0x49 && u[2] === 0x46 && u[3] === 0x46 && u[8] === 0x57 && u[9] === 0x45 && u[10] === 0x42 && u[11] === 0x50 ? 'image/webp'
+  : u.length >= 4 && u[0] === 0xff && u[1] === 0xd8 && u[2] === 0xff ? 'image/jpeg' : '';
+async function mediaCheck(it){
+  if(!it || typeof it.full !== 'string' || typeof it.thumb !== 'string') return { error: 'not a photo' };
+  if(it.full.length > MEDIA_MAX_FULL * 4 / 3 + 8 || it.thumb.length > MEDIA_MAX_THUMB * 4 / 3 + 8) return { error: 'photo too large' };
+  let full, thumb;
+  try{ full = unb64(it.full); thumb = unb64(it.thumb); }catch(e){ return { error: 'not a photo' }; }
+  if(!full.length || !thumb.length || full.length > MEDIA_MAX_FULL || thumb.length > MEDIA_MAX_THUMB) return { error: 'photo too large' };
+  const ct = sniffImg(full);
+  if(!ct || !sniffImg(thumb)) return { error: 'only WebP or JPEG photos (the app converts them for you)' };
+  const id = 'm_' + hex(await crypto.subtle.digest('SHA-256', full)).slice(0, 32);
+  if(it.id && it.id !== id) return { error: 'photo id does not match its content' };
+  return { id, ct, full: full.buffer, thumb: thumb.buffer };
+}
+
 async function hmac(secret, text){
   const key = await crypto.subtle.importKey('raw', enc(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   return hex(await crypto.subtle.sign('HMAC', key, enc(text)));
@@ -665,6 +684,8 @@ export class SetuHotel extends DurableObject {
     this.sql = ctx.storage.sql;
     this.sql.exec(`CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS chunk (slot TEXT NOT NULL, i INTEGER NOT NULL, s TEXT NOT NULL, PRIMARY KEY (slot, i))`);
+    // Smart Food Visuals: the restaurant's own dish photos, apart from the data (named by their hash)
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS media (id TEXT PRIMARY KEY, ct TEXT NOT NULL, full BLOB NOT NULL, thumb BLOB NOT NULL, at INTEGER)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS payment (id TEXT PRIMARY KEY, plan TEXT, days INTEGER, amount INTEGER, at INTEGER, lic TEXT)`);
     // QR self-ordering: guests' orders and calls wait here; staff accept them into the hotel's data (never written from here)
     this.sql.exec(`CREATE TABLE IF NOT EXISTS guestorder (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, items TEXT NOT NULL, note TEXT, name TEXT,
@@ -1112,7 +1133,9 @@ export class SetuHotel extends DurableObject {
       const qtyOf = sid => { let x = sid; for(let i = 0; i < 6 && alias[x]; i++) x = alias[x]; const it = stock.get(x); return it ? +it.qty || 0 : 1; };
       const outOf = m => st.qrHideOut && (m.recipe || []).some(r => r && +r.qty > 0 && qtyOf(r.sid) <= 0);
       const items = (Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && m.name && !m.qrOff && m.active !== false && !outOf(m))
-        .map(m => ({ id: m.id, name: str(m.name, 80), cat: str(m.cat, 40) || 'Menu', price: +m.price || 0, veg: m.veg, img: /^https:\/\//.test(m.img || '') ? m.img : undefined, desc: str(m.desc, 160) || undefined }));
+        .map(m => ({ id: m.id, name: str(m.name, 80), cat: str(m.cat, 40) || 'Menu', price: +m.price || 0, veg: m.veg, img: /^https:\/\//.test(m.img || '') ? m.img : undefined, desc: str(m.desc, 160) || undefined,
+          // Smart Food Visuals: own photo (hash id) or chosen library picture; the guest page matches the rest by name
+          photo: /^m_[0-9a-f]{32}$/.test(m.photo || '') ? m.photo : undefined, lib: /^[a-z0-9-]{2,40}$/.test(m.lib || '') ? m.lib : undefined, out: m.out ? true : undefined }));
       return json(200, { hotel: str(st.name || this.account.name, 80), table: tbl, items, gst: +st.gst || 0, incl: !!st.gstInclusive });
     }
     if(method === 'GET' && path === '/api/guest/status'){
@@ -1136,7 +1159,7 @@ export class SetuHotel extends DurableObject {
       if(same) return json(200, { id: same.id, status: same.status, again: true });   // the same order sent twice (slow network)
       const pend = this.sql.exec(`SELECT COUNT(*) AS n FROM guestorder WHERE tbl = ? AND status = 'pending'`, tbl).toArray()[0].n;
       if(pend >= 5) return json(429, { error: 'Your earlier orders are still waiting for the staff. Please wait a moment.' });
-      const menu = new Map((Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && !m.qrOff && m.active !== false).map(m => [m.id, m]));
+      const menu = new Map((Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && !m.qrOff && !m.out && m.active !== false).map(m => [m.id, m]));
       const lines = [];
       for(const x of (Array.isArray(b.items) ? b.items : []).slice(0, 40)){
         const m = menu.get(String(x && x.mid || '')), q = Math.round(+(x && x.qty) || 0);
@@ -1578,6 +1601,13 @@ export class SetuHotel extends DurableObject {
     if(method === 'POST' && path === '/api/counter/restore') return this.counterRestore(request, text);
     // QR self-ordering, guest side: no login, only a table's QR token
     if(path.startsWith('/api/guest/')) return this.guest(request, path, method, body);
+    // A dish photo: public like any picture on the menu; only this hotel's own photos exist here
+    const mm = method === 'GET' && /^\/api\/media\/(m_[0-9a-f]{32})(\.t)?$/.exec(path);
+    if(mm){
+      const row = this.sql.exec('SELECT ct, full, thumb FROM media WHERE id = ?', mm[1]).toArray()[0];
+      if(!row) return json(404, { error: 'not found' });
+      return new Response(mm[2] ? row.thumb : row.full, { headers: { 'Content-Type': row.ct, 'Cache-Control': 'public, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' } });
+    }
 
     const role = await this.role(request);
     if(!role) return json(401, { error: 'pin required' });
@@ -1589,6 +1619,32 @@ export class SetuHotel extends DurableObject {
 
     if(method === 'GET' && path === '/api/version') return json(200, { version: this.meta.version, savedAt: this.meta.savedAt, blocked: this.blocked() });
     if(method === 'GET' && path === '/api/db') return rawJson(200, this.dbFor(role, request));
+    if((method === 'POST' && (path === '/api/media' || path === '/api/media-import')) || (method === 'GET' && path === '/api/media-export')){
+      if(!isAdmin) return json(403, { error: 'manager only' });
+      if(method === 'GET'){
+        const after = url.searchParams.get('after') || '';
+        const rows = this.sql.exec('SELECT id, full, thumb FROM media WHERE id > ? ORDER BY id LIMIT 41', after).toArray();
+        const page = rows.slice(0, 40);
+        return json(200, { v: 1, items: page.map(r => ({ id: r.id, full: b64(r.full), thumb: b64(r.thumb) })), next: rows.length > 40 ? page[page.length - 1].id : '' });
+      }
+      let b;
+      try{ b = JSON.parse(text); }catch(e){ return json(400, { error: 'bad request' }); }
+      const items = path === '/api/media-import' ? b.items : [b];
+      if(!Array.isArray(items) || !items.length || items.length > 50) return json(400, { error: 'bad request' });
+      const ids = [];
+      for(const it of items){
+        const v = await mediaCheck(it);
+        if(v.error) return json(400, { error: v.error });
+        const have = this.sql.exec('SELECT id FROM media WHERE id = ?', v.id).toArray().length;
+        if(!have){
+          const u = this.sql.exec('SELECT count(*) AS n, coalesce(sum(length(full) + length(thumb)), 0) AS s FROM media').toArray()[0];
+          if(u.n >= MEDIA_MAX_FILES || u.s + v.full.byteLength + v.thumb.byteLength > MEDIA_MAX_BYTES) return json(413, { error: 'Photo storage is full: remove unused photos first' });
+          this.sql.exec('INSERT INTO media (id, ct, full, thumb, at) VALUES (?, ?, ?, ?, ?)', v.id, v.ct, v.full, v.thumb, Date.now());
+        }
+        ids.push(v.id);
+      }
+      return json(200, { ok: true, id: ids[0], ids });
+    }
     if(method === 'POST' && path === '/api/auth/verify'){
       // Manager approval on a staff device: the PIN is checked here, never on the device
       if(role === 'support') return json(403, { error: 'read only' });
@@ -2539,7 +2595,8 @@ export default {
     if(path.startsWith('/api/admin/')) return admin(request, env, path);
     // The hotel's own domain decides the hotel; a header from the browser cannot override it
     const byHost = await hostHotel(env, url.hostname);
-    const code = byHost || String(request.headers.get('X-Setu-Hotel') || '').toUpperCase();
+    // A dish photo in an <img> cannot send headers: the hotel code comes in ?h=
+    const code = byHost || String(request.headers.get('X-Setu-Hotel') || (path.startsWith('/api/media/') ? url.searchParams.get('h') : '') || '').toUpperCase();
     if(!code){
       if(path === '/api/ping' || path === '/api/info') return json(200, { setu: true, cloud: true, saas: true, local: false, ips: [], signup: true });
       return json(400, { error: 'hotel code required' });
