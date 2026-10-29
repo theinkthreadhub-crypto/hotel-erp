@@ -66,3 +66,56 @@ html[data-theme="custom"] :is(.card,.m-card,.m-kpi){border-color:var(--border)}
  html[data-theme="premium-dark"] *,html[data-theme="clean-white"] *,html[data-theme="touch-pos"] *,
  html[data-theme="analytics-pro"] *,html[data-theme="custom"] *{animation-duration:.01ms!important;transition-duration:.01ms!important}
 }
+
+
+/* Five distinct dashboard compositions (Classic and six legacy designs untouched). */
+.fpdash{display:flex;flex-direction:column;gap:17px;min-width:0}
+.fphead{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;padding:24px;border-radius:var(--radius);background:var(--panel);border:1px solid var(--border);box-shadow:var(--card-shadow)}
+.fphead small{display:block;font-size:10px;letter-spacing:1.4px;font-weight:800;color:var(--primary);margin-bottom:7px}
+.fphead h2{margin:0 0 5px;font-size:clamp(19px,2vw,27px);line-height:1.25;letter-spacing:-.4px}
+.fphead p{font-size:13px;color:var(--text-muted);margin:0}
+.fphead-actions{display:flex;gap:9px;flex-wrap:wrap}
+.fpaction{padding:10px 15px;font-size:13px;font-weight:700;border:1px solid var(--border);border-radius:11px;background:var(--surface);color:var(--text);cursor:pointer;min-height:42px}
+.fpaction.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.fpaction:hover,.fpmetric:hover,.fptouch-grid button:hover{transform:translateY(-2px);box-shadow:var(--card-shadow-hover)}
+.fpaction:focus-visible,.fpmetric:focus-visible,.fptouch-grid button:focus-visible{outline:3px solid var(--border-focus);outline-offset:2px}
+.fpstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.fpmetric{display:flex;flex-direction:column;align-items:flex-start;gap:7px;text-align:left;padding:17px;min-height:114px;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);box-shadow:var(--card-shadow);cursor:pointer;transition:transform .15s,box-shadow .15s}
+.fpmetric span{font-size:12px;color:var(--text-muted);font-weight:700}
+.fpmetric b{font-size:clamp(20px,2.3vw,29px);white-space:normal;overflow-wrap:anywhere;line-height:1.2}
+.fpmetric small{color:var(--text-muted);font-size:11px}
+.fpcols{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(240px,1fr);gap:14px}
+.fppanel{min-width:0;border:1px solid var(--border);background:var(--panel);border-radius:var(--radius);padding:18px 20px;box-shadow:var(--card-shadow);overflow:hidden}
+.fppanel h3{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:15px;margin:0 0 12px;letter-spacing:-.2px}
+.fppanel h3 span{font-size:11px;color:var(--text-muted);font-weight:500}
+.fpline{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:12px}
+.fpline:last-child{border-bottom:0}
+.fpline span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fpline b{flex:none;font-variant-numeric:tabular-nums}
+.fp-premium .fphead{background:linear-gradient(120deg,#111e34,#242846 70%,#5d3323);border-color:#45506a;padding:29px}
+.fp-premium .fphead :is(h2,p,small){color:#fff}
+.fp-premium .fpaction:not(.primary){background:#293450;border-color:#435069;color:#fff}
+.fp-premium .fpmetric{border-top:3px solid var(--accent)}
+.fp-white .fphead{background:#fff;box-shadow:none}
+.fp-white .fpmetric{border-radius:12px;box-shadow:0 2px 8px rgba(30,64,100,.045)}
+.fp-white .fppanel{box-shadow:none}
+.fp-touch .fphead{background:linear-gradient(110deg,#58371f,#874c26);color:#fff}
+.fp-touch .fphead :is(p,small){color:#fff}
+.fptouch-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.fptouch-grid button{min-height:140px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:8px;border:2px solid var(--border);border-radius:18px;background:var(--panel);color:var(--text);font:inherit;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.fptouch-grid button strong{font-size:27px}
+.fptouch-grid button b{font-size:15px}
+.fptouch-grid button span{font-size:12px;color:var(--text-muted)}
+.fp-touch .fpmetric{min-height:125px}
+.fp-analytics .fphead{color:#fff;background:linear-gradient(115deg,#29164f,#5d2db7 76%,#0f799a)}
+.fp-analytics .fphead :is(p,small){color:#ebddff}
+.fp-analytics .fpmetric{border-top:3px solid var(--primary)}
+.fp-analytics .fpchart{border-left:3px solid var(--accent)}
+.fp-custom .fphead{color:#fff;background:linear-gradient(120deg,var(--topbar),var(--primary-dark))}
+.fp-custom .fphead :is(p,small){color:#fff}
+.fp-custom .fphead .fpaction:not(.primary){color:#fff;background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.33)}
+.fp-custom .fpmetric{border-top:3px solid var(--accent)}
+@media(max-width:1150px){.fpstats,.fptouch-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:780px){.fpcols{grid-template-columns:1fr}}
+@media(max-width:560px){.fpstats,.fptouch-grid{grid-template-columns:1fr 1fr;gap:8px}.fphead{padding:16px}.fpmetric{min-height:105px;padding:12px}.fppanel{padding:13px}.fptouch-grid button{min-height:125px;padding:8px}.fptouch-grid button b{font-size:12px}.fptouch-grid button span{font-size:11px}}
+@media(prefers-reduced-motion:reduce){.fpdash .fpaction,.fpdash .fpmetric,.fpdash .fptouch-grid button{transition:none}}
