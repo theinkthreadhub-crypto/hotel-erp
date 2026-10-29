@@ -1320,7 +1320,7 @@ function save(){
 const SRV_LAUNCH = (() => {
   let k = '';
   try{
-    const m = /[#&]launch=([0-9a-f]{32,128})/.exec(location.hash || '');
+    const m = /[#&]launch=([A-Za-z0-9_-]{32,128})/.exec(location.hash || '');
     if(m){ k = m[1]; sessionStorage.setItem('setu-launch', k); history.replaceState(null, '', location.pathname + location.search); }
     else k = sessionStorage.getItem('setu-launch') || '';
   }catch(e){}
