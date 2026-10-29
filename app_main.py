@@ -2037,6 +2037,14 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(200, {'offset': int((time.time() - server) * 1000)})
                 except Exception as e:
                     return self.send_json(200, {'offset': None, 'error': _net_reason(e)[1]})
+            if path == '/api/ping':
+                return self.send_json(200, {'ok': True, 'ping': 'pong'})
+            if path == '/api/wa/balance':
+                with store.lock:
+                    d = store.data() or {}
+                credits = int(d.get('settings', {}).get('waCredits', 500))
+                total_sent = int(d.get('settings', {}).get('waTotalSent', 0))
+                return self.send_json(200, {'ok': True, 'credits': credits, 'totalSent': total_sent})
             if path == '/api/version':
                 return self.send_json(200, {'version': store.version})
             if path == '/api/db':
@@ -2281,7 +2289,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             if path.startswith('/api/wa/'):
                 # WhatsApp link: connect / disconnect = manager; send a bill = any logged-in device
                 role = self.role()
-                if not role or (path != '/api/wa/send' and role not in ('local', 'admin')):
+                if not role or (path not in ('/api/wa/send', '/api/wa/recharge') and role not in ('local', 'admin')):
                     return self.send_json(403, {'error': 'manager only'})
                 try:
                     b = self.read_json() if int(self.headers.get('Content-Length') or 0) else {}
@@ -2294,7 +2302,45 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     if path == '/api/wa/logout':
                         code, j = store.wa.call('/logout', {})
                         return self.send_json(code, j)
+                    if path == '/api/wa/recharge':
+                        if role not in ('local', 'admin', 'manager', 'owner'):
+                            return self.send_json(403, {'error': 'manager or admin only'})
+                        amt = int(b.get('amount') or 0)
+                        if amt <= 0:
+                            return self.send_json(400, {'ok': False, 'error': 'Invalid recharge amount: must be positive'})
+                        code = str(b.get('code') or 'DIRECT_RECHARGE').strip()
+                        note = str(b.get('note') or '').strip()
+                        with store.lock:
+                            d = store.data() or {}
+                            st_dict = d.setdefault('settings', {})
+                            cur_c = int(st_dict.get('waCredits', 500))
+                            new_c = cur_c + amt
+                            st_dict['waCredits'] = new_c
+                            recharges = st_dict.setdefault('waRecharges', [])
+                            recharges.insert(0, {
+                                'id': f"rech_{int(time.time()*1000)}_{secrets.token_hex(3)}",
+                                'amount': amt,
+                                'prev': cur_c,
+                                'balance': new_c,
+                                'code': code,
+                                'note': note,
+                                'at': int(time.time() * 1000),
+                                'by': role
+                            })
+                            st_dict['waRecharges'] = recharges[:50]
+                            store.set_data(d)
+                        return self.send_json(200, {'ok': True, 'credits': new_c, 'amount': amt})
                     if path == '/api/wa/send':
+                        with store.lock:
+                            d_chk = store.data() or {}
+                        cur_credits = int(d_chk.get('settings', {}).get('waCredits', 500))
+                        if cur_credits <= 0:
+                            return self.send_json(402, {
+                                'ok': False,
+                                'error': 'INSUFFICIENT_CREDITS',
+                                'message': 'WhatsApp message balance is 0. Please recharge to continue sending messages.'
+                            })
+
                         raw_ph = re.sub(r'\D', '', str(b.get('phone') or ''))
                         if len(raw_ph) < 10:
                             return self.send_json(400, {'ok': False, 'error': 'Invalid phone number: must be at least 10 digits'})
@@ -2370,6 +2416,14 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                                 'errorReason': err_reason,
                                 'note': f'Baileys gateway response: HTTP {code}'
                             })
+                            if st == 'SUBMITTED':
+                                with store.lock:
+                                    d_up = store.data() or {}
+                                    st_set = d_up.setdefault('settings', {})
+                                    prev_c = int(st_set.get('waCredits', 500))
+                                    st_set['waCredits'] = max(0, prev_c - 1)
+                                    st_set['waTotalSent'] = int(st_set.get('waTotalSent', 0)) + 1
+                                    store.set_data(d_up)
                             resp_payload = {'ok': code == 200, 'id': req_id, 'requestId': req_id, 'providerMsgId': p_id, 'message': updated}
                             if isinstance(j, dict):
                                 j_copy = dict(j)

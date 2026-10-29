@@ -267,6 +267,56 @@ tfoot td{font-weight:700;background:var(--surface);border-top:2px solid var(--bo
 .wa-alert-banner.bad{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#b91c1c}
 .wa-alert-banner.info{background:rgba(2,132,199,0.12);border:1px solid rgba(2,132,199,0.35);color:#0369a1}
 
+/* Top Bar WhatsApp Connection & Recharge Widget */
+.top-wa-container{display:inline-flex;align-items:center;gap:6px;margin-left:4px}
+.top-wa-btn{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;transition:all .18s ease;line-height:1}
+.top-wa-btn.connected{background:rgba(16,185,129,0.15);border:1.5px solid #10b981;color:#10b981;box-shadow:0 0 10px rgba(16,185,129,0.22)}
+.top-wa-btn.connected:hover{background:rgba(16,185,129,0.25);transform:translateY(-1px)}
+.top-wa-btn.disconnected{background:rgba(239,68,68,0.15);border:1.5px solid #ef4444;color:#fca5a5;box-shadow:0 0 10px rgba(239,68,68,0.2)}
+.top-wa-btn.disconnected:hover{background:rgba(239,68,68,0.25);transform:translateY(-1px)}
+.top-wa-icon-slot{position:relative;display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px}
+.wa-cut-wrap{position:relative;width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center}
+.wa-cut-svg{position:absolute;top:0;left:0;width:22px;height:22px;pointer-events:none}
+.wa-pulse-dot{position:absolute;bottom:0;right:-1px;width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 6px #10b981;animation:pulse 1.6s infinite}
+.top-wa-credit-chip{display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;transition:all .18s ease;line-height:1}
+.top-wa-credit-chip.credit-ok{background:rgba(14,165,233,0.15);border:1px solid rgba(14,165,233,0.45);color:#38bdf8}
+.top-wa-credit-chip.credit-ok:hover{background:rgba(14,165,233,0.28);transform:translateY(-1px)}
+.top-wa-credit-chip.credit-warn{background:rgba(245,158,11,0.18);border:1.5px solid #f59e0b;color:#fbbf24}
+.top-wa-credit-chip.credit-zero{background:rgba(239,68,68,0.22);border:1.5px solid #ef4444;color:#fca5a5;animation:pulse 1.3s infinite}
+
+/* Sidebar Badges */
+.side-badge{margin-left:auto;font-size:10px;font-weight:800;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;display:inline-flex;align-items:center;gap:3px;line-height:1.2}
+.side-badge.cap-badge{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;box-shadow:0 2px 6px rgba(245,158,11,0.35)}
+.side-badge.kot-badge{background:linear-gradient(135deg,#ef4444,#dc2626);color:#fff;box-shadow:0 2px 6px rgba(239,68,68,0.35)}
+.side-badge.qr-badge{background:linear-gradient(135deg,#8b5cf6,#7c3aed);color:#fff;box-shadow:0 2px 6px rgba(139,92,246,0.35)}
+.side-badge.pulse{animation:badgeGlow 1.4s infinite}
+@keyframes badgeGlow{0%{transform:scale(1);filter:brightness(1)}50%{transform:scale(1.06);filter:brightness(1.22)}100%{transform:scale(1);filter:brightness(1)}}
+
+/* Floating KOT / Order Notification Popups */
+.kot-popup-container{position:fixed;top:62px;right:20px;z-index:99999;display:flex;flex-direction:column;gap:10px;max-width:370px;pointer-events:none}
+.kot-toast{pointer-events:auto;background:var(--panel,#1e293b);border:2px solid var(--primary,#3b82f6);color:var(--text,#f8fafc);border-radius:12px;padding:14px 16px;box-shadow:0 12px 32px rgba(0,0,0,0.45),0 0 15px rgba(59,130,246,0.3);animation:slideInRight .28s cubic-bezier(.16,1,.3,1);transition:all .25s ease}
+.kot-toast.cap-toast{border-color:#f59e0b;box-shadow:0 12px 32px rgba(0,0,0,0.45),0 0 18px rgba(245,158,11,0.38)}
+.kot-toast.qr-toast{border-color:#8b5cf6;box-shadow:0 12px 32px rgba(0,0,0,0.45),0 0 18px rgba(139,92,246,0.38)}
+.kot-toast.kitchen-toast{border-color:#ef4444;box-shadow:0 12px 32px rgba(0,0,0,0.45),0 0 18px rgba(239,68,68,0.38)}
+.kot-toast-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.kot-toast-title{font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px}
+.kot-toast-time{font-size:11px;color:var(--text-muted,#94a3b8)}
+.kot-toast-close{background:transparent;border:none;color:var(--text-muted,#94a3b8);font-size:14px;cursor:pointer;padding:2px 6px;border-radius:4px}
+.kot-toast-close:hover{color:#ef4444;background:rgba(239,68,68,0.1)}
+.kot-toast-body{font-size:13px;line-height:1.4;margin-bottom:10px}
+.kot-toast-table{font-weight:700;margin-bottom:4px}
+.kot-toast-items{color:var(--text-muted,#cbd5e1);font-size:12px}
+.kot-toast-note{color:#f59e0b;font-size:11px;margin-top:4px}
+.kot-toast-actions{display:flex;gap:8px}
+@keyframes slideInRight{from{transform:translateX(120%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* WhatsApp Recharge Modal Styles */
+.wa-credit-hero{background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%);border:1.5px solid #38bdf8;border-radius:12px;padding:18px 20px;text-align:center;box-shadow:0 4px 14px rgba(56,189,248,0.15);margin-bottom:16px}
+.wa-hero-num{font-size:42px;font-weight:900;color:#38bdf8;font-family:'Plus Jakarta Sans',sans-serif;display:block;line-height:1;margin-bottom:6px}
+.wa-hero-sub{font-size:12px;color:#94a3b8}
+.wa-quick-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px}
+.wa-recharge-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+
 /* Billing Screen Layout */
 .bill{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}
 .cats{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
@@ -867,6 +917,22 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
     </button>
   </div>
 
+  <!-- WhatsApp Status & Message Balance Widget -->
+  <div class="top-wa-container" id="top-wa-container">
+    <button class="top-wa-btn disconnected" id="top-wa-btn" onclick="openWaModal()" title="WhatsApp Connection Status — Click to manage or connect">
+      <span class="top-wa-icon-slot wa-cut-wrap" id="top-wa-icon-slot">
+        <svg class="wa-base-svg" viewBox="0 0 24 24" width="18" height="18" fill="#94a3b8"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm.02 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-0.86 4.27-2.42 5.82a8.188 8.188 0 01-5.82 2.42c-1.45 0-2.88-0.38-4.14-1.11l-0.3-.17-3.1 0.81 0.83-3.02-0.19-0.31a8.19 8.19 0 01-1.25-4.44c0-4.54 3.7-8.24 8.24-8.24z"/></svg>
+        <svg class="wa-cut-svg" viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9.5" stroke="#ef4444" stroke-width="2.5" fill="none" /><line x1="5.28" y1="5.28" x2="18.72" y2="18.72" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" /></svg>
+      </span>
+      <span class="top-wa-label" id="top-wa-label">WA Offline (कट)</span>
+    </button>
+    <button class="top-wa-credit-chip credit-ok" id="top-wa-credit-chip" onclick="openWaModal(true)" title="WhatsApp Message Balance — Click to Recharge">
+      <span class="wa-credit-icon">💬</span>
+      <b id="top-wa-credit-num">500</b>
+      <span class="wa-credit-unit">Msgs</span>
+    </button>
+  </div>
+
   <!-- Subscription Status Pill & Install App -->
   <div style="display:flex;align-items:center;gap:8px;margin-left:8px">
     <button class="sub-pill ok" id="top-sub-pill" onclick="openSubscriptionModal()" title="Aghanya Devanya License Status & Renewal">
@@ -916,6 +982,7 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
 
 <div id="modal"><div class="box" id="mbox"></div></div>
 <div id="toast"></div>
+<div id="kot-popup-container" class="kot-popup-container"></div>
 <div id="print"></div>
 
 <script>
@@ -1237,6 +1304,8 @@ function save(){
   }
   updateOnlinePills();
   updateSubscriptionUI();
+  updateWaHeader();
+  drawSide();
 }
 
 /* ================= LAN SERVER SYNC (main counter PC + phones / tablets) ================= */
@@ -1568,6 +1637,8 @@ function srvRefreshScreen(){
   if(activeUser && D.subscription && D.subscription.cloud) checkExpiryLock();
   updateOnlinePills();
   updateSubscriptionUI();
+  updateWaHeader();
+  drawSide();
   if(!activeUser || isModal()) return;
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName);
   if(cur === 'bill'){ if(!typing) scrBill(); return; }
@@ -3063,6 +3134,14 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     return;
   }
 
+  if(getWaCredits() <= 0){
+    toast('⚠️ WhatsApp balance is 0. Cannot send bill. Please recharge credits.');
+    openWaModal(true);
+    _waInFlight[billId] = false;
+    updateWaButtons(billId);
+    return;
+  }
+
   const reqId = 'wa_req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
   const idemKey = 'wa_bill_' + ((D.settings && D.settings.hotelId) || 'local') + '_' + billId + (isAuthorizedResend ? ('_retry_' + Date.now()) : '');
 
@@ -3111,6 +3190,7 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     const j = await res.json().catch(() => ({}));
 
     if(res.ok){
+      deductWaCredit(1);
       trackWaMessage({
         id: reqId,
         billId: bill.id,
@@ -3402,7 +3482,54 @@ function pushKot(t){
   const cutoff = addDays(today(), -7);
   D.kots = D.kots.filter(x => x.date >= cutoff);
   if(D.settings.autoKot && directPrint()) setTimeout(() => directKot({kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note, token: k.token, by: k.by}), 0);
+  notifyNewKot(k);
+  drawSide();
   return k;
+}
+
+function dismissKotToast(id){
+  const el = document.getElementById(id);
+  if(el){
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(120%)';
+    setTimeout(() => { try{ el.remove(); }catch(e){} }, 260);
+  }
+}
+
+function notifyNewKot(k){
+  if(!k) return;
+  playOrderChime();
+  const container = document.getElementById('kot-popup-container');
+  if(!container) return;
+  const popId = 'kot-pop-' + k.id;
+  if(document.getElementById(popId)) return;
+  const isCap = k.src === 'captain';
+  const isQr = k.src === 'qr';
+  const toastCls = isCap ? 'cap-toast' : (isQr ? 'qr-toast' : 'kitchen-toast');
+  const title = isCap ? '🔔 New Order from Captain App!' : (isQr ? '📱 New QR Table Order!' : '🔥 New KOT Ticket Received!');
+  const itemsText = (k.items || []).map(i => `${i.qty}× ${esc(i.name)}`).join(', ');
+
+  const toastEl = document.createElement('div');
+  toastEl.className = `kot-toast ${toastCls}`;
+  toastEl.id = popId;
+  toastEl.innerHTML = `
+    <div class="kot-toast-header">
+      <span class="kot-toast-title">${title}</span>
+      <span class="kot-toast-time">${esc(k.time || '')}</span>
+      <button class="kot-toast-close" onclick="dismissKotToast('${popId}')" title="Dismiss">✕</button>
+    </div>
+    <div class="kot-toast-body">
+      <div class="kot-toast-table">Table: <b style="font-size:14px;color:var(--primary,#38bdf8)">${esc(k.table || 'Counter')}</b> · KOT <b>#${esc(k.no)}</b></div>
+      <div class="kot-toast-items">${itemsText}</div>
+      ${k.note ? `<div class="kot-toast-note">Note: ${esc(k.note)}</div>` : ''}
+    </div>
+    <div class="kot-toast-actions">
+      <button class="btn ok sm" onclick="go('kitchen'); dismissKotToast('${popId}')">View in Kitchen (T)</button>
+      <button class="btn g sm" onclick="dismissKotToast('${popId}')">Dismiss</button>
+    </div>
+  `;
+  container.prepend(toastEl);
+  setTimeout(() => { dismissKotToast(popId); }, 12000);
 }
 const pendingKots = () => (D.kots || []).filter(k => k.status !== 'served');
 
@@ -3625,11 +3752,24 @@ function drawSide(){
     html += `<div class="side-cat" onclick="sideToggle('${g}')" title="Open / close">${g}<span>${open ? '▾' : '▸'}</span></div>`;
     if(!open) return;
     items.forEach(m => {
-      const pendingCount = m[2] === 'online' ? (D.onlineOrders || []).filter(o => o.status === 'new').length : 0;
+      let badgeHtml = '';
+      if(m[2] === 'online'){
+        const pendingCount = (D.onlineOrders || []).filter(o => o.status === 'new').length;
+        if(pendingCount) badgeHtml = `<span style="margin-left:auto;background:var(--bad);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount}</span>`;
+      } else if(m[2] === 'captain'){
+        const capCount = (D.kots || []).filter(k => k.src === 'captain' && k.status !== 'served').length;
+        if(capCount) badgeHtml = `<span class="side-badge cap-badge pulse" title="${capCount} Active Captain App Orders">🔔 ${capCount} New</span>`;
+      } else if(m[2] === 'kitchen'){
+        const kotCount = (D.kots || []).filter(k => k.status !== 'served').length;
+        if(kotCount) badgeHtml = `<span class="side-badge kot-badge pulse" title="${kotCount} Pending Kitchen KOTs">🔥 ${kotCount} KOT</span>`;
+      } else if(m[2] === 'qr'){
+        const qrCount = ((D.qrOrders || []).filter(o => o.status === 'pending').length) + ((D.kots || []).filter(k => k.src === 'qr' && k.status !== 'served').length);
+        if(qrCount) badgeHtml = `<span class="side-badge qr-badge pulse" title="${qrCount} Pending QR Orders">📱 ${qrCount} New</span>`;
+      }
       html += `
       <button class="${cur===m[2]?'active':''}" onclick="go('${m[2]}')">
         <u>${m[0]}</u> ${m[1]}
-        ${pendingCount ? `<span style="margin-left:auto;background:var(--bad);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount}</span>` : ''}
+        ${badgeHtml}
       </button>`;
     });
   });
@@ -5717,7 +5857,7 @@ function saveKacchaBill(silent = false, noRender = false){
   const t = calc(B.cart, billDisc(), gstRate());
   const existing = D.kaccha[tbl];
   const newItems = cartDelta(B.cart, B.sent);
-  const ticket = pushKot({table: tbl, channel: 'Dine-In', items: newItems, note: B.note.trim()});
+  const ticket = pushKot({table: tbl, channel: 'Dine-In', items: newItems, note: B.note.trim(), src: B.src || (cur === 'captain' ? 'captain' : undefined)});
   B.sent = sentMap(B.cart);
   const sessId = existing?.orderSessionId || B.orderSessionId || ('ord_' + tbl.replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Date.now() + '_' + uid());
 
@@ -9132,6 +9272,7 @@ function captainSend(){
   if(!cap.cart.length) return;
   const tbl = cap.table, k = D.kaccha[tbl];
   B = k ? kacchaToB(k) : newB(tbl, 'Dine-In');
+  B.src = 'captain';
   cap.cart.forEach(i => {
     const c = B.cart.find(x => x.mid === i.mid);
     if(c) c.qty += i.qty;
@@ -13019,13 +13160,273 @@ async function waApi(path, body){
   if(!r.ok && !('ok' in j)) throw new Error(j.error || 'HTTP ' + r.status);
   return j;
 }
-async function waStatus(){ if(!SRV.on || SRV.cloud) return WA; try{ WA = await waApi('status'); }catch(e){} return WA; }
-async function waSend(phone, text){
-  try{ return await waApi('send', {phone, text}); }catch(e){ return {ok: false, error: e.message}; }
+
+function getWaCredits(){
+  if(!D || !D.settings) return 500;
+  if(D.settings.waCredits === undefined || D.settings.waCredits === null){
+    D.settings.waCredits = 500;
+  }
+  return Math.max(0, parseInt(D.settings.waCredits, 10) || 0);
 }
+
+function deductWaCredit(qty = 1){
+  const curBal = getWaCredits();
+  const nextBal = Math.max(0, curBal - qty);
+  if(D && D.settings){
+    D.settings.waCredits = nextBal;
+    D.settings.waTotalSent = (D.settings.waTotalSent || 0) + qty;
+  }
+  save();
+  updateWaHeader();
+  return nextBal;
+}
+
+function rechargeWaCredits(amount, code = 'DIRECT', note = ''){
+  amount = parseInt(amount, 10);
+  if(isNaN(amount) || amount <= 0){
+    toast('Please enter a valid credit amount');
+    return false;
+  }
+  const prev = getWaCredits();
+  const next = prev + amount;
+  if(D && D.settings){
+    D.settings.waCredits = next;
+    if(!Array.isArray(D.settings.waRecharges)) D.settings.waRecharges = [];
+    D.settings.waRecharges.unshift({
+      id: 'rech_' + Date.now() + '_' + uid(),
+      date: today(),
+      time: nowTime(),
+      at: Date.now(),
+      amount: amount,
+      prev: prev,
+      balance: next,
+      code: code || 'DIRECT',
+      by: activeUser ? activeUser.name : 'Admin',
+      note: note || `Added ${amount} WhatsApp credits`
+    });
+    if(D.settings.waRecharges.length > 50) D.settings.waRecharges = D.settings.waRecharges.slice(0, 50);
+  }
+  // Sync to backend if LAN server is active
+  if(SRV.on && !SRV.cloud){
+    srvFetch('/api/wa/recharge', {
+      method: 'POST',
+      body: JSON.stringify({amount, code, note})
+    }).catch(() => {});
+  }
+  save();
+  updateWaHeader();
+  audit('WhatsApp Recharge', `+${amount} messages by ${activeUser ? activeUser.name : 'Admin'}. Balance: ${next}`);
+  toast(`🎉 WhatsApp Recharged! +${amount} Messages added. Balance: ${next} Msgs`);
+  if(isModal() && $('#wa-tab-btn-rech')) openWaModal(true);
+  return true;
+}
+
+function updateWaHeader(){
+  const btn = $('#top-wa-btn');
+  const chip = $('#top-wa-credit-chip');
+  if(!btn || !chip) return;
+
+  const isConnected = (WA && WA.state === 'open');
+  const credits = getWaCredits();
+
+  // 1. Connection Button (Green Connected vs Bold Red Circle Cut / Slash)
+  btn.className = 'top-wa-btn ' + (isConnected ? 'connected' : 'disconnected');
+  if(isConnected){
+    btn.innerHTML = `
+      <span class="top-wa-icon-slot">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="#10b981">
+          <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm.02 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-0.86 4.27-2.42 5.82a8.188 8.188 0 01-5.82 2.42c-1.45 0-2.88-0.38-4.14-1.11l-0.3-.17-3.1 0.81 0.83-3.02-0.19-0.31a8.19 8.19 0 01-1.25-4.44c0-4.54 3.7-8.24 8.24-8.24z"/>
+        </svg>
+        <span class="wa-pulse-dot"></span>
+      </span>
+      <span class="top-wa-label" id="top-wa-label">${WA.me ? '+'+esc(WA.me) : 'WA Connected'}</span>
+    `;
+    btn.title = `WhatsApp Connected (${WA.me ? '+'+WA.me : 'Active'}) — Click to view status`;
+  } else {
+    btn.innerHTML = `
+      <span class="top-wa-icon-slot wa-cut-wrap">
+        <svg class="wa-base-svg" viewBox="0 0 24 24" width="18" height="18" fill="#94a3b8">
+          <path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm.02 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-0.86 4.27-2.42 5.82a8.188 8.188 0 01-5.82 2.42c-1.45 0-2.88-0.38-4.14-1.11l-0.3-.17-3.1 0.81 0.83-3.02-0.19-0.31a8.19 8.19 0 01-1.25-4.44c0-4.54 3.7-8.24 8.24-8.24z"/>
+        </svg>
+        <svg class="wa-cut-svg" viewBox="0 0 24 24" width="22" height="22">
+          <circle cx="12" cy="12" r="9.5" stroke="#ef4444" stroke-width="2.5" fill="none" />
+          <line x1="5.28" y1="5.28" x2="18.72" y2="18.72" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" />
+        </svg>
+      </span>
+      <span class="top-wa-label" id="top-wa-label">WA Not Connected (कट)</span>
+    `;
+    btn.title = `WhatsApp Not Connected (कट / बंद) — Click to scan QR & connect`;
+  }
+
+  // 2. Balance Chip
+  chip.className = 'top-wa-credit-chip ' + (credits > 50 ? 'credit-ok' : (credits > 0 ? 'credit-warn' : 'credit-zero'));
+  if(credits > 50){
+    chip.innerHTML = `<span class="wa-credit-icon">💬</span><b id="top-wa-credit-num">${credits}</b><span class="wa-credit-unit">Msgs</span>`;
+    chip.title = `WhatsApp Balance: ${credits} messages available. Click to manage / recharge.`;
+  } else if(credits > 0){
+    chip.innerHTML = `<span class="wa-credit-icon">⚠️</span><b id="top-wa-credit-num">${credits}</b><span class="wa-credit-unit">Msgs (Low)</span>`;
+    chip.title = `WhatsApp Balance LOW: only ${credits} messages left! Click to recharge.`;
+  } else {
+    chip.innerHTML = `<span class="wa-credit-icon">🚫</span><b id="top-wa-credit-num">0</b><span class="wa-credit-unit">Msgs (Recharge!)</span>`;
+    chip.title = `WhatsApp Balance EXHAUSTED (0 msgs). Messages are stopped! Click to recharge now.`;
+  }
+}
+
+async function openWaModal(focusRecharge = false){
+  const w = await waStatus();
+  const st = w.state, isConnected = (st === 'open');
+  const credits = getWaCredits();
+  const recharges = Array.isArray(D.settings.waRecharges) ? D.settings.waRecharges : [];
+
+  const html = `
+    <div style="margin-bottom:16px">
+      <div style="display:flex;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:16px">
+        <button class="btn ${!focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-conn" onclick="openWaModal(false)">WhatsApp Connection Status</button>
+        <button class="btn ${focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-rech" onclick="openWaModal(true)">Message Credits & Recharge (रिचार्ज सिस्टम)</button>
+      </div>
+
+      ${!focusRecharge ? `
+        <!-- CONNECTION SECTION -->
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h4 style="margin:0;display:flex;align-items:center;gap:8px">
+              ${isConnected 
+                ? '<span style="color:#10b981">● Connected (WhatsApp चालू है)</span>' 
+                : '<span style="color:#ef4444">🚫 Disconnected (WhatsApp कट / बंद है)</span>'}
+            </h4>
+            <button class="btn g sm" onclick="waStatus().then(()=>openWaModal(false))">Refresh Status</button>
+          </div>
+
+          ${isConnected ? `
+            <p>Your WhatsApp is linked and ready to send bills automatically.</p>
+            <div style="background:rgba(16,185,129,0.1);border:1px solid #10b981;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+              <b style="color:#10b981;font-size:15px">✓ Active Number: ${w.me ? '+'+esc(w.me) : 'Connected'}</b>
+              <div class="muted" style="font-size:12px;margin-top:4px">
+                Sent today: <b>${w.sentToday || 0}</b> / ${w.limit || 400} daily limit · Queued: <b>${w.queued || 0}</b>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+              <input id="wa_modal_test_num" placeholder="10-digit number for test" style="width:220px">
+              <button class="btn g" onclick="waSend($('#wa_modal_test_num').value, 'Test message from ' + (D.settings.name || 'Setu') + ' ✅').then(r=>toast(r.ok?'Test message sent!':'Send failed: '+r.error))">Send Test</button>
+              <button class="btn bad" onclick="if(confirm('Disconnect WhatsApp?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}">Disconnect WhatsApp</button>
+            </div>
+          ` : st === 'qr' ? `
+            <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+              <img src="${w.qr}" alt="WhatsApp QR" style="width:200px;height:200px;background:#fff;padding:8px;border-radius:10px;border:1px solid var(--border)">
+              <div style="flex:1;min-width:240px">
+                <h4 style="margin:0 0 8px;color:var(--text)">Scan QR to Link WhatsApp</h4>
+                <ol style="margin:0;padding-left:18px;line-height:1.8;font-size:13px">
+                  <li>Open <b>WhatsApp</b> on your hotel's phone</li>
+                  <li>Tap <b>⋮ Menu</b> (or Settings on iPhone) → <b>Linked devices</b></li>
+                  <li>Tap <b>Link a device</b></li>
+                  <li>Point your phone camera at this QR code</li>
+                </ol>
+                <div class="muted" style="font-size:12px;margin-top:10px">The QR code refreshes automatically.</div>
+              </div>
+            </div>
+            <div class="btns"><button class="btn g sm" onclick="waApi('stop',{}).then(()=>openWaModal(false))">Cancel</button></div>
+          ` : `
+            <p>Link your restaurant phone via WhatsApp Web QR code. Customers will automatically receive digital bill receipts on their WhatsApp numbers.</p>
+            <div class="btns">
+              <button class="btn ok" onclick="waApi('start',{}).then(()=>openWaModal(false)).catch(e=>toast(e.message))">Connect WhatsApp (Scan QR)</button>
+            </div>
+          `}
+        </div>
+      ` : `
+        <!-- RECHARGE & CREDITS SECTION -->
+        <div class="wa-credit-hero">
+          <span class="wa-hero-num">${credits}</span>
+          <span class="wa-hero-sub">Available Message Credits (1 Credit = 1 WhatsApp Bill/Message)</span>
+          ${credits <= 0 
+            ? '<div style="color:#ef4444;font-weight:700;margin-top:8px">⚠️ Balance is 0! Messages are currently stopped. Please recharge below.</div>' 
+            : credits <= 50 
+            ? '<div style="color:#f59e0b;font-weight:700;margin-top:8px">⚠️ Low balance alert! Please recharge soon to avoid message disruption.</div>' 
+            : '<div style="color:#10b981;font-weight:700;margin-top:8px">✓ Credits are active and ready to send.</div>'}
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <h4 style="margin:0 0 10px">Quick Recharge (त्वरित रिचार्ज)</h4>
+          <p class="muted" style="font-size:12px;margin-top:-4px">Add WhatsApp credits directly to the client account:</p>
+          <div class="wa-quick-btns">
+            <button class="btn g" onclick="rechargeWaCredits(100, 'QUICK_100')">+100 Messages</button>
+            <button class="btn ok" onclick="rechargeWaCredits(500, 'QUICK_500')"><b>+500 Messages (Popular)</b></button>
+            <button class="btn ok" onclick="rechargeWaCredits(600, 'QUICK_600')"><b>+600 Messages</b></button>
+            <button class="btn g" onclick="rechargeWaCredits(1000, 'QUICK_1000')">+1,000 Messages (Bulk)</button>
+          </div>
+
+          <h4 style="margin:16px 0 8px">Custom Recharge or Voucher (कस्टम रिचार्ज / कूपन)</h4>
+          <div class="wa-recharge-row">
+            <input type="number" id="wa_custom_amt" placeholder="Number of credits (e.g. 500)" min="1" style="flex:1">
+            <input type="text" id="wa_custom_code" placeholder="Key / Note (Optional)" style="flex:1">
+            <button class="btn ok" onclick="const a=parseInt($('#wa_custom_amt').value,10); if(a>0) rechargeWaCredits(a, $('#wa_custom_code').value || 'CUSTOM_RECHARGE'); else toast('Please enter a valid number of credits');">Recharge Credits</button>
+          </div>
+        </div>
+
+        ${recharges.length ? `
+          <div class="card">
+            <h4 style="margin:0 0 10px">Recharge History (हाल के रिचार्ज)</h4>
+            <table class="tbl" style="width:100%;font-size:12px">
+              <thead>
+                <tr><th>Date & Time</th><th>Amount</th><th>Previous</th><th>New Balance</th><th>By</th><th>Note</th></tr>
+              </thead>
+              <tbody>
+                ${recharges.slice(0, 8).map(r => `
+                  <tr>
+                    <td>${esc(r.date)} ${esc(r.time)}</td>
+                    <td><b style="color:#10b981">+${r.amount}</b></td>
+                    <td class="muted">${r.prev || 0}</td>
+                    <td><b>${r.balance}</b></td>
+                    <td>${esc(r.by || 'Admin')}</td>
+                    <td class="muted">${esc(r.note || r.code || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+      `}
+    </div>
+    <div class="btns">
+      <button class="btn g" onclick="closeModal()">Close</button>
+    </div>
+  `;
+
+  modal('WhatsApp Center — Connection & Message Balance', html);
+  updateWaHeader();
+}
+
+async function waStatus(){
+  if(!SRV.on || SRV.cloud) return WA;
+  try{
+    WA = await waApi('status');
+    updateWaHeader();
+  }catch(e){}
+  return WA;
+}
+
+async function waSend(phone, text){
+  if(getWaCredits() <= 0){
+    toast('⚠️ WhatsApp balance is 0. Messages stopped. Please recharge.');
+    return {ok: false, error: 'INSUFFICIENT_CREDITS: Balance is 0. Please recharge WhatsApp credits.'};
+  }
+  try{
+    const r = await waApi('send', {phone, text});
+    if(r && (r.ok || r.status === 'submitted' || r.id)){
+      deductWaCredit(1);
+    }
+    return r;
+  }catch(e){
+    return {ok: false, error: e.message};
+  }
+}
+
 // After a bill: send the receipt to the customer's WhatsApp (only when a mobile number was entered)
 async function waAutoSend(b){
   if(!D.settings.waAuto || !SRV.on || SRV.cloud || normPh(b.phone).length !== 10 || isAggregator(b.channel)) return;
+  if(getWaCredits() <= 0){
+    toast(`Bill #${b.no}: WhatsApp not sent — Balance is 0. Please recharge.`);
+    return;
+  }
   const r = await waSend(b.phone, billText(b));
   b.wa = r.ok ? 'sent' : 'failed';
   trackWaMessage({
@@ -13455,6 +13856,11 @@ function startUI(){
   drawSide();
   checkAuth();
   updateSubscriptionUI();
+  updateWaHeader();
+  if(SRV.on) waStatus().then(() => updateWaHeader()).catch(() => {});
+  setInterval(() => {
+    if(SRV.on) waStatus().then(() => updateWaHeader()).catch(() => {});
+  }, 8000);
   if(activeUser) go('gateway');
 }
 

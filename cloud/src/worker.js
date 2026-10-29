@@ -893,6 +893,7 @@ export class SetuHotel extends DurableObject {
   }
   async receiptSend(b){
     const c=this.receiptConf(), {bill,settings}=this.receiptData(b.id);
+    if(settings && settings.waCredits !== undefined && +settings.waCredits <= 0)return {status:'insufficient_credits',error:'WhatsApp credit balance is 0. Please recharge.'};
     if(!bill || !this.receiptEligible(bill,settings))return {status:'ineligible',error:'Bill receipt permission missing'};
     const prior=this.receiptLog(bill.id);
     if(prior)return {status:prior.status,id:prior.provider_id||'',error:prior.error||''};
