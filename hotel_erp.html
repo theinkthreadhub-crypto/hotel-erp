@@ -77,13 +77,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)
 .user-badge .role{background:#0284c7;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase}
 .btn-logout{background:transparent;border:1px solid rgba(255,255,255,0.2);color:#cbd5e1;padding:5px 12px;border-radius:6px;font-size:12px;display:flex;align-items:center;gap:5px}
 .btn-logout:hover{background:rgba(239,68,68,0.2);border-color:#ef4444;color:#fca5a5}
+#topsearch{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.15);color:#cbd5e1;border-radius:20px;padding:5px 12px;font-size:13px;min-width:0;flex:0 1 260px;cursor:pointer;white-space:nowrap;overflow:hidden}
+#topsearch:hover{background:rgba(255,255,255,0.18);color:#fff}
+#topsearch .ts-t{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis}
+#topsearch kbd{font:600 10px 'JetBrains Mono',monospace;background:rgba(255,255,255,0.15);border-radius:4px;padding:1px 5px}
 #top .clock{font-size:12px;color:#94a3b8;font-family:'JetBrains Mono',monospace}
 
 /* Main Layout */
 #wrap{flex:1;display:flex;min-height:0}
 #main{flex:1;overflow:auto;padding:18px 24px;background:var(--bg)}
 #side{width:195px;background:var(--panel);border-left:1px solid var(--border);overflow:auto;padding:10px 8px;display:flex;flex-direction:column;gap:3px;box-shadow:-2px 0 6px rgba(0,0,0,0.02)}
-#side .side-cat{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.8px;padding:8px 8px 3px;margin-top:4px}
+#side .side-cat{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.8px;padding:8px 8px 3px;margin-top:4px;cursor:pointer;display:flex;justify-content:space-between;user-select:none}
+#side .side-cat:hover{color:var(--primary)}
 #side button{display:flex;align-items:center;width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;border-radius:8px;font-size:13px;font-weight:500;color:var(--text);gap:8px}
 #side button:hover{background:var(--surface);color:var(--primary)}
 #side button.active{background:var(--primary-light);color:var(--primary-dark);font-weight:600}
@@ -276,6 +281,12 @@ pre.wa{background:#f0fdf4;border:1px solid #bbf7d0;padding:14px;border-radius:8p
 .den input{width:90px;text-align:right}
 #print{display:none}
 @media (max-width:960px){.bill{grid-template-columns:1fr}.dash-columns{grid-template-columns:1fr}#side{display:none}}
+/* Top bar fits every screen: less text on smaller screens, wraps instead of cutting; small screens get a ☰ menu */
+#sidebtn{display:none;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;padding:4px 10px;font-size:18px;line-height:1}
+#top{flex-wrap:wrap;row-gap:8px} #top>*{min-width:0}
+@media (max-width:1280px){#top .clock{display:none} #topsearch kbd{display:none} #topsearch{flex-basis:200px}}
+@media (max-width:1100px){#top .scr{display:none} #topsearch .ts-t{display:none} #topsearch{flex:0 0 auto} .brand-sub{display:none} #top{gap:10px;padding:8px 12px}}
+@media (max-width:960px){#sidebtn{display:block} body.side-open #side{display:flex;position:fixed;right:0;top:0;bottom:0;width:min(280px,85vw);z-index:9000;overflow:auto;box-shadow:-4px 0 24px rgba(0,0,0,.35)}}
 
 /* Thermal & A6 Receipt */
 .rcpt{width:var(--pw,70mm);font:12px/1.35 "Courier New",monospace;color:#000;padding:2mm 0;box-sizing:border-box}
@@ -741,6 +752,7 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
 
 <!-- Header -->
 <header id="top">
+  <button id="sidebtn" onclick="document.body.classList.toggle('side-open')" title="Menu">☰</button>
   <div class="brand-wrap" onclick="go('gateway')">
     <img src="favicon.ico" alt="AD" style="width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);display:block;box-shadow:0 2px 8px rgba(0,0,0,0.25);background:#fff">
     <div style="display:flex;flex-direction:column;line-height:1.2">
@@ -749,6 +761,7 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
     </div>
   </div>
   <span class="scr" id="scrname"><span class="dot"></span>Gateway</span>
+  <button id="topsearch" onclick="ckOpen()" title="Search modules, settings, reports, bills, dishes, stock… (Ctrl+K)"><span>🔍</span><span class="ts-t">Search anything…</span><kbd>Ctrl K</kbd></button>
 
   <!-- Online Live Orders Indicator -->
   <div class="online-pill-wrap" id="top-online-wrap">
@@ -2748,42 +2761,46 @@ function nextToken(){
   return ++D.seq.token;
 }
 
+// Modules in groups (sidebar, Quick Action tiles, search). The letter is the keyboard key; it never changes.
 const MENU = [
-  ['B','Billing Desk (New Bill)','bill','Transactions'],
-  ['Z','Zomato & Swiggy Live','online','Transactions'],
-  ['L','Bill List / History','bills','Transactions'],
-  ['P','Purchase / Stock In','purchase','Transactions'],
-  ['E','Expense / Payment Out','expense','Vouchers'],
-  ['I','Other Income / Receipt','income','Vouchers'],
-  ['D','Day Book & Ledger','daybook','Reports'],
-  ['C','Cash Counter','cash','Reports'],
+  ['B','Billing Desk (New Bill)','bill','Sales'],
+  ['L','Bill List / History','bills','Sales'],
+  ['Z','Zomato & Swiggy Live','online','Sales'],
+  ['Q','QR Menu & Table Orders','qr','Sales'],
+  ['N','Captain App (Mobile Orders)','captain','Sales'],
+  ['T','Kitchen Display (KOT Screen)','kitchen','Sales'],
+  ['X','Token Display (TV)','tokens','Sales'],
+  ['H','Table Reservations','reservations','Sales'],
+  ['Y','Zomato/Swiggy Settlement','settlement','Sales'],
+  ['P','Purchase / Stock In','purchase','Purchase & Stock'],
+  ['S','Stock Summary','stock','Purchase & Stock'],
+  ['U','Suppliers & Payables','suppliers','Purchase & Stock'],
+  ['E','Expense / Payment Out','expense','Accounts & GST'],
+  ['I','Other Income / Receipt','income','Accounts & GST'],
+  ['C','Cash Counter','cash','Accounts & GST'],
+  ['D','Day Book & Ledger','daybook','Accounts & GST'],
+  ['8','GST Returns & Credit Notes','gst','Accounts & GST'],
   ['W','Day Report → WhatsApp','report','Reports'],
   ['5','Reports & Analytics','analytics','Reports'],
-  ['S','Stock Summary','stock','Masters'],
+  ['F','Reports & Tally Export','reports','Reports'],
+  ['J','Monthly Report → CA / Lawyer','monthly','Reports'],
+  ['V','Audit Log (Theft Check)','audit','Reports'],
+  ['O','Multi-Outlet Owner Dashboard','outlets','Reports'],
   ['M','Menu Items','menu','Masters'],
-  ['T','Kitchen Display (KOT Screen)','kitchen','Growth Add-ons'],
-  ['Q','QR Menu & Table Orders','qr','Growth Add-ons'],
-  ['R','Customers, Loyalty & Offers','customers','Growth Add-ons'],
-  ['A','Staff Attendance & Payroll','staff','Growth Add-ons'],
-  ['O','Multi-Outlet Owner Dashboard','outlets','Growth Add-ons'],
-  ['N','Captain App (Mobile Orders)','captain','Operations'],
-  ['H','Table Reservations','reservations','Operations'],
-  ['X','Token Display (TV)','tokens','Operations'],
-  ['F','Reports & Tally Export','reports','Accounts'],
-  ['U','Suppliers & Payables','suppliers','Accounts'],
-  ['Y','Zomato/Swiggy Settlement','settlement','Accounts'],
-  ['V','Audit Log (Theft Check)','audit','Accounts'],
-  ['J','Monthly Report → CA / Lawyer','monthly','Accounts'],
-  ['8','GST Returns & Credit Notes','gst','Accounts'],
-  ['1','Help & Support (Setu Pro)','support','Utilities'],
-  ['2','Error Log','errors','Utilities'],
-  ['3','Setu AI (Gemini)','ai','Utilities'],
+  ['R','Customers, Loyalty & Offers','customers','Masters'],
+  ['A','Staff Attendance & Payroll','staff','Masters'],
+  ['G','Settings & Backup','settings','Utilities'],
+  ['7','Import & Delete Data','data','Utilities'],
   ['4','Printer Health (Queue)','printers','Utilities'],
   ['6','Setu Doctor (Health Check)','doctor','Utilities'],
-  ['7','Import & Delete Data','data','Utilities'],
+  ['3','Setu AI (Gemini)','ai','Utilities'],
+  ['2','Error Log','errors','Utilities'],
+  ['1','Help & Support (Setu Pro)','support','Utilities'],
   ['K','Aghanya Devanya License','license','Utilities'],
-  ['G','Settings & Backup','settings','Utilities'],
 ];
+// Masters also lists the stock items and suppliers (same screens as in Purchase & Stock)
+const MENU_ALIAS = {Masters: [['S','Stock Items','stock'], ['U','Suppliers','suppliers']]};
+const MENU_GROUPS = ['Sales', 'Purchase & Stock', 'Accounts & GST', 'Reports', 'Masters', 'Utilities'];
 
 const SCREENS = {
   gateway: scrGateway,
@@ -2859,6 +2876,7 @@ function go(s, approved){
   $('#scrname').innerHTML = `<span class="dot"></span>${m ? m[1] : 'Gateway of Restaurant'}`;
   $('#hname').textContent = D.settings.name;
   main.scrollTop = 0;
+  document.body.classList.remove('side-open');
   drawSide();
   try{ SCREENS[s](); }
   catch(e){
@@ -2868,24 +2886,32 @@ function go(s, approved){
   updateOnlinePills();
 }
 
+// Sidebar: groups that open / close (remembered on this device); the group of the open screen is always open
+const sideClosed = () => { try{ return JSON.parse(localStorage.getItem('setu_side_closed') || '[]'); }catch(e){ return []; } };
+function sideToggle(g){
+  const c = sideClosed(), i = c.indexOf(g);
+  if(i >= 0) c.splice(i, 1); else c.push(g);
+  try{ localStorage.setItem('setu_side_closed', JSON.stringify(c)); }catch(e){}
+  drawSide();
+}
 function drawSide(){
-  let cat = '';
+  const allowed = userPerms(), closed = sideClosed();
+  const can = m => screenOn(m[2]) && (!allowed.length || isManager() || allowed.includes(m[2]));
   let html = `<button class="${cur==='gateway'?'active':''}" onclick="go('gateway')"><u>Esc</u> Gateway</button>`;
-  const allowed = userPerms();
-  MENU.forEach(m => {
-    if(!screenOn(m[2])) return;   // module not in this hotel's Hotel Setu Cloud plan
-    if(allowed.length && !isManager() && !allowed.includes(m[2])) return;   // staff limited to some screens
-    if(m[3] !== cat){
-      cat = m[3];
-      html += `<div class="side-cat">${cat}</div>`;
-    }
-    const isOnline = m[2] === 'online';
-    const pendingCount = isOnline ? (D.onlineOrders || []).filter(o => o.status === 'new').length : 0;
-    html += `
+  MENU_GROUPS.forEach(g => {
+    const items = MENU.filter(m => m[3] === g).concat((MENU_ALIAS[g] || []).map(a => [...a, g])).filter(can);
+    if(!items.length) return;
+    const open = !closed.includes(g) || items.some(m => m[2] === cur);
+    html += `<div class="side-cat" onclick="sideToggle('${g}')" title="Open / close">${g}<span>${open ? '▾' : '▸'}</span></div>`;
+    if(!open) return;
+    items.forEach(m => {
+      const pendingCount = m[2] === 'online' ? (D.onlineOrders || []).filter(o => o.status === 'new').length : 0;
+      html += `
       <button class="${cur===m[2]?'active':''}" onclick="go('${m[2]}')">
         <u>${m[0]}</u> ${m[1]}
         ${pendingCount ? `<span style="margin-left:auto;background:var(--bad);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount}</span>` : ''}
       </button>`;
+    });
   });
   $('#side').innerHTML = html;
 }
@@ -3155,10 +3181,24 @@ function scrGst(){
   <p class="muted" style="font-size:12px">Draft prepared by Setu from your bills. Check it with your CA before filing. The JSON is in the GST offline-tool format; the portal may ask for changes when the format changes.</p>`;
 }
 
-// ---------- Ctrl+K: search everything ----------
+// ---------- Ctrl+K / top search: everything ----------
+// Settings cards: [card title as shown in Settings, words people search with]
+const SET_INDEX = [['Restaurant Details', 'name address phone gstin gst sac fssai footer composition inclusive bill print'], ['Printer Setup', 'printer thermal 58mm 80mm kot paper print'],
+  ['Phone / Tablet Connect', 'captain tablet lan phone connect'], ['Hotel Setu Cloud', 'cloud sync internet online backup'], ['Owner Password', 'password owner login'],
+  ['Zomato & Swiggy', 'zomato swiggy commission online'], ['Growth Add-ons', 'qr menu review loyalty points kitchen display upi'], ['Restaurant Tables', 'tables table layout'],
+  ['Operator Security PIN', 'pin cashier manager security discount limit'], ['Software License', 'license key activate renew'], ['Data Backup', 'backup restore json export drive folder auto backup'],
+  ['Appearance', 'theme dashboard colour color dark neon look design'], ['Software Update', 'update version exe'], ['WhatsApp', 'whatsapp receipt qr scan link']];
+function goSetting(title){
+  go('settings');
+  setTimeout(() => {
+    const h = [...main.querySelectorAll('h3')].find(x => x.textContent.toLowerCase().includes(title.toLowerCase()));
+    const c = h && (h.closest('.card') || h);
+    if(c){ c.scrollIntoView({behavior: 'smooth', block: 'start'}); c.style.outline = '3px solid var(--primary)'; setTimeout(() => { c.style.outline = ''; }, 2500); }
+  }, 120);
+}
 let CK_I = 0;
 function ckOpen(){
-  modal('Search Setu (Ctrl+K)', `<input id="ck_q" autofocus placeholder="Bill no., customer, mobile, dish, stock item, supplier or screen…" oninput="CK_I=0;ckDraw()" onkeydown="ckKey(event)"><div id="ck_r" style="margin-top:8px;max-height:60vh;overflow:auto"></div>`);
+  modal('Search Setu (Ctrl+K)', `<input id="ck_q" autofocus placeholder="Module, setting, report, bill no., customer, mobile, dish, stock, supplier…" oninput="CK_I=0;ckDraw()" onkeydown="ckKey(event)"><div id="ck_r" style="margin-top:8px;max-height:60vh;overflow:auto"></div>`);
   ckDraw();
 }
 function ckFind(q){
@@ -3166,6 +3206,10 @@ function ckFind(q){
   const has = s => String(s || '').toLowerCase().includes(q), out = [], num = q.replace(/^#/, '');
   MENU.filter(m => screenOn(m[2]) && (!q || has(m[1]) || m[0].toLowerCase() === q)).slice(0, q ? 6 : 12).forEach(m => out.push(['Screen', `${m[1]} <span class="muted">[${m[0]}]</span>`, `go('${m[2]}')`]));
   if(q){
+    if(isManager()) SET_INDEX.filter(([t, k]) => has(t) || q.split(/\s+/).every(w => (t + ' ' + k).toLowerCase().includes(w))).slice(0, 4)
+      .forEach(([t]) => out.push(['Setting', `Settings → ${esc(t)}`, `goSetting(${JSON.stringify(t).replace(/"/g, '&quot;')})`]));
+    if(screenOn('analytics') && (isManager() || !CASHIER_BLOCK.includes('analytics'))) AN_REPORTS.filter(r => has(r.title) || has(r.desc)).slice(0, 5)
+      .forEach(r => out.push(['Report', `${esc(r.title)} <span class="muted">${esc(r.desc || '').slice(0, 60)}</span>`, `go('analytics');anOpen('${r.id}')`]));
     D.bills.slice(-3000).reverse().filter(b => String(b.no) === num || has(b.cust) || (num.length >= 4 && String(b.phone || '').includes(num)) || has(b.table) && q.length > 1).slice(0, 8)
       .forEach(b => out.push(['Bill', `#${b.no} · ${dmy(b.date)} · ${esc(b.table || b.channel || '')}${b.cust ? ' · ' + esc(b.cust) : ''} · <b>${money(b.total)}</b>${b.cancelled ? ' <span class="red">Cancelled</span>' : ''}`, `dzOpen('bill:${b.id}')`]));
     D.menu.filter(m => has(m.name)).slice(0, 6).forEach(m => out.push(['Dish', `${esc(m.name)} · ${money(m.price)}`, isManager() ? `editMenu('${m.id}')` : `go('menu')`]));
@@ -3805,8 +3849,8 @@ function scrGateway(){
       <span>Quick Action Launchpad</span>
       <span class="muted" style="font-weight:400;font-size:12px">(Press highlighted letter on keyboard)</span>
     </div>
-    <div class="quick-grid">
-      ${tiles.map(m => `
+    ${MENU_GROUPS.map(g => [g, tiles.filter(m => m[3] === g)]).filter(([, l]) => l.length).map(([g, l]) => `<div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin:12px 0 6px">${g}</div><div class="quick-grid">
+      ${l.map(m => `
         <div class="quick-tile" onclick="go('${m[2]}')">
           <div class="tile-key-badge">${m[0]}</div>
           <div class="tile-info">
@@ -3817,7 +3861,7 @@ function scrGateway(){
           </div>
         </div>
       `).join('')}
-    </div>` : ''}
+    </div>`).join('')}` : ''}
 
     <!-- Dashboard 2-Column Overview -->
     ${anyCol ? `<div class="${leftOn && rightOn ? 'dash-columns' : ''}">
