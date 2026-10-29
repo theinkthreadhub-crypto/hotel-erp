@@ -15,3 +15,7 @@ Activation-Keys-*.txt
 *.pem
 installer/MicrosoftEdgeWebview2Setup.exe
 Output/
+
+# WhatsApp sidecar: installed by the EXE build (npm ci), never committed
+whatsapp/node_modules/
+whatsapp/node.exe

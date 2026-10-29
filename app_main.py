@@ -29,6 +29,7 @@ import email.utils
 import base64
 import copy
 import hashlib
+import atexit
 
 APP_PORT = 8000
 APP_VERSION = 'dev'   # stamped by installer/stamp-version.py when the EXE is built
@@ -365,8 +366,11 @@ class SetuStore:
         self.version, self.saved_at, self.raw = version, saved_at, raw
         if self.on_write:
             self.on_write()
-        # One rolling backup per day (last write of the day wins)
+        # One rolling backup per day (last write of the day wins); at most every 10 minutes so big databases stay fast
         try:
+            if time.time() - getattr(self, '_last_copy', 0) < 600 and os.path.exists(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json')):
+                return
+            self._last_copy = time.time()
             shutil.copy2(self.path, os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json'))
             files = sorted(x for x in os.listdir(self.backup_dir) if x.startswith('setu-') and x.endswith('.json'))
             for old in files[:-KEEP_BACKUPS]:
@@ -1028,6 +1032,8 @@ class Updater:
             raise ValueError('Updates install only on Windows')
         import subprocess
         self.store.log('UPDATE: installing Setu ' + self.state['latest'])
+        if getattr(self.store, 'wa', None):
+            self.store.wa.kill()   # the WhatsApp helper's node.exe must not hold files the setup replaces
         # Silent install of the same per-user setup; it closes Setu, updates the program files and starts Setu again
         subprocess.Popen([self.file, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/CLOSEAPPLICATIONS'],
                          close_fds=True, creationflags=0x00000008)   # DETACHED_PROCESS
@@ -1113,6 +1119,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not self.is_local() or not updater:
                     return self.send_json(403, {'error': 'main counter only'})
                 return self.send_json(200, updater.state)
+            if path == '/api/autobackup':
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                return self.send_json(200, store.autobackup.public())
+            if path == '/api/wa/status':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                st = store.wa.status()
+                if role not in ('local', 'admin'):
+                    st.pop('qr', None)   # only the manager sees the link QR
+                return self.send_json(200, st)
             if path == '/api/log':
                 # Error Log screen: the newest lines of setu-server.log (main counter only)
                 if not self.is_local():
@@ -1257,6 +1275,59 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
                 return self.send_json(200, cloud.public())
+            if path.startswith('/api/wa/'):
+                # WhatsApp link: connect / disconnect = manager; send a bill = any logged-in device
+                role = self.role()
+                if not role or (path != '/api/wa/send' and role not in ('local', 'admin')):
+                    return self.send_json(403, {'error': 'manager only'})
+                try:
+                    b = self.read_json() if int(self.headers.get('Content-Length') or 0) else {}
+                    if path == '/api/wa/start':
+                        store.wa.start()
+                        return self.send_json(200, store.wa.status())
+                    if path == '/api/wa/stop':
+                        store.wa.stop()
+                        return self.send_json(200, store.wa.status())
+                    if path == '/api/wa/logout':
+                        code, j = store.wa.call('/logout', {})
+                        return self.send_json(code, j)
+                    if path == '/api/wa/send':
+                        code, j = store.wa.call('/send', {k: b.get(k) for k in ('phone', 'text', 'pdf', 'image', 'fileName')}, timeout=120)
+                        return self.send_json(code, j)
+                except OSError as e:
+                    return self.send_json(503, {'ok': False, 'error': str(e)[:200]})
+                except ValueError:
+                    return self.send_json(400, {'error': 'bad request'})
+                return self.send_json(404, {'error': 'not found'})
+            if path == '/api/autobackup':
+                # Auto backup: change the folder / timing, back up now, pick a folder, restore (manager on the main counter)
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                ab = store.autobackup
+                try:
+                    b = self.read_json()
+                    act = b.get('action')
+                    if act == 'set':
+                        ab.set(b.get('folder'), b.get('every'), b.get('keep'), b.get('on'))
+                    elif act == 'now':
+                        ab.run('by hand')
+                    elif act == 'pick':
+                        if not self.is_local():
+                            return self.send_json(403, {'error': 'choose the folder on the main counter PC'})
+                        try:
+                            import webview
+                            res = webview.windows[0].create_file_dialog(webview.FOLDER_DIALOG, directory=ab.cfg['folder'])
+                        except Exception:
+                            return self.send_json(501, {'error': 'Folder window not available here: type the folder path'})
+                        if res:
+                            ab.set(res[0] if isinstance(res, (list, tuple)) else res)
+                    elif act == 'restore':
+                        ab.restore(b.get('name'))
+                    else:
+                        return self.send_json(400, {'error': 'unknown action'})
+                except (OSError, ValueError) as e:
+                    return self.send_json(400, {'error': str(e)[:200]})
+                return self.send_json(200, ab.public())
             if path == '/api/update':
                 # Check / download / install a new Setu (main counter PC only)
                 if not self.is_local() or not updater:
@@ -1361,6 +1432,219 @@ def port_busy(port):
         return s.connect_ex(('127.0.0.1', port)) == 0
 
 
+class WhatsAppLink:
+    """The hotel's own WhatsApp, linked by QR (like WhatsApp Web), sends bill receipts.
+    Runs whatsapp/wa.js with the bundled node.exe on 127.0.0.1; only this server talks to it."""
+    PORT = 47130
+
+    def __init__(self, store):
+        self.store = store
+        self.cfg_path = os.path.join(store.dir, 'setu-whatsapp.json')
+        self.cfg = _read_json(self.cfg_path, {}) or {}
+        self.proc = None
+        self.url = os.environ.get('SETU_WA_URL') or f'http://127.0.0.1:{self.PORT}'   # tests point this at a fake
+        app_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
+        self.dir = os.path.join(app_dir, 'whatsapp')
+        if self.cfg.get('on'):
+            threading.Thread(target=self.start, daemon=True).start()
+        atexit.register(self.kill)
+
+    def available(self):
+        return bool(os.environ.get('SETU_WA_URL')) or os.path.exists(os.path.join(self.dir, 'wa.js'))
+
+    def _node(self):
+        exe = os.path.join(self.dir, 'node.exe')
+        return exe if os.path.exists(exe) else shutil.which('node')
+
+    def start(self):
+        self.cfg['on'] = True
+        _write_json(self.cfg_path, self.cfg)
+        if os.environ.get('SETU_WA_URL') or (self.proc and self.proc.poll() is None):
+            return
+        node = self._node()
+        if not node or not os.path.exists(os.path.join(self.dir, 'wa.js')):
+            raise OSError('The WhatsApp part is not installed. Install the newest Setu.')
+        import subprocess
+        flags = 0x08000000 if os.name == 'nt' else 0   # CREATE_NO_WINDOW
+        self.proc = subprocess.Popen([node, os.path.join(self.dir, 'wa.js'), str(self.PORT), os.path.join(self.store.dir, 'whatsapp-session')],
+                                     cwd=self.dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=flags)
+        self.store.log('WhatsApp link started')
+
+    def kill(self):
+        try:
+            if self.proc and self.proc.poll() is None:
+                self.proc.terminate()
+        except Exception:
+            pass
+
+    def stop(self):
+        self.cfg['on'] = False
+        _write_json(self.cfg_path, self.cfg)
+        self.kill()
+
+    def call(self, path, body=None, timeout=10):
+        req = urllib.request.Request(self.url + path, data=json.dumps(body).encode('utf-8') if body is not None else None,
+                                     method='POST' if body is not None else 'GET', headers={'Content-Type': 'application/json'})
+        try:
+            # never through a proxy: the helper is on this PC
+            with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req, timeout=timeout) as r:
+                return r.status, json.loads(r.read().decode('utf-8') or '{}')
+        except urllib.error.HTTPError as e:
+            try:
+                return e.code, json.loads(e.read().decode('utf-8') or '{}')
+            except ValueError:
+                return e.code, {'error': f'HTTP {e.code}'}
+
+    def status(self):
+        base = {'available': self.available(), 'on': bool(self.cfg.get('on'))}
+        if not base['on']:
+            return {**base, 'state': 'off'}
+        if not os.environ.get('SETU_WA_URL') and self.proc and self.proc.poll() is not None:
+            try:
+                self.start()   # the helper stopped: start it again
+            except OSError as e:
+                return {**base, 'state': 'error', 'lastError': str(e)}
+        try:
+            code, j = self.call('/status', timeout=3)
+            return {**base, **j}
+        except Exception:
+            return {**base, 'state': 'starting'}
+
+
+class AutoBackup:
+    """Compressed copies of the database (and the archive) into a folder the owner chooses:
+    another drive, a pen drive or a Google Drive / OneDrive folder. Every few hours and when Setu closes."""
+
+    def __init__(self, store):
+        self.store = store
+        self.cfg_path = os.path.join(store.dir, 'setu-autobackup.json')
+        self.cfg = _read_json(self.cfg_path, {}) or {}
+        self.cfg.setdefault('folder', os.path.join(os.path.expanduser('~'), 'Documents', 'Setu Backups'))
+        self.cfg.setdefault('every', 2)      # hours
+        self.cfg.setdefault('keep', 60)      # newest files kept
+        self.cfg.setdefault('on', True)
+        self.lock = threading.Lock()
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def public(self):
+        c = dict(self.cfg)
+        try:
+            files = self.files()
+            c['files'] = [{'name': n, 'size': os.path.getsize(os.path.join(c['folder'], n)), 'at': int(os.path.getmtime(os.path.join(c['folder'], n)) * 1000)} for n in files[:15]]
+            c['count'] = len(files)
+            u = shutil.disk_usage(c['folder'])
+            c['free'] = u.free
+        except OSError:
+            c['files'], c['count'] = [], 0
+        c['drives'] = self.drives()
+        c['dataDrive'] = os.path.splitdrive(os.path.abspath(self.store.dir))[0].upper()
+        return c
+
+    @staticmethod
+    def drives():
+        out = []
+        if os.name == 'nt':
+            import string
+            for L in string.ascii_uppercase:
+                root = L + ':\\'
+                if os.path.exists(root):
+                    try:
+                        u = shutil.disk_usage(root)
+                        out.append({'drive': L + ':', 'free': u.free, 'total': u.total})
+                    except OSError:
+                        pass
+        return out
+
+    def files(self):
+        f = self.cfg['folder']
+        return sorted((x for x in os.listdir(f) if x.startswith('Setu-Backup-') and x.endswith('.json.gz')), reverse=True) if os.path.isdir(f) else []
+
+    def set(self, folder=None, every=None, keep=None, on=None):
+        with self.lock:
+            if folder is not None:
+                folder = os.path.abspath(os.path.expanduser(str(folder).strip()))
+                os.makedirs(folder, exist_ok=True)
+                test = os.path.join(folder, '.setu-write-test')
+                with open(test, 'w') as f:      # fails here if the folder cannot be written (read-only / no pen drive)
+                    f.write('ok')
+                os.remove(test)
+                self.cfg['folder'] = folder
+            if every is not None:
+                self.cfg['every'] = max(1, min(24, int(every)))
+            if keep is not None:
+                self.cfg['keep'] = max(3, min(500, int(keep)))
+            if on is not None:
+                self.cfg['on'] = bool(on)
+            _write_json(self.cfg_path, self.cfg)
+
+    def run(self, why='auto'):
+        """One backup now. Returns the file name; raises when the folder cannot be written."""
+        import gzip
+        with self.lock:
+            folder = self.cfg['folder']
+            os.makedirs(folder, exist_ok=True)
+            hotel = ''
+            try:
+                d = self.store.data() or {}
+                hotel = ''.join(c for c in str((d.get('settings') or {}).get('name') or '') if c.isalnum())[:20]
+            except Exception:
+                pass
+            name = 'Setu-Backup-' + time.strftime('%Y-%m-%d_%H%M') + ('-' + hotel if hotel else '') + '.json.gz'
+            tmp = os.path.join(folder, name + '.tmp')
+            try:
+                with self.store.lock:
+                    raw = self.store.raw
+                    version = self.store.version
+                doc = '{"version": %d, "savedAt": %d, "data": %s}' % (version, int(time.time() * 1000), raw)
+                with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=6) as f:
+                    f.write(doc)
+                os.replace(tmp, os.path.join(folder, name))
+                arch = getattr(self.store, 'archive', None)
+                if arch:
+                    arch.copy_to(os.path.join(folder, 'Setu-Archive.db'))
+                for old in self.files()[self.cfg['keep']:]:
+                    os.remove(os.path.join(folder, old))
+                self.cfg.update({'lastAt': int(time.time() * 1000), 'lastFile': name, 'lastError': '', 'lastWhy': why})
+                _write_json(self.cfg_path, self.cfg)
+                return name
+            except Exception as e:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+                self.cfg.update({'lastError': str(e)[:200], 'lastErrorAt': int(time.time() * 1000)})
+                _write_json(self.cfg_path, self.cfg)
+                self.store.log(f'AUTO BACKUP FAILED to {folder!r}: {e!r}')
+                raise
+
+    def restore(self, name):
+        """Put a backup file back as the database (the current data is backed up first)."""
+        import gzip
+        name = os.path.basename(str(name))
+        if not (name.startswith('Setu-Backup-') and name.endswith('.json.gz')):
+            raise ValueError('not a Setu backup file')
+        with gzip.open(os.path.join(self.cfg['folder'], name), 'rt', encoding='utf-8') as f:
+            doc = json.load(f)
+        data = doc.get('data')
+        if not isinstance(data, dict) or 'settings' not in data:
+            raise ValueError('this backup file is damaged')
+        self.run('before restore')
+        with self.store.lock:
+            self.store.write(data)
+        self.store.log(f'Restored from auto backup {name}')
+
+    def _loop(self):
+        time.sleep(60)
+        while True:
+            try:
+                due = (time.time() * 1000 - self.cfg.get('lastAt', 0)) >= self.cfg['every'] * 3600 * 1000
+                if self.cfg.get('on', True) and due and self.store.version > 0:
+                    self.run('auto')
+            except Exception:
+                pass
+            time.sleep(600)
+
+
 def start_server(base_dir, data_dir, port):
     store = SetuStore(data_dir)
     cloud = CloudSync(store)
@@ -1369,6 +1653,9 @@ def start_server(base_dir, data_dir, port):
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
     updater = Updater(store)
+    store.autobackup = AutoBackup(store)
+    store.wa = WhatsAppLink(store)
+    atexit.register(lambda: store.autobackup.run('Setu closed') if store.version > 0 else None)
     httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud, updater))
     httpd.daemon_threads = True
     t = threading.Thread(target=httpd.serve_forever, daemon=True)

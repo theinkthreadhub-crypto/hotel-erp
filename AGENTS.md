@@ -446,3 +446,17 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 - Ctrl+K (`ckOpen`, capture-phase keydown): screens, bills (no. / customer / mobile / table), dishes, stock, customers, suppliers, CN-n.
 - Purchase bill photo: `ocrPick` → `ocrShrink` (JPEG ≤1600 px) → POST `/api/ai/bill` (worker: Gemini with `inlineData`, JSON answer, counts as one AI question; counter PC proxies the same path) → `ocrApply` fills PF; unmatched lines keep `ocr` name and block Save until an item is chosen.
 - Test: `tests/gst.js` (mock Gemini on 127.0.0.1:8788 = GEMINI_BASE in cloud/.dev.vars).
+
+## Modules, search, screen sizes
+- `MENU` rows are [key, label, screen, group]; `MENU_GROUPS` = Sales, Purchase & Stock, Accounts & GST, Reports, Masters, Utilities. `MENU_ALIAS` lists extra entries in a group (Masters → Stock Items, Suppliers). Keys never change. Sidebar groups open / close (`sideToggle`, localStorage `setu_side_closed`); Quick Action tiles are grouped the same way.
+- Top bar `#topsearch` opens the Ctrl+K search (`ckFind`): screens, settings cards (`SET_INDEX` → `goSetting(title)` scrolls to the card), reports (`AN_REPORTS`), bills, dishes, stock, customers, suppliers, credit notes.
+- Top bar wraps and hides the clock / labels below 1280 / 1100 px; below 960 px the sidebar opens with ☰ (`body.side-open`). Window min size stays 1020×680.
+
+## Auto backup (counter PC, app_main.py `AutoBackup`)
+- `setu-autobackup.json`: folder (default Documents\Setu Backups), every (hours), keep, on. Every N hours + when Setu closes: `Setu-Backup-YYYY-MM-DD_HHMM-<hotel>.json.gz` (whole db, gzip). API `GET/POST /api/autobackup` (actions set / now / pick (pywebview folder dialog, main PC only) / restore). Settings card `#ab-card` (`drawAutoBackup`). The per-save copy in `Backups\` is now at most every 10 minutes.
+
+## WhatsApp link (counter PC)
+- `whatsapp/wa.js` (Baileys 6.7.24, unofficial WhatsApp Web protocol) runs with the bundled `whatsapp/node.exe` (build-exe.yml: `npm ci` + copy of the runner's node.exe; installer copies `whatsapp\`). Session in `<data>\whatsapp-session`. Listens on 127.0.0.1:47130; queue with 2.5–6 s gaps, 400 messages a day.
+- app_main `WhatsAppLink`: `/api/wa/status` (QR only for manager/local), `/api/wa/start|stop|logout` (manager), `/api/wa/send` (any login). `SETU_WA_URL` points at a fake helper in tests. The updater kills node before installing.
+- App: Settings card `#wa-card` (`drawWaCard`, QR refreshes every 2.5 s), `D.settings.waAuto` → `waAutoSend(bill)` after every bill with a 10-digit mobile (not Zomato/Swiggy), `bill.wa` = sent / failed. `waOpen` sends directly when linked.
+- Not testable in CI / this container (web.whatsapp.com unreachable); `tests/whatsapp.js` uses a fake helper. WhatsApp may block numbers that send too much: keep the limits.

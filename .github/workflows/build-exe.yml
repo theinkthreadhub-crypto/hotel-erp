@@ -15,6 +15,7 @@ on:
       - 'favicon.ico'
       - '*.bat'
       - 'installer/**'
+      - 'whatsapp/**'
       - '.github/workflows/build-exe.yml'
   workflow_dispatch:
 
@@ -44,6 +45,19 @@ jobs:
         shell: cmd
         run: python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." app_main.py
 
+      # WhatsApp link helper: Baileys + its own node.exe (no Node needed on the client PC)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: WhatsApp helper
+        shell: pwsh
+        run: |
+          cd whatsapp
+          npm ci --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item (Get-Command node).Source node.exe
+          node -e "require('@whiskeysockets/baileys'); console.log('baileys ok')"
+
       # Only what a client PC needs: never keygen.py, keys or the cloud code
       - name: Pack setup folder
         shell: cmd
@@ -51,6 +65,7 @@ jobs:
           mkdir Setu-POS-Setup
           copy dist\Aghanya-Devanya-Hotel-ERP.exe Setu-POS-Setup\
           for %%f in (Install-Aghanya-Devanya-ERP-Setup.bat hotel_erp.html manifest.json sw.js icon-192.png icon-512.png logo.png favicon.ico) do copy %%f Setu-POS-Setup\
+          xcopy /E /I /Q whatsapp Setu-POS-Setup\whatsapp
 
       # Optional copy; the release below is the real download (private repos run out of artifact storage)
       - uses: actions/upload-artifact@v4

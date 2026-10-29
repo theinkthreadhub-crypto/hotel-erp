@@ -1,0 +1,11 @@
+{
+  "name": "setu-whatsapp",
+  "private": true,
+  "description": "Setu: send bill receipts from the hotel's own WhatsApp (linked by QR, like WhatsApp Web). Started by app_main.py on the main counter PC.",
+  "main": "wa.js",
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.24",
+    "pino": "10.4.0",
+    "qrcode": "1.5.4"
+  }
+}
