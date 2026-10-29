@@ -8326,7 +8326,7 @@ function dishPic(m, big){
 }
 function dishImg(m, big, cls, size){
   const p = dishPic(m, big), wait = p.kind === 'custom' && !p.url;
-  return `<img class="${cls || 'dish-img'}" src="${esc(p.url || 'food/thumb/cat-generic.webp')}"${wait ? ` data-media="${p.src}${big ? '' : '.t'}"` : ''} alt="" loading="lazy" decoding="async"${size ? ` width="${size}" height="${size}"` : ''} onerror="dishImgFail(this)">`;
+  return `<img class="${cls || 'dish-img'}" src="${esc(p.url || 'food/thumb/cat-generic.webp')}"${wait ? ` data-media="${p.src}${big ? '' : '.t'}"` : ''} alt="" loading="${cls === 'dish-prev' ? 'eager' : 'lazy'}" decoding="async"${size ? ` width="${size}" height="${size}"` : ''} onerror="dishImgFail(this)">`;
 }
 function dishImgFail(el){
   if(!el.dataset.f){ el.dataset.f = '1'; el.src = 'food/thumb/cat-generic.webp'; }
