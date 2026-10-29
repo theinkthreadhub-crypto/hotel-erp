@@ -8687,8 +8687,7 @@ function dlMenuPage(){
 'function send(){var tb=T||prompt("Enter your table number (or Takeaway)")||"";if(!tb)return;var L=["*NEW ORDER* — "+D.name,"Table: "+tb],nm=document.getElementById("nm").value.trim(),ph=document.getElementById("ph").value.trim(),nt=document.getElementById("nt").value.trim();',
 'if(nm)L.push("Name: "+nm);if(ph)L.push("Phone: "+ph);L.push("");var t=0;for(var k in C){L.push(C[k]+" x "+D.menu[k].n+" = ₹"+C[k]*D.menu[k].p);t+=C[k]*D.menu[k].p}',
 'L.push("","Total: ₹"+t+(D.gst?" + GST":""));if(nt)L.push("Note: "+nt);location.href="https://wa.me/"+D.wa+"?text="+encodeURIComponent(L.join("\\n"))}',
-'draw();<\/script><script src="foodpiolet-themes.js"></script>
-</body></html>'].join('\n');
+'draw();<\/script></body></html>'].join('\n');
   saveFile('menu.html', html, 'text/html', 'menu.html ready. Upload it online to publish.');
 }
 
@@ -13917,5 +13916,6 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
+<script src="foodpiolet-themes.js"></script>
 </body>
 </html>
