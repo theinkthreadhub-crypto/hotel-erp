@@ -1177,7 +1177,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 role, name = found
                 token = store.add_token(role)
                 return self.send_json(200, {'token': token, 'role': role, 'name': name})
-            if path == '/api/ai':
+            if path in ('/api/ai', '/api/ai/bill'):
                 # Setu AI goes through this PC's cloud link (the Gemini key lives only on the cloud)
                 if self.role() not in ('local', 'admin') or not cloud:
                     return self.send_json(403, {'error': 'Setu AI is for the owner / manager only'})

@@ -35,8 +35,8 @@ if(!HOTEL || !PIN || !AK){ console.error('Set SETU_HOTEL, SETU_PIN (a test hotel
     t('Customers import: in the customer list', customers().some(c => c.phone === '9812345678' && c.bday === '15-08'), customers().length);
     imp('staff', 'Raju,Waiter,9898989898,9000\nSuresh,Cook,9797979797,15000');
     t('Staff import', D.staff.filter(s => /^(Raju|Suresh)$/.test(s.name)).length === 2, '');
-    imp('suppliers', 'Gupta Traders,9811111111,09ABCDE1234F1Z5,Atta');
-    t('Suppliers import', D.supInfo[supKeyA('Gupta Traders')] && D.supInfo[supKeyA('Gupta Traders')].gstin === '09ABCDE1234F1Z5', '');
+    imp('suppliers', 'Gupta Traders,9811111111,09ABCDE1234F1ZY,Atta');
+    t('Suppliers import', D.supInfo[supKeyA('Gupta Traders')] && D.supInfo[supKeyA('Gupta Traders')].gstin === '09ABCDE1234F1ZY', '');
     // A purchase that delete must not change the stock for
     PF = { ...pfNew(), date: '2026-04-02', party: 'Gupta Traders', lines: [{ sid: 'dx', qty: 5, f: 1, rate: 50 }] }; savePurchase(); stockRecalc();
     const stockBefore = stockItem('dx').qty;

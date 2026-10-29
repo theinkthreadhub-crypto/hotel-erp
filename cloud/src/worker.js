@@ -314,9 +314,10 @@ async function aiConf(env){
 }
 // Models tried after the saved one when Google says "model not found"
 const AI_MODELS = ['gemini-2.5-flash', 'gemini-flash-latest', 'gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-2.0-flash-lite'];
-async function gemini(env, c, prompt, system){
-  const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: { temperature: 0.4, maxOutputTokens: 900 } });
+// prompt: text, or parts (e.g. a photo + text). opt.json asks Gemini for a JSON answer.
+async function gemini(env, c, prompt, system, opt = {}){
+  const body = JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: Array.isArray(prompt) ? prompt : [{ text: prompt }] }],
+    generationConfig: { temperature: opt.temp ?? 0.4, maxOutputTokens: opt.max || 900, ...(opt.json ? { responseMimeType: 'application/json' } : {}) } });
   // AI Studio keys use the Gemini API; newer "AQ." keys may instead belong to Vertex AI express mode (key in the URL)
   const routes = [m => [`${env.GEMINI_BASE || 'https://generativelanguage.googleapis.com'}/v1beta/models/${m}:generateContent`, { 'x-goog-api-key': c.key }]];
   if(c.key.startsWith('AQ.')) routes.push(m => [`${env.VERTEX_BASE || 'https://aiplatform.googleapis.com'}/v1/publishers/google/models/${m}:generateContent?key=${encodeURIComponent(c.key)}`, {}]);
@@ -344,6 +345,11 @@ async function gemini(env, c, prompt, system){
   if(last && /API key|api_key|credential|unauth/i.test(last.msg)) throw new Error('The Gemini key is wrong or disabled. Enter a valid key in Super Admin → AI. Google said: ' + last.msg);
   throw new Error('Gemini: ' + (last ? last.msg : 'no answer'));
 }
+const AI_BILL_SYSTEM = 'You read Indian supplier bills / invoices for a restaurant and copy what is printed. Never guess or invent numbers.';
+const AI_BILL_PROMPT = `Read this purchase bill photo. Answer only JSON:
+{"supplier":"seller name","gstin":"seller GSTIN or empty","invoiceNo":"","date":"YYYY-MM-DD or empty","items":[{"name":"","qty":0,"unit":"kg/ltr/pcs/...","rate":0,"amount":0}],"discount":0,"tax":0,"total":0}
+tax = total GST (CGST+SGST+IGST) in rupees. Numbers without commas or ₹. Skip lines that are not goods (totals, tax lines).
+If it is not a bill or cannot be read: {"error":"short reason"}`;
 // A model that worked after the saved one failed becomes the saved model
 async function aiKeepModel(env, c){
   if(!c.usedModel || c.usedModel === c.model) return;
@@ -1437,6 +1443,25 @@ export class SetuHotel extends DurableObject {
         const answer = await gemini(this.env, c, `Hotel figures:\n${aiContext(d)}\n\nOwner's question: ${q}`, AI_SYSTEM);
         await aiKeepModel(this.env, c).catch(() => {});
         return json(200, { answer, used: u.n, limit: c.limit });
+      }catch(e){ return json(502, { error: e.message, used: u.n, limit: c.limit }); }
+    }
+
+    // Purchase bill photo → items, supplier, GST (counts as one AI question)
+    if(method === 'POST' && path === '/api/ai/bill'){
+      if(!isAdmin) return json(403, { error: 'Reading bill photos is for the owner / manager only' });
+      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Talk to your vendor.' });
+      const b = body(), image = String(b.image || ''), mime = ['image/jpeg', 'image/png', 'image/webp'].includes(b.mime) ? b.mime : 'image/jpeg';
+      if(image.length < 1000 || image.length > 4000000 || !/^[A-Za-z0-9+/=]+$/.test(image.slice(0, 2000))) return json(400, { error: 'Send a photo of the bill (up to about 3 MB)' });
+      const c = await aiConf(this.env);
+      if(!c.key) return json(503, { error: 'Setu AI is not set up yet (the vendor has not added a key).' });
+      const u = await regJson(this.env, '/ai/use', { code: this.account.code, take: true, limit: c.limit });
+      if(!u.ok) return json(429, { error: `Today’s ${c.limit} AI questions are used up. Please try again tomorrow.` });
+      try{
+        const out = await gemini(this.env, c, [{ inlineData: { mimeType: mime, data: image } }, { text: AI_BILL_PROMPT }], AI_BILL_SYSTEM, { json: true, temp: 0, max: 4000 });
+        let bill;
+        try{ bill = JSON.parse(out.replace(/^```(json)?|```$/g, '').trim()); }catch(e){ return json(502, { error: 'Setu AI could not read this photo. Try a clearer photo.', used: u.n, limit: c.limit }); }
+        await aiKeepModel(this.env, c).catch(() => {});
+        return json(200, { bill, used: u.n, limit: c.limit });
       }catch(e){ return json(502, { error: e.message, used: u.n, limit: c.limit }); }
     }
 

@@ -2774,6 +2774,7 @@ const MENU = [
   ['Y','Zomato/Swiggy Settlement','settlement','Accounts'],
   ['V','Audit Log (Theft Check)','audit','Accounts'],
   ['J','Monthly Report → CA / Lawyer','monthly','Accounts'],
+  ['8','GST Returns & Credit Notes','gst','Accounts'],
   ['1','Help & Support (Setu Pro)','support','Utilities'],
   ['2','Error Log','errors','Utilities'],
   ['3','Setu AI (Gemini)','ai','Utilities'],
@@ -2805,6 +2806,7 @@ const SCREENS = {
   printers: scrPrinters,
   doctor: () => scrDoctor(),
   data: () => scrData(),
+  gst: () => scrGst(),
   analytics: scrAnalytics,
   kitchen: scrKitchen,
   qr: scrQR,
@@ -2822,7 +2824,7 @@ const SCREENS = {
 };
 
 let kdsTimer = null;
-const CASHIER_BLOCK = ['settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support', 'errors', 'ai'];
+const CASHIER_BLOCK = ['gst', 'settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support', 'errors', 'ai'];
 const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens'];
 // Current staff member's ticked screens (looked up fresh so Staff edits apply at once)
 const userPerms = () => { const st = activeUser && activeUser.staffId && (D.staff || []).find(x => x.id === activeUser.staffId); return (st && st.perms) || []; };
@@ -2966,6 +2968,282 @@ function summary(d){
   };
 }
 const lowStock = () => D.stock.filter(s => !s.merged && s.active !== false && +s.qty <= +s.min);
+
+/* ================= GST TOOLS: GSTIN check, HSN/SAC, Credit Notes, GSTR-1 JSON, GSTR-3B (screen 8) ================= */
+// Draft working for the hotel's CA. Restaurant service: place of supply = the restaurant, so CGST + SGST (no IGST).
+const GST_STATES = {'01': 'Jammu & Kashmir', '02': 'Himachal Pradesh', '03': 'Punjab', '04': 'Chandigarh', '05': 'Uttarakhand', '06': 'Haryana', '07': 'Delhi', '08': 'Rajasthan',
+  '09': 'Uttar Pradesh', '10': 'Bihar', '11': 'Sikkim', '12': 'Arunachal Pradesh', '13': 'Nagaland', '14': 'Manipur', '15': 'Mizoram', '16': 'Tripura', '17': 'Meghalaya', '18': 'Assam',
+  '19': 'West Bengal', '20': 'Jharkhand', '21': 'Odisha', '22': 'Chhattisgarh', '23': 'Madhya Pradesh', '24': 'Gujarat', '26': 'Dadra & Nagar Haveli and Daman & Diu', '27': 'Maharashtra',
+  '29': 'Karnataka', '30': 'Goa', '31': 'Lakshadweep', '32': 'Kerala', '33': 'Tamil Nadu', '34': 'Puducherry', '35': 'Andaman & Nicobar', '36': 'Telangana', '37': 'Andhra Pradesh', '38': 'Ladakh', '97': 'Other Territory'};
+const GSTIN_CH = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+// Format, state code and the check digit (last character) of a GSTIN. Empty = ok (optional field).
+function gstinCheck(v){
+  const g = String(v || '').toUpperCase().replace(/[\s-]/g, '');
+  if(!g) return {g, ok: true, empty: true};
+  if(g.length !== 15) return {g, ok: false, msg: `GSTIN has 15 characters (this one has ${g.length})`};
+  if(!/^\d{2}[A-Z0-9]{13}$/.test(g)) return {g, ok: false, msg: 'GSTIN starts with 2 digits (state code) and has only letters and numbers'};
+  const state = GST_STATES[g.slice(0, 2)];
+  if(!state) return {g, ok: false, msg: `"${g.slice(0, 2)}" is not a GST state code`};
+  let s = 0;
+  for(let i = 0; i < 14; i++){ const p = GSTIN_CH.indexOf(g[i]) * (i % 2 ? 2 : 1); s += Math.floor(p / 36) + p % 36; }
+  if(g[14] !== GSTIN_CH[(36 - s % 36) % 36]) return {g, ok: false, state, msg: 'Typing mistake in this GSTIN (the last check character does not match). Check every character.'};
+  return {g, ok: true, state, code: g.slice(0, 2)};
+}
+// Live hint under a GSTIN box: <input oninput="gstinLive(this,'hint_id')"> + <div id="hint_id">
+function gstinLive(el, hid){
+  const r = gstinCheck(el.value), h = $('#' + hid);
+  if(h) h.innerHTML = r.empty ? '' : r.ok ? `<span class="green">✓ Valid · ${esc(r.state)}</span>` : `<span class="red">${esc(r.msg)}</span>`;
+  return r;
+}
+const gstinHint = id => `<div id="${id}" style="font-size:12px;min-height:16px;margin-top:2px"></div>`;
+const hotelGst = () => gstinCheck(D.settings.gstin);
+const hotelStateCode = () => { const r = hotelGst(); return r.ok && !r.empty ? r.code : ''; };
+const sacDefault = () => String(D.settings.sac || '996331').trim() || '996331';
+const hsnOf = item => { const m = item && D.menu.find(x => x.id === item.mid || x.name === item.name); return String((m && m.hsn) || sacDefault()).trim(); };
+const split2 = tax => { const c = r2(tax / 2); return [c, r2(tax - c)]; };
+const gstDate = d => d.slice(8, 10) + '-' + d.slice(5, 7) + '-' + d.slice(0, 4);
+const invNo = b => String(b.no);   // the number printed on the bill
+
+// ---------- Credit notes (bill returned / reduced after it was made) ----------
+const cnotes = () => D.cnotes || (D.cnotes = []);
+const cnOfBill = id => cnotes().filter(c => c.billId === id);
+// Qty of each bill line already credited
+function cnDone(b){ const m = {}; cnOfBill(b.id).forEach(c => c.items.forEach(i => { m[i.k] = (m[i.k] || 0) + i.qty; })); return m; }
+// Value of returned lines with the bill's own discount ratio and GST rate
+function cnCalc(b, lines){
+  const gross = sum(lines, i => i.qty * i.price), f = b.sub ? (b.sub - b.disc) / b.sub : 1, net = r2(gross * f), rate = +b.gstRate || 0;
+  if(b.incl && rate){ const taxable = r2(net / (1 + rate / 100)); return {taxable, tax: r2(net - taxable), total: r2(net)}; }
+  const tax = r2(net * rate / 100); return {taxable: net, tax, total: r2(net + tax)};
+}
+function creditNote(id){
+  const b = getBill(id);
+  if(!b || b.cancelled) return;
+  const done = cnDone(b), rows = b.items.map((i, k) => ({k, name: i.name, price: +i.price, max: r2(i.qty - (done[k] || 0))}));
+  if(rows.every(r => r.max <= 0)) return toast('All items of this bill are already credited');
+  modal(`Credit Note on Bill #${b.no}`, `<p class="muted" style="margin-top:0">For an item returned or a price reduced after the bill was made. The bill stays as it is; the credit note reduces the GST in GSTR-1.</p>
+    <table><tr><th>Item</th><th class="n">Rate</th><th class="n">Can return</th><th class="n">Return qty</th></tr>
+    ${rows.map(r => `<tr><td>${esc(r.name)}</td><td class="n">${money(r.price)}</td><td class="n">${fq(r.max)}</td><td class="n"><input class="cn_q" data-k="${r.k}" type="number" min="0" max="${r.max}" step="any" value="${r.max > 0 ? '' : 0}" ${r.max > 0 ? '' : 'disabled'} style="width:90px" oninput="cnPreview('${b.id}')"></td></tr>`).join('')}</table>
+    <button class="btn g sm" style="margin-top:6px" onclick="document.querySelectorAll('.cn_q:not([disabled])').forEach(x=>x.value=x.max);cnPreview('${b.id}')">Return full bill</button>
+    <div class="grid" style="margin-top:10px"><div><label>Reason</label><select id="cn_r">${['Item returned / not served', 'Wrong rate charged', 'Customer complaint', 'Discount after billing', 'Other'].map(x => `<option>${x}</option>`).join('')}</select></div>
+      <div><label>Money back</label><select id="cn_m">${['Cash', 'UPI', 'Card'].map(x => `<option>${x}</option>`).join('')}<option value="none">No money back (adjusted)</option></select></div></div>
+    <div id="cn_p" style="margin-top:10px;font-size:15px"></div>
+    <div class="btns"><button class="btn ok" onclick="saveCreditNote('${b.id}')">Save Credit Note</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
+  cnPreview(b.id);
+}
+function cnLines(b){
+  return [...document.querySelectorAll('.cn_q')].map(x => ({k: +x.dataset.k, qty: Math.min(+x.value || 0, +x.max)})).filter(x => x.qty > 0)
+    .map(x => ({...x, name: b.items[x.k].name, price: +b.items[x.k].price, mid: b.items[x.k].mid}));
+}
+function cnPreview(id){
+  const b = getBill(id), l = cnLines(b), t = cnCalc(b, l), el = $('#cn_p');
+  if(el) el.innerHTML = l.length ? `Taxable ${money(t.taxable)} + GST ${money(t.tax)} = <b>Credit ${money(t.total)}</b>` : '<span class="muted">Enter the quantity returned.</span>';
+}
+function saveCreditNote(id){
+  const b = getBill(id), lines = cnLines(b);
+  if(!lines.length) return toast('Enter the quantity returned');
+  const t = cnCalc(b, lines), mode = $('#cn_m').value, reason = $('#cn_r').value;
+  withManager(`Credit note on bill #${b.no} (${money(t.total)})`, by => {
+    D.seq.cn = (+D.seq.cn || 0) + 1;
+    const cn = {id: uid(), no: D.seq.cn, date: today(), time: nowTime(), billId: b.id, billNo: b.no, billDate: b.date, cust: b.cust || '', phone: b.phone || '', gstin: b.gstin || '',
+      channel: b.channel || 'Dine-In', rate: +b.gstRate || 0, incl: !!b.incl, items: lines, ...t, reason, refund: mode, by, at: Date.now()};
+    cnotes().push(cn);
+    if(mode !== 'none') D.txns.push({id: uid(), type: 'Expense', date: cn.date, time: cn.time, head: 'Customer Refund', desc: `Credit Note CN-${cn.no} on bill #${b.no}`, party: b.cust || '', amount: cn.total, mode, by, cn: cn.id});
+    audit('Credit Note', `CN-${cn.no} on bill #${b.no} · ${reason}`, cn.total, cn.id, by);
+    save(); closeModal(); toast(`Credit Note CN-${cn.no} saved — ${money(cn.total)}`);
+    if(confirm('Print the credit note?')) printDoc([cnHTML(cn)]);
+    if(cur === 'bills') scrBills(); else if(cur === 'gst') scrGst();
+  });
+}
+NON_EXPENSE_HEADS.push('Customer Refund');
+function cnHTML(c){
+  const [cg, sg] = split2(c.tax);
+  return `<div class="rcpt${paper('bill')}">${head()}<hr><div class="c"><b>CREDIT NOTE</b></div>
+    <div>CN No: <b>CN-${c.no}</b> &nbsp; ${dmy(c.date)} ${c.time}</div><div>Against Bill: <b>#${c.billNo}</b> dated ${dmy(c.billDate)}</div>
+    ${c.cust ? `<div>Customer: ${esc(c.cust)}</div>` : ''}${c.gstin ? `<div>Customer GSTIN: ${esc(c.gstin)}</div>` : ''}<div>Reason: ${esc(c.reason)}</div><hr>
+    <table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>${c.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${fq(i.qty)}</td><td class="r">${i.price}</td><td class="r">${r2(i.qty * i.price)}</td></tr>`).join('')}</table><hr>
+    <table><tr><td>Taxable Value</td><td class="r">${c.taxable.toFixed(2)}</td></tr>${c.tax ? `<tr><td>CGST @${c.rate / 2}%</td><td class="r">${cg.toFixed(2)}</td></tr><tr><td>SGST @${c.rate / 2}%</td><td class="r">${sg.toFixed(2)}</td></tr>` : ''}</table><hr>
+    <table><tr class="big"><td>CREDIT</td><td class="r">₹${c.total.toFixed(2)}</td></tr></table><div>${c.refund === 'none' ? 'Adjusted (no money back)' : 'Refunded by: ' + esc(c.refund)}</div><hr>
+    <div class="c" style="font-size:10px;color:#555">Powered by Aghanya Devanya Enterprises</div></div>`;
+}
+
+// ---------- GSTR-1 (JSON for the GST offline tool / portal) and GSTR-3B working ----------
+let GST_M = '';
+// One month of GST data, built once and used by the screen, the JSON and the tests
+function gstMonth(ym){
+  const pos = hotelStateCode(), bills = D.bills.filter(b => String(b.date).startsWith(ym)), issued = bills.slice().sort((a, b) => a.no - b.no);
+  const ok = bills.filter(b => !b.cancelled && (b.scheme || 'regular') === 'regular');
+  const own = ok.filter(b => !isEco(b)), eco = ok.filter(isEco);
+  const b2b = own.filter(b => b.gstin && gstinCheck(b.gstin).ok), b2c = own.filter(b => !b2b.includes(b));
+  const cns = cnotes().filter(c => String(c.date).startsWith(ym)), billOf = c => getBill(c.billId) || {};
+  const cnB2B = cns.filter(c => c.gstin && gstinCheck(c.gstin).ok && !isEco(billOf(c))), cnB2C = cns.filter(c => !cnB2B.includes(c) && !isEco(billOf(c)));
+  const det = (txval, rt, tax) => { const [camt, samt] = split2(tax); return {txval: r2(txval), rt, iamt: 0, camt, samt, csamt: 0}; };
+  // B2C small: one line per GST rate, credit notes on B2C bills reduce it
+  const bc = {};
+  b2c.forEach(b => { const x = bc[+b.gstRate || 0] || (bc[+b.gstRate || 0] = {tx: 0, tax: 0}); x.tx += +b.taxable || 0; x.tax += +b.tax || 0; });
+  cnB2C.forEach(c => { const x = bc[c.rate] || (bc[c.rate] = {tx: 0, tax: 0}); x.tx -= c.taxable; x.tax -= c.tax; });
+  const b2cs = Object.entries(bc).filter(([, x]) => r2(x.tx)).map(([rt, x]) => ({sply_ty: 'INTRA', pos, typ: 'OE', ...det(x.tx, +rt, x.tax)}));
+  const byCtin = (list, f) => { const g = {}; list.forEach(x => { const k = gstinCheck(x.gstin).g; (g[k] = g[k] || []).push(f(x)); }); return g; };
+  const b2bJ = Object.entries(byCtin(b2b, b => ({inum: invNo(b), idt: gstDate(b.date), val: r2(b.total), pos, rchrg: 'N', inv_typ: 'R', itms: [{num: 1, itm_det: det(b.taxable, +b.gstRate || 0, +b.tax || 0)}]})))
+    .map(([ctin, inv]) => ({ctin, inv}));
+  const cdnr = Object.entries(byCtin(cnB2B, c => ({ntty: 'C', nt_num: 'CN-' + c.no, nt_dt: gstDate(c.date), val: r2(c.total), pos, rchrg: 'N', inv_typ: 'R', itms: [{num: 1, itm_det: det(c.taxable, c.rate, c.tax)}]})))
+    .map(([ctin, nt]) => ({ctin, nt}));
+  // HSN / SAC summary, split B2B / B2C; bill discount shared over the lines
+  const hs = {b2b: {}, b2c: {}}, addH = (side, code, rt, qty, tx, tax, name) => { const k = code + '|' + rt, x = hs[side][k] || (hs[side][k] = {code, rt, qty: 0, tx: 0, tax: 0, name}); x.qty += qty; x.tx += tx; x.tax += tax; };
+  const lineSplit = (lines, taxable, tax, sign) => { const g = sum(lines, i => i.qty * i.price) || 1; return lines.map(i => ({code: hsnOf(i), name: i.name, qty: sign * i.qty, tx: sign * taxable * i.qty * i.price / g, tax: sign * tax * i.qty * i.price / g})); };
+  [[b2b, 'b2b'], [b2c, 'b2c']].forEach(([list, side]) => list.forEach(b => lineSplit(b.items, +b.taxable || 0, +b.tax || 0, 1).forEach(l => addH(side, l.code, +b.gstRate || 0, l.qty, l.tx, l.tax, l.name))));
+  [[cnB2B, 'b2b'], [cnB2C, 'b2c']].forEach(([list, side]) => list.forEach(c => lineSplit(c.items, c.taxable, c.tax, -1).forEach(l => addH(side, l.code, c.rate, l.qty, l.tx, l.tax, l.name))));
+  const hsnRows = side => Object.values(hs[side]).filter(x => r2(x.tx)).map((x, i) => { const svc = /^99/.test(x.code);
+    return {num: i + 1, hsn_sc: x.code, desc: svc ? 'Restaurant service' : String(x.name).slice(0, 30), uqc: svc ? 'NA' : 'NOS', qty: svc ? 0 : r2(x.qty), ...det(x.tx, x.rt, x.tax)}; });
+  const docs = issued.length ? [{num: 1, from: invNo(issued[0]), to: invNo(issued[issued.length - 1]), totnum: issued.length, cancel: issued.filter(b => b.cancelled).length, net_issue: issued.filter(b => !b.cancelled).length}] : [];
+  const cnSorted = cns.slice().sort((a, b) => a.no - b.no);
+  const doc_det = [...(docs.length ? [{doc_num: 1, doc_typ: 'Invoices for outward supply', docs}] : []),
+    ...(cnSorted.length ? [{doc_num: 5, doc_typ: 'Credit Note', docs: [{num: 1, from: 'CN-' + cnSorted[0].no, to: 'CN-' + cnSorted[cnSorted.length - 1].no, totnum: cnSorted.length, cancel: 0, net_issue: cnSorted.length}]}] : [])];
+  const json = {gstin: hotelGst().g, fp: ym.slice(5, 7) + ym.slice(0, 4), version: 'GST3.1.6', hash: 'hash',
+    ...(b2bJ.length ? {b2b: b2bJ} : {}), ...(b2cs.length ? {b2cs} : {}), ...(cdnr.length ? {cdnr} : {}),
+    hsn: {hsn_b2b: hsnRows('b2b'), hsn_b2c: hsnRows('b2c')}, ...(doc_det.length ? {doc_issue: {doc_det}} : {})};
+  // GSTR-3B: 3.1(a) own taxable supplies net of credit notes; 3.1.1 ECO 9(5); 4 ITC from purchase bills of suppliers with a valid GSTIN
+  const T = (list, k) => r2(sum(list, k));
+  const outTx = r2(T(own, 'taxable') - T(cns.filter(c => !isEco(billOf(c))), 'taxable')), outTax = r2(T(own, 'tax') - T(cns.filter(c => !isEco(billOf(c))), 'tax'));
+  const inv = {}; D.txns.filter(x => x.type === 'Purchase' && String(x.date).startsWith(ym) && x.inv).forEach(x => { inv[x.inv.id] = {tax: +x.inv.tax || 0, party: x.party, no: x.inv.no, date: x.date}; });
+  const itcList = Object.values(inv).filter(x => x.tax > 0).map(x => ({...x, gstin: ((D.supInfo || {})[supKeyA(x.party)] || {}).gstin || ''})), itcOk = itcList.filter(x => gstinCheck(x.gstin).ok && x.gstin);
+  return {ym, pos, bills, issued, ok, own, eco, b2b, b2c, cns, cnB2B, cnB2C, json,
+    r3b: {outTx, outTax, eco: T(eco, 'taxable'), ecoTax: T(eco, 'tax'), itc: T(itcOk, 'tax'), itcAll: T(itcList, 'tax'), itcMissing: itcList.filter(x => !itcOk.includes(x))}};
+}
+function gstDownload(){
+  const g = gstMonth(GST_M), h = hotelGst();
+  if(h.empty || !h.ok) return toast('Enter the hotel GSTIN in Settings (G) first');
+  saveFile(`GSTR1_${h.g}_${g.json.fp}.json`, JSON.stringify(g.json, null, 1), 'application/json', 'GSTR-1 file saved. Open it in the GST Offline Tool (or upload on gst.gov.in → GSTR-1 → Prepare offline) and check before filing.');
+}
+function scrGst(){
+  if(!GST_M) GST_M = today().slice(0, 7);
+  const st = D.settings, h = hotelGst(), g = gstMonth(GST_M), r = g.r3b, [c3, s3] = split2(r.outTax);
+  const months = []; for(let i = 0; i < 13; i++){ const d = new Date(today().slice(0, 7) + '-01T00:00'); d.setMonth(d.getMonth() - i); months.push(d.getFullYear() + '-' + pad(d.getMonth() + 1)); }
+  const warn = [];
+  if((st.gstScheme || 'regular') === 'composition') warn.push('This hotel is under <b>Composition</b>: GSTR-1 and 3B are not filed. Composition hotels file CMP-08 (every quarter) and GSTR-4 (yearly) on the sale total — see the totals below.');
+  if((st.gstScheme || 'regular') === 'none') warn.push('GST type is "Not registered" in Settings, so there are no GST returns.');
+  if(h.empty) warn.push('The hotel GSTIN is empty. Enter it in Settings (G) → Restaurant Details.');
+  else if(!h.ok) warn.push('Hotel GSTIN problem: ' + esc(h.msg) + ' (Settings → Restaurant Details).');
+  const tr = (cells, b) => `<tr>${cells.map((c, i) => `<td class="${i ? 'n' : ''}">${b ? '<b>' + c + '</b>' : c}</td>`).join('')}</tr>`;
+  const det = x => [money(x.txval), money(x.camt), money(x.samt)];
+  main.innerHTML = `<div class="title"><span>GST Returns & Credit Notes</span><span class="r"><select onchange="GST_M=this.value;scrGst()" style="width:auto">${months.map(m => `<option value="${m}" ${m === GST_M ? 'selected' : ''}>${MONTH_NAMES[+m.slice(5) - 1]} ${m.slice(0, 4)}</option>`).join('')}</select></span></div>
+  ${warn.map(w => `<div class="card" style="border-left:4px solid #f59e0b">${w}</div>`).join('')}
+  <div class="m-kpis" style="margin-bottom:14px">${[['Bills issued', g.issued.length], ['Cancelled', g.issued.filter(b => b.cancelled).length], ['B2B (with GSTIN)', g.b2b.length], ['Credit notes', g.cns.length], ['Taxable (own)', money(r.outTx)], ['GST payable (own)', money(r.outTax)]]
+    .map(([l, v]) => `<div class="m-kpi" style="cursor:default"><span>${l}</span><b>${v}</b></div>`).join('')}</div>
+  <div class="card"><h3 style="margin-top:0">GSTR-1 (sales) — ${MONTH_NAMES[+GST_M.slice(5) - 1]} ${GST_M.slice(0, 4)}</h3>
+    <div class="btns" style="margin-top:0"><button class="btn ok" onclick="gstDownload()" ${h.ok && !h.empty ? '' : 'disabled'}>Download GSTR-1 JSON</button><button class="btn g" onclick="go('analytics')">GST Sales Register (Reports 5)</button></div>
+    <table style="margin-top:10px"><thead><tr><th>Table</th><th class="n">Taxable</th><th class="n">CGST</th><th class="n">SGST</th></tr></thead><tbody>
+      ${tr(['4A — B2B invoices (' + g.b2b.length + ')', ...det({txval: sum(g.b2b, 'taxable'), camt: sum(g.b2b, b => split2(+b.tax || 0)[0]), samt: sum(g.b2b, b => split2(+b.tax || 0)[1])})])}
+      ${(g.json.b2cs || []).map(x => tr([`7 — B2C (others) @ ${x.rt}%`, ...det(x)])).join('') || tr(['7 — B2C (others)', '—', '—', '—'])}
+      ${tr(['9B — Credit notes to GSTIN customers (' + g.cnB2B.length + ')', ...det({txval: -sum(g.cnB2B, 'taxable'), camt: -sum(g.cnB2B, c => split2(c.tax)[0]), samt: -sum(g.cnB2B, c => split2(c.tax)[1])})])}
+      ${tr(['14 — Through Zomato / Swiggy (GST paid by the operator, 9(5))', money(r.eco), '—', '—'])}
+    </tbody></table>
+    <h4>12 — HSN / SAC summary</h4><table><thead><tr><th>Type</th><th>HSN / SAC</th><th class="n">Rate</th><th class="n">Taxable</th><th class="n">CGST</th><th class="n">SGST</th></tr></thead><tbody>
+      ${['b2b', 'b2c'].flatMap(s => g.json.hsn['hsn_' + s].map(x => `<tr><td>${s.toUpperCase()}</td><td>${esc(x.hsn_sc)}</td><td class="n">${x.rt}%</td><td class="n">${money(x.txval)}</td><td class="n">${money(x.camt)}</td><td class="n">${money(x.samt)}</td></tr>`)).join('') || '<tr><td colspan="6" class="muted">No sales</td></tr>'}</tbody></table>
+    <h4>13 — Documents issued</h4>${(g.json.doc_issue ? g.json.doc_issue.doc_det : []).map(d => d.docs.map(x => `<div class="m-list"><span>${d.doc_typ}: ${esc(x.from)} to ${esc(x.to)}</span><b>${x.totnum} issued · ${x.cancel} cancelled · ${x.net_issue} net</b></div>`).join('')).join('') || '<p class="muted">No documents</p>'}
+    <p class="muted" style="font-size:12px">Zomato / Swiggy orders: the operator pays the GST (Section 9(5)); enter their value in Table 14 on the portal (it is not in the JSON). B2B needs the customer GSTIN on the bill (Billing → Customer → GSTIN).</p></div>
+  <div class="card"><h3 style="margin-top:0">GSTR-3B (summary to copy on the portal)</h3><table><tbody>
+    ${tr(['', 'Taxable', 'CGST', 'SGST'], 1)}
+    ${tr(['3.1 (a) Outward taxable supplies (after credit notes)', money(r.outTx), money(c3), money(s3)])}
+    ${tr(['3.1.1 (ii) Supplies through e-commerce operator, 9(5) — value only', money(r.eco), '—', '—'])}
+    ${tr(['4 (A)(5) ITC from purchase bills with supplier GSTIN', money(r.itc), money(split2(r.itc)[0]), money(split2(r.itc)[1])])}
+    ${tr(['6.1 Tax to pay in cash (if no ITC is allowed)', '', money(c3), money(s3)], 1)}
+  </tbody></table>
+  <p class="muted" style="font-size:12px">Most restaurants charge 5% GST and <b>cannot take ITC</b>; only hotels charging 18% (specified premises) can. Your CA decides. ITC counts only purchase bills where you typed the GST amount and the supplier has a valid GSTIN in Suppliers (U).${r.itcMissing.length ? ` <b>${r.itcMissing.length} purchase bill(s) with GST have no valid supplier GSTIN</b> (${money(sum(r.itcMissing, 'tax'))}).` : ''}</p></div>
+  <div class="card"><h3 style="margin-top:0">Credit notes — this month</h3>
+    ${g.cns.length ? `<table><thead><tr><th>CN</th><th>Date</th><th>Bill</th><th>Customer</th><th>Reason</th><th>Money back</th><th class="n">Amount</th><th></th></tr></thead><tbody>${g.cns.map(c => `<tr><td><b>CN-${c.no}</b></td><td>${dmy(c.date)}</td><td>#${c.billNo}</td><td>${esc(c.cust)}${c.gstin ? ` <span class="muted">${esc(c.gstin)}</span>` : ''}</td><td>${esc(c.reason)}</td><td>${esc(c.refund === 'none' ? 'Adjusted' : c.refund)}</td><td class="n">${money(c.total)}</td><td><button class="btn g sm" onclick="printDoc([cnHTML(cnotes().find(x=>x.id==='${c.id}'))])">Print</button></td></tr>`).join('')}</tbody></table>`
+      : '<p class="muted">No credit notes. Make one from Bill List (L) → Credit Note on a bill.</p>'}</div>
+  <p class="muted" style="font-size:12px">Draft prepared by Setu from your bills. Check it with your CA before filing. The JSON is in the GST offline-tool format; the portal may ask for changes when the format changes.</p>`;
+}
+
+// ---------- Ctrl+K: search everything ----------
+let CK_I = 0;
+function ckOpen(){
+  modal('Search Setu (Ctrl+K)', `<input id="ck_q" autofocus placeholder="Bill no., customer, mobile, dish, stock item, supplier or screen…" oninput="CK_I=0;ckDraw()" onkeydown="ckKey(event)"><div id="ck_r" style="margin-top:8px;max-height:60vh;overflow:auto"></div>`);
+  ckDraw();
+}
+function ckFind(q){
+  q = String(q || '').trim().toLowerCase();
+  const has = s => String(s || '').toLowerCase().includes(q), out = [], num = q.replace(/^#/, '');
+  MENU.filter(m => screenOn(m[2]) && (!q || has(m[1]) || m[0].toLowerCase() === q)).slice(0, q ? 6 : 12).forEach(m => out.push(['Screen', `${m[1]} <span class="muted">[${m[0]}]</span>`, `go('${m[2]}')`]));
+  if(q){
+    D.bills.slice(-3000).reverse().filter(b => String(b.no) === num || has(b.cust) || (num.length >= 4 && String(b.phone || '').includes(num)) || has(b.table) && q.length > 1).slice(0, 8)
+      .forEach(b => out.push(['Bill', `#${b.no} · ${dmy(b.date)} · ${esc(b.table || b.channel || '')}${b.cust ? ' · ' + esc(b.cust) : ''} · <b>${money(b.total)}</b>${b.cancelled ? ' <span class="red">Cancelled</span>' : ''}`, `dzOpen('bill:${b.id}')`]));
+    D.menu.filter(m => has(m.name)).slice(0, 6).forEach(m => out.push(['Dish', `${esc(m.name)} · ${money(m.price)}`, isManager() ? `editMenu('${m.id}')` : `go('menu')`]));
+    D.stock.filter(s => !s.merged && has(s.name)).slice(0, 6).forEach(s => out.push(['Stock', `${esc(s.name)} · ${fq(s.qty)} ${esc(s.unit || '')}`, isManager() ? `editStock('${s.id}')` : `go('stock')`]));
+    customers().filter(c => has(c.name) || (num.length >= 4 && c.phone.includes(num))).slice(0, 5).forEach(c => out.push(['Customer', `${esc(c.name || 'Customer')} · ${esc(c.phone)} · ${c.visits} visits`, `go('customers')`]));
+    suppliers().filter(s => has(s.name)).slice(0, 4).forEach(s => out.push(['Supplier', esc(s.name), `go('suppliers')`]));
+    cnotes().filter(c => ('cn-' + c.no) === q || ('cn' + c.no) === q.replace(/[-\s]/g, '')).forEach(c => out.push(['Credit note', `CN-${c.no} · bill #${c.billNo} · ${money(c.total)}`, `go('gst')`]));
+  }
+  return out.slice(0, 30);
+}
+function ckDraw(){
+  const r = ckFind(($('#ck_q') || {}).value), el = $('#ck_r');
+  if(!el) return;
+  CK_I = Math.max(0, Math.min(CK_I, r.length - 1));
+  el.innerHTML = r.map((x, i) => `<div class="m-list dz-tap" style="padding:9px 8px;border-radius:8px;${i === CK_I ? 'background:var(--primary-light)' : ''}" onclick="closeModal();${x[2]}"><span><small class="muted" style="display:inline-block;width:78px">${x[0]}</small>${x[1]}</span></div>`).join('') || '<p class="muted">Nothing found.</p>';
+}
+function ckKey(e){
+  const n = ckFind(e.target.value).length;
+  if(e.key === 'ArrowDown'){ e.preventDefault(); CK_I = (CK_I + 1) % Math.max(1, n); ckDraw(); }
+  else if(e.key === 'ArrowUp'){ e.preventDefault(); CK_I = (CK_I - 1 + n) % Math.max(1, n); ckDraw(); }
+  else if(e.key === 'Enter'){ e.preventDefault(); const x = ckFind(e.target.value)[CK_I]; if(x){ closeModal(); new Function(x[2])(); } }
+}
+document.addEventListener('keydown', e => {
+  if(!activeUser || !(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'k') return;
+  e.preventDefault(); e.stopPropagation(); ckOpen();
+}, true);
+
+// ---------- Purchase bill photo → Setu AI reads it (supplier, bill no., items, GST) ----------
+function ocrPick(){
+  const f = document.createElement('input');
+  f.type = 'file'; f.accept = 'image/*'; f.setAttribute('capture', 'environment');
+  f.onchange = () => f.files[0] && ocrRead(f.files[0]);
+  f.click();
+}
+// Smaller JPEG (max 1600 px) so the upload is quick and inside the AI limits
+const ocrShrink = file => new Promise((res, rej) => {
+  const img = new Image(), url = URL.createObjectURL(file);
+  img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.82).split(',')[1]); };
+  img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('This file is not a photo')); };
+  img.src = url;
+});
+async function ocrRead(file){
+  toast('Setu AI is reading the bill…');
+  try{
+    const image = await ocrShrink(file);
+    const r = await srvFetch('/api/ai/bill', {method: 'POST', body: JSON.stringify({image, mime: 'image/jpeg'})});
+    const j = await r.json().catch(() => ({}));
+    if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+    ocrApply(j.bill || {});
+  }catch(e){ logError('Bill photo: ' + e.message, 'Purchase'); modal('Could not read the bill', `<p>${esc(e.message)}</p><p class="muted">Enter the purchase by hand, or try a clearer photo (whole bill, good light, not tilted).</p><div class="btns"><button class="btn" onclick="closeModal()">OK</button></div>`); }
+}
+// Match a name on the bill to a stock item (same name, then contains, then similar)
+function ocrMatch(name){
+  const n = String(name || '').trim().toLowerCase(), act = activeStock();
+  if(!n) return null;
+  return act.find(s => s.name.toLowerCase() === n) || act.find(s => n.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(n)) || (similarItems(name, '') || [])[0] || null;
+}
+function ocrApply(b){
+  if(b.error) throw new Error(b.error);
+  const items = (Array.isArray(b.items) ? b.items : []).filter(i => i && i.name).slice(0, 60), miss = [];
+  if(!items.length) throw new Error('No items found on the photo');
+  PF = pfNew();
+  const sup = String(b.supplier || '').trim(), known = sup && suppliers().find(s => s.name.toLowerCase() === sup.toLowerCase());
+  PF.party = known ? known.name : sup;
+  PF.no = String(b.invoiceNo || '').slice(0, 30);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(b.date || '') && b.date <= today()) PF.date = b.date;
+  PF.tax = +b.tax > 0 ? r2(b.tax) : ''; PF.disc = +b.discount > 0 ? r2(b.discount) : '';
+  PF.lines = items.map(i => { const s = ocrMatch(i.name), qty = +i.qty || 0, rate = +i.rate || (qty ? r2((+i.amount || 0) / qty) : 0);
+    if(!s) miss.push(i); return {sid: s ? s.id : '', qty: qty || '', f: 1, rate: rate || '', ocr: String(i.name).slice(0, 60)}; });
+  const g = gstinCheck(b.gstin);
+  if(PF.party && g.ok && !g.empty){ const k = supKey(PF.party), info = (D.supInfo || {})[k]; if(!info || !info.gstin){ D.supInfo[k] = {...(info || {}), name: PF.party, gstin: g.g}; save(); } }
+  scrPurchase();
+  modal('Bill read by Setu AI — please check', `<p style="margin-top:0">Supplier <b>${esc(PF.party || '—')}</b> · Bill no. <b>${esc(PF.no || '—')}</b> · ${items.length} items${+b.total ? ` · Bill total on photo <b>${money(+b.total)}</b>` : ''}</p>
+    ${miss.length ? `<p class="red"><b>${miss.length} item(s) are not in your stock list:</b></p>${miss.map(i => `<div class="m-list"><span>${esc(i.name)} · ${fq(+i.qty || 0)} ${esc(i.unit || '')}</span><b>${money(+i.amount || 0)}</b></div>`).join('')}<p class="muted">Choose the right item in each empty row, or create it with "+ Create new item".</p>` : '<p class="green">All items matched your stock list.</p>'}
+    <p class="muted">AI can misread numbers. Check every quantity and rate with the paper bill before you press Save Purchase.</p><div class="btns"><button class="btn" onclick="closeModal()">Check the purchase</button></div>`);
+}
 
 /* ================= THEMES & MODERN DASHBOARD (Settings → Appearance) ================= */
 // Classic is the original look. Themes only change colours and roundness (CSS variables), never the layout of
@@ -3960,6 +4238,7 @@ function newB(tbl = 'T-1', channel = 'Dine-In'){
     table: tbl,
     cust: '',
     phone: '',
+    gstin: '',
     disc: 0,
     mode: channel === 'Zomato' ? 'Zomato Pay' : channel === 'Swiggy' ? 'Swiggy Pay' : 'Cash',
     note: '',
@@ -4038,7 +4317,7 @@ function redeemPts(){
 }
 
 function scrBill(){
-  const showCust = !!(B.showCust || B.cust || B.phone || billFields().some(f => f.required) || +saasRules().phoneAbove);
+  const showCust = !!(B.showCust || B.cust || B.phone || B.gstin || billFields().some(f => f.required) || +saasRules().phoneAbove);
   const cats = ['All', ...new Set(D.menu.map(m => m.cat))];
   if(billCat >= cats.length) billCat = 0;
   
@@ -4132,6 +4411,10 @@ function scrBill(){
           <label>Mobile (optional)</label>
           <input value="${esc(B.phone)}" oninput="onPhone(this.value)" inputmode="tel" placeholder="10-digit number">
         </div>
+        ${(D.settings.gstScheme || 'regular') === 'regular' && !isAggregator(B.channel) ? `<div style="grid-column:span 2">
+          <label>Customer GSTIN (B2B, optional)</label>
+          <input value="${esc(B.gstin || '')}" maxlength="15" style="text-transform:uppercase" oninput="B.gstin=this.value.toUpperCase().trim();gstinLive(this,'b_gstin_h')" placeholder="for a company bill">${gstinHint('b_gstin_h')}
+        </div>` : ''}
         ${billFields().map((f, i) => `<div><label>${esc(f.label)}${f.required ? ' *' : ''}</label><input value="${esc((B.extra || {})[f.label] || '')}" oninput="setExtra(${i}, this.value)" maxlength="60"></div>`).join('')}`
         : `<div style="display:flex;align-items:flex-end"><button class="btn g sm" onclick="B.showCust=true;scrBill()">+ Customer name / mobile (optional)</button></div>`}
       </div>
@@ -4443,6 +4726,7 @@ function kacchaToB(k){
     table: k.table,
     cust: k.cust || '',
     phone: k.phone || '',
+    gstin: k.gstin || '',
     note: k.note || '',
     disc: k.disc || 0,
     mode: k.mode || 'Cash',
@@ -4484,6 +4768,7 @@ function saveKacchaBill(silent = false, noRender = false){
     table: tbl,
     cust: B.cust.trim(),
     phone: B.phone.trim(),
+    ...(B.gstin ? {gstin: B.gstin} : {}),
     note: B.note.trim(),
     extra: {...(B.extra || {})},
     disc: B.disc || 0,
@@ -4585,6 +4870,9 @@ function finalizePakkaBill(approvedDisc){
     return;
   }
   const token = B.token || (st.tokenOn && ch === 'Takeaway' ? nextToken() : 0);
+  const cg = gstinCheck(B.gstin);
+  if(!cg.ok){ toast('Customer GSTIN: ' + cg.msg); B.showCust = true; scrBill(); return; }
+  if(!cg.empty && !B.cust.trim()){ toast('Enter the company name (Customer Name) for a GSTIN bill'); B.showCust = true; scrBill(); return; }
 
   const bill = {
     id: uid(),
@@ -4598,6 +4886,7 @@ function finalizePakkaBill(approvedDisc){
     table: tbl,
     cust: B.cust.trim(),
     phone: B.phone.trim(),
+    ...(!cg.empty && (st.gstScheme || 'regular') === 'regular' && !isAggregator(ch) ? {gstin: cg.g} : {}),
     note: B.note.trim(),
     ...(Object.keys(extra).length ? {extra} : {}),
     mode: B.mode,
@@ -4930,11 +5219,12 @@ function escBill(b){
   e.bold(true).center(billTitle(b) + (b.cancelled ? ' (CANCELLED)' : '') + (b.channel && b.channel !== 'Dine-In' ? ' [' + b.channel.toUpperCase() + ']' : '')).bold(false);
   if((b.prints || 0) > 1) e.bold(true).center('** DUPLICATE COPY **').bold(false);
   if(b.scheme === 'composition') e.center('Composition taxable person, not eligible to collect tax on supplies');
-  if((b.scheme || 'regular') === 'regular' && g) e.center('SAC: 996331');
+  if((b.scheme || 'regular') === 'regular' && g) e.center('SAC: ' + sacDefault());
   e.lr('Bill No: #' + b.no, dmy(b.date) + ' ' + b.time);
   if(b.token) e.center('TOKEN #' + b.token, true);
   if(b.table && billCfg().showTable !== false) e.line('Table/Ref: ' + b.table);
   if(b.cust && billCfg().showCustomer !== false) e.line('Customer: ' + b.cust);
+  if(b.gstin) e.line('Customer GSTIN: ' + b.gstin);
   Object.entries(b.extra || {}).forEach(([k, v]) => e.line(k + ': ' + v));
   if(b.by) e.line('Cashier: ' + b.by);
   e.hr().items(b.items).hr();
@@ -5046,10 +5336,10 @@ function billHTML(b){
   const channelBadge = b.channel && b.channel !== 'Dine-In' ? ` [${b.channel.toUpperCase()}]` : '';
   return `<div class="rcpt${paper('bill')}">${head()}<hr><div class="c"><b>${billTitle(b)}${b.cancelled?' (CANCELLED)':''}${channelBadge}</b></div>${(b.prints || 0) > 1 ? '<div class="c"><b>** DUPLICATE COPY **</b></div>' : ''}
   ${b.scheme === 'composition' ? '<div class="c" style="font-size:10px">Composition taxable person, not eligible to collect tax on supplies</div>' : ''}
-  ${(b.scheme || 'regular') === 'regular' && b.gstRate ? '<div class="c" style="font-size:10px">SAC: 996331 (Restaurant Service)</div>' : ''}
+  ${(b.scheme || 'regular') === 'regular' && b.gstRate ? `<div class="c" style="font-size:10px">SAC: ${esc(sacDefault())} (Restaurant Service)</div>` : ''}
   <div>Bill No: <b>#${b.no}</b> &nbsp; ${dmy(b.date)} ${b.time}</div>
   ${b.token ? `<div class="c big">TOKEN #${b.token}</div>` : ''}
-  ${b.table && billCfg().showTable !== false ? `<div>Table/Ref: <b>${esc(b.table)}</b></div>` : ''}${b.cust && billCfg().showCustomer !== false ? `<div>Customer: ${esc(b.cust)}</div>` : ''}${extraHTML(b)}<hr>
+  ${b.table && billCfg().showTable !== false ? `<div>Table/Ref: <b>${esc(b.table)}</b></div>` : ''}${b.cust && billCfg().showCustomer !== false ? `<div>Customer: ${esc(b.cust)}</div>` : ''}${b.gstin ? `<div>Customer GSTIN: ${esc(b.gstin)}</div>` : ''}${extraHTML(b)}<hr>
   <table><tr><th>Item</th><th class="r">Qty</th><th class="r">Rate</th><th class="r">Amt</th></tr>
   ${b.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${i.price}</td><td class="r">${r2(i.price*i.qty)}</td></tr>`).join('')}</table><hr>
   <table><tr><td>Sub Total${b.incl ? ' (GST incl.)' : ''}</td><td class="r">${b.sub.toFixed(2)}</td></tr>
@@ -5239,7 +5529,7 @@ function scrBills(){
               <button class="btn sm g" onclick="printBill('${b.id}','bill')">Bill</button>
               <button class="btn sm g" onclick="printBill('${b.id}','kot')">KOT</button>
               <button class="btn wa sm" onclick="${b.phone ? `waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))` : `waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WhatsApp</button>
-              ${b.cancelled ? '' : `<button class="btn sm" onclick="editBill('${b.id}')">Edit</button><button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}
+              ${b.cancelled ? '' : `<button class="btn sm" onclick="editBill('${b.id}')">Edit</button><button class="btn g sm" onclick="creditNote('${b.id}')" title="Item returned / price reduced">Credit Note</button><button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}${cnOfBill(b.id).map(c => ` <span class="status-pill" style="font-size:10px;padding:1px 6px">CN-${c.no} ${money(c.total)}</span>`).join('')}
             </td>
           </tr>
         `).join('') || '<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">No bills on this date.</td></tr>'}
@@ -5286,6 +5576,7 @@ function editBill(id){
       <div><label>Payment Mode</label><select id="eb_mode" onchange="ebSplitDraw('${b.id}')">${[...MODES, 'Split'].map(m => `<option ${m === b.mode ? 'selected' : ''}>${m}</option>`).join('')}</select></div>
       <div><label>Customer Name</label><input id="eb_cust" value="${esc(b.cust || '')}"></div>
       <div><label>Mobile</label><input id="eb_phone" value="${esc(b.phone || '')}" inputmode="tel"></div>
+      ${(b.scheme || 'regular') === 'regular' && !isEco(b) ? `<div><label>Customer GSTIN (B2B)</label><input id="eb_gstin" value="${esc(b.gstin || '')}" maxlength="15" style="text-transform:uppercase" oninput="gstinLive(this,'eb_gstin_h')">${gstinHint('eb_gstin_h')}</div>` : ''}
     </div>
     <div id="eb_split"></div>
     <p class="muted" style="font-size:12px;margin:8px 0 0">Wrong items or amount? Use <b>Cancel &amp; Re-make</b>: this bill is cancelled and its items open in the Billing Desk to correct and finalize again.</p>
@@ -5314,6 +5605,9 @@ function saveBillEdit(id){
   const b = getBill(id);
   if(!b || b.cancelled) return;
   const mode = $('#eb_mode').value, cust = $('#eb_cust').value.trim(), phone = $('#eb_phone').value.trim();
+  const g = gstinCheck(($('#eb_gstin') || {}).value ?? b.gstin);
+  if(!g.ok){ toast('GSTIN: ' + g.msg); return; }
+  if(!g.empty && !cust){ toast('Enter the company name for a GSTIN bill'); return; }
   if(mode === 'Wallet' && b.mode !== 'Wallet'){ toast('Wallet payments must be taken at billing time'); return; }
   if(b.mode === 'Wallet' && mode !== 'Wallet'){ toast('A bill paid from the wallet cannot be changed later'); return; }
   let pays = null;
@@ -5324,10 +5618,11 @@ function saveBillEdit(id){
     if(got !== r2(b.total)){ toast(`The split adds up to ${money(got)} but the bill is ${money(b.total)}`); return; }
   }
   const was = modeText(b), now = pays ? modeText({mode, pays}) : mode;
-  const changes = [now !== was && `mode ${was} → ${now}`, cust !== (b.cust || '') && `customer → ${cust || '—'}`, phone !== (b.phone || '') && `mobile → ${phone || '—'}`].filter(Boolean);
+  const changes = [now !== was && `mode ${was} → ${now}`, cust !== (b.cust || '') && `customer → ${cust || '—'}`, phone !== (b.phone || '') && `mobile → ${phone || '—'}`, g.g !== (b.gstin || '') && `GSTIN → ${g.g || '—'}`].filter(Boolean);
   if(!changes.length){ closeModal(); return; }
   withManager(`Edit bill #${b.no}`, by => {
     Object.assign(b, {mode, cust, phone, editedBy: by, editedAt: Date.now()});
+    if(g.g) b.gstin = g.g; else delete b.gstin;
     if(pays) b.pays = pays; else delete b.pays;
     audit('Bill Edit', `Bill #${b.no} · ${changes.join(' · ')}`, b.total, b.id, by);
     save();
@@ -5424,7 +5719,7 @@ function scrPurchase(){
     <div style="overflow:auto;margin-top:10px"><table>
       <thead><tr><th>Item</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate (per unit)</th><th class="n">Amount</th><th></th></tr></thead>
       <tbody>${PF.lines.map((l, i) => { const s = stockItem(l.sid); return `<tr>
-        <td><select onchange="pfSet(${i},'sid',this.value)">${opts(l.sid)}</select>${s && s.exp ? `<div style="display:flex;gap:6px;margin-top:4px"><input placeholder="Batch no." value="${esc(l.batch || '')}" style="width:110px" oninput="pfSet(${i},'batch',this.value,1)"><input type="date" title="Expiry date" value="${esc(l.exp || '')}" style="width:150px" oninput="pfSet(${i},'exp',this.value,1)"></div>` : ''}</td>
+        <td><select onchange="pfSet(${i},'sid',this.value)">${opts(l.sid)}</select>${!l.sid && l.ocr ? `<div class="red" style="font-size:12px">On the bill: ${esc(l.ocr)}</div>` : ''}${s && s.exp ? `<div style="display:flex;gap:6px;margin-top:4px"><input placeholder="Batch no." value="${esc(l.batch || '')}" style="width:110px" oninput="pfSet(${i},'batch',this.value,1)"><input type="date" title="Expiry date" value="${esc(l.exp || '')}" style="width:150px" oninput="pfSet(${i},'exp',this.value,1)"></div>` : ''}</td>
         <td class="n"><input type="number" step="any" value="${l.qty}" style="width:90px" oninput="pfSet(${i},'qty',this.value,1)"></td>
         <td><select style="width:auto" onchange="pfSet(${i},'f',+this.value)">${s ? unitList(s).map(([u, f]) => `<option value="${f}" ${+l.f === f ? 'selected' : ''}>${esc(u)}</option>`).join('') : '<option>-</option>'}</select></td>
         <td class="n"><input type="number" step="any" value="${l.rate}" style="width:100px" oninput="pfSet(${i},'rate',this.value,1)"></td>
@@ -5444,6 +5739,7 @@ function scrPurchase(){
       <button class="btn ok" onclick="savePurchase()">${PF.status === 'order' ? 'Save Order' : 'Save Purchase'}</button>
       <button class="btn g" onclick="PF=pfNew();scrPurchase()">Clear</button>
       <button class="btn" onclick="bulkUpload('purchase')">Bulk Purchase (Excel)</button>
+      <button class="btn" onclick="ocrPick()" title="Photo of the supplier bill → Setu AI fills this form">📷 Read bill photo (AI)</button>
       <button class="btn g" onclick="go('stock')">Stock (S)</button>
     </div>
     <p class="muted" style="margin-top:8px;font-size:12px">If not paid in full now, the balance goes to the supplier’s dues (U). Pay it later from U → Pay; it is not counted as an expense again.</p>
@@ -5468,6 +5764,8 @@ function savePurchase(){
   const lines = PF.lines.filter(l => l.sid && +l.qty > 0);
   if(!lines.length){ toast('Enter at least one item and its quantity'); return; }
   if(PF.lines.some(l => l.sid && !(+l.qty > 0))){ toast('Enter the quantity for every item'); return; }
+  const noItem = PF.lines.filter(l => !l.sid && l.ocr);
+  if(noItem.length){ toast(`Choose the stock item for: ${noItem.map(l => l.ocr).join(', ')} (or remove the row with ×)`); return; }
   const t = pfTotals(), party = PF.party.trim();
   if(PF.status === 'order'){
     if(!party){ toast('Enter the supplier name for the order'); return; }
@@ -6295,6 +6593,7 @@ function editStock(id){
       <div><label>${id ? 'Current Stock (change with Count)' : 'Opening Stock'}</label><input id="s_qty" type="number" step="any" value="${id ? fq(s.qty) : ''}" ${id ? 'disabled' : ''} placeholder="0"></div>
       <div><label>Min Level (Alert)</label><input id="s_min" type="number" step="any" value="${s.min}"></div>
       <div><label>Last Purchase Rate (₹/unit)</label><input id="s_rate" type="number" step="any" value="${s.rate}"></div>
+      <div><label>HSN code (optional)</label><input id="s_hsn" value="${esc(s.hsn || '')}" maxlength="8" placeholder="e.g. 0401 milk"></div>
       <div><label>Default Supplier</label><input id="s_sup" list="s_sups" value="${esc(s.sup || '')}"><datalist id="s_sups">${sups.map(n => `<option>${esc(n)}</option>`).join('')}</datalist></div>
       <div><label>Bada unit (optional)</label><div style="display:flex;gap:6px;align-items:center">1 <input id="s_cu" value="${esc(conv.u || '')}" placeholder="bag" style="width:80px"> = <input id="s_cf" type="number" step="any" value="${conv.f || ''}" placeholder="25" style="width:80px"> <span class="muted">${esc(s.unit || 'unit')}</span></div></div>
       <div style="grid-column:1/-1"><label>Notes</label><input id="s_notes" value="${esc(s.notes || '')}"></div>
@@ -6328,7 +6627,7 @@ function saveStock(id){
   const v = {
     name, type: $('#s_type').value, cat: $('#s_cat').value.trim(), unit: $('#s_unit').value.trim() || 'pcs',
     min: +$('#s_min').value || 0, rate: +$('#s_rate').value || 0, sup: $('#s_sup').value.trim(), notes: $('#s_notes').value.trim(),
-    conv: cu && cf > 0 ? [{u: cu, f: cf}] : [], exp: $('#s_exp').checked || undefined
+    conv: cu && cf > 0 ? [{u: cu, f: cf}] : [], exp: $('#s_exp').checked || undefined, hsn: $('#s_hsn').value.replace(/\D/g, '').slice(0, 8) || undefined
   };
   if(id) Object.assign(D.stock.find(x => x.id === id), v);
   else {
@@ -6672,6 +6971,7 @@ function editMenu(id){
       <div><label>Dish Name</label><input id="m_name" value="${esc(m.name)}" autofocus placeholder="e.g. Kadhai Paneer"></div>
       <div><label>Category</label><input id="m_cat" list="mcats" value="${esc(m.cat)}" placeholder="e.g. Main Course"><datalist id="mcats">${[...new Set(D.menu.map(x => x.cat))].map(c => `<option>${esc(c)}</option>`).join('')}</datalist></div>
       <div><label>Selling Price (₹)</label><input id="m_price" type="number" step="any" value="${m.price}"></div>
+      <div><label>HSN / SAC (optional)</label><input id="m_hsn" value="${esc(m.hsn || '')}" maxlength="8" placeholder="${esc(sacDefault())} (restaurant service)"></div>
     </div>
     <details style="margin-top:10px"${m.img || m.desc || m.veg !== undefined || m.qrOff ? ' open' : ''}><summary style="cursor:pointer;font-weight:600">Guest QR menu (optional)</summary>
       <div class="grid" style="margin-top:6px">
@@ -6697,7 +6997,9 @@ function saveMenu(id){
     sid: r.querySelector('select').value,
     qty: +r.querySelector('input').value
   })).filter(r => r.sid && r.qty > 0);
-  const v = {name, cat: $('#m_cat').value.trim() || 'General', price, recipe};
+  const hsn = $('#m_hsn').value.replace(/\D/g, '').slice(0, 8);
+  if(hsn && hsn.length < 4){ toast('HSN / SAC has 4, 6 or 8 digits'); return; }
+  const v = {name, cat: $('#m_cat').value.trim() || 'General', price, recipe, hsn: hsn || undefined};
   // Guest QR menu fields: only kept when set, so other menus stay as they were
   const veg = $('#m_veg').value, img = $('#m_img').value.trim(), desc = $('#m_desc').value.trim();
   Object.assign(v, {veg: veg === '' ? undefined : veg === '1', qrOff: $('#m_qr').value === 'off' || undefined, img: /^https:\/\//.test(img) ? img : undefined, desc: desc || undefined});
@@ -8019,7 +8321,7 @@ function editSupplier(key){
   modal(key ? 'Supplier: ' + esc(s ? s.name : key) : 'New Supplier', `<div class="grid">
     <div><label>Name</label><input id="su_n" value="${esc(info.name || (s && s.name) || '')}"></div>
     <div><label>Mobile</label><input id="su_m" inputmode="tel" value="${esc(info.mobile || '')}"></div>
-    <div><label>GSTIN</label><input id="su_g" value="${esc(info.gstin || '')}"></div>
+    <div><label>GSTIN</label><input id="su_g" value="${esc(info.gstin || '')}" maxlength="15" style="text-transform:uppercase" oninput="gstinLive(this,'su_g_h')">${gstinHint('su_g_h')}</div>
     <div><label>Notes</label><input id="su_x" value="${esc(info.notes || '')}"></div>
     ${key && others.length ? `<div style="grid-column:1/-1"><label>Duplicate? Merge into this supplier</label><select id="su_to"><option value="">— no —</option>${others.map(x => `<option value="${esc(x.key)}">${esc(x.name)}</option>`).join('')}</select></div>` : ''}
   </div><div class="btns"><button class="btn ok" onclick="saveSupplier(${key ? JSON.stringify(key).replace(/"/g, '&quot;') : "''"})">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
@@ -8032,7 +8334,11 @@ function saveSupplier(key){
     if(!confirm('Both suppliers will be combined into one account. Old entries do not change. OK?')) return;
     D.supAlias[k] = to;
     audit('Supplier Merge', `${name} → ${(suppliers().find(x => x.key === to) || {}).name || to}`);
-  } else D.supInfo[k] = {name, mobile: $('#su_m').value.trim(), gstin: $('#su_g').value.trim(), notes: $('#su_x').value.trim()};
+  } else {
+    const g = gstinCheck($('#su_g').value);
+    if(!g.ok){ toast('GSTIN: ' + g.msg); return; }
+    D.supInfo[k] = {name, mobile: $('#su_m').value.trim(), gstin: g.g, notes: $('#su_x').value.trim()};
+  }
   save(); closeModal(); scrSuppliers();
 }
 
@@ -8785,12 +9091,12 @@ const IMP = {
       return `${a} staff added, ${u} updated`;
     }},
   suppliers: {title: 'Suppliers', cols: ['Name', 'Mobile', 'GSTIN', 'Notes'],
-    sample: [['Gupta Traders', '9811111111', '09ABCDE1234F1Z5', 'Atta, rice'], ['Indane Gas', '9822222222', '', 'Gas agency']],
+    sample: [['Gupta Traders', '9811111111', '09ABCDE1234F1ZY', 'Atta, rice'], ['Indane Gas', '9822222222', '', 'Gas agency']],
     note: 'Adds the supplier profile (Suppliers U). Purchases are imported in Purchase (P) → Bulk Purchase.',
     parse(c){
       const name = String(c[0] || '').trim(), g = String(c[2] || '').toUpperCase().replace(/\s/g, '');
       if(!name) return 'name is empty';
-      if(g && !/^[0-9]{2}[A-Z0-9]{13}$/.test(g)) return 'GSTIN must be 15 characters';
+      if(g && !gstinCheck(g).ok) return 'GSTIN: ' + gstinCheck(g).msg;
       return {name, mobile: String(c[1] || '').replace(/\D/g, '').slice(-10), gstin: g, notes: String(c[3] || '').trim()};
     },
     save(rows){
@@ -9339,11 +9645,11 @@ const AN_REPORTS = [
       const ok = bs.filter(b => !b.cancelled), half = b => Math.round(pz(b.tax) / 2), t = (f, l = ok) => l.reduce((a, b) => a + f(b), 0);
       const own = ok.filter(b => !isEco(b) && (b.scheme || 'regular') === 'regular'), eco = ok.filter(isEco);
       return {cols: [C('Invoice No', 'n'), C('Date', 'd'), C('Type'), C('Customer'), C('GST Rate', 'p'), C('Taxable', 'm'), C('CGST', 'm'), C('SGST', 'm'), C('IGST', 'm'), C('Round Off', 'm'), C('Invoice Total', 'm'), C('Status')],
-        rows: bs.map(b => [b.no, b.date, isEco(b) ? b.channel + ' (ECO 9(5))' : (b.scheme || 'regular') === 'composition' ? 'Bill of Supply' : 'B2C', b.cust || '', +b.gstRate || 0, pz(b.taxable), half(b), pz(b.tax) - half(b), 0, pz(b.round), pz(b.total), b.cancelled ? 'Cancelled' : 'OK']),
+        rows: bs.map(b => [b.no, b.date, isEco(b) ? b.channel + ' (ECO 9(5))' : (b.scheme || 'regular') === 'composition' ? 'Bill of Supply' : b.gstin ? 'B2B ' + b.gstin : 'B2C', b.cust || '', +b.gstRate || 0, pz(b.taxable), half(b), pz(b.tax) - half(b), 0, pz(b.round), pz(b.total), b.cancelled ? 'Cancelled' : 'OK']),
         ids: bs.map(b => b.id),
         total: ['TOTAL', ok.length + ' OK', '', '', '', t(b => pz(b.taxable)), t(half), t(b => pz(b.tax) - half(b)), 0, t(b => pz(b.round)), t(b => pz(b.total)), ''],
         cards: [['3B: Restaurant taxable', t(b => pz(b.taxable), own), 'm'], ['3B: CGST', t(half, own), 'm'], ['3B: SGST', t(b => pz(b.tax) - half(b), own), 'm'], ['ECO 9(5) taxable', t(b => pz(b.taxable), eco), 'm'], ['Cancelled invoices', bs.filter(b => b.cancelled).length, 'n']],
-        note: 'A B2B register needs the customer’s GSTIN, which Setu does not store yet, so all invoices are B2C. IGST is zero (all sales within the state). Purchase GST is not stored, so there is no ITC working. Draft only; have your CA check it.'};
+        note: 'B2B = bills with the customer GSTIN (Billing → Customer → GSTIN). IGST is zero (restaurant service is taxed where the restaurant is). Credit notes, GSTR-1 JSON and the 3B working: GST Returns (8). Draft only; have your CA check it.'};
     }},
   // ---------- Analytics ----------
   {id: 'peak-hours', cat: 'analytics', title: 'Peak Hours', desc: 'Which day and hour bring the most orders.', filters: ['channel'],
@@ -10036,10 +10342,10 @@ function doctorChecks(){
   const weakList = [weak.includes(String(st.adminPin)) ? 'Manager PIN' : '', weak.includes(String(st.cashierPin)) ? 'Cashier PIN' : '', dupPin.length ? 'two staff share a PIN' : ''].filter(Boolean);
   add('Security', 'PIN', weakList.length ? 'warn' : 'ok', weakList.length ? `${weakList.join(', ')} is simple or shared. Anyone could guess it. Change it in Settings (G) / Staff (A).` : 'PINs are fine.', weakList.length ? ['Open Settings', "go('settings')"] : null);
   // ---- GST ----
-  const gstOk = !st.gstin || /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(String(st.gstin).toUpperCase());
+  const gstOk = gstinCheck(st.gstin).ok;
   const rate = +st.gst;
-  add('GST', 'GST setting', (st.gstScheme || 'regular') === 'regular' && (!st.gstin || !gstOk) ? 'warn' : ![0, 5, 12, 18, 28].includes(rate) ? 'warn' : 'ok',
-    (st.gstScheme || 'regular') === 'regular' && !st.gstin ? 'GST is "Regular" but the GSTIN is empty. A GSTIN is required on bills (or set the GST type to "No GST").' : !gstOk ? `GSTIN "${st.gstin}" does not look valid (15 characters).` : ![0, 5, 12, 18, 28].includes(rate) ? `GST ${rate}% is unusual. The common restaurant rate is 5%.` : `${st.gstScheme || 'regular'} · ${rate}%${st.gstin ? ' · ' + st.gstin : ''}`, ['Open Settings', "go('settings')"]);
+  add('GST', 'GST setting', (st.gstScheme || 'regular') === 'regular' && (!st.gstin || !gstOk) ? 'warn' : ![0, 5, 12, 18, 28, 40].includes(rate) ? 'warn' : 'ok',
+    (st.gstScheme || 'regular') === 'regular' && !st.gstin ? 'GST is "Regular" but the GSTIN is empty. A GSTIN is required on bills (or set the GST type to "No GST").' : !gstOk ? `GSTIN "${st.gstin}": ${gstinCheck(st.gstin).msg}` : ![0, 5, 12, 18, 28, 40].includes(rate) ? `GST ${rate}% is unusual. The common restaurant rate is 5%.` : `${st.gstScheme || 'regular'} · ${rate}%${st.gstin ? ' · ' + st.gstin : ''}`, ['Open Settings', "go('settings')"]);
   // ---- Backup / storage ----
   if(!SRV.on){
     let last = 0; try{ last = +lsGet('setu_last_backup') || 0; }catch(e){}
@@ -10374,7 +10680,8 @@ function scrSettings(){
       ${f('name','Restaurant Name')}
       ${f('address','Address')}
       ${f('phone','Restaurant Phone')}
-      ${f('gstin','GSTIN (Optional)')}
+      <div><label>GSTIN (Optional)</label><input id="st_gstin" value="${esc(s.gstin || '')}" maxlength="15" style="text-transform:uppercase" oninput="gstinLive(this,'st_gstin_h')">${gstinHint('st_gstin_h')}</div>
+      <div><label>SAC code (GST returns)</label><input id="st_sac" value="${esc(s.sac || '996331')}" maxlength="8" placeholder="996331"></div>
       ${f('gst','GST % (e.g. 5)','number')}
       <div><label>GST Type</label><select id="st_gstScheme">
         <option value="regular" ${(s.gstScheme||'regular')==='regular'?'selected':''}>Regular GST (Tax Invoice)</option>
@@ -10954,7 +11261,7 @@ async function activateSettingsKey(){
 }
 
 function saveSettings(){
-  ['name','address','phone','gstin','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa'].forEach(k => {
+  ['name','address','phone','gstin','sac','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = $('#st_'+k).value.trim();
   });
   ['ptsPer100','ptValue','minRedeem','kotLate','maxDiscPct'].forEach(k => {
@@ -10964,6 +11271,7 @@ function saveSettings(){
   if($('#st_tokenOn')) D.settings.tokenOn = $('#st_tokenOn').value === '1';
   if($('#st_gstInclusive')) D.settings.gstInclusive = $('#st_gstInclusive').value === '1';
   D.settings.gst = +$('#st_gst').value || 0;
+  { const g = gstinCheck(D.settings.gstin); D.settings.gstin = g.g; if(!/^\d{4,8}$/.test(D.settings.sac || '')) D.settings.sac = '996331'; if(!g.ok) setTimeout(() => toast('Saved, but check the GSTIN: ' + g.msg), 400); }
   if(+$('#st_width').value !== +D.settings.width) D.settings.printLock = true;
   D.settings.width = +$('#st_width').value;
   D.settings.billPaper = $('#st_billPaper').value;
