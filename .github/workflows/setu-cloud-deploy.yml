@@ -7,7 +7,7 @@ name: Setu Cloud deploy
 on:
   push:
     branches: [ccr-89eaafa4-mxbfj2]
-    paths: ['cloud/**', 'hotel_erp.html', 'sw.js', 'manifest.json', '.github/workflows/setu-cloud-deploy.yml']
+    paths: ['cloud/**', 'food/**', 'hotel_erp.html', 'sw.js', 'manifest.json', '.github/workflows/setu-cloud-deploy.yml']
   workflow_dispatch:
     inputs:
       mode:
