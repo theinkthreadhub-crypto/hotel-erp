@@ -541,6 +541,11 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
 .dz-t-dish{display:flex;gap:12px;align-items:center;background:#f1f0eb;border-radius:20px;padding:14px;box-shadow:0 6px 0 #e3e2dc} .dz-t-dish div{flex:1} .dz-t-dish b{font-size:18px;color:#333} .dz-t-dish p{margin:4px 0 8px;font-size:13px} .dz-t-img{width:70px;height:70px;border-radius:18px;background:#d8d7d1;display:flex;align-items:center;justify-content:center;font-size:36px}
 @media (max-width:1100px){.dz-n-hub{grid-template-columns:1fr}.dz-n-mid{min-height:200px}.dz-n-row,.dz-c-row,.dz-o-grid,.dz-m-grid,.dz-f-row,.dz-t-grid,.dz-c-time{grid-template-columns:1fr}.dz-o-tall{grid-row:auto}.dz-o-wide{grid-column:auto}
   .dz-o-frame,.dz-m-frame,.dz-f-frame{grid-template-columns:1fr}.dz-o-side,.dz-m-side,.dz-f-side{display:none}.dz-o-ov,.dz-f-kpis,.dz-t-tok{grid-template-columns:repeat(2,1fr)}.dz-m-stats{grid-template-columns:repeat(3,1fr)}}
+.dz-tap{cursor:pointer} .dz-tap:hover{filter:brightness(.97)} .m-kpi,.dz-n-met,.dz-n-ch,.dz-o-ov>div,.dz-m-stat,.dz-f-kpis>div,.dz-t-tok>div{-webkit-tap-highlight-color:transparent}
+#modal .box.dz-pop{width:min(760px,100%)} html[data-theme="frost"] #modal .box{background:#eef3f7} .dz-pop h4{margin:14px 0 6px;font-size:14px}
+.dz-pop-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:8px} .dz-pop-cards>div{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px} .dz-pop-cards small{display:block;color:var(--text-muted);font-size:11.5px} .dz-pop-cards b{font-size:17px}
+.dz-pop-two{display:grid;grid-template-columns:1fr 1fr;gap:16px} @media (max-width:600px){.dz-pop-two{grid-template-columns:1fr}}
+.dz-pop-bills details{border:1px solid var(--border);border-radius:10px;margin:6px 0;padding:0 12px;background:var(--panel)} .dz-pop-bills summary{display:flex;justify-content:space-between;gap:8px;padding:10px 0;cursor:pointer;list-style:none} .dz-pop-bills summary::-webkit-details-marker{display:none} .dz-pop-bills details[open]{background:var(--surface)}
 .theme-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .theme-pick button{border:2px solid var(--border);background:var(--panel);border-radius:14px;padding:10px;text-align:left;color:var(--text)}
 .theme-pick button.on{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
@@ -2528,6 +2533,7 @@ function toast(t){
 }
 
 function modal(title, html){
+  $('#mbox').classList.remove('dz-pop');
   $('#mbox').innerHTML = `<h3>${esc(title)}</h3><div class="in">${html}</div>`;
   $('#modal').classList.add('open');
   setTimeout(() => {
@@ -3071,7 +3077,7 @@ function dzDonut(parts, {size = 150, hole = .62, center = ''} = {}){
 const dzNav = (items, cur = 'gateway') => items.map(([ico, label, scr]) => `<button class="${scr === cur ? 'on' : ''}" onclick="${scr === 'logout' ? 'logout()' : `go('${scr}')`}">${dzIco(ico)}<span>${label}</span></button>`).join('');
 const DZ_NAV = [['home', 'Dashboard', 'gateway'], ['bill', 'New Bill', 'bill'], ['stock', 'Stock', 'stock'], ['bill', 'Bills', 'bills'], ['stock', 'Purchase', 'purchase'], ['chart', 'Reports', 'analytics'], ['help', 'Support', 'support'], ['gear', 'Settings', 'settings']];
 const dzEmpty = t => `<p class="muted" style="margin:6px 0">${t}</p>`;
-const dzBillRow = b => `<div class="m-list"><span>#${b.no} · ${esc(b.table || b.channel || '')} <span class="muted">${b.time || ''}</span></span><b>${money(b.total)}</b></div>`;
+const dzBillRow = b => `<div class="m-list dz-tap" onclick="dzOpen('bill:${b.id}')"><span>#${b.no} · ${esc(b.table || b.channel || '')} <span class="muted">${b.time || ''}</span></span><b>${money(b.total)}</b></div>`;
 
 // 1. Neon — "hub" design (dark AI-visibility board)
 function dzNeon(d){
@@ -3088,11 +3094,11 @@ function dzNeon(d){
     <div class="dz-n-head"><div><h2>TODAY'S BUSINESS</h2><p>MEASURE WHAT MATTERS</p><small>${esc(d.hi)}, ${esc(d.name)} · ${new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long'})}</small></div>
       <div style="text-align:right"><h2>SALES CHANNELS</h2><p>WHERE ORDERS COME FROM</p><div class="btns" style="justify-content:flex-end;margin-top:8px"><button class="btn g sm" onclick="go('online')">Zomato / Swiggy</button><button class="btn ok sm" onclick="go('bill')">New Bill [B]</button></div></div></div>
     <div class="dz-n-hub">
-      <div class="dz-n-col">${met.map(m => `<div class="dz-n-met" onclick="go('${m[0] === 'stock' ? 'stock' : m[0] === 'table' ? 'bill' : 'bills'}')"><span class="dz-ring">${dzIco(m[0])}</span><div><span>${m[1]}</span><b>${m[2]}</b>${m[3]}</div></div>`).join('')}</div>
+      <div class="dz-n-col">${met.map((m, i) => `<div class="dz-n-met" onclick="dzOpen('${['sales', 'bills', 'avg', 'tables', 'low'][i]}')"><span class="dz-ring">${dzIco(m[0])}</span><div><span>${m[1]}</span><b>${m[2]}</b>${m[3]}</div></div>`).join('')}</div>
       <div class="dz-n-mid"><svg viewBox="0 0 600 320" preserveAspectRatio="none"><defs><linearGradient id="nl0" x1="0" x2="1"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".2"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient><linearGradient id="nl1" x1="0" x2="1"><stop offset="0" stop-color="#22d3ee" stop-opacity=".2"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
         <g>${curves(0)}</g><g transform="translate(600,0) scale(-1,1)">${curves(1)}</g></svg>
         <div class="dz-n-core"><small>TODAY</small><b>${shortMoney(d.s.sales)}</b><small>${d.s.bills.length} bills</small></div></div>
-      <div class="dz-n-col">${ch.map(c => `<div class="dz-n-ch" onclick="go('${c[0] === 'QR orders' ? 'qr' : c[0] === 'Credit due' ? 'customers' : c[0] === 'Zomato' || c[0] === 'Swiggy' ? 'online' : 'bills'}')"><span class="dz-ring">${dzIco(c[2])}</span><div><span>${c[0]}</span><b>${c[0] === 'QR orders' ? c[1] + ' waiting' : money(c[1])}</b><small class="muted">${c[0] === 'QR orders' ? 'from table QR' : d.s.sales ? Math.round(c[1] / d.s.sales * 100) + '% of sales' : '—'}</small></div></div>`).join('')}</div>
+      <div class="dz-n-col">${ch.map(c => `<div class="dz-n-ch" onclick="dzOpen('${c[0] === 'QR orders' ? 'qr' : c[0] === 'Credit due' ? 'credit' : 'ch:' + c[0]}')"><span class="dz-ring">${dzIco(c[2])}</span><div><span>${c[0]}</span><b>${c[0] === 'QR orders' ? c[1] + ' waiting' : money(c[1])}</b><small class="muted">${c[0] === 'QR orders' ? 'from table QR' : d.s.sales ? Math.round(c[1] / d.s.sales * 100) + '% of sales' : '—'}</small></div></div>`).join('')}</div>
     </div>
     <div class="dz-n-wave"><div class="dz-n-stages">${stages.map(s => `<div><i></i><span>${s[0]}</span><b>${s[1]}</b></div>`).join('')}</div>${dzLine(d.month.map(([dt, v]) => [dt.slice(8), v]), {h: 130, W: 1300, color: '#22d3ee'})}</div>
     <div class="dz-n-row">
@@ -3117,26 +3123,26 @@ function dzClinic(d){
     <div class="dz-c-top"><h2>${esc(d.hotel)}</h2><div class="dz-c-tabs">${tabs.map(t => `<button onclick="go('${t[0]}')">${dzIco(t[0] === 'analytics' ? 'chart' : t[0] === 'stock' || t[0] === 'purchase' ? 'stock' : t[0] === 'expense' ? 'exp' : 'bill')}${t[1]}</button>`).join('')}</div></div>
     <div class="dz-c-vitals"><div class="dz-c-who"><span class="dz-avatar">${dzInit(d.name)}</span><div><small>${esc(activeUser ? (activeUser.role === 'admin' ? 'Manager' : 'Staff') : '')}</small><b>${esc(d.name)}</b></div></div>
       <div><small>Today</small><h3>${d.s.sales ? (d.dSales === null || d.dSales >= 0 ? 'Good day' : 'Slow day') : 'Not started'}</h3></div>
-      <div><small>Sales</small><b>${shortMoney(d.s.sales)}</b></div><div><small>Bills</small><b>${d.s.bills.length}</b></div><div><small>Avg bill</small><b>${shortMoney(d.avg)}</b></div><div><small>Tables</small><b>${d.k.length}<span>/open</span></b></div>
+      <div class="dz-tap" onclick="dzOpen('sales')"><small>Sales</small><b>${shortMoney(d.s.sales)}</b></div><div class="dz-tap" onclick="dzOpen('bills')"><small>Bills</small><b>${d.s.bills.length}</b></div><div class="dz-tap" onclick="dzOpen('avg')"><small>Avg bill</small><b>${shortMoney(d.avg)}</b></div><div class="dz-tap" onclick="dzOpen('tables')"><small>Tables</small><b>${d.k.length}<span>/open</span></b></div>
       <div class="btns" style="margin:0"><button class="btn sm" onclick="go('bill')">New Bill [B]</button></div></div>
     <div class="dz-c-time"><div class="dz-c-line"></div>${col(a)}${col(b, diff)}<button class="dz-c-plus" onclick="go('bill')" title="New bill">+</button></div>
-    <div class="dz-c-row"><div class="dz-c-card"><h5>Low stock <span>${dzIco('stock')}</span></h5>${d.low.slice(0, 4).map(x => `<div class="m-list"><span>${esc(x.name)}</span><b class="${+x.qty <= 0 ? 'red' : ''}">${fq(x.qty)} ${esc(x.unit || '')}</b></div>`).join('') || dzEmpty('All items above minimum.')}</div>
+    <div class="dz-c-row"><div class="dz-c-card dz-tap" onclick="dzOpen('low')"><h5>Low stock <span>${dzIco('stock')}</span></h5>${d.low.slice(0, 4).map(x => `<div class="m-list"><span>${esc(x.name)}</span><b class="${+x.qty <= 0 ? 'red' : ''}">${fq(x.qty)} ${esc(x.unit || '')}</b></div>`).join('') || dzEmpty('All items above minimum.')}</div>
       <div class="dz-c-card"><h5>Recent bills <span>${dzIco('bill')}</span></h5>${d.s.bills.slice(-4).reverse().map(dzBillRow).join('') || dzEmpty('No bills yet today.')}</div>
-      <div class="dz-c-card"><h5>Cash <span>${dzIco('cash')}</span></h5><div class="m-list"><span>Expected in drawer</span><b>${money(d.s.expected)}</b></div><div class="m-list"><span>Spent today</span><b>${money(d.s.expT + d.s.purT)}</b></div><div class="m-list"><span>Credit given</span><b>${money(d.credit)}</b></div></div></div>
+      <div class="dz-c-card dz-tap" onclick="dzOpen('cash')"><h5>Cash <span>${dzIco('cash')}</span></h5><div class="m-list"><span>Expected in drawer</span><b>${money(d.s.expected)}</b></div><div class="m-list"><span>Spent today</span><b>${money(d.s.expT + d.s.purT)}</b></div><div class="m-list"><span>Credit given</span><b>${money(d.credit)}</b></div></div></div>
     <div class="dz-c-strip"><span class="dz-c-cal">${dzIco('chart')}</span>${strip}</div></div></div>`;
 }
 // 3. Ocean — inventory management design
 function dzOcean(d){
-  const ov = [['stock', D.menu.length, 'Menu items', 'menu'], ['bill', d.s.bills.length, 'Bills today', 'bills'], ['sales', D.stock.filter(x => !x.merged && x.active !== false).length, 'Stock items', 'stock'], ['alert', d.outStock, 'Out of stock', 'stock']];
+  const ov = [['stock', D.menu.length, 'Menu items', 'menu'], ['bill', d.s.bills.length, 'Bills today', 'bills'], ['sales', D.stock.filter(x => !x.merged && x.active !== false).length, 'Stock items', 'stock'], ['alert', d.outStock, 'Out of stock', 'out']];
   const online = d.s.zomatoSales + d.s.swiggySales, mx = Math.max(1, ...d.top.map(x => x[1]));
   return `<div class="dz dz-ocean"><div class="dz-o-frame">
     <aside class="dz-o-side"><span class="dz-avatar lg">${dzInit(d.name)}</span><b>${esc(d.name)}</b><small>${esc(d.hotel)}</small><nav>${dzNav(DZ_NAV.slice(0, 7))}</nav><nav class="dz-o-out">${dzNav([['out', 'Logout', 'logout']])}</nav></aside>
     <section class="dz-o-main">
       <div class="dz-o-top"><h2>Welcome ${esc(d.name.split(' ')[0])} !</h2><div class="dz-o-search" onclick="go('bills')">${dzIco('search')}<span>Search bills…</span></div><button class="btn sm ok" onclick="go('bill')">New Bill [B]</button></div>
-      <div class="dz-o-card"><h4>Over View</h4><div class="dz-o-ov">${ov.map((o, i) => `<div class="${i === 3 ? 'warn' : ''}" onclick="go('${o[3]}')"><span>${dzIco(o[0])}</span><div><b>${o[1]}</b><small>${o[2]}</small></div></div>`).join('')}</div></div>
+      <div class="dz-o-card"><h4>Over View</h4><div class="dz-o-ov">${ov.map((o, i) => `<div class="${i === 3 ? 'warn' : ''}" onclick="dzOpen('${o[3]}')"><span>${dzIco(o[0])}</span><div><b>${o[1]}</b><small>${o[2]}</small></div></div>`).join('')}</div></div>
       <div class="dz-o-grid">
-        <div class="dz-o-card"><h4>Customers</h4><div class="dz-o-big"><span>${dzIco('user')}</span><b>${customers().length}</b><small>Total customers</small></div></div>
-        <div class="dz-o-card"><h4>Sales mix (today)</h4>${dzDonut([['Dine-In & Takeaway', d.s.dineSales + d.s.takeawaySales, '#2a6a82'], ['Zomato & Swiggy', online, '#9cc6d6']], {size: 130, hole: 0, center: ''})}</div>
+        <div class="dz-o-card dz-tap" onclick="dzOpen('customers')"><h4>Customers</h4><div class="dz-o-big"><span>${dzIco('user')}</span><b>${customers().length}</b><small>Total customers</small></div></div>
+        <div class="dz-o-card dz-tap" onclick="dzOpen('sales')"><h4>Sales mix (today)</h4>${dzDonut([['Dine-In & Takeaway', d.s.dineSales + d.s.takeawaySales, '#2a6a82'], ['Zomato & Swiggy', online, '#9cc6d6']], {size: 130, hole: 0, center: ''})}</div>
         <div class="dz-o-card dz-o-tall"><h4>Top items by sales</h4>${d.top.map(([n, q]) => `<div class="dz-o-bar"><span>${esc(n)}</span><i><em style="width:${Math.round(q / mx * 100)}%"></em></i><b>${fq(q)}</b></div>`).join('') || dzEmpty('No sales yet today.')}
           <h4 style="margin-top:18px">Payments</h4>${Object.entries(d.pay).map(([m, v]) => `<div class="m-list"><span>${m}</span><b>${money(v)}</b></div>`).join('') || dzEmpty('—')}</div>
         <div class="dz-o-card dz-o-wide"><h4>Expense vs Sales <small class="muted">Last 6 months</small></h4>${dzLine(d.months.map(m => [m[0], m[1]]), {h: 180, color: '#2a6a82', pts2: d.months.map(m => [m[0], m[2]]), color2: '#e39b62', tip: true})}
@@ -3145,26 +3151,26 @@ function dzOcean(d){
 }
 // 4. Mono — clean black & white design (Jobgio)
 function dzMono(d){
-  const st = [['user', customers().length, 'Customers', 'customers'], ['stock', D.menu.length, 'Menu items', 'menu'], ['sales', shortMoney(d.s.sales), "Today's sales", 'bills'], ['bill', d.s.bills.length, 'Bills today', 'bills'], ['alert', d.low.length, 'Low stock', 'stock'], ['table', d.k.length, 'Running tables', 'bill']];
+  const st = [['user', customers().length, 'Customers', 'customers'], ['stock', D.menu.length, 'Menu items', 'menu'], ['sales', shortMoney(d.s.sales), "Today's sales", 'sales'], ['bill', d.s.bills.length, 'Bills today', 'bills'], ['alert', d.low.length, 'Low stock', 'low'], ['table', d.k.length, 'Running tables', 'tables']];
   const att = [d.qrn ? ['qr', `${d.qrn} QR order(s)`, 'Accept at counter', 'qr'] : null, ...d.k.slice(0, 3).map(([t, x]) => ['table', 'Table ' + t, 'Since ' + (x.createdAt || ''), 'bill']),
     ...d.low.slice(0, 3).map(x => ['stock', x.name, `${fq(x.qty)} ${x.unit || ''} left`, 'purchase'])].filter(Boolean).slice(0, 5);
   return `<div class="dz dz-mono"><div class="dz-m-frame">
     <aside class="dz-m-side"><div class="dz-m-logo">${dzIco('star')}<b>${esc(d.hotel)}</b></div><nav>${dzNav(DZ_NAV)}</nav><div class="dz-m-me"><span class="dz-avatar">${dzInit(d.name)}</span><b>${esc(d.name)}</b><small>${activeUser && activeUser.role === 'admin' ? 'Manager' : 'Staff'}</small></div></aside>
     <section class="dz-m-main">
       <div class="dz-m-stats"><div><h3>Quick Stats</h3><p class="muted">Your numbers for today, ${dmy(d.t)}.</p><button class="btn sm" onclick="go('bill')">New Bill [B]</button></div>
-        ${st.map((x, i) => `<div class="dz-m-stat ${i === 2 ? 'on' : ''}" onclick="go('${x[3]}')"><span>${dzIco(x[0])}</span><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
+        ${st.map((x, i) => `<div class="dz-m-stat ${i === 2 ? 'on' : ''}" onclick="dzOpen('${x[3]}')"><span>${dzIco(x[0])}</span><b>${x[1]}</b><small>${x[2]}</small></div>`).join('')}</div>
       <div class="dz-m-grid">
         <div class="dz-m-card"><h3>Statistics <span class="dz-leg-row"><span><i style="background:#111"></i>Sales</span><span><i style="background:#cfcfcf"></i>Purchase + Expenses</span></span></h3>${dzBars(d.months, {c1: '#111', c2: '#cfcfcf', w: 12, tip: true})}</div>
         <div class="dz-m-card"><h3>Needs attention</h3>${att.map(a => `<div class="dz-m-att" onclick="go('${a[3]}')"><span>${dzIco(a[0])}</span><div><b>${esc(a[1])}</b><small>${esc(a[2])}</small></div><em>Pending</em></div>`).join('') || dzEmpty('Nothing pending. All good!')}</div>
       </div>
       <div class="dz-m-card"><h3>Today's bills <span><button class="btn g sm" onclick="go('bills')">All bills</button> <button class="btn sm" onclick="go('reports')">Export</button></span></h3>
         <table class="dz-m-tbl"><tr><th>Bill</th><th>Table / Type</th><th>Time</th><th>Payment</th><th>Status</th><th style="text-align:right">Amount</th></tr>
-        ${D.bills.filter(b => b.date === d.t).slice(-6).reverse().map(b => `<tr><td><b>#${b.no}</b></td><td>${esc(b.table || b.channel || '')}</td><td>${b.time || ''}</td><td>${esc(b.mode || '')}</td><td><em class="${b.cancelled ? 'x' : b.mode === 'Credit' ? 'p' : ''}">${b.cancelled ? 'Cancelled' : b.mode === 'Credit' ? 'Credit' : 'Paid'}</em></td><td style="text-align:right"><b>${money(b.total)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No bills yet today.</td></tr>'}</table></div>
+        ${D.bills.filter(b => b.date === d.t).slice(-6).reverse().map(b => `<tr class="dz-tap" onclick="dzOpen('bill:${b.id}')"><td><b>#${b.no}</b></td><td>${esc(b.table || b.channel || '')}</td><td>${b.time || ''}</td><td>${esc(b.mode || '')}</td><td><em class="${b.cancelled ? 'x' : b.mode === 'Credit' ? 'p' : ''}">${b.cancelled ? 'Cancelled' : b.mode === 'Credit' ? 'Credit' : 'Paid'}</em></td><td style="text-align:right"><b>${money(b.total)}</b></td></tr>`).join('') || '<tr><td colspan="6" class="muted">No bills yet today.</td></tr>'}</table></div>
     </section></div></div>`;
 }
 // 5. Frost — frosted glass design (music)
 function dzFrost(d){
-  const kp = [['sales', "Today's sales", money(d.s.sales), d.dSales === null ? 'no sales yesterday' : (d.dSales >= 0 ? '+' : '') + d.dSales + '% vs yesterday', 'bills'], ['bill', 'Bills', d.s.bills.length, 'Avg ' + shortMoney(d.avg), 'bills'], ['table', 'Running tables', d.k.length, shortMoney(d.kAmt) + ' open', 'bill'], ['cash', 'Cash in drawer', shortMoney(d.s.expected), 'expected now', 'cash']];
+  const kp = [['sales', "Today's sales", money(d.s.sales), d.dSales === null ? 'no sales yesterday' : (d.dSales >= 0 ? '+' : '') + d.dSales + '% vs yesterday', 'sales'], ['bill', 'Bills', d.s.bills.length, 'Avg ' + shortMoney(d.avg), 'bills'], ['table', 'Running tables', d.k.length, shortMoney(d.kAmt) + ' open', 'tables'], ['cash', 'Cash in drawer', shortMoney(d.s.expected), 'expected now', 'cash']];
   const pal = ['#5fb3b3', '#8fc7d6', '#3c7d97', '#2e4858', '#8a7cc4', '#a9b8c6', '#c48a7c'];
   const top = d.top[0];
   return `<div class="dz dz-frost"><div class="dz-f-frame">
@@ -3173,13 +3179,13 @@ function dzFrost(d){
     <section class="dz-f-main">
       <div class="dz-f-top"><h2>Dashboard</h2><div class="dz-f-search" onclick="go('bills')">${dzIco('search')}<span>Search bills, items…</span></div><span class="dz-avatar">${dzInit(d.name)}</span></div>
       <div class="dz-f-hero"><div class="dz-f-art">🍽️</div><div><h2>${esc(d.hi)}, ${esc(d.name.split(' ')[0])}!</h2><p>${d.rush}</p><button onclick="go('bill')">${dzIco('play')} New Bill [B]</button></div><div class="dz-f-plant">🪴</div></div>
-      <div class="dz-f-kpis">${kp.map((k, i) => `<div class="c${i}" onclick="go('${k[4]}')"><span>${dzIco(k[0])}</span><small>${k[1]}</small><b>${k[2]}</b><em>${k[3]}</em></div>`).join('')}</div>
+      <div class="dz-f-kpis">${kp.map((k, i) => `<div class="c${i}" onclick="dzOpen('${k[4]}')"><span>${dzIco(k[0])}</span><small>${k[1]}</small><b>${k[2]}</b><em>${k[3]}</em></div>`).join('')}</div>
       <div class="dz-f-row">
         <div class="dz-f-card"><h4>Sales overview <span class="dz-f-pill">This week</span></h4>${dzBars(d.week.map(([dt, v]) => [new Date(dt + 'T00:00').toLocaleDateString('en-IN', {weekday: 'short'}), v]), {colors: pal, w: 26})}</div>
-        <div class="dz-f-card"><h4>Payment mix</h4>${dzDonut(Object.entries(d.pay).map(([m, v], i) => [m, v, pal[i % pal.length]]).concat(Object.keys(d.pay).length ? [] : [['No sales yet', 0, '#ccc']]), {size: 140, center: shortMoney(d.s.sales)})}</div>
+        <div class="dz-f-card dz-tap" onclick="dzOpen('cash')"><h4>Payment mix</h4>${dzDonut(Object.entries(d.pay).map(([m, v], i) => [m, v, pal[i % pal.length]]).concat(Object.keys(d.pay).length ? [] : [['No sales yet', 0, '#ccc']]), {size: 140, center: shortMoney(d.s.sales)})}</div>
       </div>
       <div class="dz-f-row">
-        <div class="dz-f-card"><h4>Recent bills <button class="dz-f-pill" onclick="go('bills')">See all</button></h4>${d.s.bills.slice(-3).reverse().map(b => `<div class="dz-f-rec"><span class="dz-f-th">${esc((b.table || b.channel || 'B').slice(0, 3))}</span><div><b>Bill #${b.no} · ${money(b.total)}</b><small>${esc(b.table || b.channel || '')} · ${b.time || ''} · ${esc(b.mode || '')}</small></div><button onclick="go('bills')">${dzIco('play')}</button></div>`).join('') || dzEmpty('No bills yet today.')}</div>
+        <div class="dz-f-card"><h4>Recent bills <button class="dz-f-pill" onclick="go('bills')">See all</button></h4>${d.s.bills.slice(-3).reverse().map(b => `<div class="dz-f-rec"><span class="dz-f-th">${esc((b.table || b.channel || 'B').slice(0, 3))}</span><div><b>Bill #${b.no} · ${money(b.total)}</b><small>${esc(b.table || b.channel || '')} · ${b.time || ''} · ${esc(b.mode || '')}</small></div><button onclick="dzOpen('bill:${b.id}')">${dzIco('play')}</button></div>`).join('') || dzEmpty('No bills yet today.')}</div>
         <div class="dz-f-card dz-f-mix"><h4>Today's star dish <button class="dz-f-pill" onclick="go('menu')">Menu</button></h4><div class="dz-f-dish"><span>🍛</span><div><b>${top ? esc(top[0]) : 'No sales yet'}</b><small>${top ? fq(top[1]) + ' sold today' : 'Make the first bill'}</small></div></div></div>
       </div>
       <div class="dz-f-banner"><span>⭐</span><div><b>Discover your reports</b><small>46 reports, made just for your restaurant</small></div><button onclick="go('analytics')">Explore now</button></div>
@@ -3187,25 +3193,110 @@ function dzFrost(d){
 }
 // 6. Mint — soft "styleguide" design
 function dzMint(d){
-  const tok = [['sales', "Today's sales", money(d.s.sales), 'bills'], ['bill', 'Bills', d.s.bills.length, 'bills'], ['table', 'Running tables', d.k.length, 'bill'], ['cash', 'Cash in drawer', money(d.s.expected), 'cash']];
-  const alerts = [[d.dSales === null || d.dSales >= 0 ? 'ok' : 'warn', d.dSales === null ? 'Sales trend shows after the first bill.' : `Sales ${d.dSales >= 0 ? 'up' : 'down'} ${Math.abs(d.dSales)}% vs yesterday`, 'bills'],
-    [d.low.length ? 'warn' : 'ok', d.low.length ? `${d.low.length} item(s) low on stock` : 'Stock is healthy', 'stock'], [d.outStock ? 'bad' : 'ok', d.outStock ? `${d.outStock} item(s) out of stock` : 'Nothing is out of stock', 'stock']];
+  const tok = [['sales', "Today's sales", money(d.s.sales), 'sales'], ['bill', 'Bills', d.s.bills.length, 'bills'], ['table', 'Running tables', d.k.length, 'tables'], ['cash', 'Cash in drawer', money(d.s.expected), 'cash']];
+  const alerts = [[d.dSales === null || d.dSales >= 0 ? 'ok' : 'warn', d.dSales === null ? 'Sales trend shows after the first bill.' : `Sales ${d.dSales >= 0 ? 'up' : 'down'} ${Math.abs(d.dSales)}% vs yesterday`, 'sales'],
+    [d.low.length ? 'warn' : 'ok', d.low.length ? `${d.low.length} item(s) low on stock` : 'Stock is healthy', 'low'], [d.outStock ? 'bad' : 'ok', d.outStock ? `${d.outStock} item(s) out of stock` : 'Nothing is out of stock', 'out']];
   const top = d.top[0];
   return `<div class="dz dz-mint">
     <div class="dz-t-head"><div><h1>${esc(d.hi)}, ${esc(d.name.split(' ')[0])}</h1><p>${new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long'})} · ${esc(d.hotel)}</p></div>
       <div class="dz-t-btns"><button class="dz-t-btn" onclick="go('bill')">New Bill [B]</button><button class="dz-t-btn ghost" onclick="go('online')">Zomato / Swiggy</button></div></div>
     <div class="dz-t-tabs"><button class="on">Overview</button><button onclick="go('bill')">Billing</button><button onclick="go('stock')">Stock</button><button onclick="go('analytics')">Reports</button></div>
-    <div class="dz-t-tok">${tok.map(t => `<div onclick="go('${t[3]}')"><span>${dzIco(t[0])}</span><b>${t[2]}</b><small>${t[1]}</small></div>`).join('')}</div>
+    <div class="dz-t-tok">${tok.map(t => `<div onclick="dzOpen('${t[3]}')"><span>${dzIco(t[0])}</span><b>${t[2]}</b><small>${t[1]}</small></div>`).join('')}</div>
     <div class="dz-t-grid">
       <div class="dz-t-card"><h4>Sales · last 7 days</h4>${dzLine(d.week.map(([dt, v]) => [dt.slice(8), v]), {h: 170, color: '#22a383', dots: true, tip: true})}
         <div class="dz-t-chips">${d.ch.slice(0, 4).map(c => `<span class="${c[1] ? 'on' : ''}">${c[1] ? '✓ ' : ''}${c[0]} · ${shortMoney(c[1])}</span>`).join('')}</div></div>
-      <div class="dz-t-card"><h4>Alerts</h4>${alerts.map(a => `<div class="dz-t-alert ${a[0]}" onclick="go('${a[2]}')">${dzIco(a[0] === 'ok' ? 'ok' : a[0] === 'bad' ? 'x' : 'alert')}${a[1]}</div>`).join('')}
+      <div class="dz-t-card"><h4>Alerts</h4>${alerts.map(a => `<div class="dz-t-alert ${a[0]}" onclick="dzOpen('${a[2]}')">${dzIco(a[0] === 'ok' ? 'ok' : a[0] === 'bad' ? 'x' : 'alert')}${a[1]}</div>`).join('')}
         <h4 style="margin-top:16px">Star dish</h4><div class="dz-t-dish"><div><b>${top ? esc(top[0]) : 'No sales yet'}</b><p>${top ? fq(top[1]) + ' sold today' : 'Your best seller will show here.'}</p><span class="dz-t-chip">Menu [M]</span></div><span class="dz-t-img">🍛</span></div></div>
     </div>
     <div class="dz-t-grid">
       <div class="dz-t-card"><h4>Recent bills</h4>${d.s.bills.slice(-5).reverse().map(dzBillRow).join('') || dzEmpty('No bills yet today.')}</div>
       <div class="dz-t-card"><h4>Top items</h4>${d.top.map(([n, q]) => `<div class="m-bar"><span style="width:45%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(n)}</span><i><em style="width:${Math.round(q / Math.max(1, d.top[0][1]) * 100)}%"></em></i><b>${fq(q)}</b></div>`).join('') || dzEmpty('No sales yet today.')}</div>
     </div></div>`;
+}
+// Tap a dashboard card → popup with the details behind the number (bills, tables, cash, stock…)
+function dzOpen(kind){
+  const t = today(), s = summary(t), k = Object.entries(D.kaccha || {});
+  const row = (a, b, cls = '') => `<div class="m-list"><span>${a}</span><b class="${cls}">${b}</b></div>`;
+  const billList = (bills, empty = 'No bills yet today.') => bills.length ? `<div class="dz-pop-bills">${[...bills].reverse().map(b => `<details><summary><span>#${b.no} · ${esc(b.table || b.channel || '')} <small class="muted">${b.time || ''} · ${esc(b.mode || '')}${b.cancelled ? ' · <b class="red">Cancelled</b>' : ''}</small></span><b>${money(b.total)}</b></summary>
+      ${(b.items || []).map(i => row(`${esc(i.name)} × ${fq(i.qty)}`, money(i.qty * i.price))).join('')}${+b.disc ? row('Discount', '− ' + money(b.disc)) : ''}${+b.tax ? row('GST', money(b.tax)) : ''}${b.cust || b.phone ? row('Customer', esc([b.cust, b.phone].filter(Boolean).join(' · '))) : ''}</details>`).join('')}</div>` : `<p class="muted">${empty}</p>`;
+  const cards = a => `<div class="dz-pop-cards">${a.map(([l, v, c]) => `<div><small>${l}</small><b class="${c || ''}">${v}</b></div>`).join('')}</div>`;
+  const by = (list, key) => { const o = {}; list.forEach(b => { const x = key(b); o[x] = (o[x] || 0) + (+b.total || 0); }); return Object.entries(o).sort((a, b) => b[1] - a[1]); };
+  const foot = (scr, label) => `<div class="btns" style="margin-top:14px;justify-content:flex-end"><button class="btn g" onclick="closeModal()">Close</button>${scr ? `<button class="btn" onclick="closeModal();go('${scr}')">${label}</button>` : ''}</div>`;
+  const stockRows = list => list.length ? list.map(x => row(esc(x.name), `${fq(x.qty)} ${esc(x.unit || '')} <small class="muted">(min ${fq(x.min || 0)})</small>`, +x.qty <= 0 ? 'red' : '')).join('') : '<p class="muted">Nothing here. All good!</p>';
+  let title = '', html = '';
+  if(kind === 'sales' || kind === 'avg'){
+    const y = summary(addDays(t, -1)), hi = [...s.bills].sort((a, b) => b.total - a.total);
+    title = kind === 'sales' ? `Today's sales — ${money(s.sales)}` : `Average bill — ${money(s.bills.length ? s.sales / s.bills.length : 0)}`;
+    html = cards([['Sales', money(s.sales)], ['Bills', s.bills.length], ['Average bill', money(s.bills.length ? s.sales / s.bills.length : 0)], ['Yesterday', money(y.sales)], ['Highest bill', hi[0] ? money(hi[0].total) : '—'], ['Lowest bill', hi.length ? money(hi[hi.length - 1].total) : '—']])
+      + `<div class="dz-pop-two"><div><h4>By type</h4>${by(s.bills, b => b.channel || 'Dine-In').map(([c, v]) => row(esc(c), money(v))).join('') || '<p class="muted">—</p>'}</div>
+        <div><h4>By payment</h4>${MODES.filter(m => s.by[m]).map(m => row(m, money(s.by[m]))).join('') || '<p class="muted">—</p>'}</div></div>`
+      + `<div class="dz-pop-two"><div>${row('Discount given', money(s.disc))}${row('GST collected', money(s.tax))}</div><div>${row('Cancelled bills', s.cancelled, s.cancelled ? 'red' : '')}${row('Running tables (not billed yet)', money(sum(k, ([, x]) => calc(x.cart, x.disc, gstRate()).total)))}</div></div>`
+      + `<h4>All bills today <small class="muted">tap a bill to see items</small></h4>` + billList(s.bills) + foot('bills', 'Open Bill List');
+  } else if(kind === 'bills'){
+    const all = D.bills.filter(b => b.date === t);
+    title = `Bills today — ${s.bills.length}`;
+    html = cards([['Bills', s.bills.length], ['Sales', money(s.sales)], ['Cancelled', s.cancelled, s.cancelled ? 'red' : ''], ['Credit bills', s.bills.filter(b => b.mode === 'Credit').length]]) + billList(all) + foot('bills', 'Open Bill List');
+  } else if(kind.startsWith('bill:')){
+    const b = D.bills.find(x => x.id === kind.slice(5)); if(!b) return;
+    title = `Bill #${b.no} — ${money(b.total)}`;
+    html = cards([['Table / Type', esc(b.table || b.channel || '')], ['Time', b.time || ''], ['Payment', esc(b.mode || '')], ['Total', money(b.total)]])
+      + (b.items || []).map(i => row(`${esc(i.name)} × ${fq(i.qty)}`, money(i.qty * i.price))).join('') + (+b.disc ? row('Discount', '− ' + money(b.disc)) : '') + (+b.tax ? row('GST', money(b.tax)) : '')
+      + (b.pays && b.pays.length > 1 ? b.pays.map(p => row('Paid by ' + esc(p.mode), money(p.amt))).join('') : '') + (b.cust || b.phone ? row('Customer', esc([b.cust, b.phone].filter(Boolean).join(' · '))) : '') + foot('bills', 'Open Bill List');
+  } else if(kind === 'tables'){
+    const tot = sum(k, ([, x]) => calc(x.cart, x.disc, gstRate()).total);
+    title = `Running tables — ${k.length}`;
+    html = cards([['Tables open', k.length], ['Amount not billed yet', money(tot)], ['Items ordered', fq(sum(k, ([, x]) => sum(x.cart || [], 'qty')))]])
+      + (k.length ? `<div class="dz-pop-bills">${k.map(([tb, x]) => `<details open><summary><span><b>${esc(tb)}</b> <small class="muted">since ${esc(x.createdAt || '')}${x.qr ? ' · QR' : ''}</small></span><b>${money(calc(x.cart, x.disc, gstRate()).total)}</b></summary>
+          ${(x.cart || []).map(i => row(`${esc(i.name)} × ${fq(i.qty)}`, money(i.qty * i.price))).join('')}<div class="btns" style="margin:6px 0 0"><button class="btn sm" onclick="closeModal();go('bill');setTimeout(()=>switchTable(${esc(JSON.stringify(tb))}),60)">Open ${esc(tb)}</button></div></details>`).join('')}</div>` : '<p class="muted">All tables are free.</p>') + foot('bill', 'Open Billing');
+  } else if(kind === 'cash'){
+    const tx = D.txns.filter(x => x.date === t && x.mode === 'Cash');
+    title = `Cash in drawer — ${money(s.expected)}`;
+    html = `<p class="muted" style="margin-top:0">How the expected cash is worked out today:</p>`
+      + row('Opening cash', money(s.opening)) + row('+ Cash sales', money(s.by.Cash), 'green') + row('+ Cash received (income)', money(s.cashIn - s.by.Cash), 'green')
+      + row('− Cash expenses & purchases', money(s.cashOut), 'red') + `<div class="m-list" style="font-size:15px"><b>= Expected in drawer</b><b>${money(s.expected)}</b></div>`
+      + (s.countedSaved ? row('Counted at cash counter', money(s.counted)) + row('Difference', money(s.counted - s.expected), Math.abs(s.counted - s.expected) < 1 ? 'green' : 'red') : '<p class="muted">Cash not counted yet today (Cash Counter, key C).</p>')
+      + `<h4>Other payments today</h4>${MODES.filter(m => m !== 'Cash' && s.by[m]).map(m => row(m, money(s.by[m]))).join('') || '<p class="muted">—</p>'}`
+      + `<h4>Cash in / out entries</h4>${tx.map(x => row(`${esc(x.type)} · ${esc(x.head || x.party || x.note || '')}`, money(x.amount), x.type === 'Receipt' ? 'green' : 'red')).join('') || '<p class="muted">No cash entries today.</p>'}` + foot('cash', 'Open Cash Counter');
+  } else if(kind === 'spent'){
+    const list = s.exp.concat(s.pur);
+    title = `Spent today — ${money(s.expT + s.purT)}`;
+    html = cards([['Expenses', money(s.expT)], ['Purchases', money(s.purT)], ['Paid in cash', money(sum(list.filter(x => x.mode === 'Cash'), 'amount'))]])
+      + (list.map(x => row(`${esc(x.type)} · ${esc(x.head || x.party || x.supplier || '')} <small class="muted">${esc(x.mode || '')}${x.note ? ' · ' + esc(x.note) : ''}</small>`, money(x.amount))).join('') || '<p class="muted">Nothing spent today.</p>') + foot('expense', 'Open Expenses');
+  } else if(kind === 'low' || kind === 'out'){
+    const list = kind === 'low' ? lowStock() : D.stock.filter(x => !x.merged && x.active !== false && +x.qty <= 0);
+    title = (kind === 'low' ? 'Low stock — ' : 'Out of stock — ') + list.length;
+    html = stockRows(list) + foot('purchase', 'Buy stock (Purchase)');
+  } else if(kind === 'stock'){
+    const list = D.stock.filter(x => !x.merged && x.active !== false);
+    title = `Stock items — ${list.length}`;
+    html = cards([['Items', list.length], ['Low', lowStock().length, lowStock().length ? 'red' : ''], ['Stock value', money(sum(list, x => Math.max(0, +x.qty) * (+x.rate || 0)))]]) + stockRows(list) + foot('stock', 'Open Stock');
+  } else if(kind === 'menu'){
+    const cats = {}; D.menu.forEach(m => { (cats[m.cat || 'Other'] = cats[m.cat || 'Other'] || []).push(m); });
+    title = `Menu items — ${D.menu.length}`;
+    html = Object.entries(cats).map(([c, l]) => `<details><summary><span><b>${esc(c)}</b></span><b>${l.length}</b></summary>${l.map(m => row(esc(m.name), money(m.price))).join('')}</details>`).join('') || '<p class="muted">No menu items yet.</p>';
+    html = `<div class="dz-pop-bills">${html}</div>` + foot('menu', 'Open Menu');
+  } else if(kind === 'customers'){
+    const list = customers().sort((a, b) => b.spend - a.spend);
+    title = `Customers — ${list.length}`;
+    html = cards([['Customers', list.length], ['Came today', list.filter(c => c.last === t).length], ['Came more than once', list.filter(c => c.visits > 1).length]])
+      + (list.slice(0, 30).map(c => row(`${esc(c.name || 'Customer')} <small class="muted">${esc(c.phone)} · ${c.visits} visit(s) · last ${dmy(c.last)}</small>`, money(c.spend))).join('') || '<p class="muted">Customers appear when a bill has a mobile number.</p>') + foot('customers', 'Open Customers');
+  } else if(kind === 'credit'){
+    const list = s.bills.filter(b => b.mode === 'Credit' || (b.pays || []).some(p => p.mode === 'Credit'));
+    title = `Credit given today — ${money(s.by.Credit)}`;
+    html = billList(list, 'No credit bills today.') + foot('customers', 'Open Customers');
+  } else if(kind === 'qr'){ closeModal(); return typeof qrPanel === 'function' ? qrPanel() : go('qr'); }
+  else if(kind.startsWith('ch:')){
+    const c = kind.slice(3), list = s.bills.filter(b => c === 'Online' ? (b.channel === 'Zomato' || b.channel === 'Swiggy') : (b.channel || 'Dine-In') === c);
+    title = `${c} — ${money(sum(list, 'total'))}`;
+    html = cards([['Bills', list.length], ['Sales', money(sum(list, 'total'))], ['Share of today', s.sales ? Math.round(sum(list, 'total') / s.sales * 100) + '%' : '—']]) + billList(list, 'No bills of this type today.') + foot(c === 'Zomato' || c === 'Swiggy' || c === 'Online' ? 'online' : 'bills', c === 'Zomato' || c === 'Swiggy' || c === 'Online' ? 'Open Zomato / Swiggy' : 'Open Bill List');
+  } else if(kind === 'margin'){
+    const net = s.sales + s.recT - s.expT - s.purT;
+    title = `Today's margin — ${money(net)}`;
+    html = row('Sales', money(s.sales), 'green') + row('+ Other income', money(s.recT), 'green') + row('− Expenses', money(s.expT), 'red') + row('− Purchases', money(s.purT), 'red') + `<div class="m-list" style="font-size:15px"><b>= Margin</b><b class="${net >= 0 ? 'green' : 'red'}">${money(net)}</b></div>` + foot('daybook', 'Open Day Book');
+  } else return;
+  modal(title, html);
+  $('#mbox').classList.add('dz-pop');
+  setTimeout(() => { $('#mbox').scrollTop = 0; }, 40);
 }
 const DZ_LAYOUTS = {neon: dzNeon, clinic: dzClinic, ocean: dzOcean, mono: dzMono, frost: dzFrost, mint: dzMint};
 function dashModern(){
@@ -3222,12 +3313,12 @@ function dashModern(){
     <div class="m-hero"><div><h2>${hi}, ${esc(name)}!</h2><p>${new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long'})} · ${s.bills.length} bills · ${money(s.sales)} sales today${k.length ? ` · ${k.length} tables running` : ''}</p></div>
       <div class="btns">${qrn ? `<button class="btn g" onclick="qrPanel()">QR orders (${qrn})</button>` : ''}<button class="btn g" onclick="go('online')">Zomato / Swiggy</button><button class="btn ok" onclick="go('bill')">New Bill [B]</button></div></div>
     <div class="m-kpis">
-      ${kpi('sales', "Today's sales", money(s.sales), d === null ? 'No sales yesterday' : `${d >= 0 ? '▲' : '▼'} ${Math.abs(d)}% vs yesterday`, "go('bills')", d === null ? 'muted' : d >= 0 ? 'green' : 'red')}
-      ${kpi('bill', 'Bills', s.bills.length, `Avg. bill ${money(avg)}`, "go('bills')")}
-      ${kpi('table', 'Running tables', k.length, k.length ? money(kAmt) + ' open' : 'All tables free', "go('bill')")}
-      ${kpi('cash', 'Cash in hand', money(s.expected), 'Expected in the drawer', "go('cash')")}
-      ${kpi('exp', 'Spent today', money(s.expT + s.purT), `Expenses ${money(s.expT)} · Purchase ${money(s.purT)}`, "go('expense')")}
-      ${kpi('stock', 'Low stock', low.length, low.length ? low.slice(0, 2).map(x => x.name).join(', ') : 'All items above minimum', "go('stock')", low.length ? 'red' : 'green')}
+      ${kpi('sales', "Today's sales", money(s.sales), d === null ? 'No sales yesterday' : `${d >= 0 ? '▲' : '▼'} ${Math.abs(d)}% vs yesterday`, "dzOpen('sales')", d === null ? 'muted' : d >= 0 ? 'green' : 'red')}
+      ${kpi('bill', 'Bills', s.bills.length, `Avg. bill ${money(avg)}`, "dzOpen('bills')")}
+      ${kpi('table', 'Running tables', k.length, k.length ? money(kAmt) + ' open' : 'All tables free', "dzOpen('tables')")}
+      ${kpi('cash', 'Cash in hand', money(s.expected), 'Expected in the drawer', "dzOpen('cash')")}
+      ${kpi('exp', 'Spent today', money(s.expT + s.purT), `Expenses ${money(s.expT)} · Purchase ${money(s.purT)}`, "dzOpen('spent')")}
+      ${kpi('stock', 'Low stock', low.length, low.length ? low.slice(0, 2).map(x => x.name).join(', ') : 'All items above minimum', "dzOpen('low')", low.length ? 'red' : 'green')}
     </div>
     <div class="m-row">
       <div>${dashCharts()}</div>
@@ -3236,8 +3327,8 @@ function dashModern(){
         <h3 style="margin-top:16px">Payments</h3>${MODES.filter(m => s.by[m]).map(m => `<div class="m-list"><span>${m}</span><b>${money(s.by[m])}</b></div>`).join('') || '<p class="muted">—</p>'}</div>
     </div>
     <div class="m-row3">
-      <div class="m-card"><h3>Recent bills <button class="btn g sm" onclick="go('bills')">All</button></h3>${s.bills.slice(-6).reverse().map(b => `<div class="m-list"><span>#${b.no} · ${esc(b.table || b.channel || '')} <span class="muted">${b.time}</span></span><b>${money(b.total)}</b></div>`).join('') || '<p class="muted">No bills yet today.</p>'}</div>
-      <div class="m-card"><h3>Running tables <button class="btn g sm" onclick="go('bill')">Open</button></h3>${k.slice(0, 6).map(([t, x]) => `<div class="m-list"><span><b>${esc(t)}</b> <span class="muted">since ${esc(x.createdAt || '')}</span></span><b>${money(calc(x.cart, x.disc, gstRate()).total)}</b></div>`).join('') || '<p class="muted">No running table.</p>'}</div>
+      <div class="m-card"><h3>Recent bills <button class="btn g sm" onclick="go('bills')">All</button></h3>${s.bills.slice(-6).reverse().map(b => `<div class="m-list dz-tap" onclick="dzOpen('bill:${b.id}')"><span>#${b.no} · ${esc(b.table || b.channel || '')} <span class="muted">${b.time}</span></span><b>${money(b.total)}</b></div>`).join('') || '<p class="muted">No bills yet today.</p>'}</div>
+      <div class="m-card"><h3>Running tables <button class="btn g sm" onclick="go('bill')">Open</button></h3>${k.slice(0, 6).map(([t, x]) => `<div class="m-list dz-tap" onclick="dzOpen('tables')"><span><b>${esc(t)}</b> <span class="muted">since ${esc(x.createdAt || '')}</span></span><b>${money(calc(x.cart, x.disc, gstRate()).total)}</b></div>`).join('') || '<p class="muted">No running table.</p>'}</div>
       <div class="m-card"><h3>Low stock <button class="btn g sm" onclick="go('purchase')">Purchase</button></h3>${low.slice(0, 6).map(x => `<div class="m-list"><span>${esc(x.name)}</span><b class="${+x.qty <= 0 ? 'red' : ''}">${fq(x.qty)} ${esc(x.unit || '')}</b></div>`).join('') || '<p class="muted">All items above minimum.</p>'}</div>
     </div>
     <div class="m-card"><h3>Quick actions <span class="muted" style="font-size:12px;font-weight:500">press the key on the keyboard</span></h3><div class="m-quick">${tiles.map(m => `<button onclick="go('${m[2]}')"><b>${m[0]}</b>${esc(m[1])}</button>`).join('')}</div></div>
@@ -3345,7 +3436,7 @@ function scrGateway(){
 
     <!-- 5 Key Performance Indicators (KPIs) -->
     ${kpis.length ? `<div class="kpi-grid">
-      ${on('kpiSales') ? `<div class="kpi-card">
+      ${on('kpiSales') ? `<div class="kpi-card dz-tap" onclick="dzOpen('sales')" title="Tap for details">
         <div class="kpi-header">
           <span class="kpi-title">Total Sales (Today)</span>
           <span class="kpi-badge blue">SALES</span>
@@ -3356,7 +3447,7 @@ function scrGateway(){
         </div>
       </div>` : ''}
 
-      ${on('kpiTables') ? `<div class="kpi-card">
+      ${on('kpiTables') ? `<div class="kpi-card dz-tap" onclick="dzOpen('tables')" title="Tap for details">
         <div class="kpi-header">
           <span class="kpi-title">Active Dine-In Tables</span>
           <span class="kpi-badge amber">TABLES</span>
@@ -3367,7 +3458,7 @@ function scrGateway(){
         </div>
       </div>` : ''}
 
-      ${on('kpiOnline') ? `<div class="kpi-card">
+      ${on('kpiOnline') ? `<div class="kpi-card dz-tap" onclick="dzOpen('ch:Online')" title="Tap for details">
         <div class="kpi-header">
           <span class="kpi-title">Online Orders (Zom/Swig)</span>
           <span class="kpi-badge zomato">ONLINE</span>
@@ -3378,7 +3469,7 @@ function scrGateway(){
         </div>
       </div>` : ''}
 
-      ${on('kpiCash') ? `<div class="kpi-card">
+      ${on('kpiCash') ? `<div class="kpi-card dz-tap" onclick="dzOpen('cash')" title="Tap for details">
         <div class="kpi-header">
           <span class="kpi-title">Cash In Hand (Exp.)</span>
           <span class="kpi-badge green">CASH</span>
@@ -3389,7 +3480,7 @@ function scrGateway(){
         </div>
       </div>` : ''}
 
-      ${on('kpiMargin') ? `<div class="kpi-card">
+      ${on('kpiMargin') ? `<div class="kpi-card dz-tap" onclick="dzOpen('margin')" title="Tap for details">
         <div class="kpi-header">
           <span class="kpi-title">Net Daily Margin</span>
           <span class="kpi-badge ${netMargin >= 0 ? 'green' : 'red'}">MARGIN</span>
