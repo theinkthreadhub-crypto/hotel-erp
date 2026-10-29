@@ -2825,6 +2825,7 @@ const SETU_NAV = [
 let setuNavExpanded = '';
 function setuNavAllowed(id){
   if(!SCREENS[id] || !screenOn(id))return false;
+  if(activeUser && activeUser.access === 'captain' && !CAPTAIN_ALLOW.includes(id))return false;
   const allow = userPerms();
   return !(allow.length && !isManager() && !allow.includes(id));
 }
