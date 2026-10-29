@@ -668,6 +668,8 @@ export class SetuHotel extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS guestorder (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, items TEXT NOT NULL, note TEXT, name TEXT,
       status TEXT NOT NULL, at INTEGER, by TEXT, decided INTEGER, kot TEXT, reason TEXT)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS guestcall (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, kind TEXT, at INTEGER, done INTEGER DEFAULT 0, by TEXT)`);
+    // Outside hotel sync JSON: backup restores cannot cause a second WhatsApp receipt.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS receipt_send (id TEXT PRIMARY KEY, phone TEXT, status TEXT, provider_id TEXT, error TEXT, at INTEGER)`);
     this.meta = this.kvGet('meta') || { version: 0, savedAt: 0, day: '' };
     this.account = this.kvGet('account');
     if(this.account && !this.account.config) this.account.config = newConfig('restaurant', 'premium');
@@ -843,6 +845,110 @@ export class SetuHotel extends DurableObject {
     if(used + fresh.length > max)
       return { error: `Website billing limit reached (${max} bills a day). Please bill on the Setu PC app (Install for PC), or ask Aghanya Devanya Enterprises for an emergency unlock.` };
     return { tagged: true };
+  }
+
+  // WhatsApp Business Cloud API: server-only credentials, verified bill, recorded opt-in.
+  receiptConf(){
+    const e = this.env;
+    const token = String(e.WHATSAPP_ACCESS_TOKEN || ''), sender = String(e.WHATSAPP_PHONE_NUMBER_ID || '');
+    const template = String(e.WHATSAPP_RECEIPT_TEMPLATE || 'setu_receipt_v1');
+    const language = String(e.WHATSAPP_RECEIPT_LANGUAGE || 'en_US');
+    const version = String(e.WHATSAPP_GRAPH_VERSION || 'v24.0');
+    const provider = e.WHATSAPP_PROVIDER === 'baileys' ? 'baileys' : 'meta';
+    const gateway = String(e.BAILEYS_GATEWAY_URL || '').replace(/\/$/, '');
+    const gatewaySecret = String(e.BAILEYS_GATEWAY_SECRET || '');
+    const gatewayValid = /^https:\/\/[a-zA-Z0-9.-]+(?::443)?$/.test(gateway) && gatewaySecret.length >= 32;
+    return {provider, token,sender,template,language,version,gateway,gatewaySecret,
+      configured:provider === 'baileys' ? gatewayValid :
+        !!(token && /^\d{8,30}$/.test(sender) && /^[a-z0-9_]{3,80}$/.test(template))};
+  }
+  receiptLog(id){return this.sql.exec('SELECT * FROM receipt_send WHERE id = ?',id).toArray()[0] || null;}
+  receiptData(id){
+    let d = {};
+    try{d=JSON.parse(this.data()) || {};}catch(e){}
+    return {bill:(d.bills || []).find(b=>b && b.id===id),settings:d.settings||{},data:d};
+  }
+  receiptEligible(b,st){
+    const n=String(b?.phone||'').replace(/\D/g,'').replace(/^91(?=\d{10}$)/,'');
+    return !!(b && b.id && b.waReceiptConsent === true && +b.waConsentAt > Date.now()-7*DAY &&
+      +b.waConsentAt <= Date.now()+60000 && !b.cancelled &&
+      !['Zomato','Swiggy'].includes(b.channel) && /^[6-9]\d{9}$/.test(n) &&
+      ['auto','manual'].includes(st.waReceiptMode) && Number.isFinite(+b.total) && +b.total>=0);
+  }
+  receiptTextParams(b,st){
+    const clean=(v,n)=>String(v==null?'':v).replace(/[\r\n\t]+/g,' ').replace(/\s+/g,' ').slice(0,n);
+    const items=(b.items||[]).slice(0,30).map(i=>clean(i.name,55)+' x'+(+i.qty||0)+' Rs.'+(Math.round((+i.price||0)*(+i.qty||0)*100)/100).toFixed(2));
+    let line=items.join('; ');
+    if((b.items||[]).length>30)line+='; more items on printed bill';
+    if(line.length>500)line=line.slice(0,465).replace(/;[^;]*$/,'')+'; see printed bill for more';
+    if(b.disc)line+='; Discount Rs.'+(+b.disc).toFixed(2);
+    if(b.tax)line+='; GST Rs.'+(+b.tax).toFixed(2);
+    return [clean(st.name||this.account.name||'Restaurant',75),clean(b.no,25),
+      clean(b.date,20),clean(line,640),(+b.total).toFixed(2)];
+  }
+  async receiptSend(b){
+    const c=this.receiptConf(), {bill,settings}=this.receiptData(b.id);
+    if(!bill || !this.receiptEligible(bill,settings))return {status:'ineligible',error:'Bill receipt permission missing'};
+    const prior=this.receiptLog(bill.id);
+    if(prior)return {status:prior.status,id:prior.provider_id||'',error:prior.error||''};
+    if(!c.configured)return {status:'not_configured',error:'WhatsApp sender is not configured'};
+    // Baileys needs a separate Node.js service. If disconnected, do not create an outbox
+    // record: the bill remains eligible for a later sync or manager-triggered attempt.
+    if(c.provider === 'baileys'){
+      try{
+        const r=await fetch(c.gateway+'/health',{signal:AbortSignal.timeout(4000)});
+        const j=await r.json().catch(()=>({}));
+        if(!r.ok || !j.connected)return {status:'not_connected',error:'WhatsApp linked device offline; reconnect it first'};
+      }catch(e){return {status:'not_connected',error:'WhatsApp gateway is unreachable'};}
+    }
+    const used=this.sql.exec('SELECT COUNT(*) AS n FROM receipt_send WHERE at >= ?',Date.now()-DAY).toArray()[0].n;
+    if(used>=100)return {status:'daily_limit',error:'Daily WhatsApp receipt limit reached'};
+    const to='91'+String(bill.phone).replace(/\D/g,'').slice(-10);
+    this.sql.exec("INSERT OR IGNORE INTO receipt_send (id,phone,status,provider_id,error,at) VALUES (?,?,'sending','','',?)",bill.id,to,Date.now());
+    const payload={messaging_product:'whatsapp',to,type:'template',
+      template:{name:c.template,language:{code:c.language},components:[{type:'body',
+        parameters:this.receiptTextParams(bill,settings).map(text=>({type:'text',text}))}]}};
+    let result={status:'unknown',error:'Network outcome uncertain; check sender before manually sharing'};
+    try{
+      if(c.provider === 'baileys'){
+        const p=this.receiptTextParams(bill,settings);
+        const message='*'+p[0]+'*\nReceipt #'+p[1]+' · '+p[2]+'\n\n'+p[3]+
+          '\n\n*Bill total: Rs.'+p[4]+'*\nThank you for visiting.';
+        const resp=await fetch(c.gateway+'/send',{
+          method:'POST',headers:{'Authorization':'Bearer '+c.gatewaySecret,'Content-Type':'application/json'},
+          body:JSON.stringify({hotel:this.account.code,billId:bill.id,to:bill.phone,text:message}),
+          signal:AbortSignal.timeout(16000)
+        });
+        const j=await resp.json().catch(()=>({}));
+        result=j.status==='not_connected'&&resp.status===503 ? {status:'not_connected',error:'Linked WhatsApp disconnected'} :
+          resp.ok && j.status==='submitted' && j.id ? {status:'submitted',id:String(j.id)} :
+          resp.ok && ['sending','unknown','submitted'].includes(j.status) ?
+            {status:j.status,error:String(j.error||'')} :
+          {status:'failed',error:str(j.error||'WhatsApp gateway HTTP '+resp.status,180)};
+      }else{
+        const response=await fetch('https://graph.facebook.com/'+c.version+'/'+c.sender+'/messages',
+          {method:'POST',headers:{Authorization:'Bearer '+c.token,'Content-Type':'application/json'},
+           body:JSON.stringify(payload),signal:AbortSignal.timeout(12000)});
+        const j=await response.json().catch(()=>({}));
+        const id=j.messages && j.messages[0] && j.messages[0].id || '';
+        result=response.ok&&id ? {status:'submitted',id} :
+          {status:'failed',error:str(j.error?.message||'Meta HTTP '+response.status,180)};
+      }
+    }catch(e){result={status:'unknown',error:'Connection uncertain; do not retry blindly'};}
+    if(result.status==='not_connected'){
+      this.sql.exec('DELETE FROM receipt_send WHERE id = ?',bill.id);
+      return result;
+    }
+    this.sql.exec('UPDATE receipt_send SET status=?,provider_id=?,error=? WHERE id=?',
+      result.status,result.id||'',result.error||'',bill.id);
+    return result;
+  }
+  async receiptDispatch(){
+    if(!this.receiptConf().configured||this.blocked())return;
+    let d={};try{d=JSON.parse(this.data())||{};}catch(e){return;}
+    if(d.settings?.waReceiptMode!=='auto')return;
+    const recent=(d.bills||[]).filter(b=>this.receiptEligible(b,d.settings)&&!this.receiptLog(b.id)).slice(0,5);
+    for(const bill of recent)await this.receiptSend(bill);
   }
 
   // ---------- QR self-ordering ----------
@@ -1350,6 +1456,25 @@ export class SetuHotel extends DurableObject {
     }
     // QR self-ordering, staff side (the counter PC through its sync key, or a logged-in device)
     if(path.startsWith('/api/qr/')) return this.qrStaff(request, path, method, body, role, url);
+    if(path === '/api/receipt/status' && method === 'GET'){
+      const id=String(url.searchParams.get('billId')||'');
+      if(!/^[a-zA-Z0-9_-]{4,90}$/.test(id))return json(400,{error:'Invalid bill ID'});
+      const {bill,settings}=this.receiptData(id), entry=this.receiptLog(id);
+      if(!bill)return json(404,{error:'Bill not yet synced to cloud'});
+      return json(200,{configured:this.receiptConf().configured,consent:!!bill.waReceiptConsent,
+        mode:settings.waReceiptMode||'manual',status:entry?.status||'not_sent',
+        providerId:entry?.provider_id||'',error:entry?.error||''});
+    }
+    if(path === '/api/receipt/send' && method === 'POST'){
+      if(!isAdmin)return json(403,{error:'Manager / Main Counter only'});
+      if(this.blocked())return json(402,{error:'Subscription inactive'});
+      const id=String(body().billId||'');
+      if(!/^[a-zA-Z0-9_-]{4,90}$/.test(id))return json(400,{error:'Invalid bill ID'});
+      const {bill}=this.receiptData(id);
+      if(!bill)return json(409,{error:'Wait for cloud sync before sending this bill'});
+      const outcome=await this.receiptSend(bill);
+      return json(['submitted','sending'].includes(outcome.status)?200:outcome.status==='not_configured'?503:409,outcome);
+    }
     if(method === 'GET' && path === '/api/printers') return json(200, { printers: [], default: '', cloud: true });
     if(method === 'POST' && path === '/api/print') return json(501, { error: 'Direct printing is not available from the cloud. Please print from the Main Counter PC.' });
 
@@ -1381,6 +1506,8 @@ export class SetuHotel extends DurableObject {
       }catch(e){
         return json(500, { error: 'save failed: ' + e.message });
       }
+      // Automatic sending starts only after cloud persistence; failed/outcome-unknown sends are not retried blindly.
+      this.ctx.waitUntil(this.receiptDispatch().catch(() => {}));
       return json(200, { version: this.meta.version, savedAt: this.meta.savedAt, ...(changed ? { changed: true } : {}) });
     }
 

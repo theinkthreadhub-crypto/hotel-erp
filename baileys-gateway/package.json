@@ -1,0 +1,20 @@
+{
+  "name": "setu-whatsapp-baileys-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "One opt-in WhatsApp receipt sender for Setu Hotel ERP (unofficial Baileys linked device)",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check server.mjs && node --check core.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.24",
+    "pino": "^9.7.0",
+    "qrcode": "^1.5.4"
+  }
+}

@@ -912,6 +912,7 @@ const GROWTH_DEFAULTS = {
   review: '',
   orderWa: '',
   menuUrl: '',
+  waReceiptMode: 'manual', // Auto requires Meta Cloud API setup + explicit customer consent.
   loyalty: true,
   ptsPer100: 5,
   ptValue: 1,
@@ -2561,6 +2562,36 @@ function waOwner(text){
   if(!D.settings.owner){ toast('Please add the owner WhatsApp number in Settings (G)'); return; }
   waOpen(D.settings.owner, text);
 }
+// Manual customer receipt uses the full itemized bill; WhatsApp opens for staff to press Send.
+function waReceiptShare(id){
+  const bill=D.bills.find(b=>b.id===id);
+  if(!bill || !bill.phone) return toast('Bill or customer mobile is missing');
+  if(D.settings.waReceiptMode === 'off') return toast('WhatsApp receipts are turned OFF in Settings.');
+  if(!bill.waReceiptConsent && !confirm('Has this customer agreed to receive this bill on WhatsApp?')) return;
+  if(bill.waReceiptConsent && D.settings.waReceiptMode === 'auto' &&
+     !confirm('Automatic receipt may also be sent after cloud sync. Send this manually as well?')) return;
+  // Manual wa.me sharing never triggers the automatic API sender.
+  waOpen(bill.phone,billText(bill));
+}
+// API delivery is server-verified. UI never supplies the recipient or receipt amount.
+async function waReceiptApi(id){
+  const bill=D.bills.find(b=>b.id===id);
+  if(!bill || !bill.waReceiptConsent) return toast('Customer permission is required for a receipt');
+  if(!SRV.on) return toast('Cloud connection required. Use manual WhatsApp receipt instead.');
+  if(!isManager()) return toast('Only the Manager can submit an API receipt manually');
+  try{
+    const status=await srvFetch('/api/receipt/status?billId='+encodeURIComponent(id));
+    const info=await status.json().catch(()=>({}));
+    if(status.ok && ['submitted','sending','unknown','failed'].includes(info.status)){
+      if(info.status==='submitted')return toast('WhatsApp accepted the receipt (delivery not yet confirmed).');
+      if(info.status==='sending')return toast('WhatsApp receipt is sending. Check again shortly.');
+      return toast('Receipt '+info.status+': '+(info.error||'check Meta dashboard')+'. Use manual WhatsApp if needed.');
+    }
+    const r=await srvFetch('/api/receipt/send',{method:'POST',body:JSON.stringify({billId:id})});
+    const j=await r.json().catch(()=>({}));
+    toast(r.ok ? 'WhatsApp receipt submitted to Meta (delivery pending)' : (j.error||'Receipt failed; try manual WhatsApp'));
+  }catch(e){ toast('Cloud unavailable. Use manual WhatsApp receipt.'); }
+}
 
 /* ================= GROWTH HELPERS (QR, LOYALTY, CUSTOMERS, KOT TICKETS) ================= */
 function qrSvg(text){
@@ -3894,7 +3925,7 @@ function scrGateway(){
                   <td class="n font-bold">${money(b.total)}</td>
                   <td>
                     <button class="btn sm g" onclick="printBill('${b.id}','bill')" title="Print">Print</button>
-                    <button class="btn sm wa" onclick="${b.phone ? `waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))` : `waOwner(billText(getBill('${b.id}')))`}" title="WhatsApp">WhatsApp</button>
+                    <button class="btn sm wa" onclick="${b.phone ? `waReceiptShare('${b.id}')` : `waOwner(billText(getBill('${b.id}')))`}" title="WhatsApp">WhatsApp</button>
                   </td>
                 </tr>
               `).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:18px">No bills yet today</td></tr>'}
@@ -4239,6 +4270,7 @@ function newB(tbl = 'T-1', channel = 'Dine-In'){
     cust: '',
     phone: '',
     gstin: '',
+    waReceiptConsent: false,
     disc: 0,
     mode: channel === 'Zomato' ? 'Zomato Pay' : channel === 'Swiggy' ? 'Swiggy Pay' : 'Cash',
     note: '',
@@ -4415,6 +4447,14 @@ function scrBill(){
           <label>Customer GSTIN (B2B, optional)</label>
           <input value="${esc(B.gstin || '')}" maxlength="15" style="text-transform:uppercase" oninput="B.gstin=this.value.toUpperCase().trim();gstinLive(this,'b_gstin_h')" placeholder="for a company bill">${gstinHint('b_gstin_h')}
         </div>` : ''}
+        <div style="grid-column:1/-1">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">
+            <input type="checkbox" style="width:auto;min-width:18px;height:18px" ${B.waReceiptConsent ? 'checked' : ''}
+              onchange="B.waReceiptConsent=this.checked">
+            Customer agreed to receive this bill on WhatsApp (optional)
+          </label>
+          <small class="muted">Only with customer permission. Auto send needs Settings → WhatsApp receipts + vendor Meta API setup.</small>
+        </div>
         ${billFields().map((f, i) => `<div><label>${esc(f.label)}${f.required ? ' *' : ''}</label><input value="${esc((B.extra || {})[f.label] || '')}" oninput="setExtra(${i}, this.value)" maxlength="60"></div>`).join('')}`
         : `<div style="display:flex;align-items:flex-end"><button class="btn g sm" onclick="B.showCust=true;scrBill()">+ Customer name / mobile (optional)</button></div>`}
       </div>
@@ -4727,6 +4767,7 @@ function kacchaToB(k){
     cust: k.cust || '',
     phone: k.phone || '',
     gstin: k.gstin || '',
+    waReceiptConsent: !!k.waReceiptConsent,
     note: k.note || '',
     disc: k.disc || 0,
     mode: k.mode || 'Cash',
@@ -4769,6 +4810,7 @@ function saveKacchaBill(silent = false, noRender = false){
     cust: B.cust.trim(),
     phone: B.phone.trim(),
     ...(B.gstin ? {gstin: B.gstin} : {}),
+    waReceiptConsent: !!B.waReceiptConsent,
     note: B.note.trim(),
     extra: {...(B.extra || {})},
     disc: B.disc || 0,
@@ -4887,6 +4929,8 @@ function finalizePakkaBill(approvedDisc){
     cust: B.cust.trim(),
     phone: B.phone.trim(),
     ...(!cg.empty && (st.gstScheme || 'regular') === 'regular' && !isAggregator(ch) ? {gstin: cg.g} : {}),
+    waReceiptConsent: !!B.waReceiptConsent && hasPh && ['auto','manual'].includes(st.waReceiptMode || 'manual'),
+    waConsentAt: B.waReceiptConsent && hasPh ? Date.now() : 0,
     note: B.note.trim(),
     ...(Object.keys(extra).length ? {extra} : {}),
     mode: B.mode,
@@ -4921,7 +4965,7 @@ function finalizePakkaBill(approvedDisc){
 
   if(st.afterBill === 'none' || st.afterBill === 'print'){
     if(st.afterBill === 'print') printBill(bill.id, 'bill');
-    toast(`Bill #${bill.no} saved — ${money(bill.total)}${bill.token ? ' · Token #' + bill.token : ''}`);
+    toast(`Bill #${bill.no} saved — ${money(bill.total)}${bill.waReceiptConsent && st.waReceiptMode === 'auto' ? ' · WhatsApp pending cloud sync' : ''}`);
     return;
   }
   modal(`Bill #${bill.no} Saved — ${money(bill.total)}`, `
@@ -4933,7 +4977,8 @@ function finalizePakkaBill(approvedDisc){
       <button class="btn ok" autofocus onclick="printBill('${bill.id}','both')">Print Customer Bill + Kitchen KOT (2 Receipts)</button>
       <button class="btn g" onclick="printBill('${bill.id}','bill')">Print Customer Bill Only</button>
       <button class="btn g" onclick="printBill('${bill.id}','kot')">Print Kitchen KOT Only</button>
-      ${bill.phone ? `<button class="btn wa" onclick="waOpen('${esc(bill.phone)}',billText(getBill('${bill.id}')))">Customer WhatsApp Bill</button>` : ''}
+      ${bill.phone && st.waReceiptMode !== 'off' ? `<button class="btn wa" onclick="waReceiptShare('${bill.id}')">Customer WhatsApp Receipt (Manual)</button>` : ''}
+      ${bill.waReceiptConsent && st.waReceiptMode !== 'off' ? `<button class="btn g" onclick="waReceiptApi('${bill.id}')">Send / Check WhatsApp API Status</button>` : ''}
       <button class="btn wa" onclick="waOwner(billText(getBill('${bill.id}')))">Owner WhatsApp Bill</button>
       <button class="btn g" onclick="closeModal();$('#q').focus()">New Bill / Select Table (Esc)</button>
     </div>`);
@@ -5528,7 +5573,7 @@ function scrBills(){
             <td style="white-space:nowrap">
               <button class="btn sm g" onclick="printBill('${b.id}','bill')">Bill</button>
               <button class="btn sm g" onclick="printBill('${b.id}','kot')">KOT</button>
-              <button class="btn wa sm" onclick="${b.phone ? `waOpen('${esc(b.phone)}',billText(getBill('${b.id}')))` : `waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WhatsApp</button>
+              <button class="btn wa sm" onclick="${b.phone ? `waReceiptShare('${b.id}')` : `waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WhatsApp</button>
               ${b.cancelled ? '' : `<button class="btn sm" onclick="editBill('${b.id}')">Edit</button><button class="btn g sm" onclick="creditNote('${b.id}')" title="Item returned / price reduced">Credit Note</button><button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}${cnOfBill(b.id).map(c => ` <span class="status-pill" style="font-size:10px;padding:1px 6px">CN-${c.no} ${money(c.total)}</span>`).join('')}
             </td>
           </tr>
@@ -10744,6 +10789,17 @@ function scrSettings(){
     </div>
   </div>
 
+  <div class="card" style="border-left:4px solid #25d366">
+    <h3 style="margin-top:0">WhatsApp Customer Receipts</h3>
+    <div class="grid">
+      <div><label>Receipt Delivery Mode</label><select id="st_waReceiptMode">
+        <option value="off" ${s.waReceiptMode==='off'?'selected':''}>OFF — never send customer receipts</option>
+        <option value="manual" ${(!s.waReceiptMode||s.waReceiptMode==='manual')?'selected':''}>Manual — open customer's WhatsApp (free)</option>
+        <option value="auto" ${s.waReceiptMode==='auto'?'selected':''}>Automatic — Meta WhatsApp Business Cloud API</option>
+      </select></div>
+    </div>
+    <p class="muted" style="font-size:12px">Auto send needs a configured Setu Cloud Worker, Meta-approved utility template, and the customer's permission for each bill. Meta may charge per message. API credentials are stored on Cloudflare, never here. A receipt is queued only after cloud sync; an API acceptance is not delivery confirmation.</p>
+  </div>
   <div class="card" style="border-left:4px solid #16a34a">
     <h3 style="margin-top:0">Growth Add-ons (QR Menu, Review, Loyalty, Kitchen Display)</h3>
     <div class="grid">
@@ -11267,6 +11323,7 @@ function saveSettings(){
   ['ptsPer100','ptValue','minRedeem','kotLate','maxDiscPct'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = +$('#st_'+k).value || 0;
   });
+  if($('#st_waReceiptMode')) D.settings.waReceiptMode = ['off','manual','auto'].includes($('#st_waReceiptMode').value) ? $('#st_waReceiptMode').value : 'manual';
   if($('#st_loyalty')) D.settings.loyalty = $('#st_loyalty').value === '1';
   if($('#st_tokenOn')) D.settings.tokenOn = $('#st_tokenOn').value === '1';
   if($('#st_gstInclusive')) D.settings.gstInclusive = $('#st_gstInclusive').value === '1';

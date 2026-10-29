@@ -1137,6 +1137,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(401, {'error': 'pin required'})
             if path == '/api/qr/state':
                 return self.qr_proxy('GET', path)
+            if path == '/api/receipt/status':
+                if self.role() not in ('local', 'admin', 'manager'):
+                    return self.send_json(403, {'error': 'Staff receipt status permission required'})
+                return self.qr_proxy('GET', self.path)
             if path == '/api/clock':
                 # Setu Doctor: how far this PC's clock is from the cloud's (wrong date breaks licence and SSL)
                 try:
@@ -1197,6 +1201,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 # Any staff device may accept orders; QR settings and table codes are for the manager
                 if not self.role() or (path in ('/api/qr/settings', '/api/qr/table') and self.role() not in ('local', 'admin')):
                     return self.send_json(403, {'error': 'manager only'})
+                return self.qr_proxy('POST', path, self.read_json())
+            if path == '/api/receipt/send':
+                if self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'Manager or Main Counter only'})
                 return self.qr_proxy('POST', path, self.read_json())
             if path == '/api/support/ticket':
                 if self.role() not in ('local', 'admin') or not cloud:
