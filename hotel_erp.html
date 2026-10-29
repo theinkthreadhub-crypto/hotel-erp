@@ -462,6 +462,22 @@ body.kitchen-mode .kcard ul{font-size:19px}
  .setu-module-title span{display:none}
 }
 
+
+.setu-home-layout{display:grid;grid-template-columns:minmax(0,1fr) 282px;gap:14px;align-items:start;margin-bottom:8px}
+.setu-home-modules{min-width:0}
+.setu-home-modules .setu-module-grid{grid-template-columns:repeat(auto-fit,minmax(175px,1fr))}
+.setu-home-rail{display:grid;gap:12px}
+.setu-hub-panel{background:#fff;border:1px solid #dfe8f3;border-radius:13px;padding:12px;box-shadow:0 3px 12px rgba(16,38,62,.035)}
+.setu-hub-panel h3{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:#183454;margin:0}
+.setu-hub-panel h3 span{display:grid;place-items:center;border-radius:9px;color:#1c62b2;background:#e5f1ff;width:30px;height:30px;font-size:19px}
+.setu-hub-panel p{font-size:11px;color:#75869b;margin:7px 0 11px}
+.setu-hub-panel button{width:100%;display:flex;align-items:center;justify-content:space-between;text-align:left;
+  border:0;border-top:1px solid #eef1f5;background:#fff;padding:10px 5px;color:#2d4765;cursor:pointer;font-size:11.7px;font-weight:600}
+.setu-hub-panel button:hover{background:#f3f8fe;color:#1160a9}
+.setu-hub-arrow{font-size:18px;color:#8fa3be}
+@media(max-width:1220px){.setu-home-layout{grid-template-columns:minmax(0,1fr)}.setu-home-rail{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.setu-home-rail{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -2836,15 +2852,32 @@ function closeSetuNavigation(){document.body.classList.remove('setu-nav-open');}
 function toggleSetuNavigation(){document.body.classList.toggle('setu-nav-open');}
 function setuToggleGroup(id){setuNavExpanded=setuNavExpanded===id?'':id;drawSide();}
 function setuLaunchTiles(){
-  const groups=setuNavGroups().filter(g=>g.id!=='tools');
-  const head='<div class="setu-module-title"><strong>Modules & Sub-modules</strong><span>Select a module to open its existing screens</span></div>';
-  const cards=groups.map(g=>{
+  const groups=setuNavGroups();
+  const core=groups.filter(g=>!['reports','settings','tools'].includes(g.id));
+  const tiles=core.map(g=>{
     const target=g.items[0],labels=g.items.slice(0,3).map(id=>MENU.find(m=>m[2]===id)?.[1]||id);
     return '<button class="setu-module-tile" data-theme="'+g.theme+'" type="button" onclick="go(\''+target+'\')">'+
       '<span class="tile-icon">'+g.icon+'</span><span class="tile-copy"><strong>'+esc(g.title)+'</strong>'+
       '<small>'+esc(labels.join(' · '))+'</small></span></button>';
   }).join('');
-  return '<section aria-label="Modules and sub-modules">'+head+'<div class="setu-module-grid">'+cards+'</div></section>';
+  const panel=(id,title,icon)=> {
+    const group=groups.find(g=>g.id===id);
+    if(!group)return '';
+    return '<section class="setu-hub-panel" aria-label="'+esc(title)+'"><h3><span>'+icon+'</span> '+esc(title)+
+      '</h3><p>'+esc(group.detail)+'</p>'+
+      group.items.map(item=>{
+        const m=MENU.find(x=>x[2]===item);
+        if(!m)return '';
+        return '<button type="button" onclick="go(\''+item+'\')">'+
+          '<span>'+esc(m[1])+'</span><span class="setu-hub-arrow">›</span></button>';
+      }).join('')+'</section>';
+  };
+  const aside=panel('reports','Reports','▥')+panel('settings','Settings','⚙');
+  return '<section class="setu-home-layout" aria-label="Modules and configuration">'+
+    '<div class="setu-home-modules"><div class="setu-module-title"><strong>Modules &amp; Sub-modules</strong>'+
+    '<span>Select a module to open its existing screens</span></div>'+
+    '<div class="setu-module-grid">'+tiles+'</div></div>'+
+    (aside?'<div class="setu-home-rail">'+aside+'</div>':'')+'</section>';
 }
 
 function drawSide(){
