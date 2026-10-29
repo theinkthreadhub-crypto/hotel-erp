@@ -14,5 +14,11 @@ body=$(gh release view setu-latest --json body -q .body)
 version=$(echo "$body" | grep -oE 'Setu v[0-9]+\.[0-9]+\.[0-9]+' | head -1 | sed 's/Setu v//')
 sha=$(sha256sum public/download/Setu-POS-Setup.exe | cut -d' ' -f1)
 size=$(stat -c %s public/download/Setu-POS-Setup.exe)
-printf '{"version":"%s","sha256":"%s","size":%s,"at":"%s"}\n' "$version" "$sha" "$size" "$(date -u +%FT%TZ)" > public/download/latest.json
+# Cloudflare serves files up to 25 MiB: a bigger installer goes up in 20 MiB parts that the worker joins (installerDownload)
+parts=0
+if [ "$size" -gt 25000000 ]; then
+  (cd public/download && split -b 20M -d -a 2 Setu-POS-Setup.exe Setu-POS-Setup.exe.part && rm Setu-POS-Setup.exe)
+  parts=$(ls public/download/Setu-POS-Setup.exe.part* | wc -l)
+fi
+printf '{"version":"%s","sha256":"%s","size":%s,"parts":%s,"at":"%s"}\n' "$version" "$sha" "$size" "$parts" "$(date -u +%FT%TZ)" > public/download/latest.json
 cat public/download/latest.json
