@@ -5,7 +5,8 @@ const PORT = 8791, U = `http://127.0.0.1:${PORT}`, tmp = fs.mkdtempSync(path.joi
 const R = [], t = (name, ok, got) => R.push({ name, ok: !!ok, got });
 const call = async (p, body) => { const r = await fetch(U + p, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); return [r.status, await r.json().catch(() => ({}))]; };
 (async () => {
-  const srv = spawn(process.env.PYTHON || 'python3', [path.join(__dirname, '..', 'app_main.py'), '--server', '--port', String(PORT), '--data', data], { stdio: 'ignore' });
+  const pyCmd = (process.env.PYTHON || (process.platform === 'win32' ? 'python' : 'python3')).trim();
+  const srv = spawn(pyCmd, [path.join(__dirname, '..', 'app_main.py'), '--server', '--port', String(PORT), '--data', data], { stdio: 'ignore' });
   for(let i = 0; i < 50; i++){ try{ if((await fetch(U + '/api/ping')).ok) break; }catch(e){} await new Promise(r => setTimeout(r, 200)); }
   try{
     const D1 = { settings: { name: 'Test Dhaba' }, bills: [{ id: 'b1', no: 1, total: 105 }] };
@@ -15,7 +16,8 @@ const call = async (p, body) => { const r = await fetch(U + p, body ? { method: 
     t('Status: default folder, every 2 h, on', c === 200 && j.every === 2 && j.on === true && /Setu Backups/.test(j.folder), j);
     [c, j] = await call('/api/autobackup', { action: 'set', folder: dest, every: 4, keep: 3 });
     t('Folder changed to another place (created)', c === 200 && j.folder === dest && j.every === 4 && j.keep === 3 && fs.existsSync(dest), [c, j.folder]);
-    [c, j] = await call('/api/autobackup', { action: 'set', folder: '/proc/no-such/x' });
+    const badPath = process.platform === 'win32' ? 'Z:\\no-such-drive\\x' : '/proc/no-such/x';
+    [c, j] = await call('/api/autobackup', { action: 'set', folder: badPath });
     t('A folder that cannot be written is refused', c === 400 && j.error, [c, j]);
     [c, j] = await call('/api/autobackup', { action: 'now' });
     const f1 = j.lastFile, doc = f1 && JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(dest, f1))).toString());

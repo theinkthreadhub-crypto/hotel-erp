@@ -23,6 +23,14 @@
 #app-footer strong{color:#38bdf8}
 .footer-sep{opacity:0.25;margin:0 6px}
 
+/* S01 Settlement & Payment Status Badges */
+.bill-txn-badge{display:block;margin-bottom:8px;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:700;text-align:center;transition:all .2s ease}
+.bill-txn-badge.processing{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;animation:pulse 1.5s infinite}
+.bill-txn-badge.saved{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+.bill-txn-badge.unconfirmed{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.bill-txn-badge.settled{background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc}
+.bill-txn-badge.reconcile{background:#ffedd5;color:#9a3412;border:1px solid #fdba74}
+
 :root{
   --primary: #0284c7;
   --primary-dark: #0369a1;
@@ -192,6 +200,28 @@ tfoot td{font-weight:700;background:var(--surface);border-top:2px solid var(--bo
 .tbl-chip.occupied .pulse-dot{background:#f59e0b;box-shadow:0 0 6px #f59e0b;animation:pulse 1.5s infinite}
 .tbl-chip.occupied.active .pulse-dot{background:var(--panel);box-shadow:none}
 
+/* QR Self-Order Distinct Table Colors */
+.tbl-chip.qr-active{background:linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);border-color:#8b5cf6;color:#5b21b6;box-shadow:0 2px 8px rgba(139,92,246,0.22)}
+.tbl-chip.qr-active:hover{background:#ede9fe;border-color:#7c3aed;transform:translateY(-1px)}
+.tbl-chip.qr-active.active{background:linear-gradient(135deg,#8b5cf6,#6d28d9);color:#ffffff;border-color:#6d28d9;box-shadow:0 4px 12px rgba(124,58,237,0.38)}
+.tbl-chip.qr-active .pulse-dot{background:#8b5cf6;box-shadow:0 0 8px #8b5cf6;animation:pulse 1.2s infinite}
+.tbl-chip.qr-active.active .pulse-dot{background:#ffffff;box-shadow:0 0 6px rgba(255,255,255,0.9)}
+
+.tbl-chip.qr-pending{background:linear-gradient(135deg, #fdf4ff 0%, #fae8ff 100%);border-color:#d946ef;color:#86198f;box-shadow:0 2px 8px rgba(217,70,239,0.3);animation:qrBlink 1.4s infinite}
+.tbl-chip.qr-pending:hover{background:#fae8ff;border-color:#c026d3}
+.tbl-chip.qr-pending .pulse-dot{background:#d946ef;box-shadow:0 0 8px #d946ef}
+@keyframes qrBlink{0%{box-shadow:0 0 0 0 rgba(217,70,239,0.45)}70%{box-shadow:0 0 0 7px rgba(217,70,239,0)}100%{box-shadow:0 0 0 0 rgba(217,70,239,0)}}
+
+/* Table Status Color Legend */
+.table-legend-wrap{display:inline-flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px}
+.legend-item{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:var(--text);white-space:nowrap}
+.legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
+.legend-label{font-size:11px}
+
+/* Active Tables Tray QR Card */
+.active-table-card.qr-order{background:linear-gradient(180deg,#fff 0%,#faf5ff 100%);border-color:#c4b5fd;box-shadow:0 4px 12px rgba(139,92,246,0.12)}
+.active-table-card.qr-order:hover{border-color:#8b5cf6;box-shadow:0 8px 18px rgba(139,92,246,0.22)}
+
 /* Bottom Active Tables Tray */
 .active-tables-tray{background:var(--panel);border:1.5px solid #fed7aa;border-radius:14px;padding:16px 20px;margin-top:20px;box-shadow:0 6px 16px rgba(245,158,11,0.08)}
 .active-tables-tray-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
@@ -206,6 +236,36 @@ tfoot td{font-weight:700;background:var(--surface);border-top:2px solid var(--bo
 .at-amt{font-size:20px;font-weight:800;color:#b45309;font-family:'Plus Jakarta Sans',sans-serif;margin:4px 0}
 .at-items{font-size:12px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .at-footer{display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed #fed7aa;font-size:11px;color:#b45309;font-weight:700}
+
+/* WhatsApp Reports & Message Tracking */
+.wa-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.wa-badge.queued{background:rgba(100,116,139,0.15);color:#475569;border:1px solid rgba(100,116,139,0.3)}
+.wa-badge.processing{background:rgba(59,130,246,0.15);color:#2563eb;border:1px solid rgba(59,130,246,0.3)}
+.wa-badge.submitted{background:rgba(14,165,233,0.15);color:#0284c7;border:1px solid rgba(14,165,233,0.3)}
+.wa-badge.sent{background:rgba(99,102,241,0.15);color:#4f46e5;border:1px solid rgba(99,102,241,0.3)}
+.wa-badge.delivered{background:rgba(16,185,129,0.15);color:#059669;border:1px solid rgba(16,185,129,0.3)}
+.wa-badge.read{background:rgba(20,184,166,0.15);color:#0d9488;border:1px solid rgba(20,184,166,0.3)}
+.wa-badge.failed{background:rgba(239,68,68,0.15);color:#dc2626;border:1px solid rgba(239,68,68,0.3)}
+.wa-badge.unknown{background:rgba(168,85,247,0.15);color:#9333ea;border:1px solid rgba(168,85,247,0.3)}
+.wa-badge.skipped{background:rgba(148,163,184,0.15);color:#64748b;border:1px solid rgba(148,163,184,0.3)}
+.wa-badge.cancelled{background:rgba(71,85,105,0.15);color:#334155;border:1px solid rgba(71,85,105,0.3)}
+
+.wa-timeline{position:relative;padding:16px 0 16px 28px;margin:12px 0}
+.wa-timeline::before{content:'';position:absolute;left:10px;top:20px;bottom:20px;width:2px;background:var(--border)}
+.wa-tl-item{position:relative;margin-bottom:14px}
+.wa-tl-item:last-child{margin-bottom:0}
+.wa-tl-dot{position:absolute;left:-24px;top:4px;width:12px;height:12px;border-radius:50%;background:var(--border);border:2px solid var(--panel)}
+.wa-tl-dot.active{background:var(--primary);box-shadow:0 0 6px rgba(2,132,199,0.5)}
+.wa-tl-dot.ok{background:var(--ok);box-shadow:0 0 6px rgba(16,185,129,0.5)}
+.wa-tl-dot.err{background:var(--bad);box-shadow:0 0 6px rgba(239,68,68,0.5)}
+.wa-tl-head{display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700}
+.wa-tl-time{font-size:11px;color:var(--text-muted);font-weight:normal;font-family:'JetBrains Mono',monospace}
+.wa-tl-note{font-size:12px;color:var(--text-muted);margin-top:2px}
+
+.wa-alert-banner{padding:12px 16px;border-radius:10px;margin-bottom:16px;display:flex;align-items:center;gap:12px;font-size:13px}
+.wa-alert-banner.warn{background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.35);color:#b45309}
+.wa-alert-banner.bad{background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#b91c1c}
+.wa-alert-banner.info{background:rgba(2,132,199,0.12);border:1px solid rgba(2,132,199,0.35);color:#0369a1}
 
 /* Billing Screen Layout */
 .bill{display:grid;grid-template-columns:1.15fr 1fr;gap:16px}
@@ -278,6 +338,17 @@ tfoot td{font-weight:700;background:var(--surface);border-top:2px solid var(--bo
 #modal .box .in{padding:18px}
 #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:10px 20px;border-radius:8px;display:none;z-index:10000001;font-size:13px;font-weight:600;box-shadow:0 8px 16px rgba(0,0,0,0.2)}
 pre.wa{background:#f0fdf4;border:1px solid #bbf7d0;padding:14px;border-radius:8px;white-space:pre-wrap;font:13px/1.5 'Plus Jakarta Sans',sans-serif;margin:0;color:#166534}
+.wa-btn-group{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.wa-badge{display:inline-flex;align-items:center;gap:4px;padding:4px 9px;border-radius:6px;font-size:11px;font-weight:700}
+.wa-badge.wa-submitted{background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd}
+.wa-badge.wa-sent{background:#e0e7ff;color:#4338ca;border:1px solid #c7d2fe}
+.wa-badge.wa-delivered{background:#dcfce7;color:#15803d;border:1px solid #bbf7d0}
+.wa-badge.wa-read{background:#ccfbf1;color:#0f766e;border:1px solid #99f6e4}
+.wa-badge.wa-unknown, button.wa-unknown{background:#fef3c7;color:#b45309;border:1px solid #fde68a;font-weight:700}
+.wa-badge.wa-failed, button.wa-failed{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;font-weight:700}
+.btn.wa-sending{background:#94a3b8!important;border-color:#94a3b8!important;color:#fff!important;cursor:not-allowed}
+.wa-resend{background:#f1f5f9;color:#475569;border:1px solid #cbd5e1}
+.wa-resend:hover{background:#e2e8f0;color:#0f172a}
 .den input{width:90px;text-align:right}
 #print{display:none}
 @media (max-width:960px){.bill{grid-template-columns:1fr}.dash-columns{grid-template-columns:1fr}#side{display:none}}
@@ -640,20 +711,61 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
     </div>
   </div>
 
-  <!-- VIEW B: Returning User - Sign In -->
-  <div class="login-card" id="login-view-signin" style="max-width:440px">
+  <!-- GATE-1: Hotel Access (Hotel ID + Password) -->
+  <div class="login-card" id="login-view-gate1" style="display:none;max-width:440px">
     <img src="icon-192.png" alt="Aghanya Devanya Enterprises" style="width:68px;height:68px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.12);margin:0 auto 12px;display:block;border:1px solid #e2e8f0;background:#fff">
-    <h2 id="login-hotel-name">Restaurant POS</h2>
-    <p class="subtitle" style="margin-bottom:12px">Setu — Restaurant & Hotel POS</p>
-    
-    <!-- License Status Banner -->
-    <div id="login-sub-box" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
-      <span>License: <b id="login-lic-status">Active</b></span>
+    <div style="font-size:11px;font-weight:800;color:#0284c7;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">Aghanya Devanya Enterprises</div>
+    <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Gate 1 · Hotel Access</h2>
+    <p class="subtitle" style="margin-bottom:18px">Enter Hotel ID and Master Password to open this property</p>
+
+    <div id="gate1-sub-box" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
+      <span>License: <b id="gate1-lic-status">Active</b></span>
       <button type="button" class="btn g sm" style="padding:2px 8px;font-size:11px" onclick="openActivationModal()">Enter Key</button>
     </div>
 
-    <div id="signup-success-msg" style="display:none;background:#f0fdf4;border:1.5px solid #86efac;color:#166534;border-radius:8px;padding:10px 12px;font-size:12px;font-weight:600;margin-bottom:14px">
-      Sign-up successful. Please sign in with your User ID and password.
+    <form onsubmit="handleGate1Submit(event)">
+      <div class="login-field">
+        <label>Hotel ID / Code *</label>
+        <input id="gate1_hotel_id" required placeholder="e.g. SETU001" autocomplete="username">
+        <small style="color:#64748b;font-size:11px;display:block;margin-top:4px">Unique Hotel ID generated by Super Admin (immutable to staff)</small>
+      </div>
+      <div class="login-field">
+        <label>Hotel Master Password *</label>
+        <input id="gate1_password" type="password" required placeholder="Master Hotel Password" autocomplete="current-password">
+      </div>
+
+      <div id="gate1_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
+      <button class="btn ok" style="width:100%;padding:12px;font-size:14px;border-radius:8px;font-weight:700" type="submit">Verify Hotel Access →</button>
+    </form>
+
+    <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
+      <a href="javascript:void(0)" onclick="showLoginView('signup')" style="color:var(--primary);font-weight:700;text-decoration:none">+ New Sign Up / Register</a>
+      <a href="javascript:void(0)" onclick="openActivationModal()" style="color:#64748b;text-decoration:none">Enter Activation Key</a>
+    </div>
+
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b">
+      Official Software by <strong style="color:#0f172a">Aghanya Devanya Enterprises</strong>
+      <div class="app-ver" style="margin-top:2px"></div>
+    </div>
+  </div>
+
+  <!-- GATE-2: Staff Member Access (PIN / Password Entry) -->
+  <div class="login-card" id="login-view-gate2" style="max-width:440px">
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
+      <img id="gate2-hotel-logo" src="icon-192.png" alt="Hotel Logo" style="width:48px;height:48px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid #e2e8f0;background:#fff">
+      <div style="text-align:left">
+        <h2 id="gate2-hotel-name" style="font-size:18px;margin:0;color:#0f172a">Restaurant POS</h2>
+        <span class="status-pill" style="font-size:10px;padding:1px 6px;background:#e0f2fe;color:#0369a1;font-weight:700">Hotel ID: <b id="gate2-hotel-id">SETU001</b></span>
+      </div>
+    </div>
+    
+    <div style="font-size:11px;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Gate 2 · Staff Access</div>
+    <p class="subtitle" style="margin-bottom:14px">Enter your Staff PIN to access the billing counter</p>
+
+    <!-- License Status Banner -->
+    <div id="login-sub-box" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <span>License: <b id="login-lic-status">Active</b></span>
+      <button type="button" class="btn g sm" style="padding:2px 8px;font-size:11px" onclick="openActivationModal()">Enter Key</button>
     </div>
 
     <div class="role-tabs">
@@ -661,43 +773,23 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
       <button class="role-tab" type="button" id="tab-login-cashier" onclick="setLoginRole('cashier')">Billing Staff / Cashier</button>
     </div>
 
-    <form onsubmit="handleSignInSubmit(event)">
-      <div id="login-admin-fields">
-        <div class="login-field">
-          <label>Personal User ID / Mobile</label>
-          <input id="login_user_id" required placeholder="User ID or mobile number" autocomplete="username">
-        </div>
-        <div class="login-field">
-          <label>Personal Password / PIN</label>
-          <input id="login_pin" type="password" required placeholder="Security Password / PIN" autocomplete="current-password">
-        </div>
+    <form onsubmit="handleGate2Submit(event)">
+      <div class="login-field">
+        <label id="gate2-pin-label">Staff Security PIN / Password *</label>
+        <input id="gate2_pin" type="password" required placeholder="Enter 4-6 digit PIN" autocomplete="current-password" autofocus>
       </div>
 
-      <div id="login-cashier-fields" style="display:none">
-        <div class="login-field">
-          <label>Staff / Cashier Name</label>
-          <input id="login_cashier_name" placeholder="Staff Name" value="Cashier">
-        </div>
-        <div class="login-field">
-          <label>Cashier PIN</label>
-          <input id="login_cashier_pin" type="password" placeholder="Cashier PIN (Default 1111)">
-        </div>
-      </div>
-
-      <div id="login_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none">Incorrect User ID or password. Please try again.</div>
-      <button class="btn ok" style="width:100%;padding:12px;font-size:14px;border-radius:8px;font-weight:700" type="submit">Sign In to POS</button>
+      <div id="gate2_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none">Incorrect Staff PIN. Please try again.</div>
+      <button class="btn ok" style="width:100%;padding:12px;font-size:14px;border-radius:8px;font-weight:700" type="submit">Sign In to POS Counter</button>
     </form>
 
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
-      <a href="javascript:void(0)" onclick="showLoginView('signup')" style="color:var(--primary);font-weight:700;text-decoration:none">+ New Sign Up / Register</a>
-      <a href="javascript:void(0)" onclick="openActivationModal()" style="color:#64748b;text-decoration:none">Enter Activation Key</a>
-    </div>
-    <div style="margin-top:8px;text-align:center;font-size:12px">
-      <a href="javascript:void(0)" onclick="forgotPass()" style="color:#dc2626;font-weight:700;text-decoration:none">Forgot password?</a>
+      <a href="javascript:void(0)" onclick="switchHotel()" style="color:#0284c7;font-weight:600;text-decoration:none">🔄 Switch Hotel</a>
+      <a href="javascript:void(0)" onclick="logoutHotel()" style="color:#dc2626;font-weight:600;text-decoration:none">🚪 Complete Hotel Logout</a>
     </div>
 
-    <div style="margin-top:14px">
-      <button type="button" class="btn g sm" style="width:100%;font-size:12px" onclick="triggerPWAInstall()">Install Software on PC / Desktop</button>
+    <div style="margin-top:10px;text-align:center;font-size:12px">
+      <a href="javascript:void(0)" onclick="forgotPass()" style="color:#64748b;text-decoration:none">Forgot PIN / Password?</a>
     </div>
 
     <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e2e8f0;font-size:11px;color:#64748b">
@@ -793,7 +885,8 @@ html[data-theme="neon"] .dash-welcome{background:linear-gradient(135deg,#0e1a38,
       <span><b id="top_user_name">Manager</b></span>
       <span class="role" id="top_user_role">Admin</span>
     </div>
-    <button class="btn-logout" onclick="logout()" title="Logout of current session">Logout</button>
+    <button class="btn-logout" onclick="logoutStaff()" title="Staff Logout (returns to Gate-2)">Staff Logout</button>
+    <button class="btn-logout" style="background:#dc2626;color:#fff;border-color:#b91c1c;margin-left:4px" onclick="logoutHotel()" title="Complete Hotel Logout (returns to Gate-1)">Hotel Exit</button>
   </div>
 </header>
 
@@ -1301,6 +1394,25 @@ function merge3(base, mine, theirs){
   const md = ms.tokenDate || '', td = ts.tokenDate || '';
   out.seq.tokenDate = md > td ? md : td;
   out.seq.token = md === td ? Math.max(+ms.token || 0, +ts.token || 0) : (md > td ? +ms.token || 0 : +ts.token || 0);
+
+  // S01 Idempotency deduplication: ensure no duplicate bills share an idemKey
+  const theirsBills = (theirs.bills || []).filter(x => x && typeof x === 'object');
+  const theirIdemMap = new Map();
+  theirsBills.forEach(x => { if(x.idemKey) theirIdemMap.set(x.idemKey, x); });
+  const dedupedBills = [];
+  const seenIdem = new Set();
+  (out.bills || []).forEach(b => {
+    if(!b || typeof b !== 'object') return;
+    const ik = b.idemKey;
+    if(ik){
+      if(seenIdem.has(ik)) return;
+      seenIdem.add(ik);
+      if(theirIdemMap.has(ik)) b = theirIdemMap.get(ik);
+    }
+    dedupedBills.push(b);
+  });
+  out.bills = dedupedBills;
+
   // Two devices may have used the same bill / KOT number: give this device's new ones fresh numbers
   [['bills', 'bill'], ['kots', 'kot']].forEach(([list, key]) => {
     const theirIds = new Set((theirs[list] || []).map(x => x.id)), baseIds = new Set(((base || {})[list] || []).map(x => x.id));
@@ -1379,6 +1491,7 @@ async function srvPush(){
         // The server added its own parts (plan config, license keys): pull them in
         if(j.changed){ SRV.version = -1; setTimeout(srvPoll, 300); }
         srvStatus(true);
+        if(billTxnStatus === 'unconfirmed') setBillTxnStatus('saved', '✅ Payment confirmed on server');
         continue;
       }
       if(r.status === 409){
@@ -1420,6 +1533,7 @@ async function srvPush(){
   }catch(e){
     logError(SRV.cloud ? 'Data was not saved to the cloud' : 'Data was not saved to the Main Counter', SRV.cloud ? 'Hotel Setu Cloud sync' : 'Main Counter sync (save)', e.message);
     srvStatus(false);
+    setBillTxnStatus('unconfirmed', '⚠️ Payment saved locally · Syncing with Main Counter/Cloud...');
     setTimeout(srvPush, 3000);
   }finally{
     SRV.busy = false;
@@ -1959,33 +2073,52 @@ async function activateLicenseKey(keyStr, reason = 'Key Activation'){
   return { success: true, validUntil: D.subscription.validUntil, plan: info.plan, isLifetime: info.isLifetime };
 }
 
-/* ================= AUTHENTICATION & SIGN-UP FLOW ================= */
+/* ================= AUTHENTICATION & SIGN-UP FLOW (GATE-1 & GATE-2) ================= */
+const GATE1_KEY = 'SETU_GATE1_HOTEL';
 let activeUser = null;
 let selectedLoginRole = 'admin';
+
+function getGate1Session(){
+  try {
+    return JSON.parse(sessionStorage.getItem(GATE1_KEY) || 'null');
+  } catch(e) { return null; }
+}
 
 function showLoginView(view){
   fillInstallIds();
   const vSignup = $('#login-view-signup');
-  const vSignin = $('#login-view-signin');
-  if(!vSignup || !vSignin) return;
+  const vGate1 = $('#login-view-gate1');
+  const vGate2 = $('#login-view-gate2');
+  if(!vSignup || !vGate1 || !vGate2) return;
+
+  vSignup.style.display = view === 'signup' ? 'block' : 'none';
+  vGate1.style.display = view === 'gate1' ? 'block' : 'none';
+  vGate2.style.display = (view === 'gate2' || view === 'signin') ? 'block' : 'none';
+
   if(view === 'signup'){
-    vSignup.style.display = 'block';
-    vSignin.style.display = 'none';
     const err = $('#signup_err');
     if(err) err.style.display = 'none';
     setTimeout(() => $('#signup_hotel_name')?.focus(), 100);
-  } else {
-    vSignup.style.display = 'none';
-    vSignin.style.display = 'block';
-    const err = $('#login_err');
+  } else if(view === 'gate1'){
+    const err = $('#gate1_err');
     if(err) err.style.display = 'none';
-    $('#login-hotel-name').textContent = D.settings.name || 'Restaurant POS';
-    if(D.auth && D.auth.userId){
-      $('#login_user_id').value = D.auth.userId;
-      setTimeout(() => $('#login_pin')?.focus(), 100);
-    } else {
-      setTimeout(() => $('#login_user_id')?.focus(), 100);
-    }
+    const hid = (D.settings && D.settings.hotelId) || (D.auth && D.auth.hotelId) || 'SETU001';
+    if($('#gate1_hotel_id')) $('#gate1_hotel_id').value = hid;
+    if($('#gate1_password')) $('#gate1_password').value = '';
+    setTimeout(() => $('#gate1_password')?.focus(), 100);
+  } else {
+    // gate2 / staff access
+    const err = $('#gate2_err');
+    if(err) err.style.display = 'none';
+    const gate1 = getGate1Session();
+    const hName = (gate1 && gate1.hotelName) || (D.settings && D.settings.name) || 'Setu Pro Hotel ERP';
+    const hId = (gate1 && gate1.hotelId) || (D.settings && D.settings.hotelId) || 'SETU001';
+    if($('#gate2-hotel-name')) $('#gate2-hotel-name').textContent = hName;
+    if($('#gate2-hotel-id')) $('#gate2-hotel-id').textContent = hId;
+    if(gate1 && gate1.logo && $('#gate2-hotel-logo')) $('#gate2-hotel-logo').src = gate1.logo;
+    updateSubscriptionUI();
+    if($('#gate2_pin')) $('#gate2_pin').value = '';
+    setTimeout(() => $('#gate2_pin')?.focus(), 100);
   }
 }
 
@@ -1996,26 +2129,36 @@ function setLoginRole(role){
     tabAdmin.classList.toggle('active', role === 'admin');
     tabCashier.classList.toggle('active', role === 'cashier');
   }
-  const fAdmin = $('#login-admin-fields'), fCashier = $('#login-cashier-fields');
-  if(fAdmin && fCashier){
-    fAdmin.style.display = role === 'admin' ? 'block' : 'none';
-    fCashier.style.display = role === 'cashier' ? 'block' : 'none';
+  const label = $('#gate2-pin-label');
+  if(label){
+    label.textContent = role === 'admin' ? 'Manager / Owner PIN or Password *' : 'Cashier / Staff Security PIN *';
   }
-  // Hidden Manager fields must not stay "required", or the browser silently blocks the Cashier sign-in
-  ['#login_user_id', '#login_pin'].forEach(id => { const el = $(id); if(el) el.required = role === 'admin'; });
-  const err = $('#login_err');
+  const err = $('#gate2_err');
   if(err) err.style.display = 'none';
-  if(role === 'admin'){
-    $('#login_pin')?.focus();
-  } else {
-    $('#login_cashier_pin')?.focus();
-  }
+  $('#gate2_pin')?.focus();
 }
 
 function checkAuth(){
+  const gate1 = getGate1Session();
+  
+  // If first-time install (not registered yet), show Sign Up
+  if(!D.auth || !D.auth.isRegistered){
+    $('#login-screen').style.display = 'flex';
+    showLoginView('signup');
+    return false;
+  }
+
+  // If Gate-1 session missing, prompt Gate-1 Hotel Access
+  if(!gate1 || !gate1.hotelId){
+    $('#login-screen').style.display = 'flex';
+    showLoginView('gate1');
+    return false;
+  }
+
+  // Gate-1 passed; check Gate-2 (activeUser session)
   try{
     const saved = JSON.parse(sessionStorage.getItem(AUTH_KEY) || localStorage.getItem(AUTH_KEY));
-    if(saved && saved.name){
+    if(saved && saved.name && (SRV.token || saved.role)){
       activeUser = saved;
       updateUserUI();
       $('#login-screen').style.display = 'none';
@@ -2024,16 +2167,157 @@ function checkAuth(){
     }
   }catch(e){}
 
+  // Gate-1 active, but staff not logged in -> show Gate-2
   $('#login-screen').style.display = 'flex';
-  updateSubscriptionUI();
-
-  // If first-time install (no registration yet), show Sign Up first!
-  if(!D.auth || !D.auth.isRegistered){
-    showLoginView('signup');
-  } else {
-    showLoginView('signin');
-  }
+  showLoginView('gate2');
   return false;
+}
+
+async function handleGate1Submit(e){
+  e.preventDefault();
+  const hid = ($('#gate1_hotel_id')?.value || '').trim();
+  const pass = ($('#gate1_password')?.value || '').trim();
+  const err = $('#gate1_err');
+  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
+
+  if(!hid || !pass){
+    showErr('Please enter both Hotel ID and Hotel Master Password.');
+    return;
+  }
+
+  // Try server verification endpoint /api/hotel/auth
+  try {
+    const res = await fetch('/api/hotel/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hotelId: hid, password: pass })
+    });
+    if(res.status === 402){
+      showErr('Hotel subscription has expired. Please enter an activation key.');
+      openActivationModal();
+      return;
+    }
+    if(res.status === 404){
+      showErr('Hotel ID not found. Verify the ID assigned by Super Admin.');
+      return;
+    }
+    if(res.status === 403){
+      showErr('Incorrect Hotel Password. Please try again.');
+      return;
+    }
+    if(res.ok){
+      const j = await res.json();
+      const gate1Data = {
+        hotelId: j.hotelId || hid,
+        hotelName: j.name || D.settings.name || 'Setu Pro Hotel ERP',
+        logo: j.logo || D.settings.logo || '',
+        activeAt: Date.now()
+      };
+      sessionStorage.setItem(GATE1_KEY, JSON.stringify(gate1Data));
+      if(err) err.style.display = 'none';
+      toast('Gate-1 Hotel Access Verified: ' + gate1Data.hotelName);
+      showLoginView('gate2');
+      return;
+    }
+  } catch(netErr) {
+    // Offline local fallback if database already configured
+    const localHid = (D.settings && D.settings.hotelId) || (D.auth && D.auth.hotelId) || 'SETU001';
+    const localPw = (D.auth && D.auth.password) || (D.settings && D.settings.adminPin) || '';
+    if(D.auth && D.auth.isRegistered){
+      if(hid.toUpperCase() === localHid.toUpperCase() && (pass === localPw || pass === D.settings.adminPin)){
+        const gate1Data = {
+          hotelId: localHid,
+          hotelName: D.settings.name || 'Setu Pro Hotel ERP',
+          logo: D.settings.logo || '',
+          activeAt: Date.now()
+        };
+        sessionStorage.setItem(GATE1_KEY, JSON.stringify(gate1Data));
+        if(err) err.style.display = 'none';
+        toast('Gate-1 Verified (Offline Standalone): ' + localHid);
+        showLoginView('gate2');
+        return;
+      } else {
+        showErr('Incorrect Hotel ID or Password.');
+        return;
+      }
+    }
+    showErr('Could not reach verification server. Check network.');
+  }
+}
+
+async function handleGate2Submit(e){
+  e.preventDefault();
+  const err = $('#gate2_err');
+  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
+
+  const gate1 = getGate1Session();
+  if(!gate1 || !gate1.hotelId){
+    showLoginView('gate1');
+    return;
+  }
+
+  const pin = ($('#gate2_pin')?.value || '').trim();
+  if(!pin){
+    showErr('Please enter your Staff PIN.');
+    return;
+  }
+
+  // Server login via /api/login
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if(gate1.hotelId) headers['X-Hotel-ID'] = gate1.hotelId;
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ pin, hotelId: gate1.hotelId })
+    });
+    if(!res.ok){
+      const j = await res.json().catch(() => ({}));
+      showErr(res.status === 403 ? 'Invalid Staff PIN. Please try again.' : (j.error || 'Login failed'));
+      return;
+    }
+    const j = await res.json();
+    SRV.token = j.token;
+    lsSet(TOKEN_KEY, j.token);
+    activeUser = {
+      name: j.name || (j.role === 'admin' ? 'Manager' : 'Staff'),
+      role: j.role === 'admin' ? 'admin' : (j.role === 'manager' ? 'admin' : 'cashier'),
+      access: j.role === 'admin' ? 'manager' : j.role,
+      hotelId: gate1.hotelId,
+      time: Date.now()
+    };
+    if(err) err.style.display = 'none';
+    finishLogin();
+  } catch(netErr) {
+    // Offline local fallback
+    const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password);
+    const validCashierPin = D.settings.cashierPin || '1111';
+    const st = staffByPin(pin);
+    let role = 'cashier';
+    let userName = 'Staff';
+    if(pin === validAdminPin){
+      role = 'admin';
+      userName = (D.auth && D.auth.ownerName) || 'Manager';
+    } else if(st){
+      userName = st.name;
+      role = st.access === 'manager' ? 'admin' : 'cashier';
+    } else if(pin === validCashierPin){
+      role = 'cashier';
+      userName = 'Cashier';
+    } else {
+      showErr('Invalid Staff PIN. Please try again.');
+      return;
+    }
+    activeUser = {
+      name: userName,
+      role: role,
+      access: role === 'admin' ? 'manager' : 'cashier',
+      hotelId: gate1.hotelId,
+      time: Date.now()
+    };
+    if(err) err.style.display = 'none';
+    finishLogin();
+  }
 }
 
 async function handleSignUpSubmit(e){
@@ -2047,14 +2331,7 @@ async function handleSignUpSubmit(e){
   const key = ($('#signup_key')?.value || '').trim().toUpperCase();
 
   const err = $('#signup_err');
-  const showErr = (msg) => {
-    if(err){
-      err.textContent = msg;
-      err.style.display = 'block';
-    } else {
-      alert(msg);
-    }
-  };
+  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
 
   if(!hotelName || !ownerName || !phone || !userId || !pass || !cpass || !key){
     showErr('Please fill in all required (*) fields.');
@@ -2067,14 +2344,12 @@ async function handleSignUpSubmit(e){
     return;
   }
 
-  // Same rule as Settings → Owner Password and Hotel Setu Cloud: the owner also logs in from the phone with it
   if(pass.length < 6 || WEAK_PASS.includes(pass.toLowerCase()) || /^(.)\1+$/.test(pass)){
-    showErr('The password must have at least 6 characters and must not be simple (1234, 123456, 111111 are not allowed). It is also used on the phone app.');
+    showErr('The password must have at least 6 characters and must not be simple (1234, 123456, 111111 are not allowed).');
     $('#signup_password')?.focus();
     return;
   }
 
-  // Verify and consume initial 1-month activation key
   const act = await activateLicenseKey(key, 'Sign-Up 1st Month Activation');
   if(!act.success){
     showErr(act.message);
@@ -2082,15 +2357,17 @@ async function handleSignUpSubmit(e){
     return;
   }
 
-  // Save registration credentials
+  const generatedHotelId = 'SETU' + String(Math.floor(100 + Math.random() * 900));
   D.auth = {
     isRegistered: true,
+    hotelId: generatedHotelId,
     userId,
     password: pass,
     ownerName,
     phone,
     registeredAt: Date.now()
   };
+  D.settings.hotelId = generatedHotelId;
   D.settings.name = hotelName;
   D.settings.owner = phone;
   D.settings.phone = phone;
@@ -2098,68 +2375,20 @@ async function handleSignUpSubmit(e){
   D.settings.cashierPin = '1111';
   save();
 
-  // Switch to sign in view so they sign in with their personal ID/password
-  showLoginView('signin');
-  $('#login_user_id').value = userId;
-  $('#login_pin').value = '';
-  const msgBox = $('#signup-success-msg');
-  if(msgBox){
-    msgBox.style.display = 'block';
-    msgBox.textContent = `Sign-up successful and license activated. Please sign in with your password.`;
-  }
-  $('#login_pin')?.focus();
-  toast('Sign-up successful. License activated.');
-}
+  // Establish Gate-1 session directly on successful sign-up
+  sessionStorage.setItem(GATE1_KEY, JSON.stringify({
+    hotelId: generatedHotelId,
+    hotelName: hotelName,
+    logo: '',
+    activeAt: Date.now()
+  }));
 
-function handleSignInSubmit(e){
-  e.preventDefault();
-  const err = $('#login_err');
-  let role = selectedLoginRole;
-  let userName = 'Manager';
-
-  if(role === 'admin'){
-    const uid = ($('#login_user_id')?.value || '').trim();
-    const pin = ($('#login_pin')?.value || '').trim();
-    {
-      const validId = (D.auth && D.auth.userId) || 'admin';
-      const validPhone = (D.auth && D.auth.phone) || D.settings.phone || '';
-      const validPass = (D.auth && D.auth.password) || D.settings.adminPin || '1234';
-
-      const idMatches = uid.toLowerCase() === validId.toLowerCase() || (validPhone && uid === validPhone) || uid.toLowerCase() === 'admin' || uid.toLowerCase() === 'manager';
-      const passMatches = pin === validPass || pin === D.settings.adminPin;
-
-      if(!idMatches || !passMatches){
-        if(err){ err.textContent = 'Incorrect User ID or password.'; err.style.display = 'block'; }
-        return;
-      }
-      userName = (D.auth && D.auth.ownerName) || uid || 'Manager';
-    }
-  } else {
-    const sName = ($('#login_cashier_name')?.value || '').trim() || 'Cashier';
-    const cPin = ($('#login_cashier_pin')?.value || '').trim();
-    const validCashierPin = D.settings.cashierPin || '1111';
-    const st = staffByPin(cPin);
-
-    if(st){
-      userName = st.name;
-      role = st.access === 'manager' ? 'admin' : 'cashier';
-      if(err) err.style.display = 'none';
-      activeUser = { name: userName, role, access: st.access, staffId: st.id, perms: st.perms || [], time: Date.now() };
-      return finishLogin();
-    }
-    if(cPin !== validCashierPin){
-      if(err){ err.textContent = 'Incorrect PIN. Please try again.'; err.style.display = 'block'; }
-      return;
-    }
-    userName = sName;
-  }
-
-  if(err) err.style.display = 'none';
-  activeUser = { name: userName, role, access: role === 'admin' ? 'manager' : 'cashier', time: Date.now() };
-  finishLogin();
+  showLoginView('gate2');
+  toast('Hotel registered & license activated. Hotel ID: ' + generatedHotelId);
 }
 
 function finishLogin(){
+  sessionStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
   localStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
   audit('Login', `${activeUser.name} (${activeUser.access || activeUser.role})`);
   save();
@@ -2167,31 +2396,45 @@ function finishLogin(){
   $('#login-screen').style.display = 'none';
   toast('Welcome, ' + activeUser.name + '!');
 
-  // Check 30-day expiry immediately on login
   if(checkExpiryLock()){
     return;
   }
   go(activeUser.access === 'captain' ? 'captain' : 'gateway');
 }
 
-function logout(){
-  if(!confirm('Do you want to log out?')) return;
-  audit('Logout', activeUser ? activeUser.name : '');
-  save();
-  if(SRV.cloud){
-    // A cloud device signs out completely; the next person logs in with their own PIN
-    SRV.token = '';
-    lsSet(TOKEN_KEY, '');
-    localStorage.removeItem(AUTH_KEY);
-    setTimeout(() => location.reload(), SRV.dirty ? 1500 : 0);
-    return;
-  }
+function logoutStaff(){
+  if(!confirm('Log out current staff member? (Hotel session remains active)')) return;
+  audit('Staff Logout', activeUser ? activeUser.name : '');
   activeUser = null;
-  localStorage.removeItem(AUTH_KEY);
+  SRV.token = '';
+  lsSet(TOKEN_KEY, '');
   sessionStorage.removeItem(AUTH_KEY);
-  $('#login_err').style.display = 'none';
+  localStorage.removeItem(AUTH_KEY);
+  showLoginView('gate2');
   $('#login-screen').style.display = 'flex';
-  showLoginView('signin');
+  toast('Staff member logged out. Hotel session active.');
+}
+
+function logoutHotel(){
+  if(!confirm('Completely log out of this hotel? Both staff and hotel sessions will terminate.')) return;
+  audit('Complete Hotel Logout', activeUser ? activeUser.name : '');
+  activeUser = null;
+  SRV.token = '';
+  lsSet(TOKEN_KEY, '');
+  sessionStorage.removeItem(GATE1_KEY);
+  sessionStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(AUTH_KEY);
+  showLoginView('gate1');
+  $('#login-screen').style.display = 'flex';
+  toast('Completely logged out of hotel.');
+}
+
+function switchHotel(){
+  logoutHotel();
+}
+
+function logout(){
+  logoutStaff();
 }
 
 function updateUserUI(){
@@ -2577,35 +2820,477 @@ function waOwner(text){
   if(!D.settings.owner){ toast('Please add the owner WhatsApp number in Settings (G)'); return; }
   waOpen(D.settings.owner, text);
 }
-// Manual customer receipt uses the full itemized bill; WhatsApp opens for staff to press Send.
-function waReceiptShare(id){
-  const bill=D.bills.find(b=>b.id===id);
-  if(!bill || !bill.phone) return toast('Bill or customer mobile is missing');
-  if(D.settings.waReceiptMode === 'off') return toast('WhatsApp receipts are turned OFF in Settings.');
-  if(!bill.waReceiptConsent && !confirm('Has this customer agreed to receive this bill on WhatsApp?')) return;
-  if(bill.waReceiptConsent && D.settings.waReceiptMode === 'auto' &&
-     !confirm('Automatic receipt may also be sent after cloud sync. Send this manually as well?')) return;
-  // Manual wa.me sharing never triggers the automatic API sender.
-  waOpen(bill.phone,billText(bill));
-}
-// API delivery is server-verified. UI never supplies the recipient or receipt amount.
-async function waReceiptApi(id){
-  const bill=D.bills.find(b=>b.id===id);
-  if(!bill || !bill.waReceiptConsent) return toast('Customer permission is required for a receipt');
-  if(!SRV.on) return toast('Cloud connection required. Use manual WhatsApp receipt instead.');
-  if(!isManager()) return toast('Only the Manager can submit an API receipt manually');
-  try{
-    const status=await srvFetch('/api/receipt/status?billId='+encodeURIComponent(id));
-    const info=await status.json().catch(()=>({}));
-    if(status.ok && ['submitted','sending','unknown','failed'].includes(info.status)){
-      if(info.status==='submitted')return toast('WhatsApp accepted the receipt (delivery not yet confirmed).');
-      if(info.status==='sending')return toast('WhatsApp receipt is sending. Check again shortly.');
-      return toast('Receipt '+info.status+': '+(info.error||'check Meta dashboard')+'. Use manual WhatsApp if needed.');
+// WhatsApp Message Tracking & Outbox Integration
+function trackWaMessage(opts){
+  D.waMessages = Array.isArray(D.waMessages) ? D.waMessages : [];
+  const now = Date.now();
+  const rawPh = String(opts.phone || '').replace(/\D/g, '');
+  const maskedPh = rawPh.length >= 10 ? rawPh.slice(-10).slice(0, 2) + '****' + rawPh.slice(-4) : '****';
+  const id = opts.id || ('wa_' + now + '_' + Math.random().toString(36).slice(2, 7));
+  const pid = opts.providerMsgId || '';
+  const ikey = opts.idemKey || (opts.billId ? ('wa_' + opts.billId + '_' + (opts.msgType || 'receipt')) : ('wa_' + id));
+  
+  let target = D.waMessages.find(m => m.id === id || (pid && m.providerMsgId === pid) || (ikey && m.idemKey === ikey));
+  const status = (opts.status || 'QUEUED').toUpperCase();
+  
+  if(!target){
+    target = {
+      id,
+      hotelId: (D.settings && D.settings.installId) || 'default',
+      billId: opts.billId || '',
+      billNo: opts.billNo || '',
+      customerName: opts.customerName || 'Customer',
+      phone: rawPh,
+      maskedPhone: maskedPh,
+      msgType: opts.msgType || 'receipt',
+      provider: opts.provider || 'meta',
+      providerMsgId: pid,
+      templateName: opts.templateName || 'setu_receipt_v1',
+      status: status,
+      consentRef: opts.consentRef || 'explicit_opt_in',
+      requestedAt: opts.requestedAt || now,
+      submittedAt: ['SUBMITTED', 'SENT', 'DELIVERED', 'READ'].includes(status) ? (opts.submittedAt || now) : null,
+      sentAt: ['SENT', 'DELIVERED', 'READ'].includes(status) ? (opts.sentAt || now) : null,
+      deliveredAt: ['DELIVERED', 'READ'].includes(status) ? (opts.deliveredAt || now) : null,
+      readAt: status === 'READ' ? (opts.readAt || now) : null,
+      failedAt: status === 'FAILED' ? (opts.failedAt || now) : null,
+      errorCode: opts.errorCode || '',
+      errorReason: opts.errorReason || '',
+      idemKey: ikey,
+      attemptCount: opts.attemptCount || 1,
+      retryEligible: opts.retryEligible !== undefined ? opts.retryEligible : (status === 'FAILED'),
+      staff: opts.staff || (activeUser ? activeUser.name : 'System'),
+      events: opts.events || [{
+        status: status,
+        at: now,
+        provider: opts.provider || 'meta',
+        providerMsgId: pid,
+        note: opts.note || ('Message ' + status),
+        code: opts.errorCode || '',
+        error: opts.errorReason || ''
+      }],
+      attempts: opts.attempts || [{
+        attemptNo: 1,
+        requestedAt: now,
+        provider: opts.provider || 'meta',
+        status: status,
+        providerMsgId: pid,
+        error: opts.errorReason || ''
+      }]
+    };
+    D.waMessages.unshift(target);
+  } else {
+    const ranks = {QUEUED: 1, PROCESSING: 2, SUBMITTED: 3, SENT: 4, DELIVERED: 5, READ: 6, FAILED: 0, UNKNOWN: 0, SKIPPED: 0, CANCELLED: 0};
+    const curRank = ranks[target.status] || 0;
+    const newRank = ranks[status] || 0;
+    let allowChange = false;
+    if(newRank > curRank) allowChange = true;
+    else if(['FAILED', 'UNKNOWN', 'SKIPPED', 'CANCELLED'].includes(status) && !['DELIVERED', 'READ'].includes(target.status)){
+      allowChange = true;
     }
-    const r=await srvFetch('/api/receipt/send',{method:'POST',body:JSON.stringify({billId:id})});
-    const j=await r.json().catch(()=>({}));
-    toast(r.ok ? 'WhatsApp receipt submitted to Meta (delivery pending)' : (j.error||'Receipt failed; try manual WhatsApp'));
-  }catch(e){ toast('Cloud unavailable. Use manual WhatsApp receipt.'); }
+    
+    if(allowChange){
+      target.status = status;
+      if(status === 'SUBMITTED' && !target.submittedAt) target.submittedAt = opts.submittedAt || now;
+      if(status === 'SENT' && !target.sentAt) target.sentAt = opts.sentAt || now;
+      if(status === 'DELIVERED' && !target.deliveredAt) target.deliveredAt = opts.deliveredAt || now;
+      if(status === 'READ' && !target.readAt) target.readAt = opts.readAt || now;
+      if(status === 'FAILED'){ target.failedAt = opts.failedAt || now; target.retryEligible = opts.retryEligible !== undefined ? opts.retryEligible : true; }
+    }
+    if(pid && !target.providerMsgId) target.providerMsgId = pid;
+    if(opts.errorCode) target.errorCode = opts.errorCode;
+    if(opts.errorReason) target.errorReason = opts.errorReason;
+    
+    target.events = target.events || [];
+    target.events.push({
+      status: status,
+      at: opts.eventAt || now,
+      provider: opts.provider || target.provider,
+      providerMsgId: pid || target.providerMsgId || '',
+      note: opts.note || ('Status updated to ' + status),
+      code: opts.errorCode || '',
+      error: opts.errorReason || ''
+    });
+  }
+  return target;
+}
+
+function migrateWaMessages(d){
+  if(!d) return;
+  d.waMessages = Array.isArray(d.waMessages) ? d.waMessages : [];
+  const existing = new Set(d.waMessages.filter(m => m.billId).map(m => m.billId));
+  const bills = Array.isArray(d.bills) ? d.bills : [];
+  for(const b of bills){
+    if(!b || !b.id || existing.has(b.id)) continue;
+    if(b.wa === 'sent' || b.wa === 'failed'){
+      const now = Date.now();
+      const rawPh = String(b.phone || '').replace(/\D/g, '');
+      const masked = rawPh.length >= 10 ? rawPh.slice(-10).slice(0, 2) + '****' + rawPh.slice(-4) : '****';
+      const st = b.wa === 'sent' ? 'SUBMITTED' : 'FAILED';
+      d.waMessages.push({
+        id: 'wa_hist_' + b.id,
+        hotelId: (d.settings && d.settings.installId) || 'default',
+        billId: b.id,
+        billNo: b.no,
+        customerName: b.customer || 'Customer',
+        phone: rawPh,
+        maskedPhone: masked,
+        msgType: 'receipt',
+        provider: 'baileys',
+        providerMsgId: '',
+        templateName: 'setu_receipt_v1',
+        status: st,
+        consentRef: 'historical_record',
+        requestedAt: now,
+        submittedAt: st === 'SUBMITTED' ? now : null,
+        sentAt: null,
+        deliveredAt: null,
+        readAt: null,
+        failedAt: st === 'FAILED' ? now : null,
+        errorCode: st === 'FAILED' ? 'LEGACY_FAIL' : '',
+        errorReason: st === 'FAILED' ? 'Legacy delivery failure' : '',
+        idemKey: 'wa_hist_' + b.id,
+        attemptCount: 1,
+        retryEligible: st === 'FAILED',
+        staff: 'legacy',
+        events: [{
+          status: st,
+          at: now,
+          provider: 'baileys',
+          providerMsgId: '',
+          note: 'Historical migration: marked ' + st + ' (delivery not fabricated)'
+        }],
+        attempts: [{
+          attemptNo: 1,
+          requestedAt: now,
+          provider: 'baileys',
+          status: st,
+          providerMsgId: '',
+          error: ''
+        }]
+      });
+      existing.add(b.id);
+    }
+  }
+}
+
+// ================= TASK A: WHATSAPP SEND CONFIRMATION & LIVE STATUS SYSTEM =================
+const _waInFlight = {};
+
+function fmtWaTime(ts){
+  if(!ts) return '';
+  const d = new Date(ts);
+  const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+  return `${d.getDate()} ${mon}, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function waSendButtonHTML(billId, compact = false){
+  const bill = (D.bills || []).find(b => b.id === billId);
+  const msgs = (D.waMessages || []).filter(m => m.billId === billId && m.status !== 'CANCELLED');
+  const msg = msgs[msgs.length - 1] || null;
+
+  if(_waInFlight[billId]){
+    return `<button id="wa-btn-${billId}" class="btn wa wa-sending ${compact ? 'sm' : ''}" disabled><span class="spin"></span> Sending...</button>`;
+  }
+
+  if(!msg){
+    return `<button id="wa-btn-${billId}" class="btn wa ${compact ? 'sm' : ''}" onclick="waSendBill('${billId}', event)"><span class="wa-icon">📲</span> Send on WhatsApp</button>`;
+  }
+
+  const st = msg.status;
+  if(st === 'PROCESSING' || st === 'QUEUED'){
+    return `<button id="wa-btn-${billId}" class="btn wa wa-sending ${compact ? 'sm' : ''}" disabled><span class="spin"></span> Sending...</button>`;
+  }
+
+  const tStr = fmtWaTime(msg.submittedAt || msg.sentAt || msg.deliveredAt || msg.readAt || msg.requestedAt);
+
+  if(st === 'SUBMITTED'){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><span class="wa-badge wa-submitted" title="${tStr}">✓ Submitted to WhatsApp</span><button class="btn sm g" onclick="showWaHistoryModal('${billId}')">History</button></div>`;
+  }
+  if(st === 'SENT'){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><span class="wa-badge wa-sent" title="${tStr}">✓✓ Sent</span><button class="btn sm g" onclick="showWaHistoryModal('${billId}')">History</button><button class="btn sm wa-resend" onclick="promptWaResend('${billId}')">Resend</button></div>`;
+  }
+  if(st === 'DELIVERED'){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><span class="wa-badge wa-delivered" title="${tStr}">✓✓ Delivered</span><button class="btn sm g" onclick="showWaHistoryModal('${billId}')">History</button><button class="btn sm wa-resend" onclick="promptWaResend('${billId}')">Resend</button></div>`;
+  }
+  if(st === 'READ'){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><span class="wa-badge wa-read" title="${tStr}">✓✓ Read</span><button class="btn sm g" onclick="showWaHistoryModal('${billId}')">History</button></div>`;
+  }
+  if(st === 'FAILED'){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><button class="btn sm bad wa-failed" onclick="showWaReasonModal('${billId}')" title="${esc(msg.errorReason || 'Provider rejected')}">Failed — View Reason</button><button class="btn sm wa" onclick="promptWaResend('${billId}')">Retry</button><button class="btn sm g" onclick="showWaHistoryModal('${billId}')">History</button></div>`;
+  }
+  if(st === 'UNKNOWN'){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><button class="btn sm wa-unknown" onclick="checkWaStatus('${billId}')" title="Request timed out; unconfirmed">Status Unknown — Check Status</button><button class="btn sm g" onclick="showWaHistoryModal('${billId}')">History</button></div>`;
+  }
+
+  return `<div class="wa-btn-group" id="wa-group-${billId}"><button class="btn sm g" onclick="showWaHistoryModal('${billId}')">Already Submitted — View History</button><button class="btn sm wa-resend" onclick="promptWaResend('${billId}')">Resend</button></div>`;
+}
+
+function updateWaButtons(billId){
+  const html = waSendButtonHTML(billId);
+  const btn = document.getElementById('wa-btn-' + billId);
+  if(btn){
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    if(temp.firstElementChild) btn.replaceWith(temp.firstElementChild);
+  }
+  const grp = document.getElementById('wa-group-' + billId);
+  if(grp){
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    if(temp.firstElementChild) grp.replaceWith(temp.firstElementChild);
+  }
+}
+
+async function waSendBill(billId, event, isAuthorizedResend = false){
+  if(event){ event.preventDefault(); event.stopPropagation(); }
+  if(_waInFlight[billId]) return;
+  _waInFlight[billId] = true;
+
+  const btn = document.getElementById('wa-btn-' + billId) || (event ? event.target.closest('button') : null);
+  if(btn){
+    btn.disabled = true;
+    btn.classList.add('wa-sending');
+    btn.innerHTML = '<span class="spin"></span> Sending...';
+  }
+
+  const bill = (D.bills || []).find(b => b.id === billId);
+  const cleanPh = bill && bill.phone ? String(bill.phone).replace(/\D/g, '') : '';
+  if(!bill || cleanPh.length < 10){
+    toast('A valid 10-digit customer mobile number is required to send on WhatsApp');
+    _waInFlight[billId] = false;
+    updateWaButtons(billId);
+    return;
+  }
+
+  const reqId = 'wa_req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+  const idemKey = 'wa_bill_' + ((D.settings && D.settings.hotelId) || 'local') + '_' + billId + (isAuthorizedResend ? ('_retry_' + Date.now()) : '');
+
+  // 1. Persist PROCESSING outbox state before network dispatch
+  trackWaMessage({
+    id: reqId,
+    billId: bill.id,
+    billNo: bill.no,
+    phone: bill.phone,
+    customerName: bill.cust || bill.customer || 'Customer',
+    msgType: 'receipt',
+    provider: SRV.cloud ? 'meta' : 'baileys',
+    idemKey: idemKey,
+    status: 'PROCESSING',
+    staff: activeUser ? activeUser.name : 'Staff',
+    note: isAuthorizedResend ? 'Manager authorized resend initiated' : 'Dispatch initiated'
+  });
+  save();
+  updateWaButtons(billId);
+
+  // 2. Dispatch to backend with 15-second timeout protection
+  try {
+    const text = billText(bill);
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), 15000);
+    const payload = {
+      id: reqId,
+      billId: bill.id,
+      billNo: bill.no,
+      phone: bill.phone,
+      customerName: bill.cust || bill.customer || 'Customer',
+      text: text,
+      forceResend: isAuthorizedResend,
+      idemKey: idemKey
+    };
+    const headers = { 'Content-Type': 'application/json' };
+    if(SRV.token) headers['X-Setu-Token'] = SRV.token;
+    const endpoint = SRV.cloud ? '/api/receipt/send' : '/api/wa/send';
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutTimer);
+    const j = await res.json().catch(() => ({}));
+
+    if(res.ok){
+      trackWaMessage({
+        id: reqId,
+        billId: bill.id,
+        status: 'SUBMITTED',
+        providerMsgId: j.id || j.providerMsgId || '',
+        submittedAt: Date.now(),
+        note: 'Accepted by WhatsApp gateway'
+      });
+      save();
+      toast('Submitted to WhatsApp');
+    } else if(res.status === 409 && (j.error === 'ALREADY_SUBMITTED' || j.status === 'SUBMITTED')){
+      toast('Bill has already been submitted to WhatsApp.');
+    } else if(res.status === 504 || j.status === 'UNKNOWN' || j.error === 'STATUS_UNKNOWN'){
+      trackWaMessage({
+        id: reqId,
+        billId: bill.id,
+        status: 'UNKNOWN',
+        errorReason: 'Request timed out — status unknown',
+        note: 'Gateway timeout: outcome unconfirmed'
+      });
+      save();
+      toast('Status Unknown — Check Status (Outcome unconfirmed)');
+    } else {
+      trackWaMessage({
+        id: reqId,
+        billId: bill.id,
+        status: 'FAILED',
+        errorCode: String(res.status),
+        errorReason: j.error || j.message || 'Gateway rejected dispatch',
+        failedAt: Date.now(),
+        note: 'Failed: ' + (j.error || res.status)
+      });
+      save();
+      toast('WhatsApp failed: ' + (j.error || j.message || 'Rejected'));
+    }
+  } catch(netErr) {
+    const isTimeout = netErr.name === 'AbortError' || /timeout/i.test(netErr.message);
+    trackWaMessage({
+      id: reqId,
+      billId: bill.id,
+      status: 'UNKNOWN',
+      errorReason: isTimeout ? 'Request timed out after 15s without confirmation' : ('Network error: ' + netErr.message),
+      note: 'Network failure during send: outcome uncertain'
+    });
+    save();
+    toast('Status Unknown — Check Status');
+  } finally {
+    _waInFlight[billId] = false;
+    updateWaButtons(billId);
+  }
+}
+
+function promptWaResend(billId){
+  const bill = (D.bills || []).find(b => b.id === billId);
+  if(!bill) return toast('Bill not found');
+  modal('Authorized WhatsApp Resend', `
+    <div style="padding:4px">
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px;margin-bottom:14px;color:#92400e;font-size:13px">
+        <b>⚠️ Warning: Duplicate Prevention</b><br>
+        Bill #${bill.no} has already been submitted to WhatsApp. Resending may send a duplicate receipt to customer <b>${esc(bill.phone)}</b>.
+      </div>
+      <p style="font-size:13px;color:#475569;margin-bottom:12px">Manager PIN is required to authorize resending this bill receipt:</p>
+      <div class="login-field">
+        <label>Manager / Owner PIN *</label>
+        <input type="password" id="wa_resend_pin" placeholder="Enter Manager PIN" autofocus>
+      </div>
+      <div id="wa_resend_err" style="color:#b91c1c;font-size:12px;font-weight:700;display:none;margin-bottom:10px"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+        <button class="btn g" onclick="closeModal()">Cancel</button>
+        <button class="btn ok" onclick="executeAuthorizedResend('${billId}')">Authorize & Resend</button>
+      </div>
+    </div>
+  `);
+  setTimeout(() => $('#wa_resend_pin')?.focus(), 100);
+}
+
+function executeAuthorizedResend(billId){
+  const pin = ($('#wa_resend_pin')?.value || '').trim();
+  const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password);
+  const isMgr = (activeUser && activeUser.role === 'admin') || (pin && (pin === validAdminPin || (staffByPin(pin)?.access === 'manager')));
+  if(!isMgr){
+    const err = $('#wa_resend_err');
+    if(err){ err.textContent = 'Incorrect Manager PIN. Authorization denied.'; err.style.display = 'block'; }
+    return;
+  }
+  closeModal();
+  waSendBill(billId, null, true);
+}
+
+function showWaHistoryModal(billId){
+  const bill = (D.bills || []).find(b => b.id === billId);
+  const msgs = (D.waMessages || []).filter(m => m.billId === billId);
+  modal(`WhatsApp Receipt History · Bill #${bill ? bill.no : billId}`, `
+    <div style="padding:4px">
+      <div style="margin-bottom:12px;font-size:13px;display:flex;justify-content:space-between">
+        <span>Customer: <b>${esc(bill ? (bill.cust || bill.customer || 'Customer') : '')}</b></span>
+        <span>Mobile: <b>${esc(bill ? bill.phone : '')}</b></span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;text-align:left">
+            <th style="padding:6px">Status</th>
+            <th style="padding:6px">Provider</th>
+            <th style="padding:6px">Timestamp</th>
+            <th style="padding:6px">Staff</th>
+            <th style="padding:6px">Notes / Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${msgs.map(m => `
+            <tr style="border-bottom:1px solid #f1f5f9">
+              <td style="padding:6px"><span class="wa-badge wa-${m.status.toLowerCase()}">${m.status}</span></td>
+              <td style="padding:6px;text-transform:capitalize">${esc(m.provider || 'meta')}</td>
+              <td style="padding:6px">${fmtWaTime(m.sentAt || m.submittedAt || m.requestedAt)}</td>
+              <td style="padding:6px">${esc(m.staff || 'Staff')}</td>
+              <td style="padding:6px;color:${m.status === 'FAILED' ? '#b91c1c' : '#475569'}">${esc(m.errorReason || m.note || '')}</td>
+            </tr>
+          `).join('') || '<tr><td colspan="5" style="text-align:center;padding:14px;color:#94a3b8">No records found</td></tr>'}
+        </tbody>
+      </table>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+        <button class="btn sm wa-resend" onclick="promptWaResend('${billId}')">Authorized Resend</button>
+        <button class="btn sm g" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  `);
+}
+
+function showWaReasonModal(billId){
+  const bill = (D.bills || []).find(b => b.id === billId);
+  const msgs = (D.waMessages || []).filter(m => m.billId === billId && m.status === 'FAILED');
+  const msg = msgs[msgs.length - 1];
+  modal('WhatsApp Dispatch Failure Reason', `
+    <div style="padding:4px">
+      <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:8px;padding:12px;margin-bottom:14px;color:#b91c1c;font-size:13px">
+        <b>Provider Rejection Details:</b><br>
+        ${esc(msg ? (msg.errorReason || 'The WhatsApp provider definitively rejected this dispatch.') : 'Unknown rejection')}
+      </div>
+      <p style="font-size:12px;color:#64748b;margin:0 0 14px">
+        Error Code: <b>${esc(msg ? (msg.errorCode || 'N/A') : 'N/A')}</b><br>
+        Attempt Timestamp: <b>${msg ? fmtWaTime(msg.failedAt || msg.requestedAt) : ''}</b><br>
+        Customer Phone: <b>${esc(bill ? bill.phone : '')}</b>
+      </p>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn g" onclick="closeModal()">Close</button>
+        <button class="btn wa" onclick="closeModal();promptWaResend('${billId}')">Retry Dispatch</button>
+      </div>
+    </div>
+  `);
+}
+
+async function checkWaStatus(billId){
+  toast('Checking WhatsApp provider status...');
+  try {
+    const headers = {};
+    if(SRV.token) headers['X-Setu-Token'] = SRV.token;
+    const res = await fetch('/api/wa/message?id=' + encodeURIComponent(billId), { headers });
+    if(res.ok){
+      const msg = await res.json();
+      if(msg && msg.status){
+        trackWaMessage(msg);
+        save();
+        toast('Status updated: ' + msg.status);
+      }
+    } else {
+      toast('Status still unconfirmed by provider');
+    }
+  } catch(e){
+    toast('Could not reach server to check status');
+  } finally {
+    updateWaButtons(billId);
+  }
+}
+
+// Backward compatibility alias
+function waReceiptShare(id){
+  waSendBill(id);
+}
+function waReceiptApi(id){
+  waSendBill(id);
 }
 
 /* ================= GROWTH HELPERS (QR, LOYALTY, CUSTOMERS, KOT TICKETS) ================= */
@@ -2814,6 +3499,7 @@ const MENU = [
   ['D','Day Book & Ledger','daybook','Accounts & GST'],
   ['8','GST Returns & Credit Notes','gst','Accounts & GST'],
   ['W','Day Report → WhatsApp','report','Reports'],
+  ['0','WhatsApp Reports & Tracking','wa-reports','Reports'],
   ['5','Reports & Analytics','analytics','Reports'],
   ['F','Reports & Tally Export','reports','Reports'],
   ['J','Monthly Report → CA / Lawyer','monthly','Reports'],
@@ -2870,7 +3556,8 @@ const SCREENS = {
   suppliers: scrSuppliers,
   settlement: scrSettlement,
   audit: scrAudit,
-  monthly: scrMonthly
+  monthly: scrMonthly,
+  'wa-reports': scrWaReports
 };
 
 let kdsTimer = null;
@@ -3972,7 +4659,7 @@ function scrGateway(){
                   <td class="n font-bold">${money(b.total)}</td>
                   <td>
                     <button class="btn sm g" onclick="printBill('${b.id}','bill')" title="Print">Print</button>
-                    <button class="btn sm wa" onclick="${b.phone ? `waReceiptShare('${b.id}')` : `waOwner(billText(getBill('${b.id}')))`}" title="WhatsApp">WhatsApp</button>
+                    ${b.phone ? waSendButtonHTML(b.id, true) : `<button class="btn sm wa" onclick="waOwner(billText(getBill('${b.id}')))" title="WhatsApp">WhatsApp</button>`}
                   </td>
                 </tr>
               `).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:18px">No bills yet today</td></tr>'}
@@ -4381,7 +5068,27 @@ function printOnlineKOT(id){
 
 /* ================= BILLING & KACCHA BILL MANAGEMENT ================= */
 let B = newB('T-1', 'Dine-In'), billCat = 0;
+let isFinalizingBill = false;
+let billTxnStatus = ''; // 'processing' | 'saved' | 'unconfirmed' | 'settled' | 'reconcile'
+
+function setBillTxnStatus(status, text){
+  billTxnStatus = status;
+  const el = $('#bill-txn-status');
+  if(!el) return;
+  if(!status){ el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  el.className = 'bill-txn-badge ' + status;
+  el.innerHTML = text || ({
+    processing: '⏳ Processing settlement...',
+    saved: '✅ Payment saved',
+    unconfirmed: '⚠️ Payment not confirmed — checking with server',
+    settled: 'ℹ️ Already settled',
+    reconcile: '⚠️ Reconciliation required'
+  })[status] || status;
+}
+
 function newB(tbl = 'T-1', channel = 'Dine-In'){ 
+  const sessId = 'ord_' + (tbl || channel).replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Date.now() + '_' + uid();
   return {
     channel,
     orderId: '',
@@ -4399,7 +5106,9 @@ function newB(tbl = 'T-1', channel = 'Dine-In'){
     extra: {},
     token: 0,
     isKaccha: false,
-    createdAt: nowTime()
+    createdAt: nowTime(),
+    orderSessionId: sessId,
+    idemKey: 'idem_' + sessId
   }; 
 }
 
@@ -4467,13 +5176,42 @@ function redeemPts(){
   drawTotals();
 }
 
+function tableQrOrder(tbl){
+  if(!tbl) return null;
+  // 1. Check pending or active orders in QRS
+  if(typeof QRS !== 'undefined' && QRS && Array.isArray(QRS.orders)){
+    const pending = QRS.orders.find(o => o.tbl === tbl && o.status === 'pending');
+    if(pending) return { status: 'pending', order: pending };
+    const accepted = QRS.orders.find(o => o.tbl === tbl && o.status === 'accepted');
+    if(accepted) return { status: 'accepted', order: accepted };
+  }
+  // 2. Check running kaccha order on this table
+  if(typeof D !== 'undefined' && D && D.kaccha && D.kaccha[tbl]){
+    const k = D.kaccha[tbl];
+    if(Array.isArray(k.qr) && k.qr.length > 0){
+      return { status: 'active', orderIds: k.qr };
+    }
+    if(typeof k.note === 'string' && /QR:/i.test(k.note)){
+      return { status: 'active' };
+    }
+  }
+  // 3. Check active kitchen KOTs
+  if(typeof D !== 'undefined' && D && Array.isArray(D.kots) && D.kaccha && D.kaccha[tbl]){
+    const hasKot = D.kots.some(k => k.tbl === tbl && (k.src === 'qr' || (k.note && /QR:/i.test(k.note))));
+    if(hasKot) return { status: 'active' };
+  }
+  return null;
+}
+
 function scrBill(){
   const showCust = !!(B.showCust || B.cust || B.phone || B.gstin || billFields().some(f => f.required) || +saasRules().phoneAbove);
   const cats = ['All', ...new Set(D.menu.map(m => m.cat))];
   if(billCat >= cats.length) billCat = 0;
   
-  const tables = D.settings.tables || ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8', 'T-9', 'T-10', 'Parcel'];
+  const settingTables = D.settings.tables || ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8', 'T-9', 'T-10', 'Parcel'];
   const kacchaEntries = Object.entries(D.kaccha || {});
+  const qrPendingTables = (typeof QRS !== 'undefined' && QRS && Array.isArray(QRS.orders)) ? QRS.orders.filter(o => o.status === 'pending').map(o => o.tbl) : [];
+  const tables = [...new Set([...settingTables, ...Object.keys(D.kaccha || {}), ...qrPendingTables])].filter(Boolean);
   const totalKacchaAmt = sum(kacchaEntries, ([_, k]) => calc(k.cart, k.disc, gstRate()).total);
   const isCurrentTableKaccha = !!D.kaccha[B.table];
 
@@ -4509,24 +5247,69 @@ function scrBill(){
   <!-- Table Selector Bar (Shown when Dine-In is selected) -->
   ${B.channel === 'Dine-In' ? `
     <div class="card" style="padding:10px 14px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">
-          Dine-In Tables (Click to Switch or Start Order)
-        </span>
-        <span style="font-size:12px;color:#b45309;font-weight:700">
-          ${kacchaEntries.length} Active Tables Dining
-        </span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">
+            Dine-In Tables (Click to Switch or Start Order)
+          </span>
+          <span style="font-size:12px;color:#b45309;font-weight:700">
+            ${kacchaEntries.length} Active Tables Dining
+          </span>
+        </div>
+
+        <!-- Visual Color Legend for Staff & New Users -->
+        <div class="table-legend-wrap">
+          <span class="legend-item" title="Khali Table - Ready for new order">
+            <span class="legend-dot" style="background:#10b981"></span>
+            <span class="legend-label">🟢 Free (खाली)</span>
+          </span>
+          <span class="legend-item" title="Counter ya Waiter ka order chalu hai">
+            <span class="legend-dot" style="background:#f59e0b"></span>
+            <span class="legend-label">🟠 Counter (चालू)</span>
+          </span>
+          <span class="legend-item" title="Customer ne Table QR scan karke phone se order diya">
+            <span class="legend-dot" style="background:#8b5cf6;box-shadow:0 0 6px rgba(139,92,246,0.6)"></span>
+            <span class="legend-label">🟣 📱 QR Order (ग्राहक)</span>
+          </span>
+          <span class="legend-item" title="Current Selected Table on Screen">
+            <span class="legend-dot" style="background:#0284c7"></span>
+            <span class="legend-label">🔵 Selected (चुना हुआ)</span>
+          </span>
+        </div>
       </div>
       <div class="table-bar-wrap">
         ${tables.map(tbl => {
           const isOccupied = !!D.kaccha[tbl];
           const isSelected = B.table === tbl;
-          const tblTotal = isOccupied ? calc(D.kaccha[tbl].cart, D.kaccha[tbl].disc, gstRate()).total : 0;
+          const qrInfo = tableQrOrder(tbl);
+          const isQrPending = qrInfo && qrInfo.status === 'pending';
+          const isQrActive = qrInfo && (qrInfo.status === 'active' || qrInfo.status === 'accepted');
+          const tblTotal = isOccupied ? calc(D.kaccha[tbl].cart, D.kaccha[tbl].disc, gstRate()).total : (isQrPending && qrInfo.order ? sum(qrInfo.order.items || [], i => (i.qty || 1) * (i.price || 0)) : 0);
+
+          let chipClass = 'tbl-chip';
+          if(isSelected) chipClass += ' active';
+          if(isQrPending) chipClass += ' qr-pending';
+          else if(isQrActive) chipClass += ' qr-active occupied';
+          else if(isOccupied) chipClass += ' occupied';
+
+          let statusHtml = '';
+          if(isQrPending){
+            statusHtml = `<span style="font-size:10px;font-weight:800;color:#86198f;background:#fae8ff;padding:1px 6px;border-radius:10px">📱 QR New!</span>`;
+          } else if(isQrActive){
+            statusHtml = `<b style="font-size:11px;color:${isSelected ? '#fff' : '#5b21b6'}">₹${tblTotal} <span style="font-size:9px;background:${isSelected ? 'rgba(255,255,255,0.25)' : '#ede9fe'};padding:1px 4px;border-radius:4px;margin-left:2px">QR</span></b>`;
+          } else if(isOccupied){
+            statusHtml = `<b style="font-size:11px">₹${tblTotal}</b>`;
+          } else if(tableRsv(tbl)){
+            statusHtml = `<span style="font-size:10px;color:#7c3aed;font-weight:800">Rsv ${esc(tableRsv(tbl).time)}</span>`;
+          } else {
+            statusHtml = '<span style="font-size:10px;opacity:.7">Free</span>';
+          }
+
           return `
-            <button type="button" class="tbl-chip ${isSelected ? 'active' : ''} ${isOccupied ? 'occupied' : ''}" onclick="switchTable('${esc(tbl)}')">
+            <button type="button" class="${chipClass}" onclick="switchTable('${esc(tbl)}')">
               <span class="pulse-dot"></span>
               <span>${esc(tbl)}</span>
-              ${isOccupied ? `<b style="font-size:11px">₹${tblTotal}</b>` : tableRsv(tbl) ? `<span style="font-size:10px;color:#7c3aed;font-weight:800">Rsv ${esc(tableRsv(tbl).time)}</span>` : '<span style="font-size:10px;opacity:.7">Free</span>'}
+              ${statusHtml}
             </button>
           `;
         }).join('')}
@@ -4617,7 +5400,8 @@ function scrBill(){
           </div>
         ` : ''}
 
-        <button class="btn ok" style="width:100%;padding:13px;font-size:14px;font-weight:800;letter-spacing:-.2px" onclick="finalizePakkaBill()" title="Convert to final Tax Invoice, settle payment and free table">
+        <div id="bill-txn-status" style="display:none"></div>
+        <button id="btn-finalize-bill" class="btn ok" style="width:100%;padding:13px;font-size:14px;font-weight:800;letter-spacing:-.2px" onclick="finalizePakkaBill()" title="Convert to final Tax Invoice, settle payment and free table">
           Finalize Bill (Settle & Print) <small style="font-weight:400;opacity:.9">(Ctrl+Enter)</small>
         </button>
 
@@ -4651,17 +5435,19 @@ function scrBill(){
         ${kacchaEntries.map(([tbl, k]) => {
           const kt = calc(k.cart, k.disc, gstRate());
           const isSelected = B.table === tbl;
+          const qrInfo = tableQrOrder(tbl);
+          const isQr = qrInfo && (qrInfo.status === 'active' || qrInfo.status === 'accepted');
           return `
-            <div class="active-table-card ${isSelected ? 'selected' : ''}" onclick="switchTable('${esc(tbl)}')">
+            <div class="active-table-card ${isSelected ? 'selected' : ''} ${isQr ? 'qr-order' : ''}" onclick="switchTable('${esc(tbl)}')">
               <div class="at-top">
                 <span class="at-name"><b>${esc(tbl)}</b></span>
-                <span class="at-badge">Running</span>
+                ${isQr ? `<span class="at-badge" style="background:#ede9fe;color:#6d28d9;border-color:#c4b5fd">📱 QR Order</span>` : `<span class="at-badge">Running</span>`}
               </div>
-              <div class="at-amt">${money(kt.total)}</div>
+              <div class="at-amt" style="${isQr ? 'color:#6d28d9' : ''}">${money(kt.total)}</div>
               <div class="at-items" title="${k.cart.map(i=>i.name+'×'+i.qty).join(', ')}">
                 <b>${sum(k.cart, 'qty')} items:</b> ${k.cart.map(i => esc(i.name) + '×' + i.qty).join(', ')}
               </div>
-              <div class="at-footer">
+              <div class="at-footer" style="${isQr ? 'color:#6d28d9;border-color:#e9d5ff' : ''}">
                 <span>Started: ${k.createdAt || 'Just now'}</span>
                 <span>Click to Open</span>
               </div>
@@ -4863,6 +5649,12 @@ function switchTable(tbl){
   if(!tbl) tbl = 'T-1';
   B.channel = 'Dine-In';
 
+  const qrInfo = tableQrOrder(tbl);
+  if(qrInfo && qrInfo.status === 'pending' && !D.kaccha[tbl]){
+    qrPanel();
+    return;
+  }
+
   if(B.cart.length && B.table && B.table !== tbl && !D.kaccha[B.table]){
     if(confirm(`The order for table ${B.table} is not saved. Save it as a running order?`)){
       saveKacchaBill(true);
@@ -4872,7 +5664,8 @@ function switchTable(tbl){
   if(D.kaccha[tbl]){
     const k = D.kaccha[tbl];
     B = kacchaToB(k);
-    toast(`Running order for table ${tbl} loaded (${k.cart.length} items)`);
+    const isQr = k.qr && k.qr.length;
+    toast(`Running order for table ${tbl} loaded (${k.cart.length} items)${isQr ? ' · 📱 QR Self-Order' : ''}`);
   } else {
     B = newB(tbl, 'Dine-In');
   }
@@ -4880,6 +5673,7 @@ function switchTable(tbl){
 }
 
 function kacchaToB(k){
+  const sessId = k.orderSessionId || ('ord_' + (k.table || 'T').replace(/[^a-zA-Z0-9_-]/g, '') + '_' + (k.createdAt || Date.now()));
   return {
     channel: 'Dine-In',
     table: k.table,
@@ -4897,7 +5691,9 @@ function kacchaToB(k){
     extra: {...(k.extra || {})},
     token: 0,
     isKaccha: true,
-    createdAt: k.createdAt || nowTime()
+    createdAt: k.createdAt || nowTime(),
+    orderSessionId: sessId,
+    idemKey: k.idemKey || ('idem_' + sessId)
   };
 }
 
@@ -4923,6 +5719,7 @@ function saveKacchaBill(silent = false, noRender = false){
   const newItems = cartDelta(B.cart, B.sent);
   const ticket = pushKot({table: tbl, channel: 'Dine-In', items: newItems, note: B.note.trim()});
   B.sent = sentMap(B.cart);
+  const sessId = existing?.orderSessionId || B.orderSessionId || ('ord_' + tbl.replace(/[^a-zA-Z0-9_-]/g, '') + '_' + Date.now() + '_' + uid());
 
   D.kaccha[tbl] = {
     table: tbl,
@@ -4938,6 +5735,8 @@ function saveKacchaBill(silent = false, noRender = false){
     cart: B.cart.map(c => ({...c})),
     redeem: B.redeem || 0,
     sent: {...B.sent},
+    orderSessionId: sessId,
+    idemKey: existing?.idemKey || B.idemKey || ('idem_' + sessId),
     createdAt: existing?.createdAt || nowTime(),
     updatedAt: nowTime(),
     total: t.total,
@@ -4978,20 +5777,39 @@ function cancelKacchaOrder(tbl){
 
 function finalizePakkaBill(approvedDisc){
   syncDisc();
+  if(isFinalizingBill){
+    toast('Payment settlement is already in progress...');
+    return;
+  }
+  isFinalizingBill = true;
+  setBillTxnStatus('processing', '⏳ Processing settlement...');
+  const payBtn = $('#btn-finalize-bill');
+  if(payBtn){ payBtn.disabled = true; payBtn.style.opacity = '0.6'; payBtn.style.pointerEvents = 'none'; }
+
+  function unlockPay(errStatus, msg){
+    isFinalizingBill = false;
+    if(errStatus) setBillTxnStatus(errStatus, msg);
+    const btn = $('#btn-finalize-bill');
+    if(btn){ btn.disabled = false; btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }
+  }
+
   const sub = getSubscriptionInfo();
   if(sub.isExpired){
     toast('License expired. Please enter an activation key first.');
     checkExpiryLock();
+    unlockPay();
     return;
   }
-  if(webBillBlocked()) return;
+  if(webBillBlocked()){ unlockPay(); return; }
   const tbl = (B.table || (B.channel !== 'Dine-In' ? B.channel : '')).trim();
   if(!tbl){
     toast('Please select a table or order first');
+    unlockPay();
     return;
   }
   if(!B.cart.length){
     toast('Please add an item to the cart first');
+    unlockPay();
     return;
   }
   const st = D.settings, ch = B.channel || 'Dine-In';
@@ -5005,38 +5823,54 @@ function finalizePakkaBill(approvedDisc){
   });
   const ptsEarned = st.loyalty && hasPh ? Math.floor(t.total / 100 * (+st.ptsPer100 || 0)) : 0;
   if(B.mode === 'Wallet'){
-    if(normPh(B.phone).length !== 10){ toast('Enter the customer mobile number to pay by wallet'); return; }
+    if(normPh(B.phone).length !== 10){ toast('Enter the customer mobile number to pay by wallet'); unlockPay(); return; }
     const wb = walletBal(B.phone);
-    if(wb < t.total){ toast(`Insufficient wallet balance (${money(wb)}). Top up under Customers (R).`); return; }
+    if(wb < t.total){ toast(`Insufficient wallet balance (${money(wb)}). Top up under Customers (R).`); unlockPay(); return; }
   }
   let pays = null;
   if(B.mode === 'Split'){
     pays = cleanPays(B.pays);
     const got = r2(pays.reduce((a, p) => a + p.amt, 0));
-    if(pays.length < 2){ toast('Enter amounts in at least 2 modes for a split (or choose a single mode)'); return; }
-    if(got !== r2(t.total)){ toast(`The split adds up to ${money(got)} but the bill is ${money(t.total)}. Please correct the amounts.`); drawSplitLeft(); return; }
+    if(pays.length < 2){ toast('Enter amounts in at least 2 modes for a split (or choose a single mode)'); unlockPay(); return; }
+    if(got !== r2(t.total)){ toast(`The split adds up to ${money(got)} but the bill is ${money(t.total)}. Please correct the amounts.`); drawSplitLeft(); unlockPay(); return; }
   }
   // Bill template fields and rules from the Setu Cloud plan
   const extra = {};
   for(const f of billFields()){
     const v = String((B.extra || {})[f.label] || '').trim();
-    if(f.required && !v){ toast(`Please fill in ${f.label}`); return; }
+    if(f.required && !v){ toast(`Please fill in ${f.label}`); unlockPay(); return; }
     if(v) extra[f.label] = v.slice(0, 60);
   }
   const pa = +saasRules().phoneAbove || 0;
-  if(pa && t.total >= pa && !hasPh && !isAggregator(ch)){ toast(`Customer mobile number is required for bills of ${money(pa)} or more`); return; }
+  if(pa && t.total >= pa && !hasPh && !isAggregator(ch)){ toast(`Customer mobile number is required for bills of ${money(pa)} or more`); unlockPay(); return; }
   const discPct = t.sub ? (+B.disc || 0) / t.sub * 100 : 0;
   if(!approvedDisc && (+B.disc || 0) > 0 && discPct > (+st.maxDiscPct || 0) && !isManager()){
+    unlockPay();
     withManager(`${money(B.disc)} discount (${Math.round(discPct)}%)`, by => finalizePakkaBill(by));
     return;
   }
   const token = B.token || (st.tokenOn && ch === 'Takeaway' ? nextToken() : 0);
   const cg = gstinCheck(B.gstin);
-  if(!cg.ok){ toast('Customer GSTIN: ' + cg.msg); B.showCust = true; scrBill(); return; }
-  if(!cg.empty && !B.cust.trim()){ toast('Enter the company name (Customer Name) for a GSTIN bill'); B.showCust = true; scrBill(); return; }
+  if(!cg.ok){ toast('Customer GSTIN: ' + cg.msg); B.showCust = true; scrBill(); unlockPay(); return; }
+  if(!cg.empty && !B.cust.trim()){ toast('Enter the company name (Customer Name) for a GSTIN bill'); B.showCust = true; scrBill(); unlockPay(); return; }
+
+  // S01 Idempotency Check: Prevent duplicate settlement for this session
+  const sessId = B.orderSessionId || (tbl + '_' + (D.kaccha[tbl]?.createdAt || Date.now()));
+  const idemKey = B.idemKey || ('idem_' + sessId);
+  const existingBill = (D.bills || []).find(b => !b.cancelled && b.idemKey && b.idemKey === idemKey);
+  if(existingBill){
+    unlockPay('settled', `ℹ️ Already settled as Bill #${existingBill.no}`);
+    toast(`Order is already settled as Bill #${existingBill.no}`);
+    if(B.channel === 'Dine-In' && D.kaccha[tbl]) delete D.kaccha[tbl];
+    B = newB(tbl, B.channel);
+    scrBill();
+    return;
+  }
 
   const bill = {
     id: uid(),
+    idemKey,
+    orderSessionId: sessId,
     mv: 1,
     no: ++D.seq.bill,
     kot: ++D.seq.kot,
@@ -5053,6 +5887,8 @@ function finalizePakkaBill(approvedDisc){
     note: B.note.trim(),
     ...(Object.keys(extra).length ? {extra} : {}),
     mode: B.mode,
+    paymentStatus: 'recorded',
+    ...(B.mode === 'UPI' || (pays || []).some(p => p.mode === 'UPI') ? { upiVerified: false } : {}),
     ...(pays ? {pays} : {}),
     gstRate: gstRate(),
     scheme: D.settings.gstScheme || 'regular',
@@ -5078,6 +5914,7 @@ function finalizePakkaBill(approvedDisc){
     delete D.kaccha[tbl];
   }
   save();
+  unlockPay('saved', `✅ Payment saved — Bill #${bill.no}`);
 
   B = newB(tbl, B.channel);
   scrBill();
@@ -5097,8 +5934,7 @@ function finalizePakkaBill(approvedDisc){
       <button class="btn ok" autofocus onclick="printBill('${bill.id}','both')">Print Customer Bill + Kitchen KOT (2 Receipts)</button>
       <button class="btn g" onclick="printBill('${bill.id}','bill')">Print Customer Bill Only</button>
       <button class="btn g" onclick="printBill('${bill.id}','kot')">Print Kitchen KOT Only</button>
-      ${bill.phone && st.waReceiptMode !== 'off' ? `<button class="btn wa" onclick="waReceiptShare('${bill.id}')">Customer WhatsApp Receipt (Manual)</button>` : ''}
-      ${bill.waReceiptConsent && st.waReceiptMode !== 'off' ? `<button class="btn g" onclick="waReceiptApi('${bill.id}')">Send / Check WhatsApp API Status</button>` : ''}
+      ${bill.phone && st.waReceiptMode !== 'off' ? waSendButtonHTML(bill.id) : ''}
       <button class="btn wa" onclick="waOwner(billText(getBill('${bill.id}')))">Owner WhatsApp Bill</button>
       <button class="btn g" onclick="closeModal();$('#q').focus()">New Bill / Select Table (Esc)</button>
     </div>`);
@@ -5693,7 +6529,7 @@ function scrBills(){
             <td style="white-space:nowrap">
               <button class="btn sm g" onclick="printBill('${b.id}','bill')">Bill</button>
               <button class="btn sm g" onclick="printBill('${b.id}','kot')">KOT</button>
-              <button class="btn wa sm" onclick="${b.phone ? `waReceiptShare('${b.id}')` : `waOwner(billText(getBill('${b.id}')))`}" title="${b.phone?'Customer':'Owner'}">WhatsApp</button>
+              ${b.phone ? waSendButtonHTML(b.id, true) : `<button class="btn wa sm" onclick="waOwner(billText(getBill('${b.id}')))" title="Owner">WhatsApp</button>`}
               ${b.cancelled ? '' : `<button class="btn sm" onclick="editBill('${b.id}')">Edit</button><button class="btn g sm" onclick="creditNote('${b.id}')" title="Item returned / price reduced">Credit Note</button><button class="btn bad sm" onclick="cancelBill('${b.id}')">Cancel</button>`}${cnOfBill(b.id).map(c => ` <span class="status-pill" style="font-size:10px;padding:1px 6px">CN-${c.no} ${money(c.total)}</span>`).join('')}
             </td>
           </tr>
@@ -8683,9 +9519,10 @@ function periodRows(bs, keyFn, labelFn, label){
     total: keys.length ? ['TOTAL', t('n'), money(t('disc')), money(t('taxable')), money(t('tax')), money(t('total'))] : null};
 }
 
-const RPT_TABS = [['summary','Summary'],['daily','Day-wise'],['monthly','Month-wise'],['bills','Bill-wise'],['items','Item-wise'],['category','Category-wise'],['hourly','Hourly'],['payment','Payment Mode'],['channel','Channel'],['gst','GST Summary'],['discount','Discounts'],['cancelled','Cancelled'],['expenses','Expenses'],['customers','Top Customers']];
+const RPT_TABS = [['summary','Summary'],['daily','Day-wise'],['monthly','Month-wise'],['bills','Bill-wise'],['items','Item-wise'],['category','Category-wise'],['hourly','Hourly'],['payment','Payment Mode'],['channel','Channel'],['gst','GST Summary'],['discount','Discounts'],['cancelled','Cancelled'],['expenses','Expenses'],['customers','Top Customers'],['whatsapp','WhatsApp Reports']];
 
 function scrReports(){
+  if(rptTab === 'whatsapp'){ scrWaReports(); return; }
   const r = rptData()[rptTab]();
   main.innerHTML = `
   <div class="title">
@@ -8792,6 +9629,891 @@ function tallyExport(){
   </IMPORTDATA></BODY>
 </ENVELOPE>`;
   saveFile(`tally-sales-${rptFrom}-to-${rptTo}.xml`, xml, 'application/xml', `${Object.keys(groups).length} sales vouchers exported to Tally XML.`);
+}
+
+/* ================= WHATSAPP REPORTS & MESSAGE TRACKING MODULE ================= */
+let waTab = 'dashboard';
+let waFrom = today();
+let waTo = today();
+let waProviderFilter = 'all';
+let waTypeFilter = 'all';
+let waStatusFilter = 'all';
+let waSearch = '';
+let waPage = 1;
+const WA_PAGE_SIZE = 25;
+
+function getWaMessagesList(){
+  const msgs = Array.isArray(D.waMessages) ? D.waMessages : [];
+  return msgs.slice().sort((a,b) => (+b.requestedAt || 0) - (+a.requestedAt || 0));
+}
+
+function waMaskPhone(phone){
+  if(isManager()) return phone || '—';
+  const p = String(phone || '').replace(/\D/g, '');
+  if(!p) return '—';
+  if(p.length >= 10){
+    const d = p.slice(-10);
+    return d.slice(0, 2) + '****' + d.slice(6);
+  }
+  return p.slice(0, 1) + '****' + p.slice(-2);
+}
+
+function waBadgeHTML(status){
+  const s = String(status || 'UNKNOWN').toUpperCase();
+  const cls = s.toLowerCase();
+  return `<span class="wa-badge ${cls}">${esc(s)}</span>`;
+}
+
+function waFmtTime(ts){
+  if(!ts) return '—';
+  const d = new Date(+ts);
+  if(isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' + d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+}
+
+function waTimeAgo(ts){
+  if(!ts) return '—';
+  const diff = Date.now() - (+ts);
+  if(diff < 60000) return 'Just now';
+  if(diff < 3600000) return Math.floor(diff/60000) + 'm ago';
+  if(diff < 86400000) return Math.floor(diff/3600000) + 'h ago';
+  return Math.floor(diff/86400000) + 'd ago';
+}
+
+function filterWaMessages(customStatusFilter){
+  const all = getWaMessagesList();
+  const fStatus = customStatusFilter !== undefined ? customStatusFilter : waStatusFilter;
+  
+  return all.filter(m => {
+    const mDate = m.date || (m.requestedAt ? new Date(+m.requestedAt).toISOString().slice(0, 10) : today());
+    if(waFrom && mDate < waFrom) return false;
+    if(waTo && mDate > waTo) return false;
+    if(waProviderFilter !== 'all' && (m.provider || 'meta').toLowerCase() !== waProviderFilter.toLowerCase()) return false;
+    if(waTypeFilter !== 'all' && (m.msgType || 'receipt').toLowerCase() !== waTypeFilter.toLowerCase()) return false;
+    if(fStatus !== 'all'){
+      if(Array.isArray(fStatus)){
+        if(!fStatus.includes(m.status)) return false;
+      } else {
+        if(m.status !== fStatus) return false;
+      }
+    }
+    if(waSearch){
+      const q = waSearch.toLowerCase().trim();
+      const bNo = String(m.billNo || '').toLowerCase();
+      const cust = String(m.customerName || '').toLowerCase();
+      const ph = String(m.phone || '').toLowerCase();
+      const pId = String(m.providerMsgId || '').toLowerCase();
+      const err = String(m.errorCode || '').toLowerCase();
+      const id = String(m.id || '').toLowerCase();
+      if(!bNo.includes(q) && !cust.includes(q) && !ph.includes(q) && !pId.includes(q) && !err.includes(q) && !id.includes(q)){
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+function computeWaStats(list){
+  const totalRequests = list.length;
+  let submitted = 0, sent = 0, delivered = 0, read = 0, failed = 0, pending = 0, unknown = 0, skipped = 0, cancelled = 0, totalAttempts = 0;
+  
+  list.forEach(m => {
+    totalAttempts += (+m.attemptCount || 1);
+    const s = m.status || 'UNKNOWN';
+    if(s === 'READ') read++;
+    else if(s === 'DELIVERED') delivered++;
+    else if(s === 'SENT') sent++;
+    else if(s === 'SUBMITTED') submitted++;
+    else if(s === 'QUEUED' || s === 'PROCESSING') pending++;
+    else if(s === 'FAILED') failed++;
+    else if(s === 'UNKNOWN') unknown++;
+    else if(s === 'SKIPPED') skipped++;
+    else if(s === 'CANCELLED') cancelled++;
+  });
+  
+  const totalSubmitted = submitted + sent + delivered + read;
+  const confirmedDelivered = delivered + read;
+  const dispatched = totalRequests - skipped - cancelled;
+  const deliveryRate = dispatched > 0 ? ((confirmedDelivered / dispatched) * 100).toFixed(1) : '0.0';
+  const failureRate = dispatched > 0 ? ((failed / dispatched) * 100).toFixed(1) : '0.0';
+
+  return {
+    totalRequests, totalSubmitted, submitted, sent, delivered, read,
+    confirmedDelivered, failed, pending, unknown, skipped, cancelled,
+    deliveryRate, failureRate, totalAttempts
+  };
+}
+
+function scrWaReports(){
+  if(activeUser && ['waiter','kitchen'].includes(activeUser.access)){
+    toast('Access Denied: WhatsApp reports are restricted to management & billing');
+    go('gateway');
+    return;
+  }
+  
+  const allFiltered = filterWaMessages('all');
+  const stats = computeWaStats(allFiltered);
+  const failedList = filterWaMessages('FAILED');
+  const pendingList = filterWaMessages(['QUEUED', 'PROCESSING']);
+  
+  let content = '';
+  if(waTab === 'dashboard') content = renderWaDashboard(allFiltered, stats);
+  else if(waTab === 'all') content = renderWaAllMessages(allFiltered);
+  else if(waTab === 'failed') content = renderWaFailedMessages(failedList);
+  else if(waTab === 'pending') content = renderWaPendingMessages(pendingList);
+  else if(waTab === 'tracking') content = renderWaDeliveryTracking(allFiltered);
+  else if(waTab === 'export') content = renderWaExport(allFiltered, stats);
+
+  main.innerHTML = `
+  <div class="title">
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#25d366;color:#fff;font-size:18px">💬</span>
+      <div>
+        <div style="font-size:16px;font-weight:800">WhatsApp Reports &amp; Tracking</div>
+        <div class="muted" style="font-size:11px;font-weight:normal">Auditable Multi-Provider Message Intelligence &amp; Delivery Reconciliation</div>
+      </div>
+    </div>
+    <div class="r" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <span>From <input type="date" value="${waFrom}" onchange="waFrom=this.value;waPage=1;scrWaReports()"></span>
+      <span>To <input type="date" value="${waTo}" onchange="waTo=this.value;waPage=1;scrWaReports()"></span>
+      <button class="btn g sm" onclick="go('settings')">⚙️ Settings</button>
+    </div>
+  </div>
+
+  <div class="cats" style="margin-bottom:10px">
+    <button class="cat" onclick="waFrom=waTo=today();waPage=1;scrWaReports()">Today</button>
+    <button class="cat" onclick="waFrom=waTo=addDays(today(),-1);waPage=1;scrWaReports()">Yesterday</button>
+    <button class="cat" onclick="waFrom=addDays(today(),-6);waTo=today();waPage=1;scrWaReports()">Last 7 Days</button>
+    <button class="cat" onclick="waFrom=today().slice(0,8)+'01';waTo=today();waPage=1;scrWaReports()">This Month</button>
+    <button class="cat" onclick="waFrom='';waTo='';waPage=1;scrWaReports()">All Time</button>
+  </div>
+
+  <div class="cats" style="margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:10px">
+    <button class="cat ${waTab==='dashboard'?'on':''}" onclick="waTab='dashboard';waPage=1;scrWaReports()">
+      📊 Dashboard
+    </button>
+    <button class="cat ${waTab==='all'?'on':''}" onclick="waTab='all';waPage=1;scrWaReports()">
+      📑 All Messages <span class="badge" style="background:rgba(255,255,255,0.25);font-size:10px;padding:1px 5px;border-radius:10px">${stats.totalRequests}</span>
+    </button>
+    <button class="cat ${waTab==='failed'?'on':''}" onclick="waTab='failed';waPage=1;scrWaReports()">
+      ⚠️ Failed Messages ${stats.failed ? `<span class="badge" style="background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px">${stats.failed}</span>` : ''}
+    </button>
+    <button class="cat ${waTab==='pending'?'on':''}" onclick="waTab='pending';waPage=1;scrWaReports()">
+      ⏳ Pending Queue ${stats.pending ? `<span class="badge" style="background:#3b82f6;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px">${stats.pending}</span>` : ''}
+    </button>
+    <button class="cat ${waTab==='tracking'?'on':''}" onclick="waTab='tracking';waPage=1;scrWaReports()">
+      🎯 Delivery Tracking
+    </button>
+    <button class="cat ${waTab==='export'?'on':''}" onclick="waTab='export';waPage=1;scrWaReports()">
+      📤 Export Reports
+    </button>
+  </div>
+
+  ${content}
+  `;
+}
+
+function renderWaDashboard(list, stats){
+  const highFailure = stats.totalRequests >= 5 && +stats.failureRate > 15;
+  const recent = list.slice(0, 10);
+  
+  return `
+  ${highFailure ? `
+  <div class="wa-alert-banner bad">
+    <span style="font-size:20px">⚠️</span>
+    <div style="flex:1">
+      <b>High Message Failure Rate Alert: ${stats.failureRate}%</b>
+      <div>Multiple WhatsApp messages have failed delivery. Check phone numbers, gateway connection, or Meta Cloud API template status.</div>
+    </div>
+    <button class="btn bad sm" onclick="waTab='failed';waPage=1;scrWaReports()">View Failed Messages</button>
+  </div>` : ''}
+
+  <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-bottom:16px">
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid var(--primary)">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Total Requests</div>
+      <div style="font-size:24px;font-weight:800;color:var(--text);margin-top:4px">${stats.totalRequests}</div>
+      <div class="muted" style="font-size:11px">${stats.totalAttempts} total attempts</div>
+    </div>
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid #0284c7">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Submitted</div>
+      <div style="font-size:24px;font-weight:800;color:#0284c7;margin-top:4px">${stats.totalSubmitted}</div>
+      <div class="muted" style="font-size:11px">Accepted by provider</div>
+    </div>
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid #4f46e5">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Sent</div>
+      <div style="font-size:24px;font-weight:800;color:#4f46e5;margin-top:4px">${stats.sent}</div>
+      <div class="muted" style="font-size:11px">In transit to recipient</div>
+    </div>
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid #059669">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Delivered</div>
+      <div style="font-size:24px;font-weight:800;color:#059669;margin-top:4px">${stats.delivered}</div>
+      <div class="muted" style="font-size:11px">Confirmed on device</div>
+    </div>
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid #0d9488">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Read</div>
+      <div style="font-size:24px;font-weight:800;color:#0d9488;margin-top:4px">${stats.read}</div>
+      <div class="muted" style="font-size:11px">Opened by customer</div>
+    </div>
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid #ef4444">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Failed</div>
+      <div style="font-size:24px;font-weight:800;color:#ef4444;margin-top:4px">${stats.failed}</div>
+      <div class="muted" style="font-size:11px">${stats.failureRate}% failure rate</div>
+    </div>
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid #3b82f6">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Pending</div>
+      <div style="font-size:24px;font-weight:800;color:#3b82f6;margin-top:4px">${stats.pending}</div>
+      <div class="muted" style="font-size:11px">Queued / Processing</div>
+    </div>
+    <div class="card" style="margin:0;padding:14px;border-left:4px solid #10b981">
+      <div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase">Delivery Rate</div>
+      <div style="font-size:24px;font-weight:800;color:#10b981;margin-top:4px">${stats.deliveryRate}%</div>
+      <div class="muted" style="font-size:11px">${stats.confirmedDelivered} delivered/read</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0">Delivery Funnel &amp; State Breakdown</h3>
+      <div class="muted" style="font-size:12px">Read &amp; Delivered are mutually exclusive last-known states.</div>
+    </div>
+    <div style="display:flex;height:24px;border-radius:12px;overflow:hidden;background:var(--surface);margin-bottom:12px;border:1px solid var(--border)">
+      ${stats.read ? `<div style="width:${(stats.read/stats.totalRequests*100).toFixed(1)}%;background:#0d9488;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center" title="Read: ${stats.read}">Read (${stats.read})</div>` : ''}
+      ${stats.delivered ? `<div style="width:${(stats.delivered/stats.totalRequests*100).toFixed(1)}%;background:#059669;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center" title="Delivered: ${stats.delivered}">Delivered (${stats.delivered})</div>` : ''}
+      ${stats.sent ? `<div style="width:${(stats.sent/stats.totalRequests*100).toFixed(1)}%;background:#4f46e5;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center" title="Sent: ${stats.sent}">Sent (${stats.sent})</div>` : ''}
+      ${stats.submitted ? `<div style="width:${(stats.submitted/stats.totalRequests*100).toFixed(1)}%;background:#0284c7;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center" title="Submitted: ${stats.submitted}">Submitted (${stats.submitted})</div>` : ''}
+      ${stats.pending ? `<div style="width:${(stats.pending/stats.totalRequests*100).toFixed(1)}%;background:#3b82f6;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center" title="Pending: ${stats.pending}">Pending (${stats.pending})</div>` : ''}
+      ${stats.failed ? `<div style="width:${(stats.failed/stats.totalRequests*100).toFixed(1)}%;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center" title="Failed: ${stats.failed}">Failed (${stats.failed})</div>` : ''}
+      ${(!stats.totalRequests) ? `<div style="width:100%;color:var(--text-muted);font-size:11px;display:flex;align-items:center;justify-content:center">No message activity recorded for this period</div>` : ''}
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px">
+      <span><b style="color:#0d9488">●</b> Read: <b>${stats.read}</b></span>
+      <span><b style="color:#059669">●</b> Delivered: <b>${stats.delivered}</b></span>
+      <span><b style="color:#4f46e5">●</b> Sent: <b>${stats.sent}</b></span>
+      <span><b style="color:#0284c7">●</b> Submitted: <b>${stats.submitted}</b></span>
+      <span><b style="color:#3b82f6">●</b> Pending: <b>${stats.pending}</b></span>
+      <span><b style="color:#ef4444">●</b> Failed: <b>${stats.failed}</b></span>
+      <span><b style="color:#64748b">●</b> Skipped/Cancelled: <b>${stats.skipped + stats.cancelled}</b></span>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
+      <h3 style="margin:0">Recent Message Activity</h3>
+      <button class="btn g sm" onclick="waTab='all';scrWaReports()">View All Messages →</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Bill #</th>
+          <th>Customer</th>
+          <th>Mobile</th>
+          <th>Type</th>
+          <th>Provider</th>
+          <th>Status</th>
+          <th>Requested</th>
+          <th>Attempts</th>
+          <th class="n">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${recent.map(m => `
+        <tr>
+          <td><b>#${esc(m.billNo || '—')}</b></td>
+          <td>${esc(m.customerName || 'Customer')}</td>
+          <td><code>${esc(waMaskPhone(m.phone))}</code></td>
+          <td><span class="badge" style="font-size:11px">${esc(m.msgType || 'receipt')}</span></td>
+          <td><span style="font-size:11px;text-transform:uppercase;color:var(--text-muted)">${esc(m.provider || 'meta')}</span></td>
+          <td>${waBadgeHTML(m.status)}</td>
+          <td><span title="${waFmtTime(m.requestedAt)}">${waTimeAgo(m.requestedAt)}</span></td>
+          <td style="text-align:center">${m.attemptCount || 1}</td>
+          <td class="n">
+            <button class="btn g sm" onclick="openWaMessageModal('${m.id}')">Details</button>
+            ${(m.status === 'FAILED' || m.status === 'UNKNOWN') && isManager() ? `<button class="btn bad sm" style="margin-left:4px" onclick="retryWaMessage('${m.id}')">Retry</button>` : ''}
+          </td>
+        </tr>`).join('') || `<tr><td colspan="9" class="muted" style="text-align:center;padding:24px">No WhatsApp messages found</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+  `;
+}
+
+function renderWaFilterControls(){
+  return `
+  <div class="card" style="padding:12px;margin-bottom:16px;background:var(--surface)">
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <input type="text" id="wa_search_input" value="${esc(waSearch)}" placeholder="Search by Bill #, Customer, Mobile, Error..." oninput="waSearch=this.value;waPage=1;scrWaReports()" style="width:100%;margin:0">
+      </div>
+      <div>
+        <select onchange="waProviderFilter=this.value;waPage=1;scrWaReports()" style="margin:0">
+          <option value="all" ${waProviderFilter==='all'?'selected':''}>All Providers</option>
+          <option value="meta" ${waProviderFilter==='meta'?'selected':''}>Meta Cloud API</option>
+          <option value="baileys" ${waProviderFilter==='baileys'?'selected':''}>Baileys Gateway</option>
+        </select>
+      </div>
+      <div>
+        <select onchange="waTypeFilter=this.value;waPage=1;scrWaReports()" style="margin:0">
+          <option value="all" ${waTypeFilter==='all'?'selected':''}>All Message Types</option>
+          <option value="receipt" ${waTypeFilter==='receipt'?'selected':''}>Receipt</option>
+          <option value="summary" ${waTypeFilter==='summary'?'selected':''}>Summary / Day Report</option>
+          <option value="notification" ${waTypeFilter==='notification'?'selected':''}>Notification</option>
+          <option value="test" ${waTypeFilter==='test'?'selected':''}>Test</option>
+        </select>
+      </div>
+      <div>
+        <select onchange="waStatusFilter=this.value;waPage=1;scrWaReports()" style="margin:0">
+          <option value="all" ${waStatusFilter==='all'?'selected':''}>All Statuses</option>
+          <option value="QUEUED" ${waStatusFilter==='QUEUED'?'selected':''}>QUEUED</option>
+          <option value="PROCESSING" ${waStatusFilter==='PROCESSING'?'selected':''}>PROCESSING</option>
+          <option value="SUBMITTED" ${waStatusFilter==='SUBMITTED'?'selected':''}>SUBMITTED</option>
+          <option value="SENT" ${waStatusFilter==='SENT'?'selected':''}>SENT</option>
+          <option value="DELIVERED" ${waStatusFilter==='DELIVERED'?'selected':''}>DELIVERED</option>
+          <option value="READ" ${waStatusFilter==='READ'?'selected':''}>READ</option>
+          <option value="FAILED" ${waStatusFilter==='FAILED'?'selected':''}>FAILED</option>
+          <option value="UNKNOWN" ${waStatusFilter==='UNKNOWN'?'selected':''}>UNKNOWN</option>
+          <option value="SKIPPED" ${waStatusFilter==='SKIPPED'?'selected':''}>SKIPPED</option>
+          <option value="CANCELLED" ${waStatusFilter==='CANCELLED'?'selected':''}>CANCELLED</option>
+        </select>
+      </div>
+      ${waSearch || waProviderFilter !== 'all' || waTypeFilter !== 'all' || waStatusFilter !== 'all' ? `
+      <button class="btn g sm" onclick="waSearch='';waProviderFilter='all';waTypeFilter='all';waStatusFilter='all';waPage=1;scrWaReports()">Clear Filters</button>` : ''}
+    </div>
+  </div>`;
+}
+
+function renderWaAllMessages(list){
+  const total = list.length;
+  const start = (waPage - 1) * WA_PAGE_SIZE;
+  const pageList = list.slice(start, start + WA_PAGE_SIZE);
+  const totalPages = Math.ceil(total / WA_PAGE_SIZE) || 1;
+
+  return `
+  ${renderWaFilterControls()}
+
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Bill #</th>
+          <th>Customer</th>
+          <th>Mobile</th>
+          <th>Type</th>
+          <th>Provider</th>
+          <th>Status</th>
+          <th>Requested At</th>
+          <th>Last Update</th>
+          <th style="text-align:center">Attempts</th>
+          <th class="n">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${pageList.map(m => `
+        <tr>
+          <td><b>#${esc(m.billNo || '—')}</b></td>
+          <td>${esc(m.customerName || 'Customer')}</td>
+          <td><code>${esc(waMaskPhone(m.phone))}</code></td>
+          <td><span class="badge" style="font-size:11px">${esc(m.msgType || 'receipt')}</span></td>
+          <td><span style="font-size:11px;text-transform:uppercase;color:var(--text-muted)">${esc(m.provider || 'meta')}</span></td>
+          <td>${waBadgeHTML(m.status)}</td>
+          <td>${waFmtTime(m.requestedAt)}</td>
+          <td>${waTimeAgo(m.updatedAt || m.requestedAt)}</td>
+          <td style="text-align:center"><b>${m.attemptCount || 1}</b></td>
+          <td class="n">
+            <button class="btn g sm" onclick="openWaMessageModal('${m.id}')">View</button>
+            ${(m.status === 'FAILED' || m.status === 'UNKNOWN') && isManager() ? `<button class="btn bad sm" style="margin-left:4px" onclick="retryWaMessage('${m.id}')">Retry</button>` : ''}
+          </td>
+        </tr>`).join('') || `<tr><td colspan="10" class="muted" style="text-align:center;padding:24px">No messages matching criteria</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+
+  ${totalPages > 1 ? `
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+    <span class="muted" style="font-size:13px">Showing ${start + 1}–${Math.min(start + WA_PAGE_SIZE, total)} of ${total} messages</span>
+    <div class="btns" style="margin:0">
+      <button class="btn g sm" ${waPage <= 1 ? 'disabled' : ''} onclick="waPage--;scrWaReports()">← Previous</button>
+      <span style="font-size:13px;padding:4px 8px;font-weight:700">Page ${waPage} of ${totalPages}</span>
+      <button class="btn g sm" ${waPage >= totalPages ? 'disabled' : ''} onclick="waPage++;scrWaReports()">Next →</button>
+    </div>
+  </div>` : ''}
+  `;
+}
+
+function renderWaFailedMessages(list){
+  return `
+  <div class="card" style="border-left:4px solid #ef4444;background:rgba(239,68,68,0.03)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <h3 style="margin:0;color:#dc2626">Failed Messages Queue (${list.length})</h3>
+        <div class="muted" style="font-size:12px;margin-top:2px">Audit and safely retry failed dispatches. Duplicate retries are automatically prevented.</div>
+      </div>
+      ${list.length && isManager() ? `<button class="btn bad sm" onclick="toast('Please retry individual messages to review customer contact numbers')">Bulk Retry Review</button>` : ''}
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Bill #</th>
+          <th>Customer</th>
+          <th>Mobile</th>
+          <th>Provider</th>
+          <th>Error Code</th>
+          <th>Failure Reason</th>
+          <th>Failed At</th>
+          <th style="text-align:center">Attempts</th>
+          <th class="n">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(m => `
+        <tr>
+          <td><b>#${esc(m.billNo || '—')}</b></td>
+          <td>${esc(m.customerName || 'Customer')}</td>
+          <td><code>${esc(waMaskPhone(m.phone))}</code></td>
+          <td><span style="font-size:11px;text-transform:uppercase;color:var(--text-muted)">${esc(m.provider || 'meta')}</span></td>
+          <td><code style="color:#dc2626;font-size:11px">${esc(m.errorCode || 'UNKNOWN_ERROR')}</code></td>
+          <td style="max-width:280px;font-size:12px;color:var(--text-muted)">${esc(m.errorReason || m.note || 'No error details provided')}</td>
+          <td>${waFmtTime(m.failedAt || m.updatedAt || m.requestedAt)}</td>
+          <td style="text-align:center"><b>${m.attemptCount || 1}</b></td>
+          <td class="n">
+            <button class="btn g sm" onclick="openWaMessageModal('${m.id}')">Inspect</button>
+            ${isManager() ? `<button class="btn bad sm" style="margin-left:4px" onclick="retryWaMessage('${m.id}')">Retry</button>` : ''}
+          </td>
+        </tr>`).join('') || `<tr><td colspan="9" class="green" style="text-align:center;padding:24px">🎉 No failed messages recorded! All messages successfully dispatched.</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+  `;
+}
+
+function renderWaPendingMessages(list){
+  return `
+  <div class="card" style="border-left:4px solid #3b82f6;background:rgba(59,130,246,0.03)">
+    <h3 style="margin:0;color:#2563eb">Pending Messages (${list.length})</h3>
+    <div class="muted" style="font-size:12px;margin-top:2px">Messages currently queued or awaiting processing by the WhatsApp messaging provider.</div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:auto">
+    <table>
+      <thead>
+        <tr>
+          <th>Bill #</th>
+          <th>Customer</th>
+          <th>Mobile</th>
+          <th>Status</th>
+          <th>Provider</th>
+          <th>Queued At</th>
+          <th>Age in Queue</th>
+          <th class="n">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(m => `
+        <tr>
+          <td><b>#${esc(m.billNo || '—')}</b></td>
+          <td>${esc(m.customerName || 'Customer')}</td>
+          <td><code>${esc(waMaskPhone(m.phone))}</code></td>
+          <td>${waBadgeHTML(m.status)}</td>
+          <td><span style="font-size:11px;text-transform:uppercase;color:var(--text-muted)">${esc(m.provider || 'meta')}</span></td>
+          <td>${waFmtTime(m.queuedAt || m.requestedAt)}</td>
+          <td><b>${waTimeAgo(m.queuedAt || m.requestedAt)}</b></td>
+          <td class="n">
+            <button class="btn g sm" onclick="openWaMessageModal('${m.id}')">Details</button>
+          </td>
+        </tr>`).join('') || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No pending messages in queue. Everything is up to date.</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+  `;
+}
+
+function renderWaDeliveryTracking(list){
+  const activeStream = list.filter(m => ['QUEUED','PROCESSING','SUBMITTED','SENT','DELIVERED','READ'].includes(m.status)).slice(0, 15);
+
+  return `
+  <div class="card" style="margin-bottom:16px">
+    <h3 style="margin-top:0">Delivery Progression Tracking</h3>
+    <div class="muted" style="font-size:12px;margin-bottom:14px">Monotonic state transitions ensuring reliable proof of delivery without premature confirmation.</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface);padding:14px 20px;border-radius:10px;border:1px solid var(--border);flex-wrap:wrap;gap:12px">
+      <div style="text-align:center">
+        <div style="font-size:12px;font-weight:700;color:var(--text-muted)">1. QUEUED</div>
+        <div style="font-size:11px;color:var(--text-muted)">Saved to Outbox</div>
+      </div>
+      <div style="color:var(--border);font-size:18px">➔</div>
+      <div style="text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#0284c7">2. SUBMITTED</div>
+        <div style="font-size:11px;color:var(--text-muted)">Accepted by API</div>
+      </div>
+      <div style="color:var(--border);font-size:18px">➔</div>
+      <div style="text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#4f46e5">3. SENT</div>
+        <div style="font-size:11px;color:var(--text-muted)">Transmitted to Meta</div>
+      </div>
+      <div style="color:var(--border);font-size:18px">➔</div>
+      <div style="text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#059669">4. DELIVERED</div>
+        <div style="font-size:11px;color:var(--text-muted)">Received on Device</div>
+      </div>
+      <div style="color:var(--border);font-size:18px">➔</div>
+      <div style="text-align:center">
+        <div style="font-size:12px;font-weight:700;color:#0d9488">5. READ</div>
+        <div style="font-size:11px;color:var(--text-muted)">Blue Ticks / Viewed</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:auto">
+    <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
+      <h3 style="margin:0">Active Delivery Stream</h3>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Bill #</th>
+          <th>Customer</th>
+          <th>Mobile</th>
+          <th>Provider</th>
+          <th>Stage</th>
+          <th>Timeline Events</th>
+          <th>Last Update</th>
+          <th class="n">Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${activeStream.map(m => {
+          const evCount = Array.isArray(m.events) ? m.events.length : 1;
+          return `
+          <tr>
+            <td><b>#${esc(m.billNo || '—')}</b></td>
+            <td>${esc(m.customerName || 'Customer')}</td>
+            <td><code>${esc(waMaskPhone(m.phone))}</code></td>
+            <td><span style="font-size:11px;text-transform:uppercase;color:var(--text-muted)">${esc(m.provider || 'meta')}</span></td>
+            <td>${waBadgeHTML(m.status)}</td>
+            <td><span class="badge" style="background:var(--surface);font-size:11px">${evCount} recorded event${evCount > 1 ? 's' : ''}</span></td>
+            <td>${waTimeAgo(m.updatedAt || m.requestedAt)}</td>
+            <td class="n"><button class="btn g sm" onclick="openWaMessageModal('${m.id}')">Inspect Timeline</button></td>
+          </tr>`;
+        }).join('') || `<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No active dispatches found</td></tr>`}
+      </tbody>
+    </table>
+  </div>
+  `;
+}
+
+function renderWaExport(list, stats){
+  return `
+  <div class="card">
+    <h3 style="margin-top:0">Export &amp; Print WhatsApp Delivery Reports</h3>
+    <p class="muted" style="font-size:13px">Download auditable message logs or print formatted reconciliation statements for compliance, tax filings, and management reviews.</p>
+    
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin:18px 0">
+      <div class="card" style="margin:0;background:var(--surface);display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <h4 style="margin:0 0 6px">CSV Spreadsheet Export</h4>
+          <p class="muted" style="font-size:12px">Comma-separated values including Bill #, date, masked/full phone, status, provider, error code, and attempt count.</p>
+        </div>
+        <button class="btn ok" onclick="exportWaCSV()">📥 Download CSV</button>
+      </div>
+
+      <div class="card" style="margin:0;background:var(--surface);display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <h4 style="margin:0 0 6px">JSON Audit Archive</h4>
+          <p class="muted" style="font-size:12px">Complete JSON dump containing full event histories, provider IDs, raw callbacks, and attempt timestamps.</p>
+        </div>
+        <button class="btn g" onclick="exportWaJSON()">📦 Download JSON Audit</button>
+      </div>
+
+      <div class="card" style="margin:0;background:var(--surface);display:flex;flex-direction:column;justify-content:space-between">
+        <div>
+          <h4 style="margin:0 0 6px">Printable A4 Reconciliation</h4>
+          <p class="muted" style="font-size:12px">Print or save as PDF: structured delivery reconciliation summary with provider breakdown and KPI table.</p>
+        </div>
+        <button class="btn" onclick="printWaReport()">🖨️ Print Reconciliation</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin:0;background:var(--panel);border:1px solid var(--border)">
+      <h4 style="margin-top:0">Summary Statement for Selected Period (${dmy(waFrom || today())} to ${dmy(waTo || today())})</h4>
+      <table style="max-width:600px">
+        <tr><td>Total Outbox Requests</td><td class="n"><b>${stats.totalRequests}</b></td></tr>
+        <tr><td>Successfully Dispatched (Submitted+)</td><td class="n"><b>${stats.totalSubmitted}</b></td></tr>
+        <tr><td>Confirmed Delivered (Delivered + Read)</td><td class="n"><b>${stats.confirmedDelivered}</b></td></tr>
+        <tr><td>Delivery Rate</td><td class="n"><b class="green">${stats.deliveryRate}%</b></td></tr>
+        <tr><td>Total Undelivered / Failed</td><td class="n"><b class="red">${stats.failed}</b></td></tr>
+        <tr><td>Failure Rate</td><td class="n"><b>${stats.failureRate}%</b></td></tr>
+        <tr><td>Total Transmission Attempts</td><td class="n"><b>${stats.totalAttempts}</b></td></tr>
+      </table>
+    </div>
+  </div>
+  `;
+}
+
+function openWaMessageModal(id){
+  const msgs = getWaMessagesList();
+  const m = msgs.find(x => x.id === id);
+  if(!m){ toast('Message not found'); return; }
+
+  const events = Array.isArray(m.events) ? m.events : [];
+  const attempts = Array.isArray(m.attempts) ? m.attempts : [];
+
+  const html = `
+  <div style="max-width:650px;width:100%;max-height:85vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:16px">
+      <div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <h3 style="margin:0">Message Details</h3>
+          ${waBadgeHTML(m.status)}
+        </div>
+        <div class="muted" style="font-size:11px;font-family:'JetBrains Mono',monospace;margin-top:4px">UUID: ${esc(m.id)}</div>
+      </div>
+      <button class="btn g sm" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div><label>Bill Number</label><div style="font-weight:700">#${esc(m.billNo || '—')}</div></div>
+      <div><label>Customer Name</label><div style="font-weight:700">${esc(m.customerName || 'Customer')}</div></div>
+      <div><label>Mobile Number</label><div><code>${esc(isManager() ? (m.phone || '—') : waMaskPhone(m.phone))}</code></div></div>
+      <div><label>Messaging Provider</label><div style="text-transform:uppercase;font-weight:600">${esc(m.provider || 'meta')}</div></div>
+      <div><label>Message Type</label><div>${esc(m.msgType || 'receipt')}</div></div>
+      <div><label>Provider Msg ID</label><div style="font-family:'JetBrains Mono',monospace;font-size:11px;word-break:break-all">${esc(m.providerMsgId || '—')}</div></div>
+      <div><label>Attempt Count</label><div><b>${m.attemptCount || 1}</b></div></div>
+      <div><label>Customer Consent</label><div>${m.consentGiven ? '✅ Explicitly Provided' : '—'}</div></div>
+    </div>
+
+    ${m.errorCode || m.errorReason ? `
+    <div class="wa-alert-banner bad" style="margin-bottom:16px">
+      <div>
+        <b>Failure Diagnostics:</b>
+        <div>Code: <code>${esc(m.errorCode || 'UNKNOWN_ERROR')}</code></div>
+        <div>Reason: ${esc(m.errorReason || m.note || 'No reason provided')}</div>
+      </div>
+    </div>` : ''}
+
+    <h4 style="margin:16px 0 8px">Status Transition Timeline</h4>
+    <div class="wa-timeline">
+      ${events.map(ev => {
+        const s = String(ev.status || '').toUpperCase();
+        let dotCls = 'active';
+        if(['DELIVERED','READ'].includes(s)) dotCls = 'ok';
+        else if(s === 'FAILED') dotCls = 'err';
+        return `
+        <div class="wa-tl-item">
+          <div class="wa-tl-dot ${dotCls}"></div>
+          <div class="wa-tl-head">
+            <span>${waBadgeHTML(s)}</span>
+            <span class="wa-tl-time">${waFmtTime(ev.timestamp)}</span>
+          </div>
+          <div class="wa-tl-note">${esc(ev.note || ev.source || '')}</div>
+        </div>`;
+      }).join('') || '<div class="muted">No event history recorded</div>'}
+    </div>
+
+    ${attempts.length > 1 ? `
+    <h4 style="margin:16px 0 8px">Transmission Attempts (${attempts.length})</h4>
+    <table style="margin-bottom:16px">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Started</th>
+          <th>Status</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${attempts.map(a => `
+        <tr>
+          <td>${a.attempt || 1}</td>
+          <td>${waFmtTime(a.startedAt)}</td>
+          <td>${waBadgeHTML(a.status)}</td>
+          <td>${esc(a.note || '—')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : ''}
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;border-top:1px solid var(--border);padding-top:14px">
+      <button class="btn g sm" onclick="navigator.clipboard && navigator.clipboard.writeText('${m.id}').then(()=>toast('Copied Message UUID'))">Copy UUID</button>
+      <div style="display:flex;gap:8px">
+        ${(m.status === 'FAILED' || m.status === 'UNKNOWN') && isManager() ? `<button class="btn bad" onclick="closeModal();retryWaMessage('${m.id}')">Retry Transmission</button>` : ''}
+        <button class="btn ok" onclick="closeModal()">Close</button>
+      </div>
+    </div>
+  </div>`;
+
+  openModal(html);
+}
+
+async function retryWaMessage(id){
+  if(!isManager()){
+    toast('Permission denied: Manager PIN required to retry messages');
+    return;
+  }
+  const msgs = getWaMessagesList();
+  const m = msgs.find(x => x.id === id);
+  if(!m){ toast('Message not found'); return; }
+  
+  if(m.status === 'PROCESSING'){
+    toast('Message is currently processing — concurrent retry prevented');
+    return;
+  }
+  if(!['FAILED', 'UNKNOWN'].includes(m.status)){
+    toast(`Cannot retry message with status "${m.status}"`);
+    return;
+  }
+  
+  if(!confirm(`Retry sending WhatsApp message to ${waMaskPhone(m.phone)} (Bill #${m.billNo})?`)) return;
+
+  if(SRV.on){
+    try{
+      const res = await srvFetch('/api/wa/retry', {
+        method: 'POST',
+        body: JSON.stringify({
+          id: m.id,
+          provider: m.provider || D.settings.waProvider || 'meta',
+          role: activeUser ? activeUser.access : 'cashier'
+        })
+      });
+      const data = await res.json().catch(()=>({}));
+      if(!res.ok){
+        toast('Retry rejected: ' + (data.error || 'Server error'));
+        return;
+      }
+      if(data.message){
+        const idx = msgs.findIndex(x => x.id === id);
+        if(idx >= 0) msgs[idx] = data.message;
+      }
+      save();
+      toast('Message re-queued for transmission');
+      scrWaReports();
+      return;
+    }catch(e){
+      console.warn('Backend retry error, using local fallback:', e);
+    }
+  }
+
+  m.attemptCount = (+m.attemptCount || 1) + 1;
+  m.status = 'QUEUED';
+  m.queuedAt = Date.now();
+  m.updatedAt = Date.now();
+  if(!Array.isArray(m.attempts)) m.attempts = [];
+  m.attempts.push({
+    attempt: m.attemptCount,
+    startedAt: Date.now(),
+    status: 'QUEUED',
+    note: `Manual retry initiated by ${activeUser ? activeUser.name : 'Operator'}`
+  });
+  if(!Array.isArray(m.events)) m.events = [];
+  m.events.push({
+    status: 'QUEUED',
+    timestamp: Date.now(),
+    note: `Manual retry (Attempt #${m.attemptCount})`,
+    source: 'operator'
+  });
+  save();
+  toast(`Message #${m.billNo} re-queued for sending (Attempt #${m.attemptCount})`);
+  scrWaReports();
+}
+
+function exportWaCSV(){
+  const list = filterWaMessages('all');
+  if(!list.length){ toast('No WhatsApp messages to export'); return; }
+  
+  const headers = ['Message UUID', 'Date', 'Bill No', 'Customer', 'Mobile', 'Type', 'Provider', 'Status', 'Attempts', 'Error Code', 'Error Reason', 'Requested At', 'Updated At'];
+  const rows = list.map(m => [
+    m.id || '',
+    m.date || '',
+    m.billNo || '',
+    m.customerName || '',
+    waMaskPhone(m.phone),
+    m.msgType || 'receipt',
+    m.provider || 'meta',
+    m.status || 'UNKNOWN',
+    m.attemptCount || 1,
+    m.errorCode || '',
+    m.errorReason || '',
+    m.requestedAt ? new Date(+m.requestedAt).toISOString() : '',
+    m.updatedAt ? new Date(+m.updatedAt).toISOString() : ''
+  ]);
+  
+  downloadCSV([headers, ...rows], `whatsapp-delivery-report-${waFrom || 'all'}-to-${waTo || 'all'}.csv`);
+}
+
+function exportWaJSON(){
+  const list = filterWaMessages('all');
+  if(!list.length){ toast('No WhatsApp messages to export'); return; }
+  
+  const sanitized = list.map(m => ({
+    ...m,
+    phone: waMaskPhone(m.phone)
+  }));
+  
+  const jsonStr = JSON.stringify(sanitized, null, 2);
+  saveFile(`whatsapp-audit-log-${waFrom || 'all'}-to-${waTo || 'all'}.json`, jsonStr, 'application/json', 'WhatsApp audit archive downloaded');
+}
+
+function printWaReport(){
+  const list = filterWaMessages('all');
+  const stats = computeWaStats(list);
+  const st = D.settings;
+
+  $('#print').style.removeProperty('--pw');
+  $('#print').innerHTML = `
+  <div class="a4rep">
+    <div class="a4h">
+      <div>
+        <h2>${esc(st.name || 'Hotel')}</h2>
+        ${st.address ? `<div>${esc(st.address)}</div>` : ''}
+        ${st.phone ? `<div>Ph: ${esc(st.phone)}</div>` : ''}
+        ${st.gstin ? `<div>GSTIN: ${esc(st.gstin)}</div>` : ''}
+      </div>
+      <div style="text-align:right">
+        <h2>WhatsApp Delivery Reconciliation</h2>
+        <div><b>${dmy(waFrom || today())}</b> to <b>${dmy(waTo || today())}</b></div>
+        <div>Printed: ${dmy(today())} ${nowTime()}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin:16px 0;border:1px solid #cbd5e1;border-radius:8px;padding:12px">
+      <div style="flex:1"><b>Total Requests:</b> ${stats.totalRequests}</div>
+      <div style="flex:1"><b>Delivered + Read:</b> ${stats.confirmedDelivered} (${stats.deliveryRate}%)</div>
+      <div style="flex:1"><b>Failed:</b> ${stats.failed} (${stats.failureRate}%)</div>
+      <div style="flex:1"><b>Pending:</b> ${stats.pending}</div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Bill #</th>
+          <th>Customer</th>
+          <th>Mobile</th>
+          <th>Type</th>
+          <th>Provider</th>
+          <th>Status</th>
+          <th>Attempts</th>
+          <th>Date &amp; Time</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.slice(0, 100).map(m => `
+        <tr>
+          <td>#${esc(m.billNo || '—')}</td>
+          <td>${esc(m.customerName || 'Customer')}</td>
+          <td>${esc(waMaskPhone(m.phone))}</td>
+          <td>${esc(m.msgType || 'receipt')}</td>
+          <td>${esc(m.provider || 'meta')}</td>
+          <td><b>${esc(m.status || 'UNKNOWN')}</b></td>
+          <td style="text-align:center">${m.attemptCount || 1}</td>
+          <td>${waFmtTime(m.requestedAt)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    ${list.length > 100 ? `<p class="muted" style="font-size:11px;margin-top:6px">Showing first 100 messages of ${list.length}. Full logs available in CSV export.</p>` : ''}
+
+    <div class="a4f">Generated by Setu Hotel ERP · WhatsApp Delivery Reconciliation</div>
+  </div>`;
+  printStatus('busy', 'Preparing print window…');
+  setTimeout(() => { appPrint(); printStatus('ok', 'Report sent'); }, 80);
 }
 
 /* ================= MONTHLY REPORT FOR CA / LAWYER ================= */
@@ -9429,10 +11151,12 @@ async function qrPoll(){
         if(fresh.length || calls.length){
           playOrderChime();
           toast(fresh.length ? `New QR order: ${[...new Set(fresh.map(o => 'Table ' + o.tbl))].join(', ')}` : `Table ${calls[0].tbl}: ${QR_CALL[calls[0].kind] || 'needs help'}`);
+          if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
         }
         if(QRS.auto && qrAutoDevice()){
           for(const o of QRS.orders.filter(o => o.status === 'pending')) await qrDecide(o.id, 'accept', true);
           for(const o of qrStuck()) await qrApply(o, 'Auto');
+          if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
         }
       }
     }
@@ -9501,6 +11225,7 @@ async function qrApply(o, by){
   save();
   qrApi('applied', {id: o.id, kot: String(kot.no)}).catch(() => {});
   toast(`Table ${tbl}: QR order added · KOT #${kot.no}`);
+  if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
   return true;
 }
 const qrDoneCall = async id => { try{ await qrApi('call', {id, by: (activeUser && activeUser.name) || 'Staff'}); }catch(e){ toast(e.message); } qrPoll(); };
@@ -9541,11 +11266,19 @@ const T_ON = t => QRS && QRS.tables && QRS.tables[t] && QRS.tables[t].on !== fal
 const qrSet = async v => { try{ await qrApi('settings', v); toast('Saved'); }catch(e){ toast(e.message); } drawQrDirect(); qrPoll(); };
 async function qrTable(t, action, ask){
   if(ask && !confirm(`Make a new QR for table ${t}? The old printed QR stops working.`)) return;
-  try{ await qrApi('table', {table: t, action}); }catch(e){ toast(e.message); }
+  try{
+    await qrApi('table', {table: t, action});
+    if((action === 'new' || action === 'on') && (!QRS || !QRS.on)){
+      try{ await qrApi('settings', {on: true}); }catch(e){}
+    }
+    toast(`Table ${t} QR is active`);
+  }catch(e){ toast(e.message); }
   drawQrDirect();
 }
 async function qrMakeAll(){
   for(const t of qrTables()) if(!(QRS.tables || {})[t]) { try{ await qrApi('table', {table: t, action: 'new'}); }catch(e){ toast(e.message); break; } }
+  if(!QRS || !QRS.on){ try{ await qrApi('settings', {on: true}); }catch(e){} }
+  toast('All table QR codes are active and turned on');
   drawQrDirect();
 }
 function qrPrint(ts){
@@ -10912,15 +12645,49 @@ function scrSettings(){
   </div>
 
   <div class="card" style="border-left:4px solid #25d366">
-    <h3 style="margin-top:0">WhatsApp Customer Receipts</h3>
-    <div class="grid">
-      <div><label>Receipt Delivery Mode</label><select id="st_waReceiptMode">
-        <option value="off" ${s.waReceiptMode==='off'?'selected':''}>OFF — never send customer receipts</option>
-        <option value="manual" ${(!s.waReceiptMode||s.waReceiptMode==='manual')?'selected':''}>Manual — open customer's WhatsApp (free)</option>
-        <option value="auto" ${s.waReceiptMode==='auto'?'selected':''}>Automatic — Meta WhatsApp Business Cloud API</option>
-      </select></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <h3 style="margin:0;display:flex;align-items:center;gap:8px">
+        <span>WhatsApp Customer Receipts &amp; Reports</span>
+        <span class="badge" style="background:#dcfce7;color:#15803d;font-size:11px;padding:2px 8px;border-radius:12px">ACTIVE MODULE</span>
+      </h3>
+      <button type="button" class="btn ok sm" onclick="go('wa-reports')">Open WhatsApp Reports &amp; Tracking</button>
     </div>
-    <p class="muted" style="font-size:12px">Auto send needs a configured Setu Cloud Worker, Meta-approved utility template, and the customer's permission for each bill. Meta may charge per message. API credentials are stored on Cloudflare, never here. A receipt is queued only after cloud sync; an API acceptance is not delivery confirmation.</p>
+    <div class="grid">
+      <div>
+        <label>Receipt Delivery Mode</label>
+        <select id="st_waReceiptMode">
+          <option value="off" ${s.waReceiptMode==='off'?'selected':''}>OFF — never send customer receipts</option>
+          <option value="manual" ${(!s.waReceiptMode||s.waReceiptMode==='manual')?'selected':''}>Manual — open customer's WhatsApp (free)</option>
+          <option value="auto" ${s.waReceiptMode==='auto'?'selected':''}>Automatic — Meta WhatsApp Cloud API / Baileys Gateway</option>
+        </select>
+      </div>
+      <div>
+        <label>Default Messaging Provider</label>
+        <select id="st_waProvider">
+          <option value="meta" ${s.waProvider==='meta'||!s.waProvider?'selected':''}>Meta WhatsApp Cloud API (Graph API)</option>
+          <option value="baileys" ${s.waProvider==='baileys'?'selected':''}>Baileys Gateway (Linked Phone QR)</option>
+        </select>
+      </div>
+      <div>
+        <label>Data Retention Policy (Message Logs)</label>
+        <select id="st_waRetention">
+          <option value="30" ${s.waRetention==='30'?'selected':''}>30 Days</option>
+          <option value="60" ${s.waRetention==='60'?'selected':''}>60 Days</option>
+          <option value="90" ${(!s.waRetention||s.waRetention==='90')?'selected':''}>90 Days (Recommended)</option>
+          <option value="180" ${s.waRetention==='180'?'selected':''}>180 Days (6 Months)</option>
+          <option value="365" ${s.waRetention==='365'?'selected':''}>365 Days (1 Year)</option>
+        </select>
+      </div>
+      <div>
+        <label>Meta Webhook Verification Token</label>
+        <input id="st_waWebhookSecret" value="${esc(s.waWebhookSecret || 'setu_verify_token')}" placeholder="Verify Token">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
+      <button type="button" class="btn g sm" onclick="runWaCleanup()">Run Retention Cleanup Now</button>
+      <span class="muted" style="font-size:12px">Logs older than the selected retention period will be permanently pruned to comply with privacy regulations.</span>
+    </div>
+    <p class="muted" style="font-size:12px;margin-top:10px;margin-bottom:0">Meta Cloud API requires approved templates and business phone verification. Baileys Gateway uses local phone pairing. Phone numbers are automatically masked for cashier and operator roles.</p>
   </div>
   <div class="card" style="border-left:4px solid #16a34a">
     <h3 style="margin-top:0">Growth Add-ons (QR Menu, Review, Loyalty, Kitchen Display)</h3>
@@ -11261,6 +13028,19 @@ async function waAutoSend(b){
   if(!D.settings.waAuto || !SRV.on || SRV.cloud || normPh(b.phone).length !== 10 || isAggregator(b.channel)) return;
   const r = await waSend(b.phone, billText(b));
   b.wa = r.ok ? 'sent' : 'failed';
+  trackWaMessage({
+    billId: b.id,
+    billNo: b.no,
+    phone: b.phone,
+    customerName: b.customer || 'Customer',
+    msgType: 'receipt',
+    provider: 'baileys',
+    status: r.ok ? 'SUBMITTED' : 'FAILED',
+    errorCode: r.ok ? '' : (r.error || 'DISPATCH_ERROR'),
+    errorReason: r.ok ? '' : (r.error || 'Dispatch error'),
+    note: 'Baileys auto-send after billing: ' + (r.ok ? 'Submitted' : r.error),
+    staff: activeUser ? activeUser.name : 'System'
+  });
   if(!r.ok){ logError('WhatsApp receipt: ' + r.error, 'Bill #' + b.no); toast(`Bill #${b.no}: WhatsApp not sent — ${r.error}`); }
   save();
 }
@@ -11530,14 +13310,40 @@ async function activateSettingsKey(){
   scrSettings();
 }
 
+async function runWaCleanup(){
+  if(!isManager()) return toast('Manager permission required for retention cleanup');
+  const days = +($('#st_waRetention')?.value || D.settings.waRetention || 90);
+  if(!confirm(`Clean up WhatsApp message logs older than ${days} days?`)) return;
+  if(SRV.on){
+    try{
+      const res = await srvFetch('/api/wa/cleanup', {method: 'POST', body: JSON.stringify({retentionDays: days})});
+      const j = await res.json().catch(()=>({}));
+      if(res.ok){
+        toast(`Cleanup complete: pruned ${j.pruned} messages (${j.remaining} kept)`);
+        save();
+        return;
+      }
+    }catch(e){}
+  }
+  const cutoff = Date.now() - days * 86400000;
+  D.waMessages = Array.isArray(D.waMessages) ? D.waMessages : [];
+  const orig = D.waMessages.length;
+  D.waMessages = D.waMessages.filter(m => (+m.requestedAt || 0) >= cutoff);
+  const pruned = orig - D.waMessages.length;
+  save();
+  toast(`Local cleanup complete: pruned ${pruned} messages (${D.waMessages.length} kept)`);
+}
+
 function saveSettings(){
-  ['name','address','phone','gstin','sac','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa'].forEach(k => {
+  ['name','address','phone','gstin','sac','owner','footer','adminPin','cashierPin','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa','waWebhookSecret'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = $('#st_'+k).value.trim();
   });
   ['ptsPer100','ptValue','minRedeem','kotLate','maxDiscPct'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = +$('#st_'+k).value || 0;
   });
   if($('#st_waReceiptMode')) D.settings.waReceiptMode = ['off','manual','auto'].includes($('#st_waReceiptMode').value) ? $('#st_waReceiptMode').value : 'manual';
+  if($('#st_waProvider')) D.settings.waProvider = $('#st_waProvider').value;
+  if($('#st_waRetention')) D.settings.waRetention = $('#st_waRetention').value;
   if($('#st_loyalty')) D.settings.loyalty = $('#st_loyalty').value === '1';
   if($('#st_tokenOn')) D.settings.tokenOn = $('#st_tokenOn').value === '1';
   if($('#st_gstInclusive')) D.settings.gstInclusive = $('#st_gstInclusive').value === '1';
@@ -11645,6 +13451,7 @@ function startUI(){
   setTimeout(footerHotel, 1500);
   setTimeout(doctorAuto, 30000);
   initIndexedDB();
+  migrateWaMessages(D);
   drawSide();
   checkAuth();
   updateSubscriptionUI();

@@ -19,3 +19,6 @@ Output/
 # WhatsApp sidecar: installed by the EXE build (npm ci), never committed
 whatsapp/node_modules/
 whatsapp/node.exe
+
+# Temporary test data
+test-data/

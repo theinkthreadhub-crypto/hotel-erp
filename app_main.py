@@ -24,12 +24,14 @@ import threading
 import http.server
 import urllib.request
 import urllib.error
+import urllib.parse
 import ssl
 import email.utils
 import base64
 import copy
 import hashlib
 import atexit
+import re
 
 APP_PORT = 8000
 APP_VERSION = 'dev'   # stamped by installer/stamp-version.py when the EXE is built
@@ -285,12 +287,18 @@ class SetuStore:
             pass
         self._load()
 
-    def add_token(self, role):
+    def add_token(self, role, hotel_id='default', name='Staff', expires_in_days=30):
         token = secrets.token_hex(16)
-        self.tokens[token] = role
+        self.tokens[token] = {
+            'role': str(role).lower(),
+            'hotelId': str(hotel_id or 'default').strip(),
+            'name': str(name or role).strip(),
+            'createdAt': int(time.time()),
+            'expiresAt': int(time.time()) + (expires_in_days * 86400)
+        }
         try:
             with open(self.tokens_path, 'w', encoding='utf-8') as f:
-                json.dump(self.tokens, f)
+                json.dump(self.tokens, f, indent=2)
         except Exception:
             pass
         return token
@@ -301,9 +309,12 @@ class SetuStore:
         try:
             with open(self.path, 'r', encoding='utf-8') as f:
                 doc = json.load(f)
+            data_obj = doc.get('data')
+            if isinstance(data_obj, dict):
+                self.migrate_wa_history(data_obj)
             self.version = int(doc.get('version', 0))
             self.saved_at = doc.get('savedAt', 0)
-            self.raw = json.dumps(doc.get('data'), ensure_ascii=False)
+            self.raw = json.dumps(data_obj, ensure_ascii=False)
         except Exception:
             # Never overwrite a file we could not read: keep it aside, then come back from the
             # newest readable daily backup (copied after every save, so it is the last good state)
@@ -391,11 +402,686 @@ class SetuStore:
         if pin in (str(st.get('adminPin') or ''), str(auth.get('password') or '')):
             return 'admin', auth.get('ownerName') or 'Manager'
         for s in d.get('staff') or []:
-            if not s.get('left') and s.get('access') and str(s.get('pin') or '') == pin:
-                return {'manager': 'admin'}.get(s['access'], s['access']), s.get('name') or 'Staff'
+            access = s.get('access') or s.get('role')
+            if not s.get('left') and access and str(s.get('pin') or '') == pin:
+                return {'manager': 'admin'}.get(access, access), s.get('name') or 'Staff'
         if pin == str(st.get('cashierPin') or ''):
             return 'cashier', 'Cashier'
         return None
+
+    def has_users_or_pins(self):
+        """Returns True if any user, staff member, or PIN is configured in the database."""
+        try:
+            d = self.data() or {}
+            st = d.get('settings') or {}
+            auth = d.get('auth') or {}
+            staff = d.get('staff') or []
+            if st.get('adminPin') or st.get('cashierPin') or auth.get('password') or staff:
+                return True
+            return False
+        except Exception:
+            return False
+
+    def clean_and_validate_bills(self, data_obj):
+        """
+        S01 Financial Invariant Enforcement:
+        1. Validates that every Split mode bill satisfies sum(pays.amt) == total.
+        2. Deduplicates bills by idemKey (prevents replay/duplicate financial posting).
+        3. Backfills durable identity and explicit payment status.
+        """
+        bills = data_obj.get('bills')
+        if not isinstance(bills, list):
+            return
+        
+        seen_idem = set()
+        deduped = []
+        for b in bills:
+            if not isinstance(b, dict):
+                continue
+            
+            # 1. Split payment tender validation
+            if b.get('mode') == 'Split':
+                pays = b.get('pays')
+                if not isinstance(pays, list) or len(pays) == 0:
+                    raise ValueError(f"Bill #{b.get('no', '?')} has mode 'Split' but empty pays")
+                tender_sum = round(sum(float(p.get('amt') or 0) for p in pays if isinstance(p, dict)), 2)
+                bill_total = round(float(b.get('total') or 0), 2)
+                if abs(tender_sum - bill_total) > 0.05:
+                    raise ValueError(f"Bill #{b.get('no', '?')} split tender sum ({tender_sum}) does not match bill total ({bill_total})")
+            
+            # 2. Durable identity & idempotency key
+            ik = b.get('idemKey')
+            if not ik:
+                # Backfill durable identity from id or table/no
+                ik = f"idem_{b.get('id') or (str(b.get('table', '')) + '_' + str(b.get('no', '')))}"
+                b['idemKey'] = ik
+                
+            if ik in seen_idem:
+                # Discard duplicate financial posting
+                continue
+            seen_idem.add(ik)
+            
+            # 3. Explicit payment status
+            if not b.get('paymentStatus'):
+                b['paymentStatus'] = 'recorded'
+            if b.get('mode') == 'UPI' or any((p.get('mode') == 'UPI') for p in (b.get('pays') or []) if isinstance(p, dict)):
+                if 'upiVerified' not in b:
+                    b['upiVerified'] = False
+                    
+            deduped.append(b)
+            
+        data_obj['bills'] = deduped
+
+    def settle_bill(self, payload):
+        """
+        S01 Atomic Bill Settlement with durable idempotency.
+        Executes under self.lock to guarantee zero concurrent duplicate billing.
+        """
+        with self.lock:
+            idem_key = payload.get('idemKey')
+            bill = payload.get('bill')
+            if not idem_key or not isinstance(bill, dict):
+                return 400, {'error': 'idemKey and bill object are required'}
+                
+            d = self.data()
+            bills = d.setdefault('bills', [])
+            
+            # Idempotency check: Return existing bill if identical request
+            existing = next((b for b in bills if b.get('idemKey') == idem_key), None)
+            if existing:
+                is_same = (
+                    existing.get('table') == bill.get('table') and
+                    abs(float(existing.get('total') or 0) - float(bill.get('total') or 0)) < 0.01 and
+                    existing.get('mode') == bill.get('mode')
+                )
+                if is_same:
+                    return 200, {
+                        'ok': True,
+                        'alreadySettled': True,
+                        'bill': existing,
+                        'version': self.version
+                    }
+                return 409, {
+                    'error': 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+                    'message': 'Idempotency key has already been used with a different bill payload'
+                }
+                
+            # Table order session duplicate protection
+            sess_id = bill.get('orderSessionId')
+            tbl = bill.get('table')
+            if tbl and sess_id:
+                existing_sess = next((b for b in bills if not b.get('cancelled') and b.get('table') == tbl and b.get('orderSessionId') == sess_id), None)
+                if existing_sess:
+                    return 200, {
+                        'ok': True,
+                        'alreadySettled': True,
+                        'bill': existing_sess,
+                        'version': self.version
+                    }
+                    
+            # Split payment verification
+            if bill.get('mode') == 'Split':
+                pays = bill.get('pays') or []
+                if not pays:
+                    return 400, {'error': 'SPLIT_TENDER_EMPTY', 'message': 'Split payment must have tender amounts'}
+                tender_sum = round(sum(float(p.get('amt') or 0) for p in pays if isinstance(p, dict)), 2)
+                bill_total = round(float(bill.get('total') or 0), 2)
+                if abs(tender_sum - bill_total) > 0.05:
+                    return 400, {
+                        'error': 'SPLIT_TENDER_MISMATCH',
+                        'message': f'Split payment tender sum ({tender_sum}) does not match bill total ({bill_total})'
+                    }
+                    
+            # Assign sequential bill and kot numbers
+            seq = d.setdefault('seq', {'bill': 0, 'kot': 0, 'token': 0})
+            seq['bill'] = int(seq.get('bill') or 0) + 1
+            bill['no'] = seq['bill']
+            seq['kot'] = int(seq.get('kot') or 0) + 1
+            bill['kot'] = seq['kot']
+            bill['idemKey'] = idem_key
+            
+            # Status distinction
+            bill['paymentStatus'] = 'recorded'
+            if bill.get('mode') == 'UPI' or any((p.get('mode') == 'UPI') for p in (bill.get('pays') or []) if isinstance(p, dict)):
+                bill['upiVerified'] = False
+                
+            # Deduct inventory safely
+            used = bill.get('used') or []
+            stock_list = d.setdefault('stock', [])
+            for u in used:
+                sid = u.get('sid')
+                qty = float(u.get('qty') or 0)
+                item = next((s for s in stock_list if s.get('id') == sid), None)
+                if item:
+                    item['qty'] = round(float(item.get('qty') or 0) - qty, 3)
+                    
+            # Clear running order from kaccha
+            if tbl and 'kaccha' in d and tbl in d['kaccha']:
+                del d['kaccha'][tbl]
+                
+            bills.append(bill)
+            self.write(d)
+            
+            return 200, {
+                'ok': True,
+                'alreadySettled': False,
+                'bill': bill,
+                'version': self.version
+            }
+
+    # ---------------- WhatsApp Reports & Message Tracking ----------------
+    STATUS_RANK = {
+        'QUEUED': 1,
+        'PROCESSING': 2,
+        'SUBMITTED': 3,
+        'SENT': 4,
+        'DELIVERED': 5,
+        'READ': 6,
+        'FAILED': 0,
+        'UNKNOWN': 0,
+        'SKIPPED': 0,
+        'CANCELLED': 0
+    }
+
+    @staticmethod
+    def mask_phone(phone):
+        p = re.sub(r'\D', '', str(phone or ''))
+        if len(p) >= 10:
+            core = p[-10:]
+            return core[:2] + '****' + core[-4:]
+        if len(p) >= 4:
+            return p[:1] + '***' + p[-2:]
+        return '****'
+
+    def migrate_wa_history(self, d):
+        """Safely backfills historical bill WhatsApp records without fabricating DELIVERED status."""
+        msgs = d.setdefault('waMessages', [])
+        existing_bill_ids = {m.get('billId') for m in msgs if m.get('billId')}
+        for b in (d.get('bills') or []):
+            if not isinstance(b, dict):
+                continue
+            bid = b.get('id')
+            if not bid or bid in existing_bill_ids:
+                continue
+            wa_flag = b.get('wa')
+            if wa_flag in ('sent', 'failed'):
+                phone = str(b.get('phone') or '')
+                now = int(time.time() * 1000)
+                st = 'SUBMITTED' if wa_flag == 'sent' else 'FAILED'
+                msgs.append({
+                    'id': f'wa_hist_{bid}',
+                    'hotelId': (d.get('settings') or {}).get('installId') or 'default',
+                    'billId': bid,
+                    'billNo': b.get('no'),
+                    'customerName': b.get('customer') or 'Customer',
+                    'phone': phone,
+                    'maskedPhone': self.mask_phone(phone),
+                    'msgType': 'receipt',
+                    'provider': 'baileys',
+                    'providerMsgId': '',
+                    'templateName': 'setu_receipt_v1',
+                    'status': st,
+                    'consentRef': 'historical_record',
+                    'requestedAt': now,
+                    'submittedAt': now if st == 'SUBMITTED' else None,
+                    'sentAt': None,
+                    'deliveredAt': None,
+                    'readAt': None,
+                    'failedAt': now if st == 'FAILED' else None,
+                    'errorCode': 'LEGACY_FAILURE' if st == 'FAILED' else '',
+                    'errorReason': 'Legacy recorded failure' if st == 'FAILED' else '',
+                    'idemKey': f'wa_hist_{bid}',
+                    'attemptCount': 1,
+                    'retryEligible': st == 'FAILED',
+                    'staff': 'legacy',
+                    'events': [{
+                        'status': st,
+                        'at': now,
+                        'provider': 'baileys',
+                        'providerMsgId': '',
+                        'note': f'Historical import: marked {st} (delivery not fabricated)'
+                    }],
+                    'attempts': [{
+                        'attemptNo': 1,
+                        'requestedAt': now,
+                        'provider': 'baileys',
+                        'status': st,
+                        'providerMsgId': '',
+                        'error': ''
+                    }]
+                })
+                existing_bill_ids.add(bid)
+
+    def get_wa_messages(self, filters=None, role='admin', hotel_id=None):
+        filters = filters or {}
+        with self.lock:
+            d = self.data() or {}
+        msgs = list(d.get('waMessages') or [])
+        
+        # Tenant isolation
+        if hotel_id:
+            msgs = [m for m in msgs if m.get('hotelId') == hotel_id]
+            
+        # Date range filter
+        date_range = filters.get('dateRange', 'all')
+        now_ts = int(time.time() * 1000)
+        DAY = 86400 * 1000
+        start_ts = 0
+        end_ts = now_ts + DAY
+        
+        if date_range == 'today':
+            t = time.localtime(time.time())
+            start_ts = int(time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1)) * 1000)
+        elif date_range == 'yesterday':
+            t = time.localtime(time.time() - 86400)
+            midnight = int(time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1)) * 1000)
+            start_ts = midnight
+            end_ts = midnight + DAY
+        elif date_range == '7days':
+            start_ts = now_ts - 7 * DAY
+        elif date_range == 'month':
+            t = time.localtime(time.time())
+            start_ts = int(time.mktime((t.tm_year, t.tm_mon, 1, 0, 0, 0, 0, 0, -1)) * 1000)
+        elif date_range == 'custom':
+            if filters.get('startDate'):
+                try: start_ts = int(filters['startDate'])
+                except Exception: pass
+            if filters.get('endDate'):
+                try: end_ts = int(filters['endDate'])
+                except Exception: pass
+                
+        if start_ts > 0:
+            msgs = [m for m in msgs if (m.get('requestedAt') or 0) >= start_ts]
+        if end_ts < now_ts + DAY:
+            msgs = [m for m in msgs if (m.get('requestedAt') or 0) <= end_ts]
+            
+        # Provider filter
+        if filters.get('provider') and filters['provider'] != 'all':
+            msgs = [m for m in msgs if m.get('provider') == filters['provider']]
+            
+        # Message Type filter
+        if filters.get('msgType') and filters['msgType'] != 'all':
+            msgs = [m for m in msgs if m.get('msgType') == filters['msgType']]
+            
+        # Staff filter
+        if filters.get('staff') and filters['staff'] != 'all':
+            msgs = [m for m in msgs if str(m.get('staff') or '').lower() == str(filters['staff']).lower()]
+            
+        # Status filter
+        if filters.get('status') and filters['status'] != 'all':
+            req_status = filters['status'].upper()
+            if req_status == 'PENDING':
+                msgs = [m for m in msgs if m.get('status') in ('QUEUED', 'PROCESSING')]
+            else:
+                msgs = [m for m in msgs if m.get('status') == req_status]
+                
+        # Search query (by id, billNo, customerName, phone, providerMsgId)
+        q = str(filters.get('q') or '').strip().lower()
+        if q:
+            msgs = [m for m in msgs if (
+                q in str(m.get('id', '')).lower() or
+                q in str(m.get('billNo', '')).lower() or
+                q in str(m.get('customerName', '')).lower() or
+                q in str(m.get('phone', '')).lower() or
+                q in str(m.get('providerMsgId', '')).lower()
+            )]
+            
+        # Sort descending by requestedAt
+        msgs.sort(key=lambda x: (x.get('requestedAt') or 0), reverse=True)
+        total_count = len(msgs)
+        
+        # Pagination
+        page = max(1, int(filters.get('page') or 1))
+        limit = min(500, max(1, int(filters.get('limit') or 25)))
+        start_idx = (page - 1) * limit
+        end_idx = start_idx + limit
+        page_msgs = msgs[start_idx:end_idx]
+        
+        # Privacy masking: Cashier or unauthorized roles must NEVER see full customer mobile numbers
+        is_privileged = role in ('local', 'admin', 'manager', 'owner', 'superadmin')
+        res = []
+        for m in page_msgs:
+            item = copy.deepcopy(m)
+            item['maskedPhone'] = item.get('maskedPhone') or self.mask_phone(item.get('phone'))
+            if not is_privileged:
+                item['phone'] = item['maskedPhone']
+                item.pop('apiSecret', None)
+                item.pop('authToken', None)
+            res.append(item)
+            
+        return {
+            'total': total_count,
+            'page': page,
+            'limit': limit,
+            'totalPages': (total_count + limit - 1) // limit if limit > 0 else 1,
+            'messages': res
+        }
+
+    def get_wa_stats(self, filters=None, hotel_id=None):
+        filters = filters or {}
+        with self.lock:
+            d = self.data() or {}
+        msgs = list(d.get('waMessages') or [])
+        
+        if hotel_id:
+            msgs = [m for m in msgs if m.get('hotelId') == hotel_id]
+            
+        # Date range filter
+        date_range = filters.get('dateRange', 'all')
+        now_ts = int(time.time() * 1000)
+        DAY = 86400 * 1000
+        start_ts = 0
+        end_ts = now_ts + DAY
+        if date_range == 'today':
+            t = time.localtime(time.time())
+            start_ts = int(time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1)) * 1000)
+        elif date_range == 'yesterday':
+            t = time.localtime(time.time() - 86400)
+            midnight = int(time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1)) * 1000)
+            start_ts = midnight
+            end_ts = midnight + DAY
+        elif date_range == '7days':
+            start_ts = now_ts - 7 * DAY
+        elif date_range == 'month':
+            t = time.localtime(time.time())
+            start_ts = int(time.mktime((t.tm_year, t.tm_mon, 1, 0, 0, 0, 0, 0, -1)) * 1000)
+        elif date_range == 'custom':
+            if filters.get('startDate'):
+                try: start_ts = int(filters['startDate'])
+                except Exception: pass
+            if filters.get('endDate'):
+                try: end_ts = int(filters['endDate'])
+                except Exception: pass
+                
+        if start_ts > 0:
+            msgs = [m for m in msgs if (m.get('requestedAt') or 0) >= start_ts]
+        if end_ts < now_ts + DAY:
+            msgs = [m for m in msgs if (m.get('requestedAt') or 0) <= end_ts]
+            
+        if filters.get('provider') and filters['provider'] != 'all':
+            msgs = [m for m in msgs if m.get('provider') == filters['provider']]
+            
+        total_requests = len(msgs)
+        submitted = 0
+        sent = 0
+        delivered = 0
+        read = 0
+        failed = 0
+        pending = 0
+        unknown = 0
+        skipped = 0
+        cancelled = 0
+        total_attempts = 0
+        
+        # Mutually exclusive counts based on last-known current status
+        for m in msgs:
+            st = (m.get('status') or 'UNKNOWN').upper()
+            total_attempts += int(m.get('attemptCount') or 1)
+            if st == 'SUBMITTED':
+                submitted += 1
+            elif st == 'SENT':
+                sent += 1
+            elif st == 'DELIVERED':
+                delivered += 1
+            elif st == 'READ':
+                read += 1
+            elif st == 'FAILED':
+                failed += 1
+            elif st in ('QUEUED', 'PROCESSING'):
+                pending += 1
+            elif st == 'UNKNOWN':
+                unknown += 1
+            elif st == 'SKIPPED':
+                skipped += 1
+            elif st == 'CANCELLED':
+                cancelled += 1
+            else:
+                unknown += 1
+                
+        # Denominator excludes cancelled and skipped before dispatch
+        effective_dispatched = total_requests - skipped - cancelled
+        delivery_rate = round(((delivered + read) / effective_dispatched * 100), 1) if effective_dispatched > 0 else 0.0
+        failure_rate = round((failed / effective_dispatched * 100), 1) if effective_dispatched > 0 else 0.0
+        
+        return {
+            'totalRequests': total_requests,
+            'submitted': submitted,
+            'sent': sent,
+            'delivered': delivered,
+            'read': read,
+            'confirmedDelivered': delivered + read,
+            'failed': failed,
+            'pending': pending,
+            'unknown': unknown,
+            'skipped': skipped,
+            'cancelled': cancelled,
+            'deliveryRate': delivery_rate,
+            'failureRate': failure_rate,
+            'totalAttempts': total_attempts
+        }
+
+    def record_wa_message(self, msg_dict):
+        with self.lock:
+            d = self.data() or {}
+            msgs = d.setdefault('waMessages', [])
+            
+            VALID_STATUSES = {'QUEUED', 'PROCESSING', 'SUBMITTED', 'SENT', 'DELIVERED', 'READ', 'FAILED', 'UNKNOWN', 'SKIPPED', 'CANCELLED'}
+            target = None
+            msg_id = msg_dict.get('id')
+            p_msg_id = msg_dict.get('providerMsgId')
+            h_id = msg_dict.get('hotelId') or (d.get('settings') or {}).get('installId') or 'default'
+            idem_key = msg_dict.get('idemKey') or (f"wa_bill_{h_id}_{msg_dict.get('billId')}" if msg_dict.get('billId') else None)
+            
+            for m in msgs:
+                if msg_id and m.get('id') == msg_id:
+                    target = m
+                    break
+                if p_msg_id and m.get('providerMsgId') == p_msg_id:
+                    target = m
+                    break
+                if idem_key and m.get('idemKey') == idem_key:
+                    target = m
+                    break
+                    
+            now = int(time.time() * 1000)
+            
+            if not target:
+                uid = msg_id or ('wa_' + str(now) + '_' + secrets.token_hex(4))
+                phone = str(msg_dict.get('phone') or '')
+                st_raw = (msg_dict.get('status') or 'QUEUED').upper()
+                init_st = st_raw if st_raw in VALID_STATUSES else 'UNKNOWN'
+                
+                new_msg = {
+                    'id': uid,
+                    'hotelId': h_id,
+                    'billId': msg_dict.get('billId'),
+                    'billNo': msg_dict.get('billNo'),
+                    'customerName': msg_dict.get('customerName') or 'Customer',
+                    'phone': phone,
+                    'maskedPhone': self.mask_phone(phone),
+                    'msgType': msg_dict.get('msgType') or 'receipt',
+                    'provider': msg_dict.get('provider') or 'meta',
+                    'providerMsgId': p_msg_id or '',
+                    'templateName': msg_dict.get('templateName') or 'setu_receipt_v1',
+                    'status': init_st,
+                    'consentRef': msg_dict.get('consentRef') or 'explicit_opt_in',
+                    'requestedAt': msg_dict.get('requestedAt') or now,
+                    'submittedAt': msg_dict.get('submittedAt') or (now if init_st == 'SUBMITTED' else None),
+                    'sentAt': msg_dict.get('sentAt') or (now if init_st == 'SENT' else None),
+                    'deliveredAt': msg_dict.get('deliveredAt') or (now if init_st == 'DELIVERED' else None),
+                    'readAt': msg_dict.get('readAt') or (now if init_st == 'READ' else None),
+                    'failedAt': msg_dict.get('failedAt') or (now if init_st == 'FAILED' else None),
+                    'errorCode': msg_dict.get('errorCode') or '',
+                    'errorReason': msg_dict.get('errorReason') or '',
+                    'idemKey': idem_key or ('wa_' + str(uid) + '_' + str(now)),
+                    'attemptCount': int(msg_dict.get('attemptCount') or 1),
+                    'retryEligible': bool(msg_dict.get('retryEligible', init_st in ('FAILED', 'UNKNOWN'))),
+                    'staff': msg_dict.get('staff') or 'system',
+                    'events': list(msg_dict.get('events') or [{
+                        'status': init_st,
+                        'at': now,
+                        'provider': msg_dict.get('provider') or 'meta',
+                        'providerMsgId': p_msg_id or '',
+                        'note': msg_dict.get('note') or 'Message queued for dispatch'
+                    }]),
+                    'attempts': list(msg_dict.get('attempts') or [{
+                        'attemptNo': 1,
+                        'requestedAt': now,
+                        'provider': msg_dict.get('provider') or 'meta',
+                        'status': init_st,
+                        'providerMsgId': p_msg_id or '',
+                        'error': msg_dict.get('errorReason') or ''
+                    }])
+                }
+                msgs.append(new_msg)
+                self.write(d)
+                return new_msg
+            else:
+                cur_status = target.get('status', 'QUEUED').upper()
+                new_st_raw = (msg_dict.get('status') or cur_status).upper()
+                new_status = new_st_raw if new_st_raw in VALID_STATUSES else 'UNKNOWN'
+                
+                cur_rank = self.STATUS_RANK.get(cur_status, 0)
+                new_rank = self.STATUS_RANK.get(new_status, 0)
+                
+                allow_status_change = False
+                if new_status == cur_status:
+                    allow_status_change = False
+                elif new_rank > cur_rank:
+                    allow_status_change = True
+                elif new_status in ('FAILED', 'UNKNOWN', 'CANCELLED', 'SKIPPED'):
+                    if cur_status not in ('DELIVERED', 'READ'):
+                        allow_status_change = True
+                
+                if allow_status_change:
+                    target['status'] = new_status
+                    if new_status == 'SUBMITTED' and not target.get('submittedAt'):
+                        target['submittedAt'] = msg_dict.get('submittedAt') or now
+                    elif new_status == 'SENT' and not target.get('sentAt'):
+                        target['sentAt'] = msg_dict.get('sentAt') or now
+                    elif new_status == 'DELIVERED' and not target.get('deliveredAt'):
+                        target['deliveredAt'] = msg_dict.get('deliveredAt') or now
+                    elif new_status == 'READ' and not target.get('readAt'):
+                        target['readAt'] = msg_dict.get('readAt') or now
+                    elif new_status == 'FAILED':
+                        target['failedAt'] = msg_dict.get('failedAt') or now
+                        target['retryEligible'] = bool(msg_dict.get('retryEligible', True))
+                
+                if p_msg_id and not target.get('providerMsgId'):
+                    target['providerMsgId'] = p_msg_id
+                if msg_dict.get('errorCode'):
+                    target['errorCode'] = msg_dict['errorCode']
+                if msg_dict.get('errorReason'):
+                    target['errorReason'] = msg_dict['errorReason']
+                    
+                events = target.setdefault('events', [])
+                event_entry = {
+                    'status': new_status,
+                    'at': msg_dict.get('eventAt') or now,
+                    'provider': msg_dict.get('provider') or target.get('provider'),
+                    'providerMsgId': p_msg_id or target.get('providerMsgId', ''),
+                    'note': msg_dict.get('note') or f'Status updated to {new_status}',
+                    'code': msg_dict.get('errorCode') or '',
+                    'error': msg_dict.get('errorReason') or ''
+                }
+                
+                is_duplicate_event = (
+                    events and
+                    events[-1].get('status') == new_status and
+                    not msg_dict.get('note') and
+                    not msg_dict.get('errorCode') and
+                    not allow_status_change
+                )
+                if not is_duplicate_event:
+                    events.append(event_entry)
+                
+                self.write(d)
+                return target
+
+    def retry_wa_message(self, msg_id, role, provider=None):
+        if role not in ('local', 'admin', 'manager', 'owner', 'superadmin'):
+            return 403, {'error': 'PERMISSION_DENIED', 'message': 'Only Managers/Owners can retry messages'}
+            
+        with self.lock:
+            d = self.data() or {}
+            msgs = d.setdefault('waMessages', [])
+            target = next((m for m in msgs if m.get('id') == msg_id), None)
+            
+            if not target:
+                return 404, {'error': 'NOT_FOUND', 'message': 'Message not found'}
+                
+            cur_status = (target.get('status') or '').upper()
+            if cur_status == 'PROCESSING':
+                return 409, {'error': 'Message is currently processing', 'code': 'CONCURRENT_RETRY', 'message': 'Message is currently processing'}
+            if cur_status not in ('FAILED', 'UNKNOWN'):
+                return 400, {
+                    'error': 'NOT_RETRY_ELIGIBLE',
+                    'message': f'Cannot retry message in {cur_status} status. Only FAILED or UNKNOWN messages are eligible.'
+                }
+                
+            raw_phone = re.sub(r'\D', '', str(target.get('phone') or ''))
+            if len(raw_phone) < 10:
+                return 400, {'error': 'INVALID_PHONE', 'message': 'Cannot retry message with invalid phone number'}
+                
+            now = int(time.time() * 1000)
+            target['attemptCount'] = int(target.get('attemptCount') or 1) + 1
+            attempt_no = target['attemptCount']
+            
+            if provider:
+                target['provider'] = provider
+            chosen_provider = target.get('provider') or 'meta'
+            
+            target['status'] = 'QUEUED'
+            target['errorCode'] = ''
+            target['errorReason'] = ''
+            target['retryEligible'] = False
+            
+            attempts = target.setdefault('attempts', [])
+            attempts.append({
+                'attemptNo': attempt_no,
+                'requestedAt': now,
+                'provider': chosen_provider,
+                'status': 'QUEUED',
+                'providerMsgId': '',
+                'error': ''
+            })
+            
+            events = target.setdefault('events', [])
+            events.append({
+                'status': 'QUEUED',
+                'at': now,
+                'provider': chosen_provider,
+                'providerMsgId': '',
+                'note': f'Retry attempt #{attempt_no} initiated by {role}',
+                'code': '',
+                'error': ''
+            })
+            
+            self.write(d)
+            return 200, {'ok': True, 'message': target}
+
+    def cleanup_wa_messages(self, retention_days, role):
+        if role not in ('local', 'admin', 'manager', 'owner', 'superadmin'):
+            return 403, {'error': 'PERMISSION_DENIED', 'message': 'Manager permission required for retention cleanup'}
+            
+        retention_days = max(7, int(retention_days or 90))
+        cutoff_ts = int(time.time() * 1000) - (retention_days * 86400 * 1000)
+        
+        with self.lock:
+            d = self.data() or {}
+            msgs = d.get('waMessages') or []
+            kept = [m for m in msgs if (m.get('requestedAt') or 0) >= cutoff_ts]
+            pruned_count = len(msgs) - len(kept)
+            d['waMessages'] = kept
+            self.write(d)
+            
+        return 200, {
+            'ok': True,
+            'retentionDays': retention_days,
+            'pruned': pruned_count,
+            'remaining': len(kept)
+        }
+
 
 
 # ---------------- Cloud Sync (Setu Cloud on Cloudflare) ----------------
@@ -506,6 +1192,24 @@ def merge3(base, mine, theirs):
     else:
         seq['token'] = _num(ms.get('token')) if md > td else _num(ts.get('token'))
     out['seq'] = seq
+    # S01 Idempotency deduplication: ensure no duplicate bill records share an idemKey
+    theirs_bills = [x for x in (theirs.get('bills') or []) if isinstance(x, dict)]
+    their_idem_map = {x.get('idemKey'): x for x in theirs_bills if x.get('idemKey')}
+    deduped_bills = []
+    seen_idem = set()
+    for b in out.get('bills') or []:
+        if not isinstance(b, dict):
+            continue
+        ik = b.get('idemKey')
+        if ik:
+            if ik in seen_idem:
+                continue
+            seen_idem.add(ik)
+            if ik in their_idem_map:
+                b = their_idem_map[ik]
+        deduped_bills.append(b)
+    out['bills'] = deduped_bills
+
     # Both sides may have used the same bill / KOT number: new ones from "mine" get fresh numbers
     for lst, key in (('bills', 'bill'), ('kots', 'kot')):
         theirs_l = [x for x in theirs.get(lst) or [] if isinstance(x, dict)]
@@ -1054,9 +1758,30 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             return self.client_address[0] in ('127.0.0.1', '::1', '::ffff:127.0.0.1')
 
         def role(self):
-            if self.is_local():
-                return 'local'
-            return store.tokens.get(self.headers.get('X-Setu-Token', ''))
+            token = self.headers.get('X-Setu-Token', '')
+            if token:
+                tok = store.tokens.get(token)
+                if isinstance(tok, dict):
+                    # Check token session expiration
+                    exp = tok.get('expiresAt')
+                    if exp and time.time() > exp:
+                        return None
+                    # Tenant isolation: check against request hotel header if provided
+                    req_hotel = (self.headers.get('X-Hotel-ID') or self.headers.get('X-Setu-Hotel') or '').strip()
+                    tok_hotel = str(tok.get('hotelId') or '').strip()
+                    if req_hotel and tok_hotel and tok_hotel not in ('default', 'all') and req_hotel != tok_hotel:
+                        return None  # cross-hotel token rejected
+                    return tok.get('role', '').lower()
+                elif isinstance(tok, str):
+                    return tok.lower()
+
+            # Constrained bootstrap fallback:
+            # Tokenless local access is allowed ONLY during bootstrap/setup (when database has no PINs or users configured).
+            # Once any PIN or user exists, localhost requests MUST require authentication.
+            if not store.has_users_or_pins() and self.is_local():
+                req_role = (self.headers.get('X-User-Role') or '').strip().lower()
+                return req_role if req_role else 'local'
+            return None
 
         def qr_proxy(self, method, path, body=None):
             # QR self-ordering lives on Hotel Setu Cloud; this PC forwards with its own sync key (never given to devices)
@@ -1069,6 +1794,71 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             except Exception:
                 return self.send_json(502, {'error': 'Could not reach Hotel Setu Cloud. QR orders need the internet.'})
             return self.send_json(code, j)
+
+        def guest_local_get(self, path):
+            t = ''
+            if '?' in self.path:
+                qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                t = (qs.get('t') or [''])[0].strip()
+            with store.lock:
+                try:
+                    d = json.loads(store.raw)
+                except Exception:
+                    d = {}
+            st = d.get('settings') or {}
+            tbl = t or 'T-1'
+            if path == '/api/guest/menu':
+                items = [{
+                    'id': m.get('id'),
+                    'name': m.get('name'),
+                    'cat': m.get('cat', 'Menu'),
+                    'price': float(m.get('price', 0)),
+                    'veg': m.get('veg'),
+                    'desc': m.get('desc')
+                } for m in d.get('menu', []) if m and m.get('id') and m.get('name') and not m.get('qrOff') and m.get('active') is not False]
+                return self.send_json(200, {
+                    'hotel': st.get('name', 'Hotel Setu'),
+                    'table': tbl,
+                    'items': items,
+                    'gst': float(st.get('gst', 0)),
+                    'incl': bool(st.get('gstInclusive'))
+                })
+            if path == '/api/guest/status':
+                return self.send_json(200, {'table': tbl, 'orders': [], 'calls': []})
+            return self.send_json(404, {'error': 'not found'})
+
+        def guest_local_post(self, path, body=None):
+            b = body or {}
+            if path == '/api/guest/order':
+                tbl = (b.get('tbl') or b.get('t') or 'T-1').strip()
+                items = b.get('items') or []
+                with store.lock:
+                    try:
+                        d = json.loads(store.raw)
+                    except Exception:
+                        d = {}
+                    kaccha = d.setdefault('kaccha', {})
+                    k = kaccha.setdefault(tbl, {
+                        'table': tbl, 'channel': 'Dine-In', 'cart': [], 'sent': {}, 'qr': [],
+                        'createdAt': time.strftime('%I:%M %p'), 'note': 'QR Order'
+                    })
+                    k['qr'] = list(set(k.get('qr', []) + [b.get('id', str(int(time.time())))]))
+                    for it in items:
+                        c = next((x for x in k['cart'] if x.get('mid') == it.get('mid')), None)
+                        if c:
+                            c['qty'] = round(float(c.get('qty', 0)) + float(it.get('qty', 1)), 2)
+                        else:
+                            k['cart'].append({
+                                'mid': it.get('mid'),
+                                'name': it.get('name'),
+                                'price': float(it.get('price', 0)),
+                                'qty': float(it.get('qty', 1))
+                            })
+                    store.save(d)
+                return self.send_json(200, {'id': b.get('id', 'g1'), 'status': 'accepted'})
+            if path == '/api/guest/call':
+                return self.send_json(200, {'id': 'c1'})
+            return self.send_json(404, {'error': 'not found'})
 
         def send_json(self, code, obj):
             body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
@@ -1115,6 +1905,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(200, cloud.public() if cloud else {'configured': False})
             if path == '/api/info':
                 return self.send_json(200, {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()})
+            if path == '/api/hotel/info':
+                with store.lock:
+                    d = store.data() or {}
+                st = d.get('settings') or {}
+                auth = d.get('auth') or {}
+                h_id = str(st.get('hotelId') or auth.get('hotelId') or 'SETU001').strip()
+                return self.send_json(200, {
+                    'hotelId': h_id,
+                    'name': st.get('name') or 'Setu Pro Hotel ERP',
+                    'logo': st.get('logo') or '',
+                    'active': bool(auth.get('isRegistered') or store.version > 0)
+                })
             if path == '/api/update':
                 if not self.is_local() or not updater:
                     return self.send_json(403, {'error': 'main counter only'})
@@ -1123,6 +1925,66 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if self.role() not in ('local', 'admin'):
                     return self.send_json(403, {'error': 'manager only'})
                 return self.send_json(200, store.autobackup.public())
+            if path == '/api/integrations/whatsapp/webhook':
+                parsed = urllib.parse.urlparse(self.path)
+                params = urllib.parse.parse_qs(parsed.query)
+                mode = params.get('hub.mode', [''])[0]
+                token = params.get('hub.verify_token', [''])[0]
+                challenge = params.get('hub.challenge', [''])[0]
+                expected_token = os.environ.get('WHATSAPP_VERIFY_TOKEN') or 'setu_verify_token'
+                if mode == 'subscribe' and (not expected_token or token == expected_token):
+                    body = challenge.encode('utf-8')
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'text/plain; charset=utf-8')
+                    self.send_header('Content-Length', str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                return self.send_json(403, {'error': 'Verification failed'})
+            if path == '/api/wa/messages':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                if role in ('waiter', 'kitchen'):
+                    return self.send_json(403, {'error': 'staff unauthorized'})
+                parsed = urllib.parse.urlparse(self.path)
+                params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+                h_id = params.get('hotelId') or self.headers.get('X-Hotel-ID')
+                res = store.get_wa_messages(filters=params, role=role, hotel_id=h_id)
+                return self.send_json(200, res)
+            if path == '/api/wa/stats':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                if role in ('waiter', 'kitchen'):
+                    return self.send_json(403, {'error': 'staff unauthorized'})
+                parsed = urllib.parse.urlparse(self.path)
+                params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+                h_id = params.get('hotelId') or self.headers.get('X-Hotel-ID')
+                res = store.get_wa_stats(filters=params, hotel_id=h_id)
+                return self.send_json(200, res)
+            if path == '/api/wa/message':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                if role in ('waiter', 'kitchen'):
+                    return self.send_json(403, {'error': 'staff unauthorized'})
+                parsed = urllib.parse.urlparse(self.path)
+                params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
+                msg_id = params.get('id')
+                with store.lock:
+                    d = store.data() or {}
+                msgs = d.get('waMessages') or []
+                msg = next((m for m in msgs if m.get('id') == msg_id or m.get('providerMsgId') == msg_id), None)
+                if not msg:
+                    return self.send_json(404, {'error': 'not found'})
+                item = copy.deepcopy(msg)
+                item['maskedPhone'] = item.get('maskedPhone') or store.mask_phone(item.get('phone'))
+                if role not in ('local', 'admin', 'manager', 'owner', 'superadmin'):
+                    item['phone'] = item['maskedPhone']
+                    item.pop('apiSecret', None)
+                    item.pop('authToken', None)
+                return self.send_json(200, item)
             if path == '/api/wa/status':
                 role = self.role()
                 if not role:
@@ -1151,6 +2013,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception:
                     return self.send_json(502, {'error': 'Could not reach the cloud. Check the internet.'})
                 return self.send_json(code, j)
+            if path.startswith('/api/guest/'):
+                if cloud:
+                    return self.qr_proxy('GET', self.path)
+                return self.guest_local_get(path)
             if not self.role():
                 return self.send_json(401, {'error': 'pin required'})
             if path == '/api/aggregators/inbox':
@@ -1191,9 +2057,57 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
 
         def do_POST(self):
             path = self.path.split('?')[0]
+            if path == '/api/hotel/auth':
+                try:
+                    b = self.read_json()
+                    h_id = str(b.get('hotelId') or '').strip()
+                    password = str(b.get('password') or '').strip()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                with store.lock:
+                    d = store.data() or {}
+                st = d.get('settings') or {}
+                auth = d.get('auth') or {}
+                expected_hid = str(st.get('hotelId') or auth.get('hotelId') or 'SETU001').strip()
+                expected_pw = str(auth.get('password') or st.get('adminPin') or '').strip()
+
+                if store.version == 0 and not expected_pw:
+                    return self.send_json(200, {
+                        'ok': True,
+                        'bootstrap': True,
+                        'hotelId': h_id or 'SETU001',
+                        'name': 'Setu Pro Hotel ERP',
+                        'status': 'unregistered'
+                    })
+
+                if not h_id or (h_id.upper() != expected_hid.upper() and h_id.upper() != 'SETU001' and h_id != expected_hid):
+                    return self.send_json(404, {'error': 'Hotel ID not found', 'code': 'HOTEL_NOT_FOUND'})
+
+                if not password or (password != expected_pw and password != st.get('adminPin')):
+                    time.sleep(1)
+                    return self.send_json(403, {'error': 'Invalid Hotel Password', 'code': 'INVALID_PASSWORD'})
+
+                paid_until = int(d.get('paidUntil') or auth.get('paidUntil') or 0)
+                if paid_until and paid_until < int(time.time() * 1000):
+                    return self.send_json(402, {
+                        'error': 'Hotel subscription expired',
+                        'code': 'SUBSCRIPTION_EXPIRED',
+                        'paidUntil': paid_until
+                    })
+
+                return self.send_json(200, {
+                    'ok': True,
+                    'hotelId': expected_hid,
+                    'name': st.get('name') or 'Setu Pro Hotel ERP',
+                    'logo': st.get('logo') or '',
+                    'phone': st.get('phone') or '',
+                    'status': 'active'
+                })
             if path == '/api/login':
                 try:
-                    pin = self.read_json().get('pin')
+                    b = self.read_json()
+                    pin = b.get('pin')
+                    h_id = b.get('hotelId') or self.headers.get('X-Hotel-ID') or self.headers.get('X-Setu-Hotel') or 'default'
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
                 found = store.check_pin(pin)
@@ -1201,8 +2115,12 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     time.sleep(1)   # slow down PIN guessing
                     return self.send_json(403, {'error': 'wrong pin'})
                 role, name = found
-                token = store.add_token(role)
-                return self.send_json(200, {'token': token, 'role': role, 'name': name})
+                token = store.add_token(role, hotel_id=h_id, name=name)
+                return self.send_json(200, {'token': token, 'role': role, 'name': name, 'hotelId': h_id})
+            if path.startswith('/api/guest/'):
+                if cloud:
+                    return self.qr_proxy('POST', path, self.read_json())
+                return self.guest_local_post(path, self.read_json())
             if path in ('/api/ai', '/api/ai/bill'):
                 # Setu AI goes through this PC's cloud link (the Gemini key lives only on the cloud)
                 if self.role() not in ('local', 'admin') or not cloud:
@@ -1283,6 +2201,83 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
                 return self.send_json(200, cloud.public())
+            if path == '/api/integrations/whatsapp/webhook':
+                try:
+                    b = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                entries = b.get('entry') or []
+                for entry in entries:
+                    for change in entry.get('changes') or []:
+                        val = change.get('value') or {}
+                        statuses = val.get('statuses') or []
+                        for st_item in statuses:
+                            p_id = str(st_item.get('id') or '')
+                            status_name = str(st_item.get('status') or '').lower()
+                            ts = int(st_item.get('timestamp') or time.time()) * 1000
+                            errors = st_item.get('errors') or []
+                            err_code = ''
+                            err_reason = ''
+                            if errors:
+                                err_code = str(errors[0].get('code') or '')
+                                err_reason = str(errors[0].get('message') or errors[0].get('title') or '')
+                            
+                            mapped_status = {
+                                'sent': 'SENT',
+                                'delivered': 'DELIVERED',
+                                'read': 'READ',
+                                'failed': 'FAILED'
+                            }.get(status_name, 'UNKNOWN')
+                            
+                            store.record_wa_message({
+                                'providerMsgId': p_id,
+                                'status': mapped_status,
+                                'provider': 'meta',
+                                'eventAt': ts,
+                                'sentAt': ts if mapped_status == 'SENT' else None,
+                                'deliveredAt': ts if mapped_status == 'DELIVERED' else None,
+                                'readAt': ts if mapped_status == 'READ' else None,
+                                'failedAt': ts if mapped_status == 'FAILED' else None,
+                                'errorCode': err_code,
+                                'errorReason': err_reason,
+                                'note': f'Meta webhook callback: {status_name}' + (f' ({err_code}: {err_reason})' if err_code else '')
+                            })
+                return self.send_json(200, {'ok': True})
+            if path == '/api/wa/callback':
+                try:
+                    b = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                if not b.get('hotelId') and self.headers.get('X-Hotel-ID'):
+                    b['hotelId'] = self.headers.get('X-Hotel-ID')
+                res = store.record_wa_message(b)
+                resp = {'ok': True, 'message': res}
+                if isinstance(res, dict):
+                    resp.update(res)
+                return self.send_json(200, resp)
+            if path == '/api/wa/retry':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                try:
+                    b = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                msg_id = b.get('id')
+                if not msg_id:
+                    return self.send_json(400, {'error': 'MISSING_ID', 'message': 'Message id is required'})
+                code, res = store.retry_wa_message(msg_id, role, provider=b.get('provider'))
+                return self.send_json(code, res)
+            if path == '/api/wa/cleanup':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                try:
+                    b = self.read_json()
+                except Exception:
+                    b = {}
+                code, res = store.cleanup_wa_messages(b.get('retentionDays', 90), role)
+                return self.send_json(code, res)
             if path.startswith('/api/wa/'):
                 # WhatsApp link: connect / disconnect = manager; send a bill = any logged-in device
                 role = self.role()
@@ -1300,8 +2295,129 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         code, j = store.wa.call('/logout', {})
                         return self.send_json(code, j)
                     if path == '/api/wa/send':
-                        code, j = store.wa.call('/send', {k: b.get(k) for k in ('phone', 'text', 'pdf', 'image', 'fileName')}, timeout=120)
-                        return self.send_json(code, j)
+                        raw_ph = re.sub(r'\D', '', str(b.get('phone') or ''))
+                        if len(raw_ph) < 10:
+                            return self.send_json(400, {'ok': False, 'error': 'Invalid phone number: must be at least 10 digits'})
+
+                        bill_id = b.get('billId')
+                        force_resend = bool(b.get('forceResend'))
+                        if bill_id:
+                            with store.lock:
+                                d = store.data() or {}
+                            msgs = d.get('waMessages') or []
+                            prior = next((m for m in reversed(msgs) if m.get('billId') == bill_id and m.get('status') != 'CANCELLED'), None)
+                            if prior:
+                                cur_st = prior.get('status')
+                                if cur_st == 'PROCESSING':
+                                    return self.send_json(409, {
+                                        'ok': False,
+                                        'error': 'CONCURRENT_REQUEST',
+                                        'message': 'Message is currently being dispatched',
+                                        'id': prior.get('id')
+                                    })
+                                if cur_st in ('SUBMITTED', 'SENT', 'DELIVERED', 'READ') and not force_resend:
+                                    return self.send_json(409, {
+                                        'ok': False,
+                                        'error': 'ALREADY_SUBMITTED',
+                                        'message': 'Bill already submitted to WhatsApp',
+                                        'existingMessage': prior
+                                    })
+                                if force_resend and role not in ('local', 'admin', 'manager', 'owner'):
+                                    return self.send_json(403, {
+                                        'ok': False,
+                                        'error': 'UNAUTHORIZED',
+                                        'message': 'Manager authorization required to resend bill'
+                                    })
+
+                        token_data = store.tokens.get(self.headers.get('X-Setu-Token', ''))
+                        tok_hotel = token_data.get('hotelId') if isinstance(token_data, dict) else None
+                        h_id = str(b.get('hotelId') or self.headers.get('X-Hotel-ID') or self.headers.get('X-Setu-Hotel') or tok_hotel or 'default').strip()
+
+                        req_id = b.get('id') or f"wa_req_{int(time.time()*1000)}_{secrets.token_hex(4)}"
+                        idem_key = b.get('idemKey') or f"wa_bill_{h_id}_{bill_id or req_id}"
+                        now_ts = int(time.time() * 1000)
+
+                        # Persist PROCESSING outbox state before network dispatch
+                        store.record_wa_message({
+                            'id': req_id,
+                            'hotelId': h_id,
+                            'billId': bill_id,
+                            'billNo': b.get('billNo'),
+                            'phone': b.get('phone'),
+                            'customerName': b.get('customerName') or 'Customer',
+                            'provider': b.get('provider') or 'baileys',
+                            'idemKey': idem_key,
+                            'status': 'PROCESSING',
+                            'staff': role or 'staff',
+                            'note': 'Dispatch initiated'
+                        })
+
+                        try:
+                            code, j = store.wa.call('/send', {k: b.get(k) for k in ('phone', 'text', 'pdf', 'image', 'fileName')}, timeout=15)
+                            now_ts = int(time.time() * 1000)
+                            st = 'SUBMITTED' if code == 200 and j.get('status') == 'submitted' else ('FAILED' if code != 200 else 'UNKNOWN')
+                            p_id = str(j.get('id') or '')
+                            err_reason = str(j.get('error') or '') if st == 'FAILED' else ''
+                            updated = store.record_wa_message({
+                                'id': req_id,
+                                'hotelId': h_id,
+                                'billId': bill_id,
+                                'providerMsgId': p_id,
+                                'status': st,
+                                'submittedAt': now_ts if st == 'SUBMITTED' else None,
+                                'failedAt': now_ts if st == 'FAILED' else None,
+                                'errorCode': str(code) if st == 'FAILED' else '',
+                                'errorReason': err_reason,
+                                'note': f'Baileys gateway response: HTTP {code}'
+                            })
+                            resp_payload = {'ok': code == 200, 'id': req_id, 'requestId': req_id, 'providerMsgId': p_id, 'message': updated}
+                            if isinstance(j, dict):
+                                j_copy = dict(j)
+                                gw_id = j_copy.pop('id', None)
+                                if gw_id and not p_id:
+                                    p_id = str(gw_id)
+                                    resp_payload['providerMsgId'] = p_id
+                                resp_payload.update(j_copy)
+                            resp_payload['id'] = req_id
+                            resp_payload['requestId'] = req_id
+                            resp_payload['status'] = st
+                            return self.send_json(code, resp_payload)
+                        except (socket.timeout, urllib.error.URLError) as e:
+                            # Provider timeout or network disconnect -> mark as UNKNOWN, NEVER auto-fail
+                            now_ts = int(time.time() * 1000)
+                            store.record_wa_message({
+                                'id': req_id,
+                                'hotelId': h_id,
+                                'billId': bill_id,
+                                'status': 'UNKNOWN',
+                                'errorReason': 'Gateway timeout / network disconnected: outcome unconfirmed',
+                                'note': f'Network timeout: {e}'
+                            })
+                            return self.send_json(504, {
+                                'ok': False,
+                                'status': 'UNKNOWN',
+                                'id': req_id,
+                                'error': 'STATUS_UNKNOWN',
+                                'message': 'Request timed out; message status unknown. Please check status before retrying.'
+                            })
+                        except Exception as e:
+                            now_ts = int(time.time() * 1000)
+                            store.record_wa_message({
+                                'id': req_id,
+                                'hotelId': h_id,
+                                'billId': bill_id,
+                                'status': 'FAILED',
+                                'failedAt': now_ts,
+                                'errorCode': 'GATEWAY_ERROR',
+                                'errorReason': str(e)[:200],
+                                'note': f'Gateway error: {e}'
+                            })
+                            return self.send_json(503, {
+                                'ok': False,
+                                'status': 'FAILED',
+                                'id': req_id,
+                                'error': str(e)[:200]
+                            })
                 except OSError as e:
                     return self.send_json(503, {'ok': False, 'error': str(e)[:200]})
                 except ValueError:
@@ -1389,6 +2505,16 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     print_history.append({'at': int(time.time() * 1000), 'printer': printer, 'ok': False, 'error': str(e)[:200]})
                     del print_history[:-100]
                     return self.send_json(500, {'error': str(e)})
+            if path == '/api/bill/settle':
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                try:
+                    body = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                status_code, resp = store.settle_bill(body)
+                return self.send_json(status_code, resp)
             if path == '/api/db':
                 role = self.role()
                 if not role:
@@ -1407,6 +2533,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         return self.send_json(403, {'error': 'main counter only'})
                     if not force and int(body.get('baseVersion', -1)) != store.version:
                         return self.send_db_conflict()
+                    try:
+                        store.clean_and_validate_bills(data)
+                    except ValueError as ve:
+                        return self.send_json(400, {'error': str(ve)})
                     try:
                         store.write(data)
                     except Exception as e:

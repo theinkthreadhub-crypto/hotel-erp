@@ -983,12 +983,52 @@ export class SetuHotel extends DurableObject {
   }
 
   // ---------- QR self-ordering ----------
-  qrConf(){ return this.kvGet('qr') || { on: false, auto: false, tables: {} }; }
+  qrConf(){
+    let c = this.kvGet('qr') || { on: true, auto: false, tables: {} };
+    if(c.on === undefined) c.on = true;
+    if(!c.tables) c.tables = {};
+    return c;
+  }
   qrTable(token){
-    const c = this.qrConf(), t = String(token || '');
-    if(!c.on || !/^[a-f0-9]{32}$/.test(t)) return null;
-    const hit = Object.entries(c.tables || {}).find(([, v]) => v && v.on !== false && sameText(v.token, t));
-    return hit ? hit[0] : null;
+    const c = this.qrConf(), t = String(token || '').trim();
+    if(!t) return null;
+    const tables = c.tables || {};
+    // 1. Direct match by 32-hex token (case-insensitive)
+    let hit = Object.entries(tables).find(([, v]) => v && v.on !== false && (
+      sameText(v.token, t) || (v.token && v.token.toLowerCase() === t.toLowerCase())
+    ));
+    // 2. Direct match by Table Name (e.g. T-1, T-2, 1, 2)
+    if(!hit){
+      const cleanT = t.toLowerCase().replace(/^table\s*|^t[-_]?/i, '').trim();
+      hit = Object.entries(tables).find(([name, v]) => v && v.on !== false && (
+        name.toLowerCase() === t.toLowerCase() ||
+        name.toLowerCase().replace(/^table\s*|^t[-_]?/i, '').trim() === cleanT
+      ));
+    }
+    // 3. Fallback: Check setting tables in menuData and register token on the fly
+    if(!hit){
+      const d = this.menuData(), st = d.settings || {};
+      const settingTables = (st.tables || ['T-1','T-2','T-3','T-4','T-5','T-6','T-7','T-8']).filter(x => x && !/parcel|takeaway/i.test(x));
+      const cleanT = t.toLowerCase().replace(/^table\s*|^t[-_]?/i, '').trim();
+      const matched = settingTables.find(name => 
+        name.toLowerCase() === t.toLowerCase() ||
+        name.toLowerCase().replace(/^table\s*|^t[-_]?/i, '').trim() === cleanT
+      );
+      if(matched){
+        tables[matched] = { token: randomHex(16), on: true, at: Date.now() };
+        c.tables = tables;
+        c.on = true;
+        this.kvSet('qr', c);
+        return matched;
+      }
+    }
+    if(hit){
+      if(c.on !== false || !c.explicitOff){
+        if(c.on === false){ c.on = true; this.kvSet('qr', c); }
+        return hit[0];
+      }
+    }
+    return null;
   }
   menuData(){
     let d = {};
@@ -1075,7 +1115,10 @@ export class SetuHotel extends DurableObject {
     if(method !== 'POST') return json(404, { error: 'not found' });
     if(path === '/api/qr/settings'){
       if(!manager) return json(403, { error: 'manager only' });
-      if(b.on !== undefined) c.on = !!b.on;
+      if(b.on !== undefined){
+        c.on = !!b.on;
+        c.explicitOff = !b.on;
+      }
       if(b.auto !== undefined) c.auto = !!b.auto;
       this.kvSet('qr', c);
       return json(200, { on: c.on, auto: c.auto });
@@ -1086,12 +1129,16 @@ export class SetuHotel extends DurableObject {
       if(!t) return json(400, { error: 'table required' });
       c.tables = c.tables || {};
       const cur = c.tables[t];
-      if(b.action === 'new' || (!cur && b.action !== 'remove')) c.tables[t] = { token: randomHex(16), on: true, at: Date.now() };
+      if(b.action === 'new' || (!cur && b.action !== 'remove')){
+        c.tables[t] = { token: randomHex(16), on: true, at: Date.now() };
+        c.on = true;
+        c.explicitOff = false;
+      }
       else if(b.action === 'off' && cur) cur.on = false;
-      else if(b.action === 'on' && cur) cur.on = true;
+      else if(b.action === 'on' && cur){ cur.on = true; c.on = true; c.explicitOff = false; }
       else if(b.action === 'remove') delete c.tables[t];
       this.kvSet('qr', c);
-      return json(200, { tables: c.tables });
+      return json(200, { tables: c.tables, on: c.on });
     }
     if(path === '/api/qr/decide'){
       const o = this.sql.exec('SELECT * FROM guestorder WHERE id = ?', String(b.id || '')).toArray()[0];
@@ -1434,7 +1481,7 @@ export class SetuHotel extends DurableObject {
       try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
       const syncKey = this.issuedSyncKey;
       this.issuedSyncKey = '';
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', storedOwnerPass: this.account.ownerPass || '' });
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerPass || this.account.ownerHash) });
     }
     if(path === '/internal/errors'){
       let d = null;
@@ -1528,8 +1575,231 @@ export class SetuHotel extends DurableObject {
       const outcome=await this.receiptSend(bill);
       return json(['submitted','sending'].includes(outcome.status)?200:outcome.status==='not_configured'?503:409,outcome);
     }
+    if(path === '/api/integrations/whatsapp/webhook' && method === 'GET'){
+      const mode = url.searchParams.get('hub.mode');
+      const token = url.searchParams.get('hub.verify_token');
+      const challenge = url.searchParams.get('hub.challenge');
+      const expected = String(this.env.WHATSAPP_VERIFY_TOKEN || 'setu_verify_token');
+      if(mode === 'subscribe' && (!expected || token === expected)){
+        return new Response(challenge || '', { status: 200, headers: { 'Content-Type': 'text/plain' } });
+      }
+      return json(403, { error: 'Verification failed' });
+    }
+    if(path === '/api/integrations/whatsapp/webhook' && method === 'POST'){
+      const b = body();
+      let d = {};
+      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      d.waMessages = d.waMessages || [];
+      const entries = b.entry || [];
+      const now = Date.now();
+      for(const entry of entries){
+        for(const change of (entry.changes || [])){
+          const statuses = change.value?.statuses || [];
+          for(const st of statuses){
+            const pid = String(st.id || '');
+            const stName = String(st.status || '').toLowerCase();
+            const ts = (+st.timestamp || Math.floor(now / 1000)) * 1000;
+            const errors = st.errors || [];
+            const errCode = errors[0] ? String(errors[0].code || '') : '';
+            const errReason = errors[0] ? String(errors[0].message || errors[0].title || '') : '';
+            const mapped = {sent: 'SENT', delivered: 'DELIVERED', read: 'READ', failed: 'FAILED'}[stName] || 'UNKNOWN';
+            
+            let target = d.waMessages.find(m => m.providerMsgId === pid);
+            if(target){
+              const ranks = {QUEUED: 1, PROCESSING: 2, SUBMITTED: 3, SENT: 4, DELIVERED: 5, READ: 6, FAILED: 0, UNKNOWN: 0};
+              const curRank = ranks[target.status] || 0;
+              const newRank = ranks[mapped] || 0;
+              if(newRank > curRank || (['FAILED', 'UNKNOWN'].includes(mapped) && !['DELIVERED', 'READ'].includes(target.status))){
+                target.status = mapped;
+                if(mapped === 'SENT' && !target.sentAt) target.sentAt = ts;
+                if(mapped === 'DELIVERED' && !target.deliveredAt) target.deliveredAt = ts;
+                if(mapped === 'READ' && !target.readAt) target.readAt = ts;
+                if(mapped === 'FAILED'){ target.failedAt = ts; target.retryEligible = true; }
+              }
+              if(errCode) target.errorCode = errCode;
+              if(errReason) target.errorReason = errReason;
+              target.events = target.events || [];
+              target.events.push({
+                status: mapped,
+                at: ts,
+                provider: 'meta',
+                providerMsgId: pid,
+                note: `Meta webhook: ${stName}` + (errCode ? ` (${errCode}: ${errReason})` : ''),
+                code: errCode,
+                error: errReason
+              });
+            }
+          }
+        }
+      }
+      this.commit(d);
+      return json(200, { ok: true });
+    }
+    if(path === '/api/wa/messages' && method === 'GET'){
+      let d = {};
+      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      let msgs = Array.isArray(d.waMessages) ? [...d.waMessages] : [];
+      const maskPhone = ph => {
+        const p = String(ph || '').replace(/\D/g, '');
+        return p.length >= 10 ? p.slice(-10).slice(0, 2) + '****' + p.slice(-4) : '****';
+      };
+      const q = (url.searchParams.get('q') || '').trim().toLowerCase();
+      if(q){
+        msgs = msgs.filter(m => (
+          (m.id || '').toLowerCase().includes(q) ||
+          String(m.billNo || '').toLowerCase().includes(q) ||
+          (m.customerName || '').toLowerCase().includes(q) ||
+          (m.phone || '').toLowerCase().includes(q) ||
+          (m.providerMsgId || '').toLowerCase().includes(q)
+        ));
+      }
+      const stFilter = url.searchParams.get('status');
+      if(stFilter && stFilter !== 'all'){
+        msgs = msgs.filter(m => stFilter === 'PENDING' ? ['QUEUED', 'PROCESSING'].includes(m.status) : m.status === stFilter.toUpperCase());
+      }
+      const provFilter = url.searchParams.get('provider');
+      if(provFilter && provFilter !== 'all'){
+        msgs = msgs.filter(m => m.provider === provFilter);
+      }
+      msgs.sort((a, b) => (+b.requestedAt || 0) - (+a.requestedAt || 0));
+      const page = Math.max(1, +url.searchParams.get('page') || 1);
+      const limit = Math.min(500, Math.max(1, +url.searchParams.get('limit') || 25));
+      const total = msgs.length;
+      const paged = msgs.slice((page - 1) * limit, page * limit).map(m => {
+        const item = { ...m };
+        item.maskedPhone = item.maskedPhone || maskPhone(item.phone);
+        if(!isAdmin){
+          item.phone = item.maskedPhone;
+        }
+        return item;
+      });
+      return json(200, { total, page, limit, totalPages: Math.ceil(total / limit) || 1, messages: paged });
+    }
+    if(path === '/api/wa/stats' && method === 'GET'){
+      let d = {};
+      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      const msgs = Array.isArray(d.waMessages) ? d.waMessages : [];
+      let totalRequests = msgs.length, submitted = 0, sent = 0, delivered = 0, read = 0, failed = 0, pending = 0, unknown = 0, skipped = 0, cancelled = 0, totalAttempts = 0;
+      for(const m of msgs){
+        const st = (m.status || 'UNKNOWN').toUpperCase();
+        totalAttempts += (+m.attemptCount || 1);
+        if(st === 'SUBMITTED') submitted++;
+        else if(st === 'SENT') sent++;
+        else if(st === 'DELIVERED') delivered++;
+        else if(st === 'READ') read++;
+        else if(st === 'FAILED') failed++;
+        else if(['QUEUED', 'PROCESSING'].includes(st)) pending++;
+        else if(st === 'UNKNOWN') unknown++;
+        else if(st === 'SKIPPED') skipped++;
+        else if(st === 'CANCELLED') cancelled++;
+        else unknown++;
+      }
+      const effective = totalRequests - skipped - cancelled;
+      const deliveryRate = effective > 0 ? Math.round(((delivered + read) / effective) * 1000) / 10 : 0.0;
+      const failureRate = effective > 0 ? Math.round((failed / effective) * 1000) / 10 : 0.0;
+      return json(200, {
+        totalRequests, submitted, sent, delivered, read, confirmedDelivered: delivered + read,
+        failed, pending, unknown, skipped, cancelled, deliveryRate, failureRate, totalAttempts
+      });
+    }
+    if(path === '/api/wa/retry' && method === 'POST'){
+      if(!isAdmin) return json(403, { error: 'PERMISSION_DENIED', message: 'Only Managers/Owners can retry messages' });
+      const b = body(), msgId = b.id;
+      let d = {};
+      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      d.waMessages = d.waMessages || [];
+      const target = d.waMessages.find(m => m.id === msgId);
+      if(!target) return json(404, { error: 'NOT_FOUND', message: 'Message not found' });
+      if(!['FAILED', 'UNKNOWN'].includes(target.status)){
+        return json(400, { error: 'NOT_RETRY_ELIGIBLE', message: `Cannot retry message in ${target.status} status` });
+      }
+      const rawPhone = String(target.phone || '').replace(/\D/g, '');
+      if(rawPhone.length < 10) return json(400, { error: 'INVALID_PHONE', message: 'Cannot retry with invalid phone number' });
+      const now = Date.now();
+      target.attemptCount = (+target.attemptCount || 1) + 1;
+      target.status = 'QUEUED';
+      target.errorCode = '';
+      target.errorReason = '';
+      target.retryEligible = false;
+      target.attempts = target.attempts || [];
+      target.attempts.push({ attemptNo: target.attemptCount, requestedAt: now, provider: target.provider, status: 'QUEUED', providerMsgId: '', error: '' });
+      target.events = target.events || [];
+      target.events.push({ status: 'QUEUED', at: now, provider: target.provider, providerMsgId: '', note: `Retry attempt #${target.attemptCount} initiated`, code: '', error: '' });
+      this.commit(d);
+      return json(200, { ok: true, message: target });
+    }
+    if(path === '/api/wa/cleanup' && method === 'POST'){
+      if(!isAdmin) return json(403, { error: 'Manager permission required' });
+      const b = body();
+      const retentionDays = Math.max(7, +b.retentionDays || 90);
+      const cutoff = Date.now() - retentionDays * 86400000;
+      let d = {};
+      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      const orig = d.waMessages || [];
+      d.waMessages = orig.filter(m => (+m.requestedAt || 0) >= cutoff);
+      const pruned = orig.length - d.waMessages.length;
+      this.commit(d);
+      return json(200, { ok: true, retentionDays, pruned, remaining: d.waMessages.length });
+    }
     if(method === 'GET' && path === '/api/printers') return json(200, { printers: [], default: '', cloud: true });
     if(method === 'POST' && path === '/api/print') return json(501, { error: 'Direct printing is not available from the cloud. Please print from the Main Counter PC.' });
+
+    if(method === 'POST' && path === '/api/bill/settle'){
+      const why = this.blocked();
+      if(why) return json(402, { error: why === 'suspended' ? 'account suspended' : 'subscription expired' });
+      let up;
+      try{ up = JSON.parse(text); }catch(e){ return json(400, { error: 'bad request' }); }
+      const idemKey = up.idemKey, bill = up.bill;
+      if(!idemKey || !bill || typeof bill !== 'object') return json(400, { error: 'idemKey and bill required' });
+      let db;
+      try{ db = JSON.parse(this.dbText()); }catch(e){ db = {}; }
+      db.bills = db.bills || [];
+      const existing = db.bills.find(b => b.idemKey === idemKey);
+      if(existing){
+        const isSame = existing.table === bill.table && Math.abs((+existing.total || 0) - (+bill.total || 0)) < 0.01 && existing.mode === bill.mode;
+        if(isSame){
+          return json(200, { ok: true, alreadySettled: true, bill: existing, version: this.meta.version });
+        }
+        return json(409, { error: 'IDEMPOTENCY_PAYLOAD_MISMATCH', message: 'Idempotency key already used with different payload' });
+      }
+      const sessId = bill.orderSessionId, tbl = bill.table;
+      if(tbl && sessId){
+        const sessExisting = db.bills.find(b => !b.cancelled && b.table === tbl && b.orderSessionId === sessId);
+        if(sessExisting){
+          return json(200, { ok: true, alreadySettled: true, bill: sessExisting, version: this.meta.version });
+        }
+      }
+      if(bill.mode === 'Split'){
+        const pays = Array.isArray(bill.pays) ? bill.pays : [];
+        if(!pays.length) return json(400, { error: 'SPLIT_TENDER_EMPTY', message: 'Split payment must have tender amounts' });
+        const tenderSum = Math.round(pays.reduce((s, p) => s + (+p.amt || 0), 0) * 100) / 100;
+        const billTotal = Math.round((+bill.total || 0) * 100) / 100;
+        if(Math.abs(tenderSum - billTotal) > 0.05){
+          return json(400, { error: 'SPLIT_TENDER_MISMATCH', message: `Split payment tender sum (${tenderSum}) does not match bill total (${billTotal})` });
+        }
+      }
+      db.seq = db.seq || { bill: 0, kot: 0, token: 0 };
+      db.seq.bill = (+db.seq.bill || 0) + 1;
+      bill.no = db.seq.bill;
+      db.seq.kot = (+db.seq.kot || 0) + 1;
+      bill.kot = db.seq.kot;
+      bill.idemKey = idemKey;
+      bill.paymentStatus = 'recorded';
+      if(bill.mode === 'UPI' || (bill.pays || []).some(p => p.mode === 'UPI')) bill.upiVerified = false;
+      (bill.used || []).forEach(u => {
+        const s = (db.stock || []).find(x => x.id === u.sid);
+        if(s) s.qty = +(+s.qty - (+u.qty || 0)).toFixed(3);
+      });
+      if(tbl && db.kaccha && db.kaccha[tbl]) delete db.kaccha[tbl];
+      db.bills.push(bill);
+      try{
+        await this.prepare(db);
+        this.commit(db);
+      }catch(e){
+        return json(500, { error: 'save failed: ' + e.message });
+      }
+      return json(200, { ok: true, alreadySettled: false, bill, version: this.meta.version });
+    }
 
     if(method === 'POST' && path === '/api/db'){
       if(text.length > MAX_BODY) return json(413, { error: 'too large' });
@@ -1539,6 +1809,32 @@ export class SetuHotel extends DurableObject {
       try{ up = JSON.parse(text); }catch(e){ return json(400, { error: 'bad request' }); }
       const data = up.data;
       if(!data || typeof data !== 'object' || Array.isArray(data) || !('settings' in data)) return json(400, { error: 'invalid data' });
+      if(Array.isArray(data.bills)){
+        const seenIdem = new Set();
+        const deduped = [];
+        for(const b of data.bills){
+          if(!b || typeof b !== 'object') continue;
+          if(b.mode === 'Split'){
+            const pays = Array.isArray(b.pays) ? b.pays : [];
+            if(!pays.length) return json(400, { error: `Bill #${b.no || '?'} has mode 'Split' but empty pays` });
+            const tenderSum = Math.round(pays.reduce((s, p) => s + (+p.amt || 0), 0) * 100) / 100;
+            const billTotal = Math.round((+b.total || 0) * 100) / 100;
+            if(Math.abs(tenderSum - billTotal) > 0.05){
+              return json(400, { error: `Bill #${b.no || '?'} split tender sum (${tenderSum}) does not match bill total (${billTotal})` });
+            }
+          }
+          const ik = b.idemKey || `idem_${b.id || (b.table + '_' + b.no)}`;
+          b.idemKey = ik;
+          if(seenIdem.has(ik)) continue;
+          seenIdem.add(ik);
+          if(!b.paymentStatus) b.paymentStatus = 'recorded';
+          if(b.mode === 'UPI' || (b.pays || []).some(p => p.mode === 'UPI')){
+            if(b.upiVerified === undefined) b.upiVerified = false;
+          }
+          deduped.push(b);
+        }
+        data.bills = deduped;
+      }
       const force = !!up.force;
       // First upload and forced restore / reset: main counter sync or a Manager login only
       if((this.meta.version === 0 || force) && !isAdmin) return json(403, { error: 'main counter only' });
@@ -2143,7 +2439,7 @@ export default {
     if(!path.startsWith('/api/')){
       if(path === '/' || path === '/index.html') return Response.redirect(url.origin + '/hotel_erp.html', 302);
       // Table QR: /q/<HOTEL>/<token> opens the guest menu page (the page reads the code and token from the address)
-      if(/^\/q\/[A-Z0-9]{4,12}\/[a-f0-9]{32}\/?$/.test(path)) return env.ASSETS.fetch(new Request(new URL('/qr', url), request));
+      if(/^\/q\/[a-zA-Z0-9_-]{3,20}\/[a-zA-Z0-9_-]{1,64}\/?$/i.test(path)) return env.ASSETS.fetch(new Request(new URL('/qr', url), request));
       if(path === '/download/Setu-POS-Setup.exe') return installerDownload(request, env, url);
       return env.ASSETS.fetch(request);
     }

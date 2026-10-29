@@ -1,0 +1,453 @@
+[
+  {
+    "id": "AUTH-01",
+    "module": "Auth",
+    "title": "Seed initial database for hotel001",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "version": 1,
+      "savedAt": 1793266907523
+    },
+    "evidence": {
+      "status": 200
+    }
+  },
+  {
+    "id": "AUTH-02",
+    "module": "Auth",
+    "title": "Gate-2 Staff Login with valid Owner PIN",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "token": "c4284a92e7ca83f2dbdc5d927230ea8c",
+      "role": "admin",
+      "name": "Manager",
+      "hotelId": "default"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "AUTH-03",
+    "module": "Auth",
+    "title": "Gate-2 Staff Login with valid Cashier PIN",
+    "status": "PASS",
+    "priority": "P1",
+    "actual": {
+      "token": "9fe502c6ab9050c4fd0961a79f476176",
+      "role": "cashier",
+      "name": "Sunil Kumar",
+      "hotelId": "default"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "AUTH-04",
+    "module": "Auth",
+    "title": "Reject invalid staff PIN with 403",
+    "status": "PASS",
+    "priority": "P1",
+    "actual": {
+      "error": "wrong pin"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "AUTH-05",
+    "module": "Auth",
+    "title": "Enforce role restriction (Cashier blocked from manager-only printer job management)",
+    "status": "PASS",
+    "priority": "P1",
+    "actual": {
+      "error": "Only from a Manager device or the Main Counter PC"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "TENANT-01",
+    "module": "Multi-Tenant",
+    "title": "Hotel001 token rejected when querying Hotel002 database",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "error": "pin required"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "TENANT-02",
+    "module": "Multi-Tenant",
+    "title": "Zero data leakage between independent hotel stores",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "leaked": false
+    },
+    "evidence": {}
+  },
+  {
+    "id": "BILL-01",
+    "module": "Billing",
+    "title": "Finalize Dine-in bill with split payment (Cash + UPI) and exact total reconciliation",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "expectedTotal": 630,
+      "saved": true
+    },
+    "evidence": {}
+  },
+  {
+    "id": "BILL-02",
+    "module": "Billing",
+    "title": "Strict mathematical reconciliation of Subtotal, Discount, GST 5% & Split Totals",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "bill": {
+        "id": "b_test_101",
+        "mv": 1,
+        "no": 101,
+        "kot": 201,
+        "date": "2026-10-29",
+        "time": "12:30",
+        "channel": "Dine-In",
+        "table": "T-5",
+        "cust": "Vipin Kumar",
+        "phone": "9876543210",
+        "mode": "Split",
+        "pays": [
+          {
+            "mode": "Cash",
+            "amt": 330
+          },
+          {
+            "mode": "UPI",
+            "amt": 300
+          }
+        ],
+        "items": [
+          {
+            "mid": "m1",
+            "name": "Paneer Butter Masala",
+            "price": 280,
+            "qty": 2
+          },
+          {
+            "mid": "m2",
+            "name": "Butter Tandoori Roti",
+            "price": 25,
+            "qty": 4
+          }
+        ],
+        "sub": 660,
+        "disc": 60,
+        "taxable": 600,
+        "gstRate": 5,
+        "tax": 30,
+        "round": 0,
+        "total": 630,
+        "used": [
+          {
+            "sid": "s_paneer",
+            "qty": 0.4
+          },
+          {
+            "sid": "s_butter",
+            "qty": 0.1
+          },
+          {
+            "sid": "s_flour",
+            "qty": 0.32
+          }
+        ],
+        "waReceiptConsent": true,
+        "waConsentAt": 1793266908587,
+        "idemKey": "idem_b_test_101",
+        "paymentStatus": "recorded",
+        "upiVerified": false
+      }
+    },
+    "evidence": {}
+  },
+  {
+    "id": "BILL-03",
+    "module": "Billing",
+    "title": "Bill cancellation marks record cancelled while preserving historical transaction",
+    "status": "PASS",
+    "priority": "P1",
+    "actual": {
+      "cancelled": true
+    },
+    "evidence": {}
+  },
+  {
+    "id": "KOT-01",
+    "module": "KOT",
+    "title": "Delta KOT verification: KOT 1 (3) + KOT 2 (5) = 8 Roti exactly matching Final Bill",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "kotTotal": 8,
+      "billQty": 8
+    },
+    "evidence": {}
+  },
+  {
+    "id": "EXP-01",
+    "module": "Expenses",
+    "title": "₹2,000 LPG Credit Purchase followed by ₹2,000 Payment yields ₹0 Due & Zero Expense Duplication",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "duesBefore": 2000,
+      "duesAfter": 0,
+      "operatingExpenses": 0
+    },
+    "evidence": {}
+  },
+  {
+    "id": "PERF-01",
+    "module": "Performance",
+    "title": "Bulk import of 500 menu items persists successfully and maintains structure",
+    "status": "PASS",
+    "priority": "P1",
+    "actual": {
+      "menuCount": 503
+    },
+    "evidence": {}
+  },
+  {
+    "id": "BACKUP-01",
+    "module": "Backup",
+    "title": "On-demand compressed database backup generation (.json.gz)",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "folder": "C:\\Users\\jjcka\\Documents\\Setu Backups",
+      "every": 2,
+      "keep": 60,
+      "on": true,
+      "lastAt": 1793266908703,
+      "lastFile": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
+      "lastError": "",
+      "lastWhy": "by hand",
+      "files": [
+        {
+          "name": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
+          "size": 4570,
+          "at": 1793266908701
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1434-HotelAlphaGrand.json.gz",
+          "size": 4568,
+          "at": 1793264646777
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1420-HotelAlphaGrand.json.gz",
+          "size": 4568,
+          "at": 1793263841115
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1328-HotelAlphaGrand.json.gz",
+          "size": 4570,
+          "at": 1793260690541
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1250-new.json.gz",
+          "size": 8754,
+          "at": 1793258426575
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1233-new.json.gz",
+          "size": 8578,
+          "at": 1793257424628
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1227-new.json.gz",
+          "size": 8387,
+          "at": 1793257079169
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1109-HotelAlphaGrand.json.gz",
+          "size": 4517,
+          "at": 1793252399727
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1107-HotelAlphaGrand.json.gz",
+          "size": 801,
+          "at": 1793252263922
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1106-HotelAlphaGrand.json.gz",
+          "size": 800,
+          "at": 1793252203188
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1102-HotelAlphaGrand.json.gz",
+          "size": 4450,
+          "at": 1793251922161
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1058-new.json.gz",
+          "size": 8287,
+          "at": 1793251721234
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1047-new.json.gz",
+          "size": 7664,
+          "at": 1793251022503
+        }
+      ],
+      "count": 13,
+      "free": 97346027520,
+      "drives": [
+        {
+          "drive": "C:",
+          "free": 97346027520,
+          "total": 483558158336
+        },
+        {
+          "drive": "D:",
+          "free": 2611560448,
+          "total": 5241827328
+        }
+      ],
+      "dataDrive": "C:"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "SEC-01",
+    "module": "Security",
+    "title": "Path traversal attempt in restore endpoint blocked with 400",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "error": "not a Setu backup file"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "BACKUP-02",
+    "module": "Backup",
+    "title": "Complete database restoration from compressed backup archive",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "folder": "C:\\Users\\jjcka\\Documents\\Setu Backups",
+      "every": 2,
+      "keep": 60,
+      "on": true,
+      "lastAt": 1793266908753,
+      "lastFile": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
+      "lastError": "",
+      "lastWhy": "before restore",
+      "files": [
+        {
+          "name": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
+          "size": 4570,
+          "at": 1793266908752
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1434-HotelAlphaGrand.json.gz",
+          "size": 4568,
+          "at": 1793264646777
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1420-HotelAlphaGrand.json.gz",
+          "size": 4568,
+          "at": 1793263841115
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1328-HotelAlphaGrand.json.gz",
+          "size": 4570,
+          "at": 1793260690541
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1250-new.json.gz",
+          "size": 8754,
+          "at": 1793258426575
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1233-new.json.gz",
+          "size": 8578,
+          "at": 1793257424628
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1227-new.json.gz",
+          "size": 8387,
+          "at": 1793257079169
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1109-HotelAlphaGrand.json.gz",
+          "size": 4517,
+          "at": 1793252399727
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1107-HotelAlphaGrand.json.gz",
+          "size": 801,
+          "at": 1793252263922
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1106-HotelAlphaGrand.json.gz",
+          "size": 800,
+          "at": 1793252203188
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1102-HotelAlphaGrand.json.gz",
+          "size": 4450,
+          "at": 1793251922161
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1058-new.json.gz",
+          "size": 8287,
+          "at": 1793251721234
+        },
+        {
+          "name": "Setu-Backup-2026-10-29_1047-new.json.gz",
+          "size": 7664,
+          "at": 1793251022503
+        }
+      ],
+      "count": 13,
+      "free": 97346093056,
+      "drives": [
+        {
+          "drive": "C:",
+          "free": 97346093056,
+          "total": 483558158336
+        },
+        {
+          "drive": "D:",
+          "free": 2611560448,
+          "total": 5241827328
+        }
+      ],
+      "dataDrive": "C:"
+    },
+    "evidence": {}
+  },
+  {
+    "id": "SEC-02",
+    "module": "Security",
+    "title": "Raw payload stored safely without crashing backend parser",
+    "status": "PASS",
+    "priority": "P1",
+    "actual": {
+      "stored": true
+    },
+    "evidence": {}
+  },
+  {
+    "id": "SEC-03",
+    "module": "Security",
+    "title": "Receipt sender rejects negative/tampered bills",
+    "status": "PASS",
+    "priority": "P0",
+    "actual": {
+      "negativePassed": false
+    },
+    "evidence": {}
+  }
+]

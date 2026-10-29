@@ -53,7 +53,7 @@ let MENU = null, CART = {}, CAT = '', STATUS = null, NOTE = '', NAME = '';
 try{ CART = JSON.parse(sessionStorage.getItem('cart:' + TOKEN) || '{}'); }catch(e){}
 const keepCart = () => { try{ sessionStorage.setItem('cart:' + TOKEN, JSON.stringify(CART)); }catch(e){} };
 async function call(path, body){
-  const r = await fetch(path + (body ? '' : (path.includes('?') ? '&' : '?') + 't=' + TOKEN), {method: body ? 'POST' : 'GET', cache: 'no-store',
+  const r = await fetch(path + (body ? '' : (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(TOKEN)), {method: body ? 'POST' : 'GET', cache: 'no-store',
     headers: {'X-Setu-Hotel': HOTEL, 'Content-Type': 'application/json'}, body: body ? JSON.stringify({...body, t: TOKEN}) : undefined});
   const j = await r.json().catch(() => ({}));
   if(!r.ok) throw Object.assign(new Error(j.error || 'Please try again'), {status: r.status});
