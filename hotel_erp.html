@@ -5613,7 +5613,7 @@ function bulkUpload(kind){
   modal(k.title, `
     <p class="muted" style="margin:0 0 8px;font-size:12px">One line = one ${kind === 'stock' ? 'item' : 'purchase'}. Columns: <b>${k.cols.join(', ')}</b>. ${k.note}</p>
     <div class="btns" style="margin:0 0 8px">
-      <button class="btn g sm" onclick="downloadTemplate('${kind}')">1. Download Template (Excel)</button>
+      <button class="btn g sm" onclick="downloadTemplate('${kind}')">1. Download Template (Excel)</button><button class="btn g sm" onclick="downloadImportTemplate('${kind}')">or blank CSV</button>
       <label class="btn sm" style="margin:0;cursor:pointer">2. Upload filled file<input type="file" accept=".xlsx,.csv,.txt" style="display:none" onchange="bulkFile(this.files[0],'${kind}')"></label>
     </div>
     <textarea id="bu_txt" rows="9" placeholder="${k.sample.map(r => r.join(', ')).join('&#10;')}" oninput="bulkPreview('${kind}')"></textarea>
@@ -6085,7 +6085,7 @@ function parseMenuText(txt){
 function importMenu(){
   modal('Menu Import — Excel / Paste', `
     <p class="muted" style="margin:0 0 8px;font-size:12px">Choose an Excel / CSV file or paste your menu here. One line per dish: <b>Category, Dish, Price</b> — or paste a printed menu (heading lines become categories, lines with a ₹ price become dishes).</p>
-    <div class="btns" style="margin:0 0 8px"><button class="btn g sm" onclick="downloadTemplate('menu')">1. Download Template (Excel)</button><label class="btn sm" style="margin:0;cursor:pointer">2. Upload filled file<input type="file" accept=".xlsx,.csv,.txt" style="display:none" onchange="readMenuFile(this.files[0])"></label></div>
+    <div class="btns" style="margin:0 0 8px"><button class="btn g sm" onclick="downloadTemplate('menu')">1. Download Template (Excel)</button><button class="btn g sm" onclick="downloadImportTemplate('menu')">or blank CSV</button><label class="btn sm" style="margin:0;cursor:pointer">2. Upload filled file<input type="file" accept=".xlsx,.csv,.txt" style="display:none" onchange="readMenuFile(this.files[0])"></label></div>
     <textarea id="mi_txt" rows="10" placeholder="Roti, Tandoori Roti, 7&#10;Dal, Dal Fry, 70&#10;Thali, Special Thali, 120" oninput="previewMenuImport()"></textarea>
     <div id="mi_prev" class="muted" style="font-size:12px;margin-top:6px"></div>
     <div class="btns">
@@ -8274,12 +8274,18 @@ function impTx(rows, type){
   rows.forEach(r => { if(have.has(key(r))){ s++; return; } D.txns.push({id: uid(), type, ...(type === 'Expense' ? {kind: 'regular'} : {}), ...r, time: '12:00', by: curUser(), at: Date.now(), imported: 1}); have.add(key(r)); a++; });
   return `${a} entries imported${s ? `, ${s} skipped (already in Setu)` : ''}`;
 }
+// Download a header-only CSV compatible with Excel and the existing import parser.
+function downloadImportTemplate(kind){
+  const cols = kind === 'menu' ? ['Category', 'Dish', 'Price'] : BULK[kind] ? BULK[kind].cols : IMP[kind] ? IMP[kind].cols : null;
+  if(!cols){ toast('Unknown import template'); return; }
+  downloadCSV([cols], 'Setu-' + kind + '-Template.csv');
+}
 function impOpen(kind){
   const k = IMP[kind];
   modal('Import: ' + k.title, `
     <p class="muted" style="margin:0 0 8px;font-size:12px">Columns: <b>${k.cols.map(esc).join(', ')}</b>. ${esc(k.note)}</p>
     <div class="btns" style="margin:0 0 8px">
-      <button class="btn g sm" onclick="downloadTemplate('${kind}')">1. Download Template (Excel)</button>
+      <button class="btn g sm" onclick="downloadTemplate('${kind}')">1. Download Template (Excel)</button><button class="btn g sm" onclick="downloadImportTemplate('${kind}')">or blank CSV</button>
       <label class="btn sm" style="margin:0;cursor:pointer">2. Upload filled file<input type="file" accept=".xlsx,.csv,.txt" style="display:none" onchange="impFile(this.files[0],'${kind}')"></label>
     </div>
     <textarea id="imp_txt" rows="9" placeholder="${k.sample.map(r => r.join(', ')).join('&#10;')}" oninput="impPreview('${kind}')"></textarea>
@@ -8375,7 +8381,7 @@ function scrData(){
   scrData.ok = false;
   const tile = (t, d, fn, k) => `<div class="card" style="margin:0;display:flex;flex-direction:column;gap:6px"><b>${t}</b><span class="muted" style="font-size:12px;flex:1">${d}</span>
     <div style="display:flex;gap:6px"><button class="btn g sm" style="flex:1;margin:0" onclick="downloadTemplate('${k}')">Template</button><button class="btn sm" style="flex:1;margin:0" onclick="${fn}">Upload</button></div></div>`;
-  main.innerHTML = `<div class="title"><span>Import & Delete Data</span><span class="r">Excel (CSV) files · sample file in each</span></div>
+  main.innerHTML = `<div class="title"><span>Import & Delete Data</span><span class="r">Download template · Fill in Excel · Upload</span></div>
   <div class="card"><h3 style="margin-top:0">Bulk import</h3>
     <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">
       ${tile('Menu items', 'Dishes, categories and prices (also from a pasted menu).', "go('menu');setTimeout(importMenu,50)", 'menu')}
