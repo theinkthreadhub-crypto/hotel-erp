@@ -2822,7 +2822,7 @@ const SETU_NAV = [
  {id:'settings',title:'Settings',icon:'⚙️',theme:'peach',detail:'Hotel, printing, data and licence',items:['settings','printers','data','license','doctor']},
  {id:'tools',title:'Help & Utilities',icon:'🛠️',theme:'blue',detail:'AI, support and error logs',items:['ai','support','errors']}
 ];
-let setuNavExpanded = '';
+let setuNavExpanded = null;
 function setuNavAllowed(id){
   if(!SCREENS[id] || !screenOn(id))return false;
   if(activeUser && activeUser.access === 'captain' && !CAPTAIN_ALLOW.includes(id))return false;
@@ -2850,11 +2850,11 @@ function setuLaunchTiles(){
 function drawSide(){
   const groups=setuNavGroups();
   const current=groups.find(g=>g.items.includes(cur));
-  if(current && !setuNavExpanded)setuNavExpanded=current.id;
+  if(current && setuNavExpanded===null)setuNavExpanded=current.id;
   const home='<button type="button" class="nav-home '+(cur==='gateway'?'active':'')+
     '" onclick="go(\'gateway\')"><span class="nav-symbol">⌂</span>Dashboard</button>';
   const body=groups.map(g=>{
-    const expanded=setuNavExpanded===g.id || (g.items.includes(cur) && setuNavExpanded==='');
+    const expanded=setuNavExpanded===g.id;
     const pending=g.id==='online'?(D.onlineOrders||[]).filter(x=>x.status==='new').length:0;
     const header='<button type="button" class="nav-section '+(expanded?'expanded':'')+
       '" aria-expanded="'+(expanded?'true':'false')+'" onclick="setuToggleGroup(\''+g.id+'\')">'+
