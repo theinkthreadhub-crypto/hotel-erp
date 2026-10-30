@@ -75,7 +75,15 @@
     { id: 'sandwich', img: 'sandwich', cat: 'fastfood', names: ['veg sandwich', 'grilled sandwich', 'cheese sandwich', 'club sandwich', 'bombay sandwich', 'paneer sandwich', 'chicken sandwich', 'corn sandwich', 'cheese grilled sandwich', 'sandwich', 'sandwiches', 'toast sandwich', 'sub', 'panini', 'frankie', 'kathi roll', 'paneer roll', 'chicken roll', 'veg roll', 'egg roll', 'wrap', 'shawarma', 'chicken shawarma'], need: ['sandwich', 'sandwiches', 'sandwhich', 'sandwitch', 'panini', 'sub', 'frankie', 'roll', 'wrap', 'shawarma', 'shawarama'], avoid: ['spring', 'rumali', 'dragon', 'cigar', 'sushi'] },
     { id: 'fries', img: 'fries', cat: 'fastfood', veg: true, names: ['french fries', 'salted fries', 'peri peri fries', 'masala fries', 'cheese fries', 'finger chips', 'potato fries', 'fries', 'potato wedges', 'wedges'], need: ['fries', 'chips', 'wedges'], avoid: ['fish'] },
     { id: 'pasta', img: 'pasta', cat: 'fastfood', names: ['white sauce pasta', 'red sauce pasta', 'pink sauce pasta', 'arrabiata pasta', 'arrabbiata', 'alfredo pasta', 'penne pasta', 'mac and cheese', 'spaghetti', 'pasta', 'macaroni', 'pesto pasta'] },
-    { id: 'soup', img: 'soup', cat: 'soup', names: ['tomato soup', 'sweet corn soup', 'hot and sour soup', 'manchow soup', 'veg manchow soup', 'lemon coriander soup', 'mushroom soup', 'cream of mushroom', 'chicken soup', 'chicken manchow soup', 'clear soup', 'talumein soup', 'soup', 'shorba', 'rasam', 'chowder', 'seafood chowder', 'yakhni soup', 'tom yum', 'tom yum soup', 'egg drop soup'], need: ['soup', 'shorba', 'rasam', 'chowder'] },
+        { id: 'tomato-soup', img: 'tomato-soup', cat: 'soup', veg: true, names: ['tomato soup', 'cream of tomato soup', 'roasted tomato soup', 'veg tomato soup'], need: ['tomato', 'soup'] },
+    { id: 'sweet-corn-soup', img: 'sweet-corn-soup', cat: 'soup', names: ['sweet corn soup', 'veg sweet corn soup', 'sweet corn chicken soup', 'corn soup'], need: ['corn', 'soup'] },
+    { id: 'hot-and-sour-soup', img: 'hot-and-sour-soup', cat: 'soup', names: ['hot and sour soup', 'veg hot and sour soup', 'hot & sour soup', 'chicken hot and sour soup'], need: ['hot', 'sour', 'soup'] },
+    { id: 'manchow-soup', img: 'manchow-soup', cat: 'soup', names: ['manchow soup', 'veg manchow soup', 'chicken manchow soup'], need: ['manchow', 'soup'] },
+    { id: 'lemon-coriander-soup', img: 'lemon-coriander-soup', cat: 'soup', veg: true, names: ['lemon coriander soup', 'coriander soup', 'lemon soup'], need: ['lemon', 'coriander', 'soup'] },
+    { id: 'cream-of-mushroom-soup', img: 'cream-of-mushroom-soup', cat: 'soup', veg: true, names: ['cream of mushroom soup', 'mushroom soup', 'cream mushroom soup'], need: ['mushroom', 'soup'] },
+    { id: 'veg-noodle-soup', img: 'veg-noodle-soup', cat: 'soup', names: ['veg noodle soup', 'noodle soup', 'talumein soup', 'chicken noodle soup'], need: ['noodle', 'soup'] },
+    { id: 'veg-clear-soup', img: 'veg-clear-soup', cat: 'soup', veg: true, names: ['veg clear soup', 'clear soup', 'clear vegetable soup', 'vegetable clear soup'], need: ['clear', 'soup'] },
+    { id: 'soup', img: 'soup', cat: 'soup', names: ['soup', 'shorba', 'rasam', 'chowder', 'seafood chowder', 'yakhni soup', 'tom yum', 'tom yum soup', 'egg drop soup'], need: ['soup', 'shorba', 'rasam', 'chowder'] },
     { id: 'salad', img: 'salad', cat: 'soup', veg: true, names: ['green salad', 'garden salad', 'greek salad', 'caesar salad', 'russian salad', 'kachumber salad', 'onion salad', 'fruit salad', 'sprout salad', 'salad'], need: ['salad', 'salaad', 'kachumber'] },
     { id: 'thali', img: 'thali', cat: 'main', names: ['veg thali', 'special thali', 'deluxe thali', 'mini thali', 'punjabi thali', 'gujarati thali', 'rajasthani thali', 'south indian thali', 'non veg thali', 'executive thali', 'thali', 'combo meal', 'meals', 'full meals', 'dal bati', 'dal baati', 'dal baati churma'], need: ['thali', 'meals', 'meal', 'combo', 'bati', 'baati'] },
     { id: 'raita', img: 'raita', cat: 'main', veg: true, names: ['boondi raita', 'mix veg raita', 'cucumber raita', 'pineapple raita', 'raita', 'plain curd', 'dahi', 'curd'], avoid: ['puri', 'vada', 'bhalla', 'rice', 'chicken', 'kebab'] },
@@ -309,7 +317,7 @@
   function pick(m){
     if(!m) return {src: 'cat-generic', kind: 'generic'};
     if(/^m_[0-9a-f]{32}$/.test(m.photo || '')) return {src: m.photo, kind: 'custom'};
-    if(m.img && /^https:\/\/[^\s"'<>]+$/.test(m.img)) return {src: m.img, kind: 'link'};
+    if(m.img && (/^(https?:\/\/|[a-zA-Z0-9_\-\.\/]+$)/.test(m.img) && !m.img.includes('..'))) return {src: m.img, kind: 'link'};
     if(m.lib && LIB.has(m.lib)) return {src: m.lib, kind: 'chosen'};
     if(m.lib && byId[m.lib]) return {src: byId[m.lib].img, kind: 'chosen'};
     if(m.lib === 'none') return {src: 'cat-' + catOf(m.cat, words(m.name)), kind: 'category'};

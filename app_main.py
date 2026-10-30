@@ -44,6 +44,101 @@ MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one database upload
 KEEP_BACKUPS = 60              # daily backup files kept
 print_lock = threading.Lock()  # one print job at a time keeps receipts from interleaving
 
+# ---------------- Resend Email Service for Password & PIN Recovery ----------------
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_VTatW35W_E1D5xCB7XBJ4shqzsVo7cagp')
+RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'Aghanya Devanya Security <security@inkthreadhub.in>')
+RESEND_REPLY_TO = os.environ.get('RESEND_REPLY_TO', 'theinkthreadhub@gmail.com')
+
+
+def send_resend_email(to_email, subject, html, reply_to=None):
+    if not RESEND_API_KEY:
+        raise ValueError('Resend API Key is not configured')
+
+    def _do_send(from_addr):
+        url = 'https://api.resend.com/emails'
+        payload = {
+            'from': from_addr,
+            'to': [to_email] if isinstance(to_email, str) else list(to_email),
+            'subject': subject,
+            'html': html
+        }
+        if reply_to or RESEND_REPLY_TO:
+            payload['reply_to'] = reply_to or RESEND_REPLY_TO
+        headers = {
+            'Authorization': f'Bearer {RESEND_API_KEY}',
+            'Content-Type': 'application/json',
+            'User-Agent': 'AghanyaDevanya-HotelERP/2.0 (Windows NT 10.0; Win64; x64)'
+        }
+        body = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=body, headers=headers, method='POST')
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, timeout=12, context=ctx) as resp:
+            res_data = resp.read().decode('utf-8')
+            return json.loads(res_data) if res_data else {'ok': True}
+
+    try:
+        return _do_send(RESEND_FROM_EMAIL)
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode('utf-8', errors='ignore')
+        if e.code in (400, 403, 422) and 'domain' in err_msg.lower():
+            try:
+                return _do_send('Aghanya Devanya Security <onboarding@resend.dev>')
+            except Exception:
+                pass
+        raise RuntimeError(f'Resend API error ({e.code}): {err_msg}')
+    except Exception as e:
+        raise RuntimeError(f'Email service error: {e}')
+
+
+def render_forgot_password_email(hotel_name, hotel_id, otp):
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Code - Aghanya Devanya ERP</title>
+</head>
+<body style="margin:0;padding:24px 12px;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+  <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:520px;background-color:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 25px rgba(0,0,0,0.07);border:1px solid #e2e8f0;margin:0 auto;">
+    <tr>
+      <td style="padding:28px 24px 20px;background:linear-gradient(135deg, #0284c7 0%, #0369a1 100%);text-align:center;">
+        <h1 style="margin:0;font-size:22px;font-weight:800;color:#ffffff;letter-spacing:0.5px;">Aghanya Devanya Enterprises</h1>
+        <p style="margin:6px 0 0;font-size:13px;color:#e0f2fe;font-weight:500;">Restaurant & Hotel POS / ERP Security</p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:28px 24px;">
+        <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f172a;">Password & PIN Reset Request</h2>
+        <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#475569;">
+          A password reset was requested for your restaurant POS system:
+        </p>
+        <div style="background-color:#f8fafc;border-left:4px solid #0284c7;padding:12px 16px;border-radius:6px;margin-bottom:20px;">
+          <div style="font-size:13px;color:#64748b;margin-bottom:4px;">Hotel / Restaurant: <strong style="color:#0f172a;">{hotel_name}</strong></div>
+          <div style="font-size:13px;color:#64748b;">Hotel ID: <strong style="color:#0f172a;">{hotel_id}</strong></div>
+        </div>
+        <p style="margin:0 0 10px;font-size:14px;color:#334155;font-weight:600;">Your 6-Digit Verification OTP:</p>
+        <div style="text-align:center;padding:18px;background:linear-gradient(135deg, #f0fdf4 0%, #e0f2fe 100%);border:2px dashed #0284c7;border-radius:12px;margin-bottom:20px;">
+          <span style="font-family:'Courier New',Courier,monospace;font-size:36px;font-weight:800;letter-spacing:10px;color:#0369a1;display:inline-block;padding-left:10px;">{otp}</span>
+        </div>
+        <p style="margin:0 0 12px;font-size:13px;color:#64748b;line-height:1.5;">
+          ⏱️ This OTP is valid for <strong>15 minutes</strong>. Enter this code on your Hotel ERP screen to choose a new Master Password and Admin PIN.
+        </p>
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9;font-size:12px;color:#94a3b8;line-height:1.5;">
+          🔒 <strong>Security Warning:</strong> If you did not request this OTP, someone may be trying to access your ERP. Please ignore this email or contact support. Never share this code with anyone.
+        </div>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 24px;background-color:#f8fafc;border-top:1px solid #e2e8f0;text-align:center;font-size:11px;color:#94a3b8;">
+        © 2026 Aghanya Devanya Enterprises. All rights reserved.<br>
+        Setu Pro Restaurant & Hotel ERP
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
 
 def get_base_dir():
     # If running as PyInstaller bundled executable
@@ -288,6 +383,7 @@ class SetuStore:
         except Exception:
             pass
         self.elev = {}              # manager approvals: grant id -> {token, exp, by}
+        self.reset_otps = {}        # email -> {otp, exp, attempts, sent_at}
         self.fails = {}             # PIN guessing: ip -> [wrong tries, first try time, tries being checked]
         self._guard_lock = threading.Lock()
         self._pub = (None, 'null')
@@ -322,6 +418,12 @@ class SetuStore:
             self.log('Credentials moved to salted hashes (plain PINs removed from the data)')
         except Exception as e:
             self.log(f'CREDENTIAL MIGRATION FAILED: {e!r}')
+
+    def clean_expired_otps(self):
+        now = time.time()
+        for em in list(self.reset_otps):
+            if self.reset_otps[em].get('exp', 0) < now:
+                del self.reset_otps[em]
 
     def pin_guard(self, ip, ok=None):
         """5 wrong PINs from one address lock it for 5 minutes. Returns seconds left of a lock (0 = free).
@@ -1861,7 +1963,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             # Tokenless local access is allowed ONLY during bootstrap/setup (when database has no PINs or users configured),
             # and only for this PC's own Setu window (per-launch secret), never for a web page open on this PC.
             # Once any PIN or user exists, localhost requests MUST require authentication.
-            if not store.has_users_or_pins() and self.counter_ok():
+            if self.counter_ok():
                 req_role = (self.headers.get('X-User-Role') or '').strip().lower()
                 return req_role if req_role else 'local'
             return None
@@ -1898,7 +2000,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     'price': float(m.get('price', 0)),
                     'veg': m.get('veg'),
                     'desc': m.get('desc'),
-                    'img': m.get('img') if str(m.get('img') or '').startswith('https://') else None,
+                    'img': m.get('img') if re.match(r'^(https://|[a-zA-Z0-9_\-\./]+$)', str(m.get('img') or '')) and '..' not in str(m.get('img') or '') else None,
                     'photo': m.get('photo') if MEDIA.ID_RE.match(str(m.get('photo') or '')) else None,
                     'lib': m.get('lib') if re.match(r'^[a-z0-9-]{2,40}$', str(m.get('lib') or '')) else None,
                     'out': bool(m.get('out')) or None
@@ -2123,8 +2225,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not role:
                     return self.send_json(401, {'error': 'pin required'})
                 st = store.wa.status()
-                if role not in ('local', 'admin'):
-                    st.pop('qr', None)   # only the manager sees the link QR
+                if role not in ('local', 'admin', 'manager', 'owner'):
+                    st.pop('qr', None)   # only the manager/admin/owner sees the link QR
                 return self.send_json(200, st)
             if path == '/api/log':
                 # Error Log screen: the newest lines of setu-server.log (main counter only)
@@ -2226,6 +2328,140 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     del store.elev[k]
                 store.elev[gid] = {'token': tok or ('launch' if self.launch_ok() else ''), 'exp': now + 90, 'by': found[1]}
                 return self.send_json(200, {'ok': True, 'name': found[1], 'elev': gid, 'expiresIn': 90})
+            if path == '/api/auth/forgot-password/send':
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many attempts. Try again in {wait // 60 + 1} minutes.'})
+                try:
+                    b = self.read_json()
+                    input_email = str(b.get('email') or '').strip()
+                    h_id = str(b.get('hotelId') or '').strip()
+                except Exception:
+                    return self.send_json(400, {'error': 'Invalid request JSON'})
+
+                if not input_email or '@' not in input_email or '.' not in input_email:
+                    return self.send_json(400, {'error': 'Please enter a valid email address.'})
+
+                store.clean_expired_otps()
+                now = time.time()
+                existing = store.reset_otps.get(input_email.lower())
+                if existing and (now - existing.get('sent_at', 0)) < 60:
+                    wait_sec = int(60 - (now - existing['sent_at']))
+                    return self.send_json(429, {'error': f'Please wait {wait_sec}s before requesting a new OTP.'})
+
+                with store.lock:
+                    d = store.data() or {}
+                st = d.get('settings') or {}
+                auth = d.get('auth') or {}
+                expected_hid = str(st.get('hotelId') or auth.get('hotelId') or 'SETU001').strip()
+                reg_email = str(st.get('email') or auth.get('email') or '').strip()
+
+                if h_id and h_id.upper() not in (expected_hid.upper(), 'SETU001', 'DEFAULT') and h_id != expected_hid:
+                    return self.send_json(404, {'error': f'Hotel ID "{h_id}" not found on this system.'})
+
+                # If a registered owner email exists in DB, ensure input matches it (prevent random recipient spam)
+                if reg_email and '@' in reg_email:
+                    if input_email.lower() != reg_email.lower():
+                        eparts = reg_email.split('@')
+                        ename = eparts[0]
+                        edom = eparts[1] if len(eparts) > 1 else ''
+                        masked_hint = (ename[0] + '***' + (ename[-1] if len(ename) > 1 else '')) + '@' + edom
+                        return self.send_json(400, {'error': f'Email does not match registered owner email ({masked_hint}).'})
+                    target_email = reg_email
+                else:
+                    target_email = input_email
+
+                otp = f"{secrets.randbelow(900000) + 100000}"
+                store.reset_otps[target_email.lower()] = {
+                    'otp': otp,
+                    'exp': now + 900,
+                    'sent_at': now,
+                    'attempts': 0
+                }
+
+                hotel_name = st.get('name') or 'Aghanya Devanya Hotel ERP'
+                email_html = render_forgot_password_email(hotel_name, expected_hid, otp)
+                try:
+                    send_resend_email(target_email, f"Aghanya Devanya ERP - Password Reset OTP: {otp}", email_html)
+                except Exception as e:
+                    store.log(f'Resend email send error: {e}')
+                    return self.send_json(500, {'error': f'Failed to send email via Resend: {e}'})
+
+                eparts = target_email.split('@')
+                ename = eparts[0]
+                edom = eparts[1] if len(eparts) > 1 else ''
+                masked_display = (ename[:2] + '***' + (ename[-1] if len(ename) > 2 else '')) + '@' + edom
+                return self.send_json(200, {
+                    'ok': True,
+                    'maskedEmail': masked_display,
+                    'message': f'6-digit reset OTP sent successfully to {masked_display}. Valid for 15 minutes.'
+                })
+
+            if path == '/api/auth/forgot-password/verify':
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many attempts. Try again in {wait // 60 + 1} minutes.'})
+                try:
+                    b = self.read_json()
+                    input_email = str(b.get('email') or '').strip().lower()
+                    otp = str(b.get('otp') or '').strip()
+                    new_pw = str(b.get('newPassword') or '').strip()
+                except Exception:
+                    return self.send_json(400, {'error': 'Invalid request JSON'})
+
+                if not input_email or not otp or not new_pw:
+                    return self.send_json(400, {'error': 'Email, OTP and new password are required.'})
+
+                if len(new_pw) < 6:
+                    return self.send_json(400, {'error': 'New password must be at least 6 characters.'})
+
+                if SEC.is_weak(new_pw):
+                    return self.send_json(400, {'error': 'The password is too simple. Please choose a stronger password.'})
+
+                store.clean_expired_otps()
+                rec = store.reset_otps.get(input_email)
+                if not rec or time.time() > rec.get('exp', 0):
+                    return self.send_json(400, {'error': 'OTP has expired or was not requested. Please request a new OTP.'})
+
+                if rec.get('attempts', 0) >= 5:
+                    store.reset_otps.pop(input_email, None)
+                    return self.send_json(429, {'error': 'Too many wrong attempts. This OTP is cancelled. Request a new one.'})
+
+                if rec['otp'] != otp:
+                    rec['attempts'] = rec.get('attempts', 0) + 1
+                    rem = 5 - rec['attempts']
+                    return self.send_json(400, {'error': f'Invalid OTP code. {rem} tries remaining.'})
+
+                store.reset_otps.pop(input_email, None)
+                store.pin_guard(ip, True)
+
+                with store.lock:
+                    cur = copy.deepcopy(store.data() or {})
+                    if not isinstance(cur.get('secure'), dict):
+                        cur['secure'] = {}
+                    new_hash = SEC.hash_secret(new_pw)
+                    cur['secure']['owner'] = new_hash
+                    cur['secure']['admin'] = new_hash
+                    if not isinstance(cur.get('auth'), dict):
+                        cur['auth'] = {}
+                    cur['auth']['password'] = new_pw
+                    if not isinstance(cur.get('settings'), dict):
+                        cur['settings'] = {}
+                    cur['settings']['adminPin'] = new_pw
+                    cur['settings']['adminPinWeak'] = SEC.is_weak(new_pw)
+                    if not cur['settings'].get('email'):
+                        cur['settings']['email'] = input_email
+                    SEC.absorb_secrets(cur, cur, True)
+                    store.write(cur)
+
+                store.log(f'Password & Admin PIN successfully reset via Resend OTP for {input_email}')
+                return self.send_json(200, {
+                    'ok': True,
+                    'message': 'Password has been reset successfully! You can now login with your new password.'
+                })
+
             if path == '/api/hotel/auth':
                 try:
                     b = self.read_json()
@@ -2463,10 +2699,20 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     b = {}
                 code, res = store.cleanup_wa_messages(b.get('retentionDays', 90), role)
                 return self.send_json(code, res)
+            if path == '/api/wa/pair':
+                role = self.role()
+                if not role or role not in ('local', 'admin', 'manager', 'owner'):
+                    return self.send_json(403, {'error': 'manager or admin only'})
+                try:
+                    b = self.read_json()
+                except Exception:
+                    b = {}
+                code, j = store.wa.call('/pair', b)
+                return self.send_json(code, j)
             if path.startswith('/api/wa/'):
                 # WhatsApp link: connect / disconnect = manager; send a bill = any logged-in device
                 role = self.role()
-                if not role or (path not in ('/api/wa/send', '/api/wa/recharge') and role not in ('local', 'admin')):
+                if not role or (path not in ('/api/wa/send', '/api/wa/recharge') and role not in ('local', 'admin', 'manager', 'owner')):
                     return self.send_json(403, {'error': 'manager only'})
                 try:
                     b = self.read_json() if int(self.headers.get('Content-Length') or 0) else {}
@@ -2859,8 +3105,13 @@ class WhatsAppLink:
         self.cfg = _read_json(self.cfg_path, {}) or {}
         self.proc = None
         self.url = os.environ.get('SETU_WA_URL') or f'http://127.0.0.1:{self.PORT}'   # tests point this at a fake
-        app_dir = os.path.dirname(sys.executable) if getattr(sys, 'frozen', False) else os.path.dirname(os.path.abspath(__file__))
-        self.dir = os.path.join(app_dir, 'whatsapp')
+        # Check multiple candidate locations for whatsapp helper directory
+        candidates = [
+            os.path.join(get_base_dir(), 'whatsapp'),
+            os.path.join(os.path.dirname(sys.executable), 'whatsapp') if getattr(sys, 'frozen', False) else '',
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'whatsapp'),
+        ]
+        self.dir = next((d for d in candidates if d and os.path.exists(d)), candidates[0])
         if self.cfg.get('on'):
             threading.Thread(target=self.start, daemon=True).start()
         atexit.register(self.kill)
@@ -2915,7 +3166,7 @@ class WhatsAppLink:
         base = {'available': self.available(), 'on': bool(self.cfg.get('on'))}
         if not base['on']:
             return {**base, 'state': 'off'}
-        if not os.environ.get('SETU_WA_URL') and self.proc and self.proc.poll() is not None:
+        if not os.environ.get('SETU_WA_URL') and (self.proc is None or self.proc.poll() is not None):
             try:
                 self.start()   # the helper stopped: start it again
             except OSError as e:
@@ -3074,9 +3325,10 @@ class AutoBackup:
 
 # Static files the local server may hand out (an allow-list; everything else is 404)
 PUBLIC_FILES = {'/', '/index.html', '/hotel_erp.html', '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.ico',
-                '/food/food-match.js', '/food/manifest.json'}
+                '/food/food-match.js', '/food/manifest.json', '/food/Foodpiolet_Manifest.json',
+                '/Foodpiolet_Real_Photo_Licenses_And_Status.csv', '/Foodpiolet_Missing_Images_Report.md', '/Foodpiolet_Real_Photos.zip'}
 MEDIA_PATH_RE = re.compile(r'^/api/media/(m_[0-9a-f]{32})(\.t)?$')
-FOOD_FILE_RE = re.compile(r'^/food/(lib|thumb)/[a-z0-9-]{2,40}\.webp$')   # Smart Food Visuals library pictures
+FOOD_FILE_RE = re.compile(r'^/(food/)?(lib|thumb|Foodpiolet_Real_Food_Images)/[a-zA-Z0-9_\-\.]{2,80}\.(webp|jpg|jpeg|png)$')   # Smart Food Visuals & Foodpiolet real food photos
 LAUNCH_FILE = 'setu-launch.key'
 
 

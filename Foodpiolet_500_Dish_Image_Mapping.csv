@@ -1,0 +1,501 @@
+﻿Category,Dish,Price,Image_File
+Soup,Tomato Soup,99,001_tomato-soup.jpg
+Soup,Sweet Corn Soup,109,002_sweet-corn-soup.jpg
+Soup,Hot and Sour Soup,119,003_hot-and-sour-soup.jpg
+Soup,Manchow Soup,129,004_manchow-soup.jpg
+Soup,Veg Clear Soup,99,005_veg-clear-soup.jpg
+Soup,Cream of Mushroom Soup,139,006_cream-of-mushroom-soup.jpg
+Soup,Lemon Coriander Soup,119,007_lemon-coriander-soup.jpg
+Soup,Veg Noodle Soup,129,008_veg-noodle-soup.jpg
+Starters,Paneer Tikka,249,009_paneer-tikka.jpg
+Starters,Malai Paneer Tikka,279,010_malai-paneer-tikka.jpg
+Starters,Hariyali Paneer Tikka,269,011_hariyali-paneer-tikka.jpg
+Starters,Veg Seekh Kebab,199,012_veg-seekh-kebab.jpg
+Starters,Hara Bhara Kebab,189,013_hara-bhara-kebab.jpg
+Starters,Crispy Corn,179,014_crispy-corn.jpg
+Starters,Chilli Paneer Dry,239,015_chilli-paneer-dry.jpg
+Starters,Honey Chilli Potato,179,016_honey-chilli-potato.jpg
+Starters,Veg Spring Roll,169,017_veg-spring-roll.jpg
+Starters,Mushroom Tikka,249,018_mushroom-tikka.jpg
+Starters,Tandoori Aloo,189,019_tandoori-aloo.jpg
+Starters,Dahi Ke Kebab,219,020_dahi-ke-kebab.jpg
+Chinese,Veg Hakka Noodles,169,021_veg-hakka-noodles.jpg
+Chinese,Schezwan Noodles,189,022_schezwan-noodles.jpg
+Chinese,Chilli Garlic Noodles,189,023_chilli-garlic-noodles.jpg
+Chinese,Veg Fried Rice,159,024_veg-fried-rice.jpg
+Chinese,Schezwan Fried Rice,179,025_schezwan-fried-rice.jpg
+Chinese,Veg Manchurian Gravy,209,026_veg-manchurian-gravy.jpg
+Chinese,Veg Manchurian Dry,199,027_veg-manchurian-dry.jpg
+Chinese,Chilli Paneer Gravy,249,028_chilli-paneer-gravy.jpg
+Chinese,Chilli Mushroom,239,029_chilli-mushroom.jpg
+Chinese,Veg Chow Mein,149,030_veg-chow-mein.jpg
+Chinese,Triple Schezwan Rice,249,031_triple-schezwan-rice.jpg
+Chinese,Paneer Fried Rice,199,032_paneer-fried-rice.jpg
+Main Course,Shahi Paneer,269,033_shahi-paneer.jpg
+Main Course,Kadai Paneer,259,034_kadai-paneer.jpg
+Main Course,Paneer Butter Masala,279,035_paneer-butter-masala.jpg
+Main Course,Paneer Lababdar,289,036_paneer-lababdar.jpg
+Main Course,Palak Paneer,249,037_palak-paneer.jpg
+Main Course,Matar Paneer,239,038_matar-paneer.jpg
+Main Course,Paneer Do Pyaza,259,039_paneer-do-pyaza.jpg
+Main Course,Paneer Bhurji,249,040_paneer-bhurji.jpg
+Main Course,Malai Kofta,279,041_malai-kofta.jpg
+Main Course,Mix Veg,219,042_mix-veg.jpg
+Main Course,Veg Kolhapuri,239,043_veg-kolhapuri.jpg
+Main Course,Dum Aloo,219,044_dum-aloo.jpg
+Main Course,Aloo Gobi,189,045_aloo-gobi.jpg
+Main Course,Bhindi Masala,199,046_bhindi-masala.jpg
+Main Course,Dal Fry,169,047_dal-fry.jpg
+Main Course,Dal Tadka,179,048_dal-tadka.jpg
+Main Course,Dal Makhani,219,049_dal-makhani.jpg
+Main Course,Chana Masala,189,050_chana-masala.jpg
+Main Course,Rajma Masala,189,051_rajma-masala.jpg
+Main Course,Mushroom Masala,249,052_mushroom-masala.jpg
+Breads,Tandoori Roti,25,053_tandoori-roti.jpg
+Breads,Butter Tandoori Roti,30,054_butter-tandoori-roti.jpg
+Breads,Plain Naan,49,055_plain-naan.jpg
+Breads,Butter Naan,59,056_butter-naan.jpg
+Breads,Garlic Naan,69,057_garlic-naan.jpg
+Breads,Cheese Naan,99,058_cheese-naan.jpg
+Breads,Lachha Paratha,59,059_lachha-paratha.jpg
+Breads,Pudina Paratha,69,060_pudina-paratha.jpg
+Breads,Missi Roti,49,061_missi-roti.jpg
+Breads,Stuffed Kulcha,89,062_stuffed-kulcha.jpg
+Rice and Biryani,Steamed Rice,119,063_steamed-rice.jpg
+Rice and Biryani,Jeera Rice,139,064_jeera-rice.jpg
+Rice and Biryani,Veg Pulao,169,065_veg-pulao.jpg
+Rice and Biryani,Peas Pulao,159,066_peas-pulao.jpg
+Rice and Biryani,Veg Biryani,219,067_veg-biryani.jpg
+Rice and Biryani,Paneer Biryani,259,068_paneer-biryani.jpg
+Rice and Biryani,Hyderabadi Veg Biryani,239,069_hyderabadi-veg-biryani.jpg
+Rice and Biryani,Kashmiri Pulao,199,070_kashmiri-pulao.jpg
+South Indian,Plain Dosa,129,071_plain-dosa.jpg
+South Indian,Masala Dosa,159,072_masala-dosa.jpg
+South Indian,Mysore Masala Dosa,189,073_mysore-masala-dosa.jpg
+South Indian,Rava Dosa,169,074_rava-dosa.jpg
+South Indian,Onion Uttapam,159,075_onion-uttapam.jpg
+South Indian,Idli Sambar,109,076_idli-sambar.jpg
+South Indian,Medu Vada Sambar,119,077_medu-vada-sambar.jpg
+South Indian,Paneer Dosa,199,078_paneer-dosa.jpg
+Snacks,Veg Sandwich,99,079_veg-sandwich.jpg
+Snacks,Grilled Veg Sandwich,129,080_grilled-veg-sandwich.jpg
+Snacks,Paneer Sandwich,159,081_paneer-sandwich.jpg
+Snacks,French Fries,109,082_french-fries.jpg
+Snacks,Peri Peri Fries,139,083_peri-peri-fries.jpg
+Snacks,Aloo Tikki Burger,99,084_aloo-tikki-burger.jpg
+Snacks,Veg Cheese Burger,139,085_veg-cheese-burger.jpg
+Snacks,Pav Bhaji,149,086_pav-bhaji.jpg
+Snacks,Chole Bhature,159,087_chole-bhature.jpg
+Snacks,Veg Momos,129,088_veg-momos.jpg
+Beverages,Masala Tea,35,089_masala-tea.jpg
+Beverages,Coffee,59,090_coffee.jpg
+Beverages,Cold Coffee,119,091_cold-coffee.jpg
+Beverages,Fresh Lime Soda,79,092_fresh-lime-soda.jpg
+Beverages,Sweet Lassi,99,093_sweet-lassi.jpg
+Beverages,Mango Shake,129,094_mango-shake.jpg
+Desserts,Gulab Jamun,79,095_gulab-jamun.jpg
+Desserts,Rasmalai,109,096_rasmalai.jpg
+Desserts,Vanilla Ice Cream,79,097_vanilla-ice-cream.jpg
+Desserts,Chocolate Brownie,159,098_chocolate-brownie.jpg
+Desserts,Gajar Halwa,119,099_gajar-halwa.jpg
+Desserts,Fruit Custard,109,100_fruit-custard.jpg
+Soup,Clear Vegetable Soup,,101_clear-vegetable-soup.jpg
+Soup,Spinach Soup,,102_spinach-soup.jpg
+Soup,Broccoli Almond Soup,,103_broccoli-almond-soup.jpg
+Soup,Pumpkin Soup,,104_pumpkin-soup.jpg
+Soup,Carrot Ginger Soup,,105_carrot-ginger-soup.jpg
+Soup,Minestrone Soup,,106_minestrone-soup.jpg
+Soup,Roasted Garlic Soup,,107_roasted-garlic-soup.jpg
+Soup,Thai Coconut Soup,,108_thai-coconut-soup.jpg
+Soup,Palak Corn Soup,,109_palak-corn-soup.jpg
+Soup,Cream of Peas Soup,,110_cream-of-peas-soup.jpg
+Soup,Beetroot Soup,,111_beetroot-soup.jpg
+Soup,Vegetable Noodle Soup,,112_vegetable-noodle-soup.jpg
+Soup,Mixed Lentil Soup,,113_mixed-lentil-soup.jpg
+Soup,Tangy Tamarind Soup,,114_tangy-tamarind-soup.jpg
+Soup,Sweet Potato Soup,,115_sweet-potato-soup.jpg
+Soup,Cabbage Pepper Soup,,116_cabbage-pepper-soup.jpg
+Soup,French Onion Soup,,117_french-onion-soup.jpg
+Starters,Tandoori Mushroom,,118_tandoori-mushroom.jpg
+Starters,Achari Paneer Tikka,,119_achari-paneer-tikka.jpg
+Starters,Paneer Seekh Kebab,,120_paneer-seekh-kebab.jpg
+Starters,Cheese Corn Balls,,121_cheese-corn-balls.jpg
+Starters,Stuffed Mushrooms,,122_stuffed-mushrooms.jpg
+Starters,Veg Galouti Kebab,,123_veg-galouti-kebab.jpg
+Starters,Crispy Baby Corn,,124_crispy-baby-corn.jpg
+Starters,Peri Peri Potato Wedges,,125_peri-peri-potato-wedges.jpg
+Starters,Veg Spring Rolls,,126_veg-spring-rolls.jpg
+Starters,Chilli Garlic Paneer,,127_chilli-garlic-paneer.jpg
+Starters,Soya Chaap Tikka,,128_soya-chaap-tikka.jpg
+Starters,Afghani Soya Chaap,,129_afghani-soya-chaap.jpg
+Starters,Crispy Lotus Stem,,130_crispy-lotus-stem.jpg
+Starters,Tandoori Broccoli,,131_tandoori-broccoli.jpg
+Starters,Veg Cutlet,,132_veg-cutlet.jpg
+Starters,Crispy Cauliflower,,133_crispy-cauliflower.jpg
+Starters,Paneer Popcorn,,134_paneer-popcorn.jpg
+Starters,Cheese Garlic Bread,,135_cheese-garlic-bread.jpg
+Starters,Loaded Nachos,,136_loaded-nachos.jpg
+Starters,Crispy Corn Chaat,,137_crispy-corn-chaat.jpg
+Starters,Masala Papad,,138_masala-papad.jpg
+Starters,Chilli Mushroom Dry,,139_chilli-mushroom-dry.jpg
+Starters,Veg Salt and Pepper,,140_veg-salt-and-pepper.jpg
+Starters,Stuffed Tandoori Aloo,,141_stuffed-tandoori-aloo.jpg
+Starters,Baked Cheese Potato,,142_baked-cheese-potato.jpg
+Starters,Tandoori Pineapple,,143_tandoori-pineapple.jpg
+Starters,Spinach Cheese Rolls,,144_spinach-cheese-rolls.jpg
+Starters,Veg Nuggets,,145_veg-nuggets.jpg
+Starters,Chilli Paneer Skewers,,146_chilli-paneer-skewers.jpg
+Starters,Masala Peanut Chaat,,147_masala-peanut-chaat.jpg
+Starters,Cheese Jalapeno Poppers,,148_cheese-jalapeno-poppers.jpg
+Starters,Veg Shammi Kebab,,149_veg-shammi-kebab.jpg
+Starters,Corn Cheese Toast,,150_corn-cheese-toast.jpg
+Chinese,Schezwan Hakka Noodles,,151_schezwan-hakka-noodles.jpg
+Chinese,Singapore Noodles,,152_singapore-noodles.jpg
+Chinese,Burnt Garlic Noodles,,153_burnt-garlic-noodles.jpg
+Chinese,Paneer Noodles,,154_paneer-noodles.jpg
+Chinese,Mushroom Noodles,,155_mushroom-noodles.jpg
+Chinese,Hong Kong Noodles,,156_hong-kong-noodles.jpg
+Chinese,Burnt Garlic Fried Rice,,157_burnt-garlic-fried-rice.jpg
+Chinese,Mushroom Fried Rice,,158_mushroom-fried-rice.jpg
+Chinese,Gobi Manchurian,,159_gobi-manchurian.jpg
+Chinese,Mushroom Manchurian,,160_mushroom-manchurian.jpg
+Chinese,Chilli Mushroom Gravy,,161_chilli-mushroom-gravy.jpg
+Chinese,Chilli Baby Corn,,162_chilli-baby-corn.jpg
+Chinese,Veg in Hot Garlic Sauce,,163_veg-in-hot-garlic-sauce.jpg
+Chinese,Veg in Black Pepper Sauce,,164_veg-in-black-pepper-sauce.jpg
+Chinese,Stir Fried Vegetables,,165_stir-fried-vegetables.jpg
+Chinese,Crispy Chilli Tofu,,166_crispy-chilli-tofu.jpg
+Chinese,Honey Chilli Cauliflower,,167_honey-chilli-cauliflower.jpg
+Chinese,Schezwan Paneer,,168_schezwan-paneer.jpg
+Chinese,Sweet Sour Vegetables,,169_sweet-sour-vegetables.jpg
+Chinese,Kung Pao Vegetables,,170_kung-pao-vegetables.jpg
+Chinese,Fried Veg Momos,,171_fried-veg-momos.jpg
+Chinese,Tandoori Veg Momos,,172_tandoori-veg-momos.jpg
+Chinese,Paneer Momos,,173_paneer-momos.jpg
+Chinese,Chilli Garlic Momos,,174_chilli-garlic-momos.jpg
+Chinese,Cheese Corn Momos,,175_cheese-corn-momos.jpg
+Chinese,Dragon Potatoes,,176_dragon-potatoes.jpg
+Chinese,Chinese Bhel,,177_chinese-bhel.jpg
+Chinese,Veg Sizzler,,178_veg-sizzler.jpg
+Chinese,Paneer Sizzler,,179_paneer-sizzler.jpg
+Chinese,Chilli Garlic Rice,,180_chilli-garlic-rice.jpg
+Main Course,Paneer Handi,,181_paneer-handi.jpg
+Main Course,Paneer Kali Mirch,,182_paneer-kali-mirch.jpg
+Main Course,Paneer Pasanda,,183_paneer-pasanda.jpg
+Main Course,Paneer Mughlai,,184_paneer-mughlai.jpg
+Main Course,Paneer Jalfrezi,,185_paneer-jalfrezi.jpg
+Main Course,Paneer Korma,,186_paneer-korma.jpg
+Main Course,Paneer Makhmali,,187_paneer-makhmali.jpg
+Main Course,Kadai Mushroom,,188_kadai-mushroom.jpg
+Main Course,Mushroom Do Pyaza,,189_mushroom-do-pyaza.jpg
+Main Course,Matar Mushroom,,190_matar-mushroom.jpg
+Main Course,Nargisi Kofta Veg,,191_nargisi-kofta-veg.jpg
+Main Course,Veg Jalfrezi,,192_veg-jalfrezi.jpg
+Main Course,Veg Handi,,193_veg-handi.jpg
+Main Course,Veg Diwani Handi,,194_veg-diwani-handi.jpg
+Main Course,Veg Makhanwala,,195_veg-makhanwala.jpg
+Main Course,Veg Korma,,196_veg-korma.jpg
+Main Course,Veg Jaipuri,,197_veg-jaipuri.jpg
+Main Course,Dum Aloo Kashmiri,,198_dum-aloo-kashmiri.jpg
+Main Course,Dum Aloo Banarasi,,199_dum-aloo-banarasi.jpg
+Main Course,Aloo Matar,,200_aloo-matar.jpg
+Main Course,Aloo Gobi Masala,,201_aloo-gobi-masala.jpg
+Main Course,Jeera Aloo,,202_jeera-aloo.jpg
+Main Course,Bhindi Do Pyaza,,203_bhindi-do-pyaza.jpg
+Main Course,Baingan Bharta,,204_baingan-bharta.jpg
+Main Course,Baingan Masala,,205_baingan-masala.jpg
+Main Course,Mix Veg Curry,,206_mix-veg-curry.jpg
+Main Course,Methi Matar Malai,,207_methi-matar-malai.jpg
+Main Course,Sarson ka Saag,,208_sarson-ka-saag.jpg
+Main Course,Punjabi Chole,,209_punjabi-chole.jpg
+Main Course,Dal Palak,,210_dal-palak.jpg
+Main Course,Dal Panchmel,,211_dal-panchmel.jpg
+Main Course,Dal Tadka Dhaba Style,,212_dal-tadka-dhaba-style.jpg
+Main Course,Kadhi Pakora,,213_kadhi-pakora.jpg
+Main Course,Punjabi Kadhi,,214_punjabi-kadhi.jpg
+Main Course,Navratan Korma,,215_navratan-korma.jpg
+Main Course,Stuffed Capsicum,,216_stuffed-capsicum.jpg
+Main Course,Soya Chaap Masala,,217_soya-chaap-masala.jpg
+Main Course,Soya Keema Curry,,218_soya-keema-curry.jpg
+Main Course,Shahi Mushroom,,219_shahi-mushroom.jpg
+Breads,Chilli Garlic Naan,,220_chilli-garlic-naan.jpg
+Breads,Ajwain Paratha,,221_ajwain-paratha.jpg
+Breads,Aloo Paratha,,222_aloo-paratha.jpg
+Breads,Gobhi Paratha,,223_gobhi-paratha.jpg
+Breads,Paneer Paratha,,224_paneer-paratha.jpg
+Breads,Mix Veg Paratha,,225_mix-veg-paratha.jpg
+Breads,Methi Paratha,,226_methi-paratha.jpg
+Breads,Onion Kulcha,,227_onion-kulcha.jpg
+Breads,Paneer Kulcha,,228_paneer-kulcha.jpg
+Breads,Amritsari Kulcha,,229_amritsari-kulcha.jpg
+Breads,Roomali Roti,,230_roomali-roti.jpg
+Breads,Makki Roti,,231_makki-roti.jpg
+Breads,Bajra Roti,,232_bajra-roti.jpg
+Breads,Jowar Roti,,233_jowar-roti.jpg
+Breads,Plain Phulka,,234_plain-phulka.jpg
+Breads,Butter Phulka,,235_butter-phulka.jpg
+Breads,Stuffed Cheese Kulcha,,236_stuffed-cheese-kulcha.jpg
+Breads,Masala Kulcha,,237_masala-kulcha.jpg
+Breads,Garlic Cheese Kulcha,,238_garlic-cheese-kulcha.jpg
+Breads,Kasuri Methi Naan,,239_kasuri-methi-naan.jpg
+Breads,Tawa Paratha,,240_tawa-paratha.jpg
+Rice,Paneer Pulao,,241_paneer-pulao.jpg
+Rice,Mushroom Pulao,,242_mushroom-pulao.jpg
+Rice,Corn Pulao,,243_corn-pulao.jpg
+Rice,Navratan Pulao,,244_navratan-pulao.jpg
+Rice,Veg Dum Biryani,,245_veg-dum-biryani.jpg
+Rice,Mushroom Biryani,,246_mushroom-biryani.jpg
+Rice,Soya Chaap Biryani,,247_soya-chaap-biryani.jpg
+Rice,Lucknowi Veg Biryani,,248_lucknowi-veg-biryani.jpg
+Rice,Kashmiri Veg Biryani,,249_kashmiri-veg-biryani.jpg
+Rice,Masala Rice,,250_masala-rice.jpg
+Rice,Lemon Rice,,251_lemon-rice.jpg
+Rice,Coconut Rice,,252_coconut-rice.jpg
+Rice,Curd Rice,,253_curd-rice.jpg
+Rice,Tamarind Rice,,254_tamarind-rice.jpg
+Rice,Tomato Rice,,255_tomato-rice.jpg
+Rice,Ghee Rice,,256_ghee-rice.jpg
+Rice,Dal Khichdi,,257_dal-khichdi.jpg
+Rice,Masala Khichdi,,258_masala-khichdi.jpg
+Rice,Palak Khichdi,,259_palak-khichdi.jpg
+Rice,Sabudana Khichdi,,260_sabudana-khichdi.jpg
+Rice,Veg Tehri,,261_veg-tehri.jpg
+Rice,Chole Rice,,262_chole-rice.jpg
+Rice,Rajma Rice,,263_rajma-rice.jpg
+Rice,Kadhi Rice,,264_kadhi-rice.jpg
+South Indian,Onion Rava Dosa,,265_onion-rava-dosa.jpg
+South Indian,Cheese Dosa,,266_cheese-dosa.jpg
+South Indian,Schezwan Dosa,,267_schezwan-dosa.jpg
+South Indian,Paper Dosa,,268_paper-dosa.jpg
+South Indian,Set Dosa,,269_set-dosa.jpg
+South Indian,Neer Dosa,,270_neer-dosa.jpg
+South Indian,Pesarattu,,271_pesarattu.jpg
+South Indian,Plain Uttapam,,272_plain-uttapam.jpg
+South Indian,Tomato Uttapam,,273_tomato-uttapam.jpg
+South Indian,Mix Veg Uttapam,,274_mix-veg-uttapam.jpg
+South Indian,Cheese Uttapam,,275_cheese-uttapam.jpg
+South Indian,Rava Idli,,276_rava-idli.jpg
+South Indian,Mini Idli,,277_mini-idli.jpg
+South Indian,Ghee Podi Idli,,278_ghee-podi-idli.jpg
+South Indian,Medu Vada,,279_medu-vada.jpg
+South Indian,Sambar Vada,,280_sambar-vada.jpg
+South Indian,Dahi Vada,,281_dahi-vada.jpg
+South Indian,Masala Vada,,282_masala-vada.jpg
+South Indian,Ven Pongal,,283_ven-pongal.jpg
+South Indian,Upma,,284_upma.jpg
+South Indian,Rava Kesari,,285_rava-kesari.jpg
+South Indian,Appam with Veg Stew,,286_appam-with-veg-stew.jpg
+South Indian,Masala Paniyaram,,287_masala-paniyaram.jpg
+Snacks,Cheese Pav Bhaji,,288_cheese-pav-bhaji.jpg
+Snacks,Paneer Pav Bhaji,,289_paneer-pav-bhaji.jpg
+Snacks,Vada Pav,,290_vada-pav.jpg
+Snacks,Cheese Vada Pav,,291_cheese-vada-pav.jpg
+Snacks,Dabeli,,292_dabeli.jpg
+Snacks,Veg Grilled Sandwich,,293_veg-grilled-sandwich.jpg
+Snacks,Cheese Grilled Sandwich,,294_cheese-grilled-sandwich.jpg
+Snacks,Corn Cheese Sandwich,,295_corn-cheese-sandwich.jpg
+Snacks,Veg Club Sandwich,,296_veg-club-sandwich.jpg
+Snacks,Paneer Burger,,297_paneer-burger.jpg
+Snacks,Masala Fries,,298_masala-fries.jpg
+Snacks,Veg Pizza,,299_veg-pizza.jpg
+Snacks,Margherita Pizza,,300_margherita-pizza.jpg
+Snacks,Farmhouse Pizza,,301_farmhouse-pizza.jpg
+Snacks,Paneer Tikka Pizza,,302_paneer-tikka-pizza.jpg
+Snacks,Mushroom Pizza,,303_mushroom-pizza.jpg
+Snacks,White Sauce Pasta,,304_white-sauce-pasta.jpg
+Snacks,Red Sauce Pasta,,305_red-sauce-pasta.jpg
+Snacks,Pink Sauce Pasta,,306_pink-sauce-pasta.jpg
+Snacks,Mac and Cheese,,307_mac-and-cheese.jpg
+Snacks,Aloo Tikki Chaat,,308_aloo-tikki-chaat.jpg
+Snacks,Papdi Chaat,,309_papdi-chaat.jpg
+Snacks,Dahi Puri,,310_dahi-puri.jpg
+Snacks,Pani Puri,,311_pani-puri.jpg
+Snacks,Bhel Puri,,312_bhel-puri.jpg
+Snacks,Sev Puri,,313_sev-puri.jpg
+Snacks,Samosa Chaat,,314_samosa-chaat.jpg
+Snacks,Bedmi Puri Sabzi,,315_bedmi-puri-sabzi.jpg
+Snacks,Kachori Sabzi,,316_kachori-sabzi.jpg
+Snacks,Bread Pakora,,317_bread-pakora.jpg
+Snacks,Mix Pakora,,318_mix-pakora.jpg
+Snacks,Moong Dal Pakora,,319_moong-dal-pakora.jpg
+Snacks,Poha,,320_poha.jpg
+Beverages,Masala Chai,,321_masala-chai.jpg
+Beverages,Ginger Tea,,322_ginger-tea.jpg
+Beverages,Elaichi Tea,,323_elaichi-tea.jpg
+Beverages,Kashmiri Kahwa,,324_kashmiri-kahwa.jpg
+Beverages,Filter Coffee,,325_filter-coffee.jpg
+Beverages,Cold Coffee with Ice Cream,,326_cold-coffee-with-ice-cream.jpg
+Beverages,Cappuccino,,327_cappuccino.jpg
+Beverages,Cafe Latte,,328_cafe-latte.jpg
+Beverages,Hot Chocolate,,329_hot-chocolate.jpg
+Beverages,Chocolate Shake,,330_chocolate-shake.jpg
+Beverages,Vanilla Shake,,331_vanilla-shake.jpg
+Beverages,Strawberry Shake,,332_strawberry-shake.jpg
+Beverages,Banana Shake,,333_banana-shake.jpg
+Beverages,Oreo Shake,,334_oreo-shake.jpg
+Beverages,Butterscotch Shake,,335_butterscotch-shake.jpg
+Beverages,Rose Milk,,336_rose-milk.jpg
+Beverages,Salted Lassi,,337_salted-lassi.jpg
+Beverages,Mango Lassi,,338_mango-lassi.jpg
+Beverages,Masala Chaas,,339_masala-chaas.jpg
+Beverages,Jaljeera,,340_jaljeera.jpg
+Beverages,Watermelon Juice,,341_watermelon-juice.jpg
+Beverages,Orange Juice,,342_orange-juice.jpg
+Beverages,Pineapple Juice,,343_pineapple-juice.jpg
+Beverages,Sweet Lime Juice,,344_sweet-lime-juice.jpg
+Beverages,Virgin Mojito,,345_virgin-mojito.jpg
+Beverages,Blue Lagoon Mocktail,,346_blue-lagoon-mocktail.jpg
+Beverages,Mint Lemonade,,347_mint-lemonade.jpg
+Beverages,Iced Tea,,348_iced-tea.jpg
+Beverages,Peach Iced Tea,,349_peach-iced-tea.jpg
+Beverages,Aam Panna,,350_aam-panna.jpg
+Beverages,Badam Milk,,351_badam-milk.jpg
+Beverages,Thandai,,352_thandai.jpg
+Beverages,Cucumber Cooler,,353_cucumber-cooler.jpg
+Beverages,Kiwi Cooler,,354_kiwi-cooler.jpg
+Beverages,Pomegranate Juice,,355_pomegranate-juice.jpg
+Beverages,Green Apple Mojito,,356_green-apple-mojito.jpg
+Desserts,Kala Jamun,,357_kala-jamun.jpg
+Desserts,Rasgulla,,358_rasgulla.jpg
+Desserts,Kesar Rasmalai,,359_kesar-rasmalai.jpg
+Desserts,Moong Dal Halwa,,360_moong-dal-halwa.jpg
+Desserts,Suji Halwa,,361_suji-halwa.jpg
+Desserts,Badam Halwa,,362_badam-halwa.jpg
+Desserts,Shahi Tukda,,363_shahi-tukda.jpg
+Desserts,Kesar Phirni,,364_kesar-phirni.jpg
+Desserts,Rice Kheer,,365_rice-kheer.jpg
+Desserts,Sabudana Kheer,,366_sabudana-kheer.jpg
+Desserts,Seviyan Kheer,,367_seviyan-kheer.jpg
+Desserts,Rabri,,368_rabri.jpg
+Desserts,Malpua,,369_malpua.jpg
+Desserts,Jalebi,,370_jalebi.jpg
+Desserts,Jalebi Rabri,,371_jalebi-rabri.jpg
+Desserts,Kulfi Falooda,,372_kulfi-falooda.jpg
+Desserts,Kesar Pista Kulfi,,373_kesar-pista-kulfi.jpg
+Desserts,Mango Kulfi,,374_mango-kulfi.jpg
+Desserts,Chocolate Ice Cream,,375_chocolate-ice-cream.jpg
+Desserts,Strawberry Ice Cream,,376_strawberry-ice-cream.jpg
+Desserts,Butterscotch Ice Cream,,377_butterscotch-ice-cream.jpg
+Desserts,Brownie,,378_brownie.jpg
+Desserts,Brownie with Ice Cream,,379_brownie-with-ice-cream.jpg
+Desserts,Chocolate Lava Cake,,380_chocolate-lava-cake.jpg
+Desserts,Fruit Cream,,381_fruit-cream.jpg
+Desserts,Caramel Custard,,382_caramel-custard.jpg
+Desserts,Matka Kulfi,,383_matka-kulfi.jpg
+Desserts,Coconut Barfi,,384_coconut-barfi.jpg
+Desserts,Kaju Katli,,385_kaju-katli.jpg
+Desserts,Besan Ladoo,,386_besan-ladoo.jpg
+Desserts,Motichoor Ladoo,,387_motichoor-ladoo.jpg
+Desserts,Milk Cake,,388_milk-cake.jpg
+Desserts,Cham Cham,,389_cham-cham.jpg
+Desserts,Sandesh,,390_sandesh.jpg
+Desserts,Anjeer Halwa,,391_anjeer-halwa.jpg
+Starters,Special Paneer Tikka,,392_special-paneer-tikka.jpg
+Starters,Classic Paneer Tikka,,393_classic-paneer-tikka.jpg
+Starters,Royal Paneer Tikka,,394_royal-paneer-tikka.jpg
+Starters,Chef Style Paneer Tikka,,395_chef-style-paneer-tikka.jpg
+Starters,Punjabi Paneer Tikka,,396_punjabi-paneer-tikka.jpg
+Starters,Dhaba Style Paneer Tikka,,397_dhaba-style-paneer-tikka.jpg
+Starters,Spicy Paneer Tikka,,398_spicy-paneer-tikka.jpg
+Starters,Mild Paneer Tikka,,399_mild-paneer-tikka.jpg
+Starters,Family Special Paneer Tikka,,400_family-special-paneer-tikka.jpg
+Starters,Tandoori Paneer Tikka,,401_tandoori-paneer-tikka.jpg
+Snacks,Special Veg Pizza,,402_special-veg-pizza.jpg
+Snacks,Classic Veg Pizza,,403_classic-veg-pizza.jpg
+Snacks,Royal Veg Pizza,,404_royal-veg-pizza.jpg
+Snacks,Chef Style Veg Pizza,,405_chef-style-veg-pizza.jpg
+Snacks,Punjabi Veg Pizza,,406_punjabi-veg-pizza.jpg
+Snacks,Dhaba Style Veg Pizza,,407_dhaba-style-veg-pizza.jpg
+Snacks,Spicy Veg Pizza,,408_spicy-veg-pizza.jpg
+Snacks,Mild Veg Pizza,,409_mild-veg-pizza.jpg
+Snacks,Family Special Veg Pizza,,410_family-special-veg-pizza.jpg
+Snacks,Tandoori Veg Pizza,,411_tandoori-veg-pizza.jpg
+Main Course,Special Mushroom Masala,,412_special-mushroom-masala.jpg
+Main Course,Classic Mushroom Masala,,413_classic-mushroom-masala.jpg
+Main Course,Royal Mushroom Masala,,414_royal-mushroom-masala.jpg
+Main Course,Chef Style Mushroom Masala,,415_chef-style-mushroom-masala.jpg
+Main Course,Punjabi Mushroom Masala,,416_punjabi-mushroom-masala.jpg
+Main Course,Dhaba Style Mushroom Masala,,417_dhaba-style-mushroom-masala.jpg
+Main Course,Spicy Mushroom Masala,,418_spicy-mushroom-masala.jpg
+Main Course,Mild Mushroom Masala,,419_mild-mushroom-masala.jpg
+Main Course,Family Special Mushroom Masala,,420_family-special-mushroom-masala.jpg
+Main Course,Tandoori Mushroom Masala,,421_tandoori-mushroom-masala.jpg
+Rice and Biryani,Special Veg Biryani,,422_special-veg-biryani.jpg
+Rice and Biryani,Classic Veg Biryani,,423_classic-veg-biryani.jpg
+Rice and Biryani,Royal Veg Biryani,,424_royal-veg-biryani.jpg
+Rice and Biryani,Chef Style Veg Biryani,,425_chef-style-veg-biryani.jpg
+Rice and Biryani,Punjabi Veg Biryani,,426_punjabi-veg-biryani.jpg
+Rice and Biryani,Dhaba Style Veg Biryani,,427_dhaba-style-veg-biryani.jpg
+Rice and Biryani,Spicy Veg Biryani,,428_spicy-veg-biryani.jpg
+Rice and Biryani,Mild Veg Biryani,,429_mild-veg-biryani.jpg
+Rice and Biryani,Family Special Veg Biryani,,430_family-special-veg-biryani.jpg
+Rice and Biryani,Tandoori Veg Biryani,,431_tandoori-veg-biryani.jpg
+South Indian,Special Masala Dosa,,432_special-masala-dosa.jpg
+South Indian,Classic Masala Dosa,,433_classic-masala-dosa.jpg
+South Indian,Royal Masala Dosa,,434_royal-masala-dosa.jpg
+South Indian,Chef Style Masala Dosa,,435_chef-style-masala-dosa.jpg
+South Indian,Punjabi Masala Dosa,,436_punjabi-masala-dosa.jpg
+South Indian,Dhaba Style Masala Dosa,,437_dhaba-style-masala-dosa.jpg
+South Indian,Spicy Masala Dosa,,438_spicy-masala-dosa.jpg
+South Indian,Mild Masala Dosa,,439_mild-masala-dosa.jpg
+South Indian,Family Special Masala Dosa,,440_family-special-masala-dosa.jpg
+South Indian,Tandoori Masala Dosa,,441_tandoori-masala-dosa.jpg
+Main Course,Special Veg Noodles,,442_special-veg-noodles.jpg
+Main Course,Classic Veg Noodles,,443_classic-veg-noodles.jpg
+Main Course,Royal Veg Noodles,,444_royal-veg-noodles.jpg
+Main Course,Chef Style Veg Noodles,,445_chef-style-veg-noodles.jpg
+Main Course,Punjabi Veg Noodles,,446_punjabi-veg-noodles.jpg
+Main Course,Dhaba Style Veg Noodles,,447_dhaba-style-veg-noodles.jpg
+Main Course,Spicy Veg Noodles,,448_spicy-veg-noodles.jpg
+Main Course,Mild Veg Noodles,,449_mild-veg-noodles.jpg
+Main Course,Family Special Veg Noodles,,450_family-special-veg-noodles.jpg
+Main Course,Tandoori Veg Noodles,,451_tandoori-veg-noodles.jpg
+Beverages,Special Cold Coffee,,452_special-cold-coffee.jpg
+Beverages,Classic Cold Coffee,,453_classic-cold-coffee.jpg
+Beverages,Royal Cold Coffee,,454_royal-cold-coffee.jpg
+Beverages,Chef Style Cold Coffee,,455_chef-style-cold-coffee.jpg
+Beverages,Punjabi Cold Coffee,,456_punjabi-cold-coffee.jpg
+Beverages,Dhaba Style Cold Coffee,,457_dhaba-style-cold-coffee.jpg
+Beverages,Spicy Cold Coffee,,458_spicy-cold-coffee.jpg
+Beverages,Mild Cold Coffee,,459_mild-cold-coffee.jpg
+Beverages,Family Special Cold Coffee,,460_family-special-cold-coffee.jpg
+Beverages,Tandoori Cold Coffee,,461_tandoori-cold-coffee.jpg
+Beverages,Special Chocolate Shake,,462_special-chocolate-shake.jpg
+Beverages,Classic Chocolate Shake,,463_classic-chocolate-shake.jpg
+Beverages,Royal Chocolate Shake,,464_royal-chocolate-shake.jpg
+Beverages,Chef Style Chocolate Shake,,465_chef-style-chocolate-shake.jpg
+Beverages,Punjabi Chocolate Shake,,466_punjabi-chocolate-shake.jpg
+Beverages,Dhaba Style Chocolate Shake,,467_dhaba-style-chocolate-shake.jpg
+Beverages,Spicy Chocolate Shake,,468_spicy-chocolate-shake.jpg
+Beverages,Mild Chocolate Shake,,469_mild-chocolate-shake.jpg
+Beverages,Family Special Chocolate Shake,,470_family-special-chocolate-shake.jpg
+Beverages,Tandoori Chocolate Shake,,471_tandoori-chocolate-shake.jpg
+Breads,Special Aloo Paratha,,472_special-aloo-paratha.jpg
+Breads,Classic Aloo Paratha,,473_classic-aloo-paratha.jpg
+Breads,Royal Aloo Paratha,,474_royal-aloo-paratha.jpg
+Breads,Chef Style Aloo Paratha,,475_chef-style-aloo-paratha.jpg
+Breads,Punjabi Aloo Paratha,,476_punjabi-aloo-paratha.jpg
+Breads,Dhaba Style Aloo Paratha,,477_dhaba-style-aloo-paratha.jpg
+Breads,Spicy Aloo Paratha,,478_spicy-aloo-paratha.jpg
+Breads,Mild Aloo Paratha,,479_mild-aloo-paratha.jpg
+Breads,Family Special Aloo Paratha,,480_family-special-aloo-paratha.jpg
+Breads,Tandoori Aloo Paratha,,481_tandoori-aloo-paratha.jpg
+Snacks,Special Veg Sandwich,,482_special-veg-sandwich.jpg
+Snacks,Classic Veg Sandwich,,483_classic-veg-sandwich.jpg
+Snacks,Royal Veg Sandwich,,484_royal-veg-sandwich.jpg
+Snacks,Chef Style Veg Sandwich,,485_chef-style-veg-sandwich.jpg
+Snacks,Punjabi Veg Sandwich,,486_punjabi-veg-sandwich.jpg
+Snacks,Dhaba Style Veg Sandwich,,487_dhaba-style-veg-sandwich.jpg
+Snacks,Spicy Veg Sandwich,,488_spicy-veg-sandwich.jpg
+Snacks,Mild Veg Sandwich,,489_mild-veg-sandwich.jpg
+Snacks,Family Special Veg Sandwich,,490_family-special-veg-sandwich.jpg
+Snacks,Tandoori Veg Sandwich,,491_tandoori-veg-sandwich.jpg
+Snacks,Special French Fries,,492_special-french-fries.jpg
+Snacks,Classic French Fries,,493_classic-french-fries.jpg
+Snacks,Royal French Fries,,494_royal-french-fries.jpg
+Snacks,Chef Style French Fries,,495_chef-style-french-fries.jpg
+Snacks,Punjabi French Fries,,496_punjabi-french-fries.jpg
+Snacks,Dhaba Style French Fries,,497_dhaba-style-french-fries.jpg
+Snacks,Spicy French Fries,,498_spicy-french-fries.jpg
+Snacks,Mild French Fries,,499_mild-french-fries.jpg
+Snacks,Family Special French Fries,,500_family-special-french-fries.jpg

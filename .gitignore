@@ -22,3 +22,16 @@ whatsapp/node.exe
 
 # Temporary test data
 test-data/
+
+# Large food image datasets (500+ images - use Git LFS or separate storage)
+Foodpiolet_Real_Food_Images/
+Foodpiolet_Real_Photos.zip
+food/Foodpiolet_Real_Food_Images/
+food/lib/*.jpg
+food/thumb/*.jpg
+food/lib/*.webp
+food/thumb/*.webp
+food/thumb/[0-9]*.jpg
+food/thumb/[0-9]*.webp
+whatsapp/setu-whatsapp.log
+

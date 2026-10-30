@@ -1133,7 +1133,7 @@ export class SetuHotel extends DurableObject {
       const qtyOf = sid => { let x = sid; for(let i = 0; i < 6 && alias[x]; i++) x = alias[x]; const it = stock.get(x); return it ? +it.qty || 0 : 1; };
       const outOf = m => st.qrHideOut && (m.recipe || []).some(r => r && +r.qty > 0 && qtyOf(r.sid) <= 0);
       const items = (Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && m.name && !m.qrOff && m.active !== false && !outOf(m))
-        .map(m => ({ id: m.id, name: str(m.name, 80), cat: str(m.cat, 40) || 'Menu', price: +m.price || 0, veg: m.veg, img: /^https:\/\//.test(m.img || '') ? m.img : undefined, desc: str(m.desc, 160) || undefined,
+        .map(m => ({ id: m.id, name: str(m.name, 80), cat: str(m.cat, 40) || 'Menu', price: +m.price || 0, veg: m.veg, img: (/^(https?:\/\/|[a-zA-Z0-9_\-\.\/]+$)/.test(m.img || '') && !String(m.img).includes('..')) ? m.img : undefined, desc: str(m.desc, 160) || undefined,
           // Smart Food Visuals: own photo (hash id) or chosen library picture; the guest page matches the rest by name
           photo: /^m_[0-9a-f]{32}$/.test(m.photo || '') ? m.photo : undefined, lib: /^[a-z0-9-]{2,40}$/.test(m.lib || '') ? m.lib : undefined, out: m.out ? true : undefined }));
       return json(200, { hotel: str(st.name || this.account.name, 80), table: tbl, items, gst: +st.gst || 0, incl: !!st.gstInclusive });

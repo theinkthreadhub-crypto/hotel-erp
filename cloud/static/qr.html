@@ -74,7 +74,7 @@ function cats(){ return [...new Set(MENU.items.map(i => i.cat))]; }
 function pic(i){
   const FV = window.FoodVisuals, p = FV ? FV.pick(i) : (i.img ? {src: i.img, kind: 'link'} : null);
   if(!p) return '';
-  const url = p.kind === 'custom' ? '/api/media/' + p.src + '.t?h=' + encodeURIComponent(HOTEL) : p.kind === 'link' ? p.src : '/food/thumb/' + p.src + '.webp';
+  const url = p.kind === 'custom' ? '/api/media/' + p.src + '.t?h=' + encodeURIComponent(HOTEL) : p.kind === 'link' ? (p.src.startsWith('http') || p.src.startsWith('/') ? p.src : '/' + p.src) : '/food/thumb/' + p.src + '.webp';
   return `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" width="64" height="64" onerror="this.style.visibility='hidden'">`;
 }
 function draw(){

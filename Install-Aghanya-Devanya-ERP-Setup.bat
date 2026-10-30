@@ -33,6 +33,8 @@ copy /Y "%SCRIPT_DIR%sw.js" "%INSTALL_DIR%\" >nul
 copy /Y "%SCRIPT_DIR%icon-192.png" "%INSTALL_DIR%\" >nul
 copy /Y "%SCRIPT_DIR%icon-512.png" "%INSTALL_DIR%\" >nul
 copy /Y "%SCRIPT_DIR%favicon.ico" "%INSTALL_DIR%\" >nul
+if exist "%SCRIPT_DIR%food" xcopy /E /I /Y "%SCRIPT_DIR%food" "%INSTALL_DIR%\food" >nul
+if exist "%SCRIPT_DIR%Foodpiolet_Real_Food_Images" xcopy /E /I /Y "%SCRIPT_DIR%Foodpiolet_Real_Food_Images" "%INSTALL_DIR%\Foodpiolet_Real_Food_Images" >nul
 
 echo [3/4] Creating Desktop and Start Menu Shortcuts...
 set VBS_FILE=%TEMP%\CreateErpShortcuts.vbs

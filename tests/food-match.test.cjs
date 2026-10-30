@@ -16,7 +16,7 @@ const CASES = [
   ['Hakka Noodles', 'Chinese', 'noodles'], ['Veg Manchurian', 'Chinese', 'indo-chinese'], ['Chilli Paneer', 'Chinese', 'indo-chinese'], ['Veg Momos', '', 'momos'], ['Spring Roll', '', 'spring-roll'],
   ['Idli Sambar', '', 'idli'], ['Medu Vada', '', 'idli'], ['Tandoori Roti', '', 'roti'], ['Aloo Paratha', '', 'paratha'], ['Laccha Paratha', 'Breads', 'paratha'], ['Samosa', 'Snacks', 'samosa'],
   ['Onion Pakora', '', 'pakora'], ['Pani Puri', '', 'chaat'], ['Pav Bhaji', '', 'pav-bhaji'], ['Vada Pav', '', 'pav-bhaji'], ['Veg Burger', '', 'burger'], ['Grilled Sandwich', '', 'sandwich'],
-  ['French Fries', '', 'fries'], ['White Sauce Pasta', '', 'pasta'], ['Tomato Soup', 'Soups', 'soup'], ['Green Salad', '', 'salad'], ['Special Thali', '', 'thali'], ['Boondi Raita', '', 'raita'],
+  ['French Fries', '', 'fries'], ['White Sauce Pasta', '', 'pasta'], ['Tomato Soup', 'Soups', 'tomato-soup'], ['Green Salad', '', 'salad'], ['Special Thali', '', 'thali'], ['Boondi Raita', '', 'raita'],
   ['Masala Papad', '', 'papad'], ['Masala Chai', 'Beverages', 'tea'], ['Filter Coffee', '', 'coffee-hot'], ['Cappuccino', '', 'coffee-hot'], ['Sweet Lassi', '', 'lassi'], ['Chocolate Shake', '', 'shake'],
   ['Fresh Lime Soda', '', 'juice'], ['Coke 500ml', '', 'soft-drink'], ['Mineral Water', '', 'water'], ['Vanilla Ice Cream', '', 'ice-cream'], ['Gulab Jamun (2 pcs)', 'Desserts', 'indian-sweet'],
   ['Chocolate Brownie', '', 'cake'], ['Chicken 65', '', 'tandoori-chicken'], ['Chicken Chowmein', '', 'noodles'], ['Egg Fried Rice', '', 'fried-rice'], ['Kathi Roll', '', 'sandwich'],

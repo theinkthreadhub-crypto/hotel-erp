@@ -224,7 +224,7 @@ SETTINGS_OPEN = {'appVersion', 'printAuto', 'billPrinter', 'kotPrinter', 'waTota
                  'adminPinWeak', 'cashierPinWeak', 'credRotate'}
 # New settings a device may add when missing (defaults of a newer screen) — never these
 SETTINGS_SENSITIVE = {'adminPin', 'cashierPin', 'maxDiscPct', 'discLimit', 'upi', 'gstin', 'gst', 'gstScheme', 'gstInclusive', 'name',
-                      'address', 'phone', 'owner', 'hotelId', 'installId', 'waProvider', 'waReceiptMode', 'waWebhook', 'orderWa', 'caWa',
+                      'address', 'phone', 'owner', 'email', 'hotelId', 'installId', 'waProvider', 'waReceiptMode', 'waWebhook', 'orderWa', 'caWa',
                       'zomatoComm', 'swiggyComm', 'loyalty', 'ptsPer100', 'ptValue', 'tables', 'archiveKeep'}
 BILL_LOCKED = ('no', 'date', 'time', 'items', 'sub', 'disc', 'taxable', 'tax', 'round', 'total', 'mode', 'pays', 'cancelled', 'cancelledBy',
                'channel', 'table', 'gstRate', 'scheme', 'gstin', 'cust', 'phone', 'loyaltyDisc', 'ptsUsed', 'ptsEarned', 'used')
