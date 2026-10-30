@@ -8,10 +8,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
 const out = join(here, '..', 'public');
 const FILES = ['hotel_erp.html', 'sw.js', 'manifest.json', 'favicon.ico', 'icon-192.png', 'icon-512.png', 'logo.png', 'Foodpiolet_Real_Photo_Licenses_And_Status.csv', 'Foodpiolet_Missing_Images_Report.md', 'Foodpiolet_Real_Photos.zip'];
+// Kept out of git (.gitignore), so CI never has it: copy when present, never fail the deploy
+const OPTIONAL = ['Foodpiolet_Real_Photos.zip'];
 
 mkdirSync(out, { recursive: true });
 for(const f of FILES){
-  if(!existsSync(join(root, f))){ console.error('Missing: ' + f); process.exit(1); }
+  if(!existsSync(join(root, f))){
+    if(OPTIONAL.includes(f)){ console.log('Skipped (not in repo): ' + f); continue; }
+    console.error('Missing: ' + f); process.exit(1);
+  }
   copyFileSync(join(root, f), join(out, f));
 }
 // Smart Food Visuals library: the matcher, the licence manifest and the pictures (WebP only)
