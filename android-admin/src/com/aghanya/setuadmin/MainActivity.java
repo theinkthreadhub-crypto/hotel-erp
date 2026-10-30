@@ -67,7 +67,7 @@ import javax.crypto.spec.GCMParameterSpec;
 public class MainActivity extends Activity {
     static final String HOST = "setu-cloud.theinkthreadhub.workers.dev";
     static final String START = "https://" + HOST + "/admin.html";
-    static final String VERSION = "2.1";
+    static final String VERSION = "2.2";
     static final int PICK = 7, LOCK_REQ = 8;
     static final String NIGHT = "#0E0B09", INK = "#F8F3EE", MUTED = "#A39A92";   // dark glass look
     static final long RELOCK_MS = 60_000;          // locked again after a minute in the background
@@ -151,7 +151,7 @@ public class MainActivity extends Activity {
                 Intent i = new Intent(Intent.ACTION_GET_CONTENT);
                 i.addCategory(Intent.CATEGORY_OPENABLE);
                 i.setType("*/*");
-                try { startActivityForResult(Intent.createChooser(i, "File chuniye"), PICK); }
+                try { startActivityForResult(Intent.createChooser(i, "Choose a file"), PICK); }
                 catch (Exception e) { pick = null; return false; }
                 return true;
             }
@@ -165,8 +165,8 @@ public class MainActivity extends Activity {
             @Override
             public boolean onJsConfirm(WebView v, String url, String msg, final JsResult r) {
                 new AlertDialog.Builder(MainActivity.this, R.style.Dialog).setMessage(msg)
-                    .setPositiveButton("Haan", (d, w) -> r.confirm())
-                    .setNegativeButton("Nahi", (d, w) -> r.cancel())
+                    .setPositiveButton("Yes", (d, w) -> r.confirm())
+                    .setNegativeButton("No", (d, w) -> r.cancel())
                     .setOnCancelListener(d -> r.cancel()).show();
                 return true;
             }
@@ -239,13 +239,13 @@ public class MainActivity extends Activity {
         icon.setBackground(circle);
         icon.setGravity(Gravity.CENTER);
         v.addView(icon, new LinearLayout.LayoutParams(dp(88), dp(88)));
-        TextView t = text("Internet nahi hai", 22, INK, true);
+        TextView t = text("No internet connection", 22, INK, true);
         t.setPadding(0, dp(20), 0, dp(6));
         v.addView(t);
-        TextView d = text("WiFi ya mobile data on kijiye. Internet aate hi Setu Admin apne aap khul jayega.", 14, MUTED, false);
+        TextView d = text("Turn on Wi-Fi or mobile data. Setu Admin reopens by itself as soon as you are back online.", 14, MUTED, false);
         d.setGravity(Gravity.CENTER);
         v.addView(d);
-        Button b = pill("Dobara koshish karein");
+        Button b = pill("Try again");
         b.setOnClickListener(x -> { haptic("tap"); retry(); });
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-2, dp(48));
         bl.topMargin = dp(28);
@@ -265,7 +265,7 @@ public class MainActivity extends Activity {
         TextView t = text("Setu Hotel Admin locked", 22, INK, true);
         t.setPadding(0, dp(20), 0, dp(6));
         v.addView(t);
-        v.addView(text("Fingerprint ya phone ka screen lock lagaiye", 14, MUTED, false));
+        v.addView(text("Use your fingerprint or screen lock to continue", 14, MUTED, false));
         Button b = pill("Unlock");
         b.setOnClickListener(x -> { haptic("tap"); authenticate(); });
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(dp(200), dp(48));
@@ -361,7 +361,7 @@ public class MainActivity extends Activity {
         root.performHapticFeedback(k);
     }
 
-    // Apni site app ke andar; WhatsApp, phone call, baaki links bahar wale app mein
+    // Our own site stays in the app; WhatsApp, phone calls and other links open in their own apps
     boolean openOutside(Uri u) {
         String scheme = u.getScheme() == null ? "" : u.getScheme();
         if (scheme.equals("https") && HOST.equals(u.getHost())) return false;
@@ -407,7 +407,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= 28) {
             BiometricPrompt.Builder b = new BiometricPrompt.Builder(this)
                 .setTitle("Setu Hotel Admin")
-                .setSubtitle("Fingerprint ya phone ka screen lock");
+                .setSubtitle("Use your fingerprint or screen lock");
             if (Build.VERSION.SDK_INT >= 30) {
                 b.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG | BiometricManager.Authenticators.DEVICE_CREDENTIAL);
             } else if (Build.VERSION.SDK_INT == 29) {
@@ -430,7 +430,7 @@ public class MainActivity extends Activity {
     // Android 5–8 (and a fallback): the phone's own PIN / pattern / password screen
     void credentialScreen() {
         KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
-        Intent i = km == null ? null : km.createConfirmDeviceCredentialIntent("Setu Hotel Admin", "Phone ka screen lock lagaiye");
+        Intent i = km == null ? null : km.createConfirmDeviceCredentialIntent("Setu Hotel Admin", "Confirm your screen lock to continue");
         if (i == null) { authOk(); return; }
         authBusy = true;
         startActivityForResult(i, LOCK_REQ);
@@ -514,7 +514,7 @@ public class MainActivity extends Activity {
                 long now = SystemClock.uptimeMillis();
                 if (now - lastBack < 2000) { finish(); return; }
                 lastBack = now;
-                Toast.makeText(MainActivity.this, "Band karne ke liye dobara back dabaiye", Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Press back again to exit", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -603,7 +603,7 @@ public class MainActivity extends Activity {
                 Intent i = new Intent(Intent.ACTION_SEND);
                 i.setType("text/plain");
                 i.putExtra(Intent.EXTRA_TEXT, text);
-                try { startActivity(Intent.createChooser(i, "Bhejiye")); } catch (Exception e) { }
+                try { startActivity(Intent.createChooser(i, "Share")); } catch (Exception e) { }
             } });
         }
 
@@ -620,8 +620,8 @@ public class MainActivity extends Activity {
                     i.putExtra(Intent.EXTRA_STREAM, u);
                     i.setClipData(ClipData.newRawUri(safe, u));
                     i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    startActivity(Intent.createChooser(i, "Save ya bhejiye: " + safe));
-                } catch (Exception e) { Toast.makeText(MainActivity.this, "Save nahi hua: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
+                    startActivity(Intent.createChooser(i, "Save or share: " + safe));
+                } catch (Exception e) { Toast.makeText(MainActivity.this, "Could not save: " + e.getMessage(), Toast.LENGTH_LONG).show(); }
             } });
         }
     }

@@ -191,9 +191,12 @@ function billUsage(d, now = Date.now()){
   return { bdays, ball, lastbill, key: bdays + '|' + ball + '|' + lastbill };
 }
 
+// An error the vendor cleared stays hidden until it happens again (account.errAck = "everything up to then",
+// account.errHide = {error id: time} for single ones). The devices keep sending their log; nothing in D is changed.
+const errCleared = (e, a) => !!a && (+e.at <= (+a.errAck || 0) || +e.at <= (+((a.errHide || {})[e.id]) || 0));
 // Errors the hotel's devices reported (D.errSync, kept by the app): count in the last 24 hours + the newest one
-function errUsage(d, now = Date.now()){
-  const list = (Array.isArray(d.errSync) ? d.errSync : []).filter(e => e && +e.at);
+function errUsage(d, now = Date.now(), a = null){
+  const list = (Array.isArray(d.errSync) ? d.errSync : []).filter(e => e && +e.at && !errCleared(e, a));
   const errs = list.filter(e => now - e.at < DAY).reduce((n, e) => n + (+e.n || 1), 0);
   const last = list.reduce((m, e) => !m || e.at > m.at ? e : m, null);
   const lasterr = last ? JSON.stringify({ at: last.at, kya: String(last.kya || '').slice(0, 160), dev: String(last.dev || '').slice(0, 30) }) : '';
@@ -890,7 +893,7 @@ export class SetuHotel extends DurableObject {
     });
     const appv = String((d.settings || {}).appVersion || '').slice(0, 20), sub = d.subscription || {};
     const lic = sub.isLifetime ? 'lifetime' : String(sub.validUntil || '').slice(0, 25);
-    const use = billUsage(d, now), eu = errUsage(d, now);
+    const use = billUsage(d, now), eu = errUsage(d, now, a);
     if(this.meta.day !== day || now - (this.seenPushed || 0) > 10 * 60000 || appv !== this.appvPushed || lic !== this.licPushed || use.key !== this.usePushed
       || eu.key !== this.errPushed){
       this.errPushed = eu.key;
@@ -1567,8 +1570,24 @@ export class SetuHotel extends DurableObject {
     if(path === '/internal/errors'){
       let d = null;
       try{ d = JSON.parse(this.data()); }catch(e){}
-      const list = (d && Array.isArray(d.errSync) ? d.errSync : []).slice().sort((x, y) => (+y.at || 0) - (+x.at || 0));
-      return json(200, { errors: list.slice(0, 100) });
+      const a = this.account, b = body();
+      if(b.clear){
+        // One error (id) or all of them, as of now; the registry's count follows at once
+        if(b.id){
+          const h = {...(a.errHide || {})};
+          h[String(b.id).slice(0, 80)] = Date.now();
+          a.errHide = Object.fromEntries(Object.entries(h).sort((x, y) => y[1] - x[1]).slice(0, 300));
+        } else { a.errAck = Date.now(); a.errHide = {}; }
+        this.saveAccount();
+        if(d){
+          const eu = errUsage(d, Date.now(), a);
+          this.errPushed = eu.key;
+          await regCall(this.env, '/update', { code: a.code, errs: eu.errs, lasterr: eu.lasterr }).catch(() => {});
+        }
+      }
+      const all = (d && Array.isArray(d.errSync) ? d.errSync : []).filter(e => e && +e.at).sort((x, y) => (+y.at || 0) - (+x.at || 0));
+      const open = all.filter(e => !errCleared(e, a)), cleared = all.filter(e => errCleared(e, a));
+      return json(200, { errors: (b.showCleared ? all : open).slice(0, 100).map(e => ({...e, cleared: errCleared(e, a)})), open: open.length, cleared: cleared.length });
     }
     if(path === '/internal/backup') return rawJson(200, this.dbText(`"hotel": ${JSON.stringify(this.account.code)}, `));
     // Bulk delete in the hotel's Setu needs a one-time code from the vendor (Super Admin): 6 digits, 30 minutes, one use
@@ -2424,7 +2443,11 @@ async function admin(request, env, path){
     if(r.ok) await log('Ticket reply', code, str(body.reply || body.status, 120));
     return r;
   }
-  if(path === '/api/admin/errors') return hotelCall(code, '/internal/errors', {});
+  if(path === '/api/admin/errors'){
+    const r = await hotelCall(code, '/internal/errors', { clear: !!body.clear, id: body.id || '', showCleared: !!body.showCleared });
+    if(body.clear && r.ok) await log(body.id ? 'Error dismissed' : 'Errors cleared', code, body.id ? str(body.kya || body.id, 120) : 'all');
+    return r;
+  }
   if(path === '/api/admin/backup'){
     const r = await hotelCall(code, '/internal/backup', {});
     if(!r.ok) return r;
