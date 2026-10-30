@@ -117,7 +117,7 @@ const BRIDGE = `(() => {
         await p.evaluate(x => show(x), v); await p.waitForTimeout(700); await shot(p, n);
       }
       const r = await p.evaluate(() => ({ groups: document.querySelectorAll('.group').length, lock: !!$('#applock'), on: $('nav button.on').textContent.trim() }));
-      assert.equal(r.groups, 3); assert.ok(r.lock); assert.equal(r.on, 'More');
+      assert.equal(r.groups, 4); assert.ok(r.lock); assert.equal(r.on, 'More');
       return 'ok';
     });
     await check('A09', 'App lock switch asks the phone (SA.lockSet) and shows the result', async () => {

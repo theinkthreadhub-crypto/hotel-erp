@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Setu Hotel Admin</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script>/* look before the first paint: dark glass unless this device chose light */ try{ document.documentElement.dataset.look = localStorage.getItem('setu_admin_look') || 'glass'; }catch(e){ document.documentElement.dataset.look = 'glass'; }</script>
 <link rel="manifest" href="admin.webmanifest">
 <meta name="theme-color" content="#1e3a8a">
 <link rel="icon" href="favicon.ico">
@@ -188,6 +190,115 @@
   #drawer .panel{ max-width:980px; margin:0 auto; padding:0 16px 40px }
   #drawer .panel input:not([type=checkbox]), #drawer .panel select, #drawer .panel textarea{ max-width:100% }
   @media (min-width:900px){ main{ padding-top:12px } }
+  /* ================= Dark glass look (default): warm black, frosted cards, orange accent ================= */
+  html[data-look=glass]{ --bg:#0e0b09; --card:rgba(255,255,255,.06); --ink:#f8f3ee; --muted:#a39a92; --line:rgba(255,255,255,.10); --soft:rgba(255,255,255,.06);
+    --pri:#ff7a18; --pri2:#ff9a3c; --pri-ink:#fff; --tonal:rgba(255,122,24,.16); --tonal-ink:#ffb06b; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24;
+    --glass:rgba(255,255,255,.07); --glass2:rgba(255,255,255,.11); --edge:rgba(255,255,255,.12); --orange:linear-gradient(135deg, #ff9a3c 0%, #ff6a00 100%);
+    --e1:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 24px rgba(0,0,0,.35); --e2:0 12px 32px rgba(0,0,0,.45); --e3:0 18px 50px rgba(0,0,0,.6); color-scheme:dark }
+  html[data-look=glass] body{ background:radial-gradient(520px 360px at 85% -6%, rgba(255,122,24,.28), transparent 70%), radial-gradient(420px 320px at -10% 38%, rgba(255,106,0,.13), transparent 70%),
+    radial-gradient(480px 380px at 110% 85%, rgba(255,140,40,.12), transparent 70%), #0e0b09; background-attachment:fixed; font-family:Poppins, Roboto, system-ui, sans-serif }
+  html[data-look=glass] .card, html[data-look=glass] .hc, html[data-look=glass] .group, html[data-look=glass] .facts, html[data-look=glass] .tile, html[data-look=glass] .stat, html[data-look=glass] .feat,
+  html[data-look=glass] .plan, html[data-look=glass] .chip, html[data-look=glass] .search{ background:var(--glass); border:1px solid var(--edge); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); box-shadow:var(--e1) }
+  html[data-look=glass] .card, html[data-look=glass] .hc{ border-radius:24px }
+  /* app bar: transparent over the glow, frosted when lifted */
+  html[data-look=glass] header{ background:transparent }
+  html[data-look=glass] header.lifted{ background:rgba(14,11,9,.72); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); box-shadow:0 1px 0 var(--edge) }
+  html[data-look=glass] .ib{ color:var(--ink); background:var(--glass); border:1px solid var(--edge); width:42px; height:42px; backdrop-filter:blur(12px) }
+  html[data-look=glass] .ib:active{ background:var(--glass2) }
+  html[data-look=glass] header.home:not(.lifted) .t{ visibility:hidden }
+  /* the greeting at the top of Hotels */
+  .hello{ display:none }
+  html[data-look=glass] .hello{ display:block; margin:-4px 2px 18px }
+  .hello small{ color:var(--muted); font-size:14px } .hello h1{ margin:4px 0 0; font-size:32px; line-height:1.12; font-weight:700; letter-spacing:-.6px }
+  .hello h1 span{ background:var(--orange); -webkit-background-clip:text; background-clip:text; color:transparent }
+  /* inputs and buttons */
+  html[data-look=glass] input, html[data-look=glass] select, html[data-look=glass] textarea{ background:rgba(255,255,255,.05); border-color:var(--edge); color:var(--ink) }
+  html[data-look=glass] input::placeholder, html[data-look=glass] textarea::placeholder{ color:#7d746c }
+  html[data-look=glass] select option{ background:#1c1612; color:var(--ink) }
+  html[data-look=glass] input:focus, html[data-look=glass] select:focus, html[data-look=glass] textarea:focus{ border-color:var(--pri); box-shadow:0 0 0 1px var(--pri), 0 0 24px rgba(255,122,24,.18) }
+  html[data-look=glass] button{ background:var(--orange); box-shadow:0 8px 22px rgba(255,106,0,.35) }
+  html[data-look=glass] button.g{ background:var(--glass); color:var(--ink); border:1px solid var(--edge); box-shadow:none }
+  html[data-look=glass] button.bad{ background:linear-gradient(135deg, #f87171, #dc2626); box-shadow:0 8px 22px rgba(220,38,38,.3) }
+  html[data-look=glass] button.okb{ background:linear-gradient(135deg, #4ade80, #16a34a); box-shadow:0 8px 22px rgba(22,163,74,.3) }
+  html[data-look=glass] .ib, html[data-look=glass] nav button, html[data-look=glass] .chip, html[data-look=glass] .plan, html[data-look=glass] .tile, html[data-look=glass] .tabs button, html[data-look=glass] .li{ box-shadow:none }
+  html[data-look=glass] nav button, html[data-look=glass] .tabs button, html[data-look=glass] .li{ background:transparent }
+  html[data-look=glass] input[type=checkbox]{ background:rgba(255,255,255,.18); box-shadow:none }
+  html[data-look=glass] input[type=checkbox]:checked{ background:var(--orange) }
+  html[data-look=glass] code{ background:rgba(255,255,255,.08); color:#ffd2a8 }
+  /* filter chips become icon tiles, the chosen one orange */
+  html[data-look=glass] .chips{ gap:10px; margin-bottom:18px }
+  html[data-look=glass] .chip{ height:auto; min-width:76px; padding:12px 10px 10px; border-radius:20px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; color:var(--ink) }
+  html[data-look=glass] .chip svg.i{ width:26px; height:26px; color:#ffb06b }
+  html[data-look=glass] .chip b{ margin:0; font-size:11px; opacity:.75 }
+  html[data-look=glass] .chip.on{ background:var(--orange); border-color:transparent; color:#fff; box-shadow:0 10px 24px rgba(255,106,0,.4) }
+  html[data-look=glass] .chip.on svg.i{ color:#fff }
+  .chip svg.i{ width:16px; height:16px; vertical-align:-3px; margin-right:6px } html[data-look=glass] .chip svg.i{ margin:0 }
+  html[data-look=glass] .search{ border-radius:24px; height:54px; color:var(--muted) }
+  html[data-look=glass] .search input{ background:transparent; border:0; box-shadow:none }
+  /* summary banner, like an offer card */
+  html[data-look=glass] .sum{ background:linear-gradient(135deg, rgba(255,255,255,.09), rgba(255,255,255,.03)); border:1px solid var(--edge); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); box-shadow:var(--e2); border-radius:26px; padding:18px; position:relative; overflow:hidden }
+  html[data-look=glass] .sum::after{ content:''; position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%; background:radial-gradient(circle, rgba(255,122,24,.45), transparent 70%) }
+  html[data-look=glass] .sum .big{ font-size:34px; background:var(--orange); -webkit-background-clip:text; background-clip:text; color:transparent }
+  html[data-look=glass] .sum small{ color:var(--muted); opacity:1 } html[data-look=glass] .sum .err{ color:#fca5a5 }
+  .sum .eyebrow{ font-size:12px; color:#ffb06b; font-weight:600; letter-spacing:.3px }
+  .sum .go{ display:none } html[data-look=glass] .sum .go{ display:inline-flex; margin-top:12px; padding:10px 20px; font-size:14px; border-radius:22px; align-items:center; gap:6px; position:relative; z-index:1 }
+  .bars7{ display:flex; gap:6px; align-items:flex-end; height:82px; position:relative; z-index:1 }
+  .bars7 i{ display:block; width:12px; border-radius:6px; background:rgba(255,255,255,.85) } html[data-look=glass] .bars7 i{ background:var(--orange); box-shadow:0 0 14px rgba(255,122,24,.4) }
+  .bars7 i.z{ opacity:.25 }
+  .sec{ display:flex; justify-content:space-between; align-items:baseline; margin:8px 4px 10px } .sec b{ font-size:17px; font-weight:600 } .sec a{ color:var(--muted); font-size:13px; text-decoration:none; cursor:pointer }
+  /* hotel cards and tags */
+  html[data-look=glass] .hc:active{ background:var(--glass2) }
+  html[data-look=glass] .tag{ background:rgba(255,255,255,.08); color:#d6cec7 }
+  html[data-look=glass] .tag.ok, html[data-look=glass] .st.ok{ background:rgba(74,222,128,.14); color:#86efac }
+  html[data-look=glass] .tag.warn, html[data-look=glass] .st.warn{ background:rgba(251,191,36,.15); color:#fcd34d }
+  html[data-look=glass] .tag.bad, html[data-look=glass] .st.bad{ background:rgba(248,113,113,.16); color:#fca5a5 }
+  html[data-look=glass] .st.off{ background:rgba(255,255,255,.1); color:#d6cec7 }
+  html[data-look=glass] .strip.warn{ background:rgba(251,191,36,.12); color:#fcd34d } html[data-look=glass] .strip.bad{ background:rgba(248,113,113,.13); color:#fca5a5 }
+  html[data-look=glass] .pill.p-active, html[data-look=glass] .pill.h-ok{ background:rgba(74,222,128,.14); color:#86efac }
+  html[data-look=glass] .pill.p-expired, html[data-look=glass] .pill.h-bad{ background:rgba(248,113,113,.16); color:#fca5a5 }
+  html[data-look=glass] .pill.p-trial{ background:rgba(56,189,248,.14); color:#7dd3fc } html[data-look=glass] .pill.p-pending, html[data-look=glass] .pill.h-warn{ background:rgba(251,191,36,.15); color:#fcd34d }
+  html[data-look=glass] .pill.p-suspended{ background:rgba(255,255,255,.1); color:#d6cec7 }
+  /* floating glass navigation bar */
+  html[data-look=glass] nav{ left:14px; right:14px; bottom:calc(12px + env(safe-area-inset-bottom)); padding:8px 4px; border-radius:26px; background:rgba(28,22,18,.72); border:1px solid var(--edge);
+    backdrop-filter:blur(22px) saturate(150%); -webkit-backdrop-filter:blur(22px) saturate(150%); box-shadow:0 14px 40px rgba(0,0,0,.55) }
+  html[data-look=glass] nav button{ color:#8f867e }
+  html[data-look=glass] nav button.on{ color:#ff8a2a } html[data-look=glass] nav button.on .pill{ background:rgba(255,122,24,.16); color:#ff8a2a }
+  html[data-look=glass] .fab{ background:var(--orange); color:#fff; box-shadow:0 14px 32px rgba(255,106,0,.45); bottom:calc(104px + env(safe-area-inset-bottom)) }
+  html[data-look=glass] main{ padding-bottom:140px }
+  /* sheet, dialog, snackbar */
+  html[data-look=glass] #sheet.in, html[data-look=glass] #ask.in{ background:rgba(0,0,0,.6) }
+  html[data-look=glass] #sheet .box{ background:rgba(24,19,16,.86); backdrop-filter:blur(26px) saturate(140%); -webkit-backdrop-filter:blur(26px) saturate(140%); border:1px solid var(--edge); border-bottom:0 }
+  html[data-look=glass] #ask .box{ background:rgba(30,24,20,.92); backdrop-filter:blur(26px); -webkit-backdrop-filter:blur(26px); border:1px solid var(--edge) }
+  html[data-look=glass] #toast{ background:rgba(40,32,27,.95); border:1px solid var(--edge); color:var(--ink); bottom:calc(104px + env(safe-area-inset-bottom)) }
+  html[data-look=glass] #toast.err{ background:rgba(127,29,29,.95) }
+  html[data-look=glass] #ptr{ background:#231b16; color:#ff8a2a; border:1px solid var(--edge) }
+  html[data-look=glass] .sk{ background:linear-gradient(90deg, rgba(255,255,255,.05) 25%, rgba(255,255,255,.10) 50%, rgba(255,255,255,.05) 75%); background-size:200% 100% }
+  /* one hotel */
+  html[data-look=glass] .quick a{ background:var(--glass); color:var(--ink); border:1px solid var(--edge) } html[data-look=glass] .quick a.wa{ background:rgba(74,222,128,.14); color:#86efac; border-color:rgba(74,222,128,.25) }
+  html[data-look=glass] .quick a:first-child{ background:var(--orange); color:#fff; border-color:transparent }
+  html[data-look=glass] .facts div{ border-bottom-color:rgba(255,255,255,.06) }
+  html[data-look=glass] .tile svg.i{ background:rgba(255,255,255,.08); color:#ffb06b }
+  html[data-look=glass] .tile.blue svg.i{ background:rgba(255,122,24,.18); color:#ff9a3c } html[data-look=glass] .tile.red svg.i{ background:rgba(248,113,113,.16); color:#fca5a5 }
+  html[data-look=glass] .tile.amber svg.i{ background:rgba(251,191,36,.15); color:#fcd34d } html[data-look=glass] .tile.green svg.i{ background:rgba(74,222,128,.15); color:#86efac }
+  html[data-look=glass] .tile.on{ outline-color:rgba(248,113,113,.5) }
+  html[data-look=glass] .plan{ color:var(--ink) } html[data-look=glass] .plan.on{ background:rgba(255,122,24,.16); border-color:#ff8a2a; color:#ffd2a8 }
+  html[data-look=glass] .keybox{ background:rgba(0,0,0,.45); border:1px solid var(--edge); color:#ffd2a8 }
+  html[data-look=glass] .li .ico{ background:rgba(255,122,24,.15); color:#ff9a3c } html[data-look=glass] .group .li + .li, html[data-look=glass] .lr{ border-color:rgba(255,255,255,.06) }
+  html[data-look=glass] .gh{ color:#ff9a3c }
+  html[data-look=glass] .lr.click:active{ background:rgba(255,255,255,.05) }
+  html[data-look=glass] .msg.hotel{ background:rgba(255,255,255,.07) } html[data-look=glass] .msg.admin{ background:rgba(255,122,24,.18); color:#ffe3c9 }
+  html[data-look=glass] .hcard{ border-color:rgba(255,255,255,.06) }
+  html[data-look=glass] th, html[data-look=glass] td{ border-color:rgba(255,255,255,.07) }
+  html[data-look=glass] .tabs{ background:rgba(14,11,9,.85); backdrop-filter:blur(18px); border-color:var(--edge) }
+  html[data-look=glass] .tabs button.on{ color:#ff8a2a; border-bottom-color:#ff8a2a }
+  html[data-look=glass] #drawer{ background:#0e0b09 } html[data-look=glass] #drawer .dbar{ background:rgba(14,11,9,.85); backdrop-filter:blur(18px); box-shadow:0 1px 0 var(--edge) }
+  html[data-look=glass] .rcpt{ color:#000 }
+  /* login */
+  html[data-look=glass] #login .logo{ box-shadow:0 14px 40px rgba(255,106,0,.25) }
+  html[data-look=glass] #login h2{ font-size:28px }
+  html[data-look=glass] .field input{ background:rgba(255,255,255,.06) }
+  html[data-look=glass] .field input:focus + span, html[data-look=glass] .field input:not(:placeholder-shown) + span{ color:#ff9a3c }
+  html[data-look=glass] .ok{ color:#86efac } html[data-look=glass] .err{ color:#fca5a5 }
 </style>
 </head>
 <body>
@@ -231,7 +342,16 @@ try{
   KEY = sessionStorage.getItem('setu_admin') || (APP ? SA.keyGet() : localStorage.getItem('setu_admin')) || '';
 }catch(e){}
 const haptic = k => { try{ if(APP) SA.haptic(k); }catch(e){} };
-const bars = c => { try{ if(APP && SA.bars) SA.bars(c, true); }catch(e){} };
+// Status / navigation bar colour: the dark glass look keeps them dark with light icons
+const glassLook = () => document.documentElement.dataset.look === 'glass';
+const bars = c => { try{ if(APP && SA.bars){ const g = glassLook(); SA.bars(g ? '#0E0B09' : c, !g); } }catch(e){} };
+function setLook(glass){
+  const v = glass ? 'glass' : 'light';
+  document.documentElement.dataset.look = v;
+  try{ localStorage.setItem('setu_admin_look', v); }catch(e){}
+  bars(window.scrollY > 8 ? '#FFFFFF' : '#F7F9FC');
+  haptic('tick');
+}
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const d8 = ms => ms ? new Date(ms).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '-';
@@ -374,6 +494,7 @@ function nav(){
   $('#htitle').textContent = SUB[VIEW] || VIEWS[VIEW][0];
   $('#hsub').textContent = VIEW === 'hotels' && HOTELS.length ? HOTELS.length + ' hotels · Aghanya Devanya Enterprises' : SUB[VIEW] ? 'More' : 'Setu Hotel Admin';
   $('#hdr').classList.toggle('sub', !!SUB[VIEW]);
+  $('#hdr').classList.toggle('home', VIEW === 'hotels');   // the big greeting replaces the title until you scroll
 }
 // Grey placeholder cards while a screen loads (shown only if loading takes a moment)
 const SKEL = {hotels: () => '<div class="sk" style="height:84px"></div><div class="sk" style="height:52px;border-radius:28px"></div>' + '<div class="sk" style="height:112px"></div>'.repeat(5),
@@ -456,22 +577,29 @@ function urgency(h){
   return u;
 }
 let KF = 'all';
+const KF_ICON = {all: 'hotels', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
 const KFS = {all: ['All', () => true], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
   tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
-function setKF(k){ KF = k; drawHotelsBody(); }
+function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'Saare hotels' : KFS[k][0]; haptic('tick'); }
 async function drawHotels(){
   await loadHotels();
   const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
   const idle = HOTELS.filter(notUsing).length, errs = HOTELS.filter(h => +h.errs).length;
-  $('#main').innerHTML = `<div class="sum"><div style="flex:1"><small>Aaj saare hotels</small><div class="big">${today} <span style="font-size:15px;font-weight:500">bills</span></div>
-      <small>${using} / ${live.length} hotels ne aaj bill banaya${idle ? ` · <b class="err" onclick="setKF('idle')">${idle} band (3+ din)</b>` : ''}${errs ? ` · <b class="err" onclick="setKF('err')">${errs} errors</b>` : ''}</small></div>${ic('chart')}</div>
-    <div class="search">${ic('search')}<input id="q" type="search" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div><div id="cards"></div>
+  // Bills of all hotels for the last 7 days (oldest left) for the banner's small chart
+  const days7 = [...Array(7)].map((_, i) => istDay(Date.now() - (6 - i) * DAYMS)), tot7 = days7.map(d => HOTELS.reduce((a, h) => a + (+bdays(h)[d] || 0), 0)), mx = Math.max(1, ...tot7);
+  $('#main').innerHTML = `<div class="hello"><small>Namaste, Admin</small><h1>Saare Hotels<br><span>Ek Jagah!</span></h1></div>
+    <div class="search">${ic('search')}<input id="q" type="search" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div>
+    <div class="sum"><div style="flex:1;position:relative;z-index:1"><div class="eyebrow">AAJ KE BILLS</div><div class="big">${today} <span style="font-size:15px;font-weight:500">bills</span></div>
+      <small>${using} / ${live.length} hotels ne aaj bill banaya${idle ? ` · <b class="err" onclick="setKF('idle')">${idle} band (3+ din)</b>` : ''}${errs ? ` · <b class="err" onclick="setKF('err')">${errs} errors</b>` : ''}</small>
+      <br><button class="go" onclick="show('keygen')">${ic('key')} Key banaiye</button></div>
+      <div class="bars7" title="Last 7 days">${tot7.map(n => `<i class="${n ? '' : 'z'}" style="height:${Math.round(70 * n / mx) + 8}px"></i>`).join('')}</div></div>
+    <div class="sec"><b>${KF === 'all' ? 'Saare hotels' : esc(KFS[KF][0])}</b><a onclick="setKF('all')">Sab dekhein</a></div><div id="cards"></div>
     <button class="fab" onclick="show('add')">${ic('plus')}<span>Naya hotel</span></button>`;
   $('#q').oninput = drawCards;
   drawHotelsBody();
 }
 function drawHotelsBody(){
-  $('#kpis').innerHTML = `<div class="chips">${Object.entries(KFS).map(([k, [l, f]]) => `<button class="chip ${KF === k ? 'on' : ''}" onclick="setKF('${k}')">${l}<b>${HOTELS.filter(f).length}</b></button>`).join('')}</div>`;
+  $('#kpis').innerHTML = `<div class="chips">${Object.entries(KFS).map(([k, [l, f]]) => `<button class="chip ${KF === k ? 'on' : ''}" onclick="setKF('${k}')">${ic(KF_ICON[k])}<span>${l}</span><b>${HOTELS.filter(f).length}</b></button>`).join('')}</div>`;
   drawCards();
 }
 function hotelAlert(h){
@@ -792,6 +920,8 @@ function drawMore(){
     + (lk ? `<label class="li" style="cursor:pointer"><span class="ico">${ic('finger')}</span><span>App lock<small>${lk.available ? 'Kholte waqt fingerprint / screen lock' : 'Pehle phone mein screen lock lagaiye'}</small></span>
         <input type="checkbox" id="applock" ${lk.on ? 'checked' : ''} ${lk.available ? '' : 'disabled'} onchange="appLock(this.checked)"></label>` : '')
     + row('key', 'Login security', 'Authenticator app (2-step login)', "show('security')")
+    + `</div><div class="gh">APP</div><div class="group"><label class="li" style="cursor:pointer"><span class="ico">${ic('spark')}</span><span>Dark glass look<small>Off = light look (is phone par)</small></span>
+        <input type="checkbox" ${glassLook() ? 'checked' : ''} onchange="setLook(this.checked)"></label>`
     + row('out', 'Logout', 'Is phone se Admin Key hata dein', 'logoutAsk()')
     + `</div><p class="muted" style="text-align:center;font-size:12px">${appv ? 'Setu Hotel Admin app v' + esc(appv) : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Newest Setu EXE: v' + esc(newestVer()) : ''}</p>`;
 }

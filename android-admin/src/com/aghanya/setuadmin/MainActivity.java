@@ -67,8 +67,9 @@ import javax.crypto.spec.GCMParameterSpec;
 public class MainActivity extends Activity {
     static final String HOST = "setu-cloud.theinkthreadhub.workers.dev";
     static final String START = "https://" + HOST + "/admin.html";
-    static final String VERSION = "2.0";
+    static final String VERSION = "2.1";
     static final int PICK = 7, LOCK_REQ = 8;
+    static final String NIGHT = "#0E0B09", INK = "#F8F3EE", MUTED = "#A39A92";   // dark glass look
     static final long RELOCK_MS = 60_000;          // locked again after a minute in the background
 
     WebView web;
@@ -94,10 +95,10 @@ public class MainActivity extends Activity {
         prefs = getSharedPreferences("setu_admin", MODE_PRIVATE);
         if (lockOn()) getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);   // no admin data in "recent apps"
         root = new FrameLayout(this);
-        root.setBackgroundColor(Color.WHITE);
+        root.setBackgroundColor(Color.parseColor(NIGHT));
 
         web = new WebView(this);
-        web.setBackgroundColor(Color.parseColor("#F7F9FC"));
+        web.setBackgroundColor(Color.parseColor(NIGHT));
         web.setOverScrollMode(View.OVER_SCROLL_NEVER);
         web.setVerticalScrollBarEnabled(false);
         web.setHorizontalScrollBarEnabled(false);
@@ -191,7 +192,7 @@ public class MainActivity extends Activity {
 
         setContentView(root);
         getWindow().setBackgroundDrawable(null);     // the launch logo is no longer needed behind the app
-        systemBars("#FFFFFF", true);
+        systemBars(NIGHT, false);
 
         if (state != null) web.restoreState(state);
         else web.loadUrl(START);
@@ -206,15 +207,15 @@ public class MainActivity extends Activity {
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.VERTICAL);
         v.setGravity(Gravity.CENTER);
-        v.setBackgroundColor(Color.WHITE);
+        v.setBackground(glow());
         v.setClickable(true);
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.splash_logo);
         v.addView(logo, new LinearLayout.LayoutParams(dp(108), dp(108)));
-        TextView t = text("Setu Hotel Admin", 20, "#0F172A", true);
-        t.setPadding(0, dp(18), 0, dp(4));
+        TextView t = text("Setu Hotel Admin", 22, INK, true);
+        t.setPadding(0, dp(20), 0, dp(4));
         v.addView(t);
-        v.addView(text("Aghanya Devanya Enterprises", 13, "#64748B", false));
+        v.addView(text("Aghanya Devanya Enterprises", 13, MUTED, false));
         ProgressBar p = new ProgressBar(this);
         p.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(brandColor()));
         LinearLayout.LayoutParams pl = new LinearLayout.LayoutParams(dp(28), dp(28));
@@ -228,19 +229,20 @@ public class MainActivity extends Activity {
         v.setOrientation(LinearLayout.VERTICAL);
         v.setGravity(Gravity.CENTER);
         v.setPadding(dp(32), 0, dp(32), 0);
-        v.setBackgroundColor(Color.parseColor("#F7F9FC"));
+        v.setBackground(glow());
         v.setClickable(true);
-        TextView icon = text("⚠", 40, "#94A3B8", false);
+        TextView icon = text("⚠", 40, "#FF9A3C", false);
         GradientDrawable circle = new GradientDrawable();
         circle.setShape(GradientDrawable.OVAL);
-        circle.setColor(Color.parseColor("#E2E8F0"));
+        circle.setColor(Color.parseColor("#1FFFFFFF"));
+        circle.setStroke(dp(1), Color.parseColor("#1FFFFFFF"));
         icon.setBackground(circle);
         icon.setGravity(Gravity.CENTER);
         v.addView(icon, new LinearLayout.LayoutParams(dp(88), dp(88)));
-        TextView t = text("Internet nahi hai", 20, "#0F172A", true);
+        TextView t = text("Internet nahi hai", 22, INK, true);
         t.setPadding(0, dp(20), 0, dp(6));
         v.addView(t);
-        TextView d = text("WiFi ya mobile data on kijiye. Internet aate hi Setu Admin apne aap khul jayega.", 14, "#64748B", false);
+        TextView d = text("WiFi ya mobile data on kijiye. Internet aate hi Setu Admin apne aap khul jayega.", 14, MUTED, false);
         d.setGravity(Gravity.CENTER);
         v.addView(d);
         Button b = pill("Dobara koshish karein");
@@ -255,15 +257,15 @@ public class MainActivity extends Activity {
         LinearLayout v = new LinearLayout(this);
         v.setOrientation(LinearLayout.VERTICAL);
         v.setGravity(Gravity.CENTER);
-        v.setBackgroundColor(Color.WHITE);
+        v.setBackground(glow());
         v.setClickable(true);
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.splash_logo);
         v.addView(logo, new LinearLayout.LayoutParams(dp(88), dp(88)));
-        TextView t = text("Setu Hotel Admin locked", 20, "#0F172A", true);
-        t.setPadding(0, dp(18), 0, dp(6));
+        TextView t = text("Setu Hotel Admin locked", 22, INK, true);
+        t.setPadding(0, dp(20), 0, dp(6));
         v.addView(t);
-        v.addView(text("Fingerprint ya phone ka screen lock lagaiye", 14, "#64748B", false));
+        v.addView(text("Fingerprint ya phone ka screen lock lagaiye", 14, MUTED, false));
         Button b = pill("Unlock");
         b.setOnClickListener(x -> { haptic("tap"); authenticate(); });
         LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(dp(200), dp(48));
@@ -288,13 +290,18 @@ public class MainActivity extends Activity {
         b.setTextColor(Color.WHITE);
         b.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15);
         b.setPadding(dp(28), 0, dp(28), 0);
-        GradientDrawable g = new GradientDrawable();
-        g.setColor(brandColor());
-        g.setCornerRadius(dp(24));
+        GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{ Color.parseColor("#FF9A3C"), Color.parseColor("#FF6A00") });
+        g.setCornerRadius(dp(26));
         b.setBackground(new android.graphics.drawable.RippleDrawable(
             android.content.res.ColorStateList.valueOf(Color.parseColor("#33FFFFFF")), g, null));
         b.setStateListAnimator(null);
         return b;
+    }
+
+    // Warm black with an orange glow at the top (same as the page)
+    android.graphics.drawable.Drawable glow() {
+        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+            new int[]{ Color.parseColor("#3A1E0C"), Color.parseColor(NIGHT), Color.parseColor(NIGHT) });
     }
 
     void hideSplash() {
@@ -337,11 +344,11 @@ public class MainActivity extends Activity {
         Window w = getWindow();
         int c = Color.parseColor(color);
         w.setStatusBarColor(c);
-        w.setNavigationBarColor(Color.WHITE);
+        w.setNavigationBarColor(light ? Color.WHITE : c);
         View d = w.getDecorView();
         int f = d.getSystemUiVisibility();
         if (Build.VERSION.SDK_INT >= 23) f = light ? f | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR : f & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-        if (Build.VERSION.SDK_INT >= 27) f |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        if (Build.VERSION.SDK_INT >= 27) f = light ? f | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR : f & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         d.setSystemUiVisibility(f);
     }
 
