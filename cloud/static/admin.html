@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
 <title>Setu Hotel Admin</title>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script>/* look before the first paint: dark glass unless this device chose light */ try{ document.documentElement.dataset.look = localStorage.getItem('setu_admin_look') || 'glass'; }catch(e){ document.documentElement.dataset.look = 'glass'; }</script>
 <link rel="manifest" href="admin.webmanifest">
 <meta name="theme-color" content="#1e3a8a">
@@ -20,7 +20,8 @@
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
   [hidden]{ display:none !important }
   html{ overscroll-behavior-y:contain }
-  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing:antialiased }
+  /* Inter: a clean professional typeface; numbers line up in lists (tabular figures) */
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 Inter, Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing:antialiased; font-feature-settings:"cv11", "ss01", "tnum"; letter-spacing:-.005em }
   /* An app does not select text or show the long-press menu, except where you type or copy */
   body{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none }
   input, textarea, code, .keybox, .sel{ -webkit-user-select:text; user-select:text }
@@ -196,7 +197,7 @@
     --glass:rgba(255,255,255,.07); --glass2:rgba(255,255,255,.11); --edge:rgba(255,255,255,.12); --orange:linear-gradient(135deg, #ff9a3c 0%, #ff6a00 100%);
     --e1:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 24px rgba(0,0,0,.35); --e2:0 12px 32px rgba(0,0,0,.45); --e3:0 18px 50px rgba(0,0,0,.6); color-scheme:dark }
   html[data-look=glass] body{ background:radial-gradient(520px 360px at 85% -6%, rgba(255,122,24,.28), transparent 70%), radial-gradient(420px 320px at -10% 38%, rgba(255,106,0,.13), transparent 70%),
-    radial-gradient(480px 380px at 110% 85%, rgba(255,140,40,.12), transparent 70%), #0e0b09; background-attachment:fixed; font-family:Poppins, Roboto, system-ui, sans-serif }
+    radial-gradient(480px 380px at 110% 85%, rgba(255,140,40,.12), transparent 70%), #0e0b09; background-attachment:fixed }
   html[data-look=glass] .card, html[data-look=glass] .hc, html[data-look=glass] .group, html[data-look=glass] .facts, html[data-look=glass] .tile, html[data-look=glass] .stat, html[data-look=glass] .feat,
   html[data-look=glass] .plan, html[data-look=glass] .chip, html[data-look=glass] .search{ background:var(--glass); border:1px solid var(--edge); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); box-shadow:var(--e1) }
   html[data-look=glass] .card, html[data-look=glass] .hc{ border-radius:24px }
@@ -305,11 +306,11 @@
 <div id="login">
   <div style="text-align:center"><img class="logo" src="icon-192.png" alt="">
     <h2 style="margin:18px 0 4px;font-size:24px">Setu Hotel Admin</h2>
-    <p class="muted" style="margin:0 0 28px">Saare hotels ek jagah se chalaiye</p></div>
+    <p class="muted" style="margin:0 0 28px">Manage every hotel from one place</p></div>
   <form id="lf">
     <div class="field"><input id="key" type="password" placeholder=" " autocomplete="off" required><span>Admin Key</span>
       <button type="button" class="ib eye" aria-label="Show key" onclick="const k=$('#key');k.type=k.type==='password'?'text':'password'"></button></div>
-    <label class="switch" style="margin:18px 2px 22px;font-weight:500"><input id="remember" type="checkbox" checked> Is phone par yaad rakhein</label>
+    <label class="switch" style="margin:18px 2px 22px;font-weight:500"><input id="remember" type="checkbox" checked> Remember on this phone</label>
     <button class="big">Open</button>
     <p id="lerr" class="err" style="text-align:center"></p>
   </form>
@@ -556,7 +557,7 @@ const notUsing = h => state(h) !== 'suspended' && Date.now() - h.created > 3 * D
 // Last 7 days as small bars (oldest left, today right)
 function billBars(h){
   const b = bdays(h), days = [...Array(7)].map((_, i) => istDay(Date.now() - (6 - i) * DAYMS)), max = Math.max(1, ...days.map(d => +b[d] || 0));
-  const wd = d => ['Ra', 'So', 'Ma', 'Bu', 'Gu', 'Sh', 'Sa'][new Date(d + 'T12:00:00Z').getUTCDay()];
+  const wd = d => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d + 'T12:00:00Z').getUTCDay()];
   return `<div style="display:flex;gap:6px;align-items:flex-end;height:74px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card)">
     ${days.map(d => { const n = +b[d] || 0; return `<div style="flex:1;text-align:center;font-size:10px;color:var(--muted)"><div style="font-weight:700;color:var(--ink)">${n}</div>
       <div style="height:${Math.round(34 * n / max) + 2}px;border-radius:4px;background:${n ? 'var(--pri)' : 'var(--line)'};margin:2px 0"></div>${wd(d)}</div>`; }).join('')}</div>`;
@@ -580,21 +581,21 @@ let KF = 'all';
 const KF_ICON = {all: 'hotels', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
 const KFS = {all: ['All', () => true], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
   tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
-function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'Saare hotels' : KFS[k][0]; haptic('tick'); }
+function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'All hotels' : KFS[k][0]; haptic('tick'); }
 async function drawHotels(){
   await loadHotels();
   const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
   const idle = HOTELS.filter(notUsing).length, errs = HOTELS.filter(h => +h.errs).length;
   // Bills of all hotels for the last 7 days (oldest left) for the banner's small chart
   const days7 = [...Array(7)].map((_, i) => istDay(Date.now() - (6 - i) * DAYMS)), tot7 = days7.map(d => HOTELS.reduce((a, h) => a + (+bdays(h)[d] || 0), 0)), mx = Math.max(1, ...tot7);
-  $('#main').innerHTML = `<div class="hello"><small>Namaste, Admin</small><h1>Saare Hotels<br><span>Ek Jagah!</span></h1></div>
-    <div class="search">${ic('search')}<input id="q" type="search" placeholder="Naam, code, mobile ya Install ID"></div><div id="kpis"></div>
-    <div class="sum"><div style="flex:1;position:relative;z-index:1"><div class="eyebrow">AAJ KE BILLS</div><div class="big">${today} <span style="font-size:15px;font-weight:500">bills</span></div>
-      <small>${using} / ${live.length} hotels ne aaj bill banaya${idle ? ` · <b class="err" onclick="setKF('idle')">${idle} band (3+ din)</b>` : ''}${errs ? ` · <b class="err" onclick="setKF('err')">${errs} errors</b>` : ''}</small>
-      <br><button class="go" onclick="show('keygen')">${ic('key')} Key banaiye</button></div>
+  $('#main').innerHTML = `<div class="hello"><small>Welcome back, Admin</small><h1>All Your Hotels<br><span>One Place.</span></h1></div>
+    <div class="search">${ic('search')}<input id="q" type="search" placeholder="Search name, code, mobile or Install ID"></div><div id="kpis"></div>
+    <div class="sum"><div style="flex:1;position:relative;z-index:1"><div class="eyebrow">TODAY'S BILLS</div><div class="big">${today} <span style="font-size:15px;font-weight:500">bills</span></div>
+      <small>${using} / ${live.length} hotels billed today${idle ? ` · <b class="err" onclick="setKF('idle')">${idle} idle (3+ days)</b>` : ''}${errs ? ` · <b class="err" onclick="setKF('err')">${errs} ${errs === 1 ? 'hotel' : 'hotels'} with errors</b>` : ''}</small>
+      <br><button class="go" onclick="show('keygen')">${ic('key')} Create key</button></div>
       <div class="bars7" title="Last 7 days">${tot7.map(n => `<i class="${n ? '' : 'z'}" style="height:${Math.round(70 * n / mx) + 8}px"></i>`).join('')}</div></div>
-    <div class="sec"><b>${KF === 'all' ? 'Saare hotels' : esc(KFS[KF][0])}</b><a onclick="setKF('all')">Sab dekhein</a></div><div id="cards"></div>
-    <button class="fab" onclick="show('add')">${ic('plus')}<span>Naya hotel</span></button>`;
+    <div class="sec"><b>${KF === 'all' ? 'All hotels' : esc(KFS[KF][0])}</b><a onclick="setKF('all')">View all</a></div><div id="cards"></div>
+    <button class="fab" onclick="show('add')">${ic('plus')}<span>New hotel</span></button>`;
   $('#q').oninput = drawCards;
   drawHotelsBody();
 }
@@ -621,7 +622,7 @@ function licTag(h){
 // Setu version on the hotel's counter PC; older than the newest one seen = needs the new EXE
 const verNum = v => String(v || '').split('.').map(n => +n || 0).reduce((a, n) => a * 10000 + n, 0);
 const newestVer = () => HOTELS.reduce((m, h) => verNum(h.appv) > verNum(m) ? h.appv : m, '');
-const verTag = h => !h.appv ? '<span class="tag">Version -</span>' : `<span class="tag ${verNum(h.appv) < verNum(newestVer()) ? 'warn' : ''}">v${esc(h.appv)}${verNum(h.appv) < verNum(newestVer()) ? ' · purana' : ''}</span>`;
+const verTag = h => !h.appv ? '<span class="tag">Version -</span>' : `<span class="tag ${verNum(h.appv) < verNum(newestVer()) ? 'warn' : ''}">v${esc(h.appv)}${verNum(h.appv) < verNum(newestVer()) ? ' · outdated' : ''}</span>`;
 // Error Log from the hotel's devices (D.errSync): count in 24 hours + the newest error
 const lastErr = h => { try{ return h.lasterr ? JSON.parse(h.lasterr) : null; }catch(e){ return null; } };
 const errTag = h => +h.errs ? `<span class="tag bad">${h.errs} error</span>` : '';
@@ -630,7 +631,8 @@ function drawCards(){
   const q = ($('#q').value || '').trim().toLowerCase();
   const list = HOTELS.filter(KFS[KF][1]).filter(h => !q || [h.name, h.code, h.phone, h.owner, h.iid || ''].join(' ').toLowerCase().includes(q))
     .sort((a, b) => urgency(b) - urgency(a) || b.created - a.created);
-  $('#cards').innerHTML = list.map(h => {
+  const clearBtn = KF === 'err' && list.length ? `<button class="bad" style="width:100%;margin-bottom:12px" onclick="errClearEvery()">${ic('trash')} Clear errors in all hotels</button>` : '';
+  $('#cards').innerHTML = clearBtn + list.map(h => {
     const [sl, sc] = appState(h), al = hotelAlert(h);
     return `<div class="hc" onclick="hotelSheet('${esc(h.code)}')"><div class="top">${avatar(h)}
         <div class="mid"><b class="nm">${esc(h.name)}</b><small>${esc(h.code)}${h.owner ? ' · ' + esc(h.owner) : ''}</small></div><span class="st ${sc}">${sl}</span></div>
@@ -657,7 +659,7 @@ function hotelSheet(code){
       <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Not yet'}</b></div>
       <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(newest: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
       <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
-      <div><span>Juda</span><b>${d8(h.created)}</b></div>
+      <div><span>Joined</span><b>${d8(h.created)}</b></div>
     </div>
     <div class="muted" style="font-size:12px;margin:-6px 0 4px">Bills in the last 7 days</div>${billBars(h)}
     <div class="tiles">
@@ -908,21 +910,21 @@ function drawMore(){
   const appv = (navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/) || [])[1];
   $('#main').innerHTML = `<div class="gh">HOTELS</div><div class="group">`
     + row('chart', 'Dashboard', 'Hotels, payments, backups', "show('dash')")
-    + row('plus', 'Naya hotel banaiye', 'Phone-app hotel, bina PC ke', "show('add')")
-    + row('download', 'Backups', 'Har hotel: last sync, backup, size', "show('backups')")
-    + row('refresh', 'Software updates', 'Naya Setu EXE: pause / release', "show('updates')")
+    + row('plus', 'Create new hotel', 'Phone-app hotel without a PC', "show('add')")
+    + row('download', 'Backups', 'Every hotel: last sync, backup, size', "show('backups')")
+    + row('refresh', 'Software updates', 'Newest Setu EXE: pause or release', "show('updates')")
     + `</div><div class="gh">SETTINGS</div><div class="group">`
-    + row('spark', 'Setu AI', 'Gemini key aur daily limit', "show('ai')")
-    + row('key', 'Keygen setup', 'Phone se key banane ke liye', "show('keygen').then(() => drawKeygenSetup())")
-    + row('list', 'Activity Log', 'Kya badla, kab badla', "show('audit')")
-    + row('block', 'Blocked computers', 'Delete karte waqt block kiye PC', "show('blocked')")
+    + row('spark', 'Setu AI', 'Gemini key and daily limit', "show('ai')")
+    + row('key', 'Keygen setup', 'Create keys from this phone', "show('keygen').then(() => drawKeygenSetup())")
+    + row('list', 'Activity Log', 'What changed and when', "show('audit')")
+    + row('block', 'Blocked computers', 'PCs blocked when a hotel was deleted', "show('blocked')")
     + `</div><div class="gh">SECURITY</div><div class="group">`
-    + (lk ? `<label class="li" style="cursor:pointer"><span class="ico">${ic('finger')}</span><span>App lock<small>${lk.available ? 'Kholte waqt fingerprint / screen lock' : 'Pehle phone mein screen lock lagaiye'}</small></span>
+    + (lk ? `<label class="li" style="cursor:pointer"><span class="ico">${ic('finger')}</span><span>App lock<small>${lk.available ? 'Fingerprint or screen lock when the app opens' : 'Set a screen lock on this phone first'}</small></span>
         <input type="checkbox" id="applock" ${lk.on ? 'checked' : ''} ${lk.available ? '' : 'disabled'} onchange="appLock(this.checked)"></label>` : '')
     + row('key', 'Login security', 'Authenticator app (2-step login)', "show('security')")
-    + `</div><div class="gh">APP</div><div class="group"><label class="li" style="cursor:pointer"><span class="ico">${ic('spark')}</span><span>Dark glass look<small>Off = light look (is phone par)</small></span>
+    + `</div><div class="gh">APP</div><div class="group"><label class="li" style="cursor:pointer"><span class="ico">${ic('spark')}</span><span>Dark glass look<small>Off = light look (this phone only)</small></span>
         <input type="checkbox" ${glassLook() ? 'checked' : ''} onchange="setLook(this.checked)"></label>`
-    + row('out', 'Logout', 'Is phone se Admin Key hata dein', 'logoutAsk()')
+    + row('out', 'Logout', 'Remove the Admin Key from this phone', 'logoutAsk()')
     + `</div><p class="muted" style="text-align:center;font-size:12px">${appv ? 'Setu Hotel Admin app v' + esc(appv) : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Newest Setu EXE: v' + esc(newestVer()) : ''}</p>`;
 }
 // App lock (native): turning it on or off asks for the fingerprint / screen lock; the answer comes back in SAevent
@@ -930,13 +932,13 @@ function appLock(on){ try{ SA.lockSet(on); }catch(e){} }
 window.SAevent = (name, d) => {
   if(name === 'lock'){
     const c = $('#applock'); if(c) c.checked = !!d.on;
-    if(d.error === 'noscreenlock') toast('Pehle phone ki Settings mein screen lock lagaiye', true);
-    else if(d.error) toast('Fingerprint check nahi hua', true);
-    else toast(d.on ? 'App lock on: kholte waqt fingerprint maangega' : 'App lock off');
+    if(d.error === 'noscreenlock') toast('Set a screen lock in the phone Settings first', true);
+    else if(d.error) toast('Fingerprint check failed', true);
+    else toast(d.on ? 'App lock is on: fingerprint is asked when the app opens' : 'App lock off');
   }
   if(name === 'resume' && $('#app') && !$('#app').hidden && VIEW === 'hotels' && !LAYERS) loadHotels().then(drawHotelsBody).catch(() => {});
 };
-const logoutAsk = run(async () => { if(await ask('Logout?', '<p class="muted" style="margin-top:0">Admin Key is phone se hat jayegi. Dobara kholne ke liye key daalni padegi.</p>', 'Logout', true)) logout(); });
+const logoutAsk = run(async () => { if(await ask('Logout?', '<p class="muted" style="margin-top:0">The Admin Key will be removed from this phone. You will need to enter it again to sign in.</p>', 'Logout', true)) logout(); });
 
 // ---------------- dashboard ----------------
 async function drawDash(){
@@ -952,12 +954,12 @@ async function drawDash(){
     <div class="stats">${[['Total Hotels', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')],
       ['New (30 days)', HOTELS.filter(h => h.created > month).length], ['Payments (30 days)', rs(st.paid30.s / 100)], ['MRR (estimate)', rs(mrr)]]
       .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('')}</div>
-    <div class="gh">7 DIN MEIN KHATAM</div><div class="group">
-      ${soon.map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div><div style="text-align:right">${pill(state(h))}<small class="muted" style="display:block;margin-top:4px">${d8(h.paid_until)}</small></div></div>`).join('') || '<div class="lr muted">Koi nahi</div>'}</div>
-    <div class="gh">BACKUP NAHI (2+ DIN)</div><div class="group">
-      ${HOTELS.filter(backupIssue).map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div>${health(h.seen)}</div>`).join('') || '<div class="lr ok">Saare hotels backup ho rahe hain</div>'}</div>
+    <div class="gh">EXPIRING IN 7 DAYS</div><div class="group">
+      ${soon.map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div><div style="text-align:right">${pill(state(h))}<small class="muted" style="display:block;margin-top:4px">${d8(h.paid_until)}</small></div></div>`).join('') || '<div class="lr muted">None</div>'}</div>
+    <div class="gh">NO BACKUP (2+ DAYS)</div><div class="group">
+      ${HOTELS.filter(backupIssue).map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div>${health(h.seen)}</div>`).join('') || '<div class="lr ok">All hotels are backing up</div>'}</div>
     <div class="gh">RECENT PAYMENTS</div><div class="group">
-      ${st.recent.map(p => `<div class="lr"><div class="x"><b>${esc(p.name || p.code)}</b><small>${esc(p.plan)} · ${dt(p.at)}</small></div><b>${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</b></div>`).join('') || '<div class="lr muted">Abhi koi nahi</div>'}</div>`;
+      ${st.recent.map(p => `<div class="lr"><div class="x"><b>${esc(p.name || p.code)}</b><small>${esc(p.plan)} · ${dt(p.at)}</small></div><b>${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</b></div>`).join('') || '<div class="lr muted">None yet</div>'}</div>`;
 }
 
 const dlBackup = run(async code => {
@@ -1003,21 +1005,56 @@ async function drawTickets(code){
       <div class="muted" style="font-size:12px">${esc(t.hotel_name || hotelBy(t.code).name)} · <code>${esc(t.code)}</code> · ${dt(t.updated)}</div>
       <div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(((t.msgs || []).slice(-1)[0] || {}).text || '')}</div></div>`).join('') || '<p class="muted">No tickets yet.</p>'}</div>`;
 }
-// One hotel's Error Log: every device (counter PC, phones), what went wrong, where, how often
-let ERRS = [];
-const hotelErrors = run(async code => {
+// One hotel's Error Log: every device (counter PC, phones), what went wrong, where, how often.
+// Dismiss / Clear all only hide them here (they come back if the same error happens again).
+let ERRS = [], ERRSHOW = false, ERRN = {open: 0, cleared: 0};
+async function loadErrs(code, extra){
+  const r = await api('/api/admin/errors', {code, showCleared: ERRSHOW, ...(extra || {})});
+  ERRS = r.errors || []; ERRN = {open: +r.open || 0, cleared: +r.cleared || 0};
+}
+function drawErrs(code){
   const h = hotelBy(code);
-  sheet(`<h2>Error Log — ${esc(h.name)}</h2><p class="muted">Loading...</p>`);
-  ERRS = (await api('/api/admin/errors', {code})).errors || [];
   sheet(`<h2>Error Log — ${esc(h.name)}</h2>
-    <p class="muted" style="margin-top:0">Errors from every device of the hotel (counter PC, phones) in the last 7 days. Updated every minute while a device is online.</p>
-    ${ERRS.map(e => `<div class="card" style="border-left:4px solid ${Date.now() - e.at < DAYMS ? 'var(--bad)' : 'var(--line, #cbd5e1)'};padding:10px 12px;margin:8px 0">
-      <b style="word-break:break-word">${esc(e.kya)}</b>
+    <p class="muted" style="margin-top:0">Errors reported by the hotel's devices (counter PC and phones) in the last 7 days. ${ERRN.open} open${ERRN.cleared ? ` · ${ERRN.cleared} cleared` : ''}.</p>
+    ${ERRN.cleared ? `<label class="switch" style="margin:0 0 10px"><input type="checkbox" ${ERRSHOW ? 'checked' : ''} onchange="errShowCleared('${esc(code)}', this.checked)"> Show cleared errors</label>` : ''}
+    ${ERRS.map(e => `<div class="card" style="border-left:4px solid ${e.cleared ? 'var(--line)' : Date.now() - e.at < DAYMS ? 'var(--bad)' : 'var(--warn)'};padding:12px 14px;margin:8px 0;${e.cleared ? 'opacity:.55' : ''}">
+      <div style="display:flex;gap:10px;align-items:flex-start"><b style="word-break:break-word;flex:1">${esc(e.kya)}</b>
+        ${e.cleared ? '<span class="tag">Cleared</span>' : `<button class="g" style="padding:6px 12px;font-size:12.5px;flex:none" onclick="errDismiss('${esc(code)}', '${esc(e.id)}')">Dismiss</button>`}</div>
       <div class="muted" style="font-size:12px;margin-top:4px">${esc(e.dev || '-')}${e.user ? ' · ' + esc(e.user) : ''} · ${ago(e.at)} (${dt(e.at)})${+e.n > 1 ? ` · <b>${e.n} times</b>` : ''}${e.ver && e.ver !== 'dev' ? ' · v' + esc(e.ver) : ''}</div>
       ${e.kahan ? `<div style="font-size:13px;margin-top:4px"><b>Where:</b> ${esc(e.kahan)}</div>` : ''}
-      ${e.kaise ? `<details style="margin-top:4px"><summary class="muted" style="font-size:12px">Technical detail</summary><code style="display:block;white-space:pre-wrap;font-size:11px">${esc(e.kaise)}</code></details>` : ''}
-    </div>`).join('') || '<div class="card muted" style="text-align:center">No errors. Everything is working.</div>'}
-    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button>${ERRS.length ? `<button onclick="errsCopy('${esc(code)}')">Copy</button>` : ''}</div>`);
+      ${e.kaise ? `<details style="margin-top:4px"><summary class="muted" style="font-size:12px">Technical details</summary><code style="display:block;white-space:pre-wrap;font-size:11px">${esc(e.kaise)}</code></details>` : ''}
+    </div>`).join('') || `<div class="card muted" style="text-align:center">${ERRN.cleared ? 'No open errors. Everything is working.' : 'No errors. Everything is working.'}</div>`}
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">Back</button>${ERRS.length ? `<button class="g" onclick="errsCopy('${esc(code)}')">Copy</button>` : ''}${ERRN.open ? `<button class="bad" onclick="errClearAll('${esc(code)}')">Clear all</button>` : ''}</div>`);
+}
+const hotelErrors = run(async code => {
+  sheet(`<h2>Error Log — ${esc(hotelBy(code).name)}</h2><p class="muted">Loading...</p>`);
+  ERRSHOW = false;
+  await loadErrs(code);
+  drawErrs(code);
+});
+const errShowCleared = run(async (code, on) => { ERRSHOW = on; await loadErrs(code); drawErrs(code); });
+const errDismiss = run(async (code, id) => {
+  const e = ERRS.find(x => x.id === id) || {};
+  await loadErrs(code, {clear: true, id, kya: e.kya});
+  toast('Error dismissed');
+  await loadHotels(); if(VIEW === 'hotels') drawHotelsBody();
+  drawErrs(code);
+});
+const errClearAll = run(async code => {
+  if(!await ask('Clear all errors?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: all ${ERRN.open} open errors are marked as cleared. An error shows again only if it happens again.</p>`, 'Clear all', true)) return;
+  await loadErrs(code, {clear: true});
+  toast('All errors cleared');
+  await loadHotels(); if(VIEW === 'hotels') drawHotelsBody();
+  drawErrs(code);
+});
+// Every hotel at once (Hotels → Errors filter)
+const errClearEvery = run(async () => {
+  const list = HOTELS.filter(h => +h.errs > 0);
+  if(!list.length) return toast('No hotel has open errors');
+  if(!await ask('Clear errors in all hotels?', `<p class="muted" style="margin-top:0">Open errors in ${list.length} hotels are marked as cleared. They show again only if they happen again.</p>`, 'Clear all', true)) return;
+  for(const h of list) await api('/api/admin/errors', {code: h.code, clear: true});
+  toast(`Errors cleared in ${list.length} hotels`);
+  await loadHotels(); drawHotelsBody();
 });
 function errsCopy(code){
   copyText([`Setu Error Log · ${hotelBy(code).name} (${code})`].concat(ERRS.map(e => `${dt(e.at)} | ${e.dev} | ${e.kya} | ${e.kahan || ''}${+e.n > 1 ? ' | ' + e.n + 'x' : ''}`)).join('\n'), 'Error Log');
@@ -1139,7 +1176,7 @@ async function drawBackups(){
     </div><div class="group">
     ${L.map(h => { const st = bkState(h); return `<div class="lr click" onclick="dlBackup('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b>
       <small>${esc(h.code)} · sync ${h.seen ? ago(h.seen) : '-'} · backup ${h.lastbk ? esc(h.lastbk) : '-'}</small><small>${+h.bkn || 0} backups · ${h.bksize ? kb(+h.bksize) : '-'}${h.dsize ? ` · live ${kb(+h.dsize)}` : ''}</small></div>
-      <span class="tag ${st[2]}">${st[1]}</span></div>`; }).join('') || '<div class="lr muted">Is list mein kuch nahi</div>'}</div>`;
+      <span class="tag ${st[2]}">${st[1]}</span></div>`; }).join('') || '<div class="lr muted">Nothing in this list</div>'}</div>`;
   const i = $('#bk_q'); if(q){ i.focus(); i.setSelectionRange(q.length, q.length); }
 }
 
@@ -1193,9 +1230,9 @@ function drawAdd(){
 // ---------------- audit ----------------
 async function drawAudit(code){
   const j = await api('/api/admin/audit', {code: code || ''});
-  const html = `<div class="group">${j.rows.map(r => `<div class="lr"><div class="x"><b>${esc(r.action)}</b> <code>${esc(r.code)}</code><small style="white-space:normal">${esc(r.detail)}</small><small>${dt(r.at)} · ${esc(r.actor)}</small></div></div>`).join('') || '<div class="lr muted">Abhi kuch nahi</div>'}</div>`;
+  const html = `<div class="group">${j.rows.map(r => `<div class="lr"><div class="x"><b>${esc(r.action)}</b> <code>${esc(r.code)}</code><small style="white-space:normal">${esc(r.detail)}</small><small>${dt(r.at)} · ${esc(r.actor)}</small></div></div>`).join('') || '<div class="lr muted">Nothing yet</div>'}</div>`;
   if(code) return html;
-  $('#main').innerHTML = `<p class="muted" style="margin:0 4px 12px">Har badlav, support session aur naya hotel yahan likha jata hai.</p>${html}`;
+  $('#main').innerHTML = `<p class="muted" style="margin:0 4px 12px">Every change, support session and new hotel is recorded here.</p>${html}`;
 }
 
 // ---------------- one hotel ----------------
@@ -1286,7 +1323,7 @@ function tabFeatures(){
   const inTier = k => META.tiers[c.tier].features.includes(k);
   $('#tab').innerHTML = `
     <div class="row"><label style="margin:0">Plan</label><select id="f_tier">${tiers}</select>
-      <button onclick="update({tier:f_tier.value}, 'Plan changed')">Plan Save</button>
+      <button onclick="update({tier:f_tier.value}, 'Plan changed')">Save plan</button>
       <span class="muted" style="margin-left:12px">Template:</span><select id="f_tpl">${tpl}</select>
       <button class="g" onclick="askThen('Apply this template? Features, bill template and rules go back to the template defaults.', () => update({applyTemplate:f_tpl.value}, 'Template applied'))">Apply Template</button></div>
     <h3>Feature Manager</h3>
@@ -1294,7 +1331,7 @@ function tabFeatures(){
     <div class="grid">${Object.entries(META.features).map(([k, label]) => `<div class="feat">
       <span>${CUR.features[k] ? '✅' : '⛔'}</span><span>${esc(label)}</span>
       <select data-f="${k}"><option value="">Per plan (${inTier(k) ? 'ON' : 'OFF'})</option><option value="1" ${ov[k] === true ? 'selected' : ''}>ON</option><option value="0" ${ov[k] === false ? 'selected' : ''}>OFF</option></select></div>`).join('')}</div>
-    <div class="row" style="margin-top:12px"><button onclick="saveFeatures()">Features Save</button></div>`;
+    <div class="row" style="margin-top:12px"><button onclick="saveFeatures()">Save features</button></div>`;
 }
 function saveFeatures(){
   const o = {};
@@ -1308,15 +1345,15 @@ function tabBilling(){
     <div class="grid">
       <div><label>Paper</label><select id="b_paper">${[['80', '80 mm Thermal'], ['58', '58 mm Thermal'], ['A6', 'A6 (105 × 148 mm)']].map(([v, l]) => `<option value="${v}" ${b.paper === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div><label>Logo URL (https, optional)</label><input id="b_logo" value="${esc(b.logoUrl)}" placeholder="https://..."></div>
-      <div><label><input type="checkbox" id="b_showLogo" ${b.showLogo ? 'checked' : ''}> Logo dikhayein (A6 / print box)</label>
-        <label><input type="checkbox" id="b_table" ${b.showTable ? 'checked' : ''}> Table No dikhayein</label>
+      <div><label><input type="checkbox" id="b_showLogo" ${b.showLogo ? 'checked' : ''}> Show logo (A6 / print dialog)</label>
+        <label><input type="checkbox" id="b_table" ${b.showTable ? 'checked' : ''}> Show table number</label>
         <label><input type="checkbox" id="b_cust" ${b.showCustomer ? 'checked' : ''}> Show customer name</label></div>
       <div><label>Header line (below the name)</label><input id="b_head" value="${esc(b.headerNote)}" maxlength="100" placeholder="Pure Veg · Since 1998"></div>
       <div style="grid-column:1/-1"><label>Footer (blank = hotel setting)</label><input id="b_foot" value="${esc(b.footer)}" maxlength="200" style="width:100%"></div>
     </div>
-    <h3>Custom Fields (bill par, max 6)</h3>
+    <h3>Custom fields on the bill (max 6)</h3>
     <div id="b_fields"></div>
-    <div class="row" style="margin-top:8px"><button class="g" onclick="addField()">+ Field</button><button onclick="saveBilling()">Billing Template Save</button></div>
+    <div class="row" style="margin-top:8px"><button class="g" onclick="addField()">+ Field</button><button onclick="saveBilling()">Save bill template</button></div>
     <p class="muted">Existing bills are not changed; the new template applies to new bills only.</p>
   </div><div><label>Preview</label><div id="b_prev"></div></div></div>`;
   FIELDS = (b.fields || []).map(f => ({...f}));
@@ -1328,7 +1365,7 @@ let FIELDS = [];
 function drawFields(){
   $('#b_fields').innerHTML = FIELDS.map((f, i) => `<div class="row" style="margin-bottom:6px">
     <input value="${esc(f.label)}" maxlength="30" placeholder="e.g. Vehicle No / Room No" oninput="FIELDS[${i}].label=this.value">
-    <label style="margin:0"><input type="checkbox" ${f.required ? 'checked' : ''} onchange="FIELDS[${i}].required=this.checked"> Zaroori</label>
+    <label style="margin:0"><input type="checkbox" ${f.required ? 'checked' : ''} onchange="FIELDS[${i}].required=this.checked"> Required</label>
     <button class="g" onclick="FIELDS.splice(${i},1);drawFields()">Remove</button></div>`).join('') || '<p class="muted">No custom fields</p>';
   preview();
 }
@@ -1356,7 +1393,7 @@ function tabRules(){
   $('#tab').innerHTML = `<div class="grid">
       <div><label>Cashier max discount % (above this needs Manager PIN)</label><input id="r_disc" type="number" min="0" max="100" value="${r.maxDiscPct ?? ''}" placeholder="blank = hotel setting"></div>
       <div><label>Customer mobile required for bills above ₹</label><input id="r_phone" type="number" min="0" value="${r.phoneAbove ?? ''}" placeholder="blank = off"></div>
-    </div><div class="row" style="margin-top:12px"><button onclick="update({rules:{maxDiscPct:r_disc.value,phoneAbove:r_phone.value}}, 'Rules save')">Rules Save</button></div>
+    </div><div class="row" style="margin-top:12px"><button onclick="update({rules:{maxDiscPct:r_disc.value,phoneAbove:r_phone.value}}, 'Rules saved')">Save rules</button></div>
     <p class="muted">Rules apply to every device of the hotel; cashiers cannot change them in Settings.</p>`;
 }
 

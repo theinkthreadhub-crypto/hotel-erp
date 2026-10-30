@@ -125,7 +125,7 @@ const BRIDGE = `(() => {
       const l = await log();
       assert.ok(l.some(x => x[0] === 'lockSet' && x[1] === true));
       assert.equal(await p.evaluate(() => $('#applock').checked), true);
-      assert.match(await p.textContent('#toast'), /App lock on/);
+      assert.match(await p.textContent('#toast'), /App lock is on/);
       await shot(p, '08-applock');
       return 'ok';
     });
@@ -177,6 +177,61 @@ const BRIDGE = `(() => {
       return 'auto login, then logout cleared the key';
     });
     await check('A14', 'No page errors', async () => { assert.deepEqual(errs, []); return 'none'; });
+
+    // Errors: Dismiss one, Clear all, Show cleared; a device re-sending old errors does not bring them back, a new one does
+    await check('A16', 'Error Log: dismiss one, clear all, show cleared; only a NEW error comes back', async () => {
+      const post = (path, body, h = {}) => fetch(U + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(body) }).then(async r => ({ s: r.status, j: await r.json().catch(() => ({})) }));
+      const A = { 'X-Setu-Admin': KEY }, n = Math.floor(Math.random() * 90);
+      const c = await post('/api/admin/create', { hotelName: 'Synthetic Err ' + n, ownerName: 'Synth', phone: '90000003' + String(n).padStart(2, '0'), password: 'Synth@Err' + n + 'x', days: 30, paid: true }, A);
+      const code = c.j.code, H = { 'X-Setu-Hotel': code };
+      const tok = (await post('/api/login', { pin: 'Synth@Err' + n + 'x' }, H)).j.token;
+      const now = Date.now(), errs = [{ id: 'e1', at: now - 60000, kya: 'Printer not found', kahan: 'Print', dev: 'Main Counter PC', n: 2 }, { id: 'e2', at: now - 30000, kya: 'Cloud sync failed', kahan: 'Sync', dev: 'Main Counter PC', n: 1 }];
+      const save = async list => { const db = await fetch(U + '/api/db', { headers: { ...H, 'X-Setu-Token': tok } }).then(r => r.json()); const d = db.data || { settings: {} }; d.errSync = list;
+        return post('/api/db', { baseVersion: db.version, data: d }, { ...H, 'X-Setu-Token': tok }); };
+      assert.equal((await save(errs)).s, 200);
+      const reg = async () => (await post('/api/admin/hotels', {}, A)).j.hotels.find(h => h.code === code);
+      let r = await post('/api/admin/errors', { code }, A);
+      assert.equal(r.j.open, 2, 'two open'); assert.equal(+(await reg()).errs, 3, 'registry counts 3 (2+1)');
+      r = await post('/api/admin/errors', { code, clear: true, id: 'e1' }, A);
+      assert.equal(r.j.open, 1, 'one open after dismiss'); assert.equal(+(await reg()).errs, 1, 'registry follows at once');
+      r = await post('/api/admin/errors', { code, clear: true }, A);
+      assert.equal(r.j.open, 0); assert.equal(r.j.cleared, 2); assert.equal(+(await reg()).errs || 0, 0);
+      r = await post('/api/admin/errors', { code, showCleared: true }, A);
+      assert.equal(r.j.errors.length, 2); assert.ok(r.j.errors.every(e => e.cleared));
+      assert.equal((await save(errs)).s, 200);           // the PC sends the same old errors again
+      assert.equal((await post('/api/admin/errors', { code }, A)).j.open, 0, 'old errors stay cleared');
+      assert.equal((await save([...errs, { id: 'e3', at: Date.now(), kya: 'Database write failed', dev: 'Main Counter PC', n: 1 }])).s, 200);
+      r = await post('/api/admin/errors', { code }, A);
+      assert.equal(r.j.open, 1); assert.equal(r.j.errors[0].kya, 'Database write failed');
+      // UI: the sheet has Dismiss and Clear all buttons
+      await p.goto(U + '/admin'); await p.waitForTimeout(800);
+      if(await p.isVisible('#login')){ await p.fill('#key', KEY); await p.click('#lf button.big'); }
+      await p.waitForSelector('.hc', { timeout: 15000 });
+      await p.evaluate(() => loadHotels());
+      await p.evaluate(x => hotelErrors(x), code); await p.waitForTimeout(1200);
+      const ui = await p.evaluate(() => ({ dismiss: [...document.querySelectorAll('#sbox button')].some(b => b.textContent === 'Dismiss'), clearAll: [...document.querySelectorAll('#sbox button')].some(b => b.textContent === 'Clear all') }));
+      await shot(p, '13-error-log');
+      assert.ok(ui.dismiss && ui.clearAll, JSON.stringify(ui));
+      await p.evaluate(() => { const b = [...document.querySelectorAll('#sbox button')].find(x => x.textContent === 'Dismiss'); b.click(); });
+      await p.waitForTimeout(1500);
+      assert.match(await p.textContent('#toast'), /dismissed/i);
+      assert.equal((await post('/api/admin/errors', { code }, A)).j.open, 0);
+      await back(); await p.waitForTimeout(400);
+      return `hotel ${code}: 2 → dismiss 1 → clear all 0 → resend old 0 → new error 1 → dismissed in the app 0`;
+    });
+    await check('A17', 'No Hinglish left in the page text', async () => {
+      // What a person sees on every screen (not the code)
+      let txt = '';
+      for(const v of ['hotels', 'keygen', 'tickets', 'more', 'dash', 'backups', 'audit', 'updates', 'security', 'ai', 'add', 'blocked']){
+        await p.evaluate(x => show(x), v); await p.waitForTimeout(600);
+        txt += ' ' + await p.evaluate(() => document.body.innerText + ' ' + [...document.querySelectorAll('[placeholder]')].map(e => e.placeholder).join(' '));
+      }
+      await p.evaluate(() => hotelSheet(HOTELS[0].code)); await p.waitForTimeout(500);
+      txt += ' ' + await p.evaluate(() => document.body.innerText); await back(); await p.waitForTimeout(400);
+      const hits = (txt.match(/\b(nahi|hain|kijiye|karein|daaliye|banaiye|saare|naya|aaj|dobara|lagaiye|bhejiye|purana|juda|zaroori|naam|ya|aur|mein|kab|kya|liye)\b/gi) || []);
+      assert.deepEqual(hits, []);
+      return 'clean';
+    });
 
     // Plain browser (no app): same page still works
     await check('A15', 'Browser without the app: login + hotels still work (key in localStorage when remembered)', async () => {
