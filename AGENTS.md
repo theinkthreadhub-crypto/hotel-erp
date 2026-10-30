@@ -1,5 +1,9 @@
 # AGENTS.md — Setu (Restaurant & Hotel POS) — A to Z
 
+> **Owner rule (permanent): every software, app, screen, message, document and test label we build must be in
+> professional English only — no Hinglish or Hindi words in the UI, buttons, toasts, errors, native Android strings,
+> release notes or docs. Use a professional typeface (Inter in web pages; the system sans in native views).**
+
 Guide for AI coding agents (Claude Code, Codex, Cursor, …) and developers working in this repo.
 Read it fully before changing anything: licensing, sync and printing carry real money and real data.
 
@@ -15,7 +19,7 @@ Read it fully before changing anything: licensing, sync and printing carry real 
   and log in with a PIN (captain / cashier / manager).
 - **Hotel Setu Cloud (optional, automatic):** a Cloudflare Worker (`cloud/`). A licensed counter joins by itself, syncs its data,
   and the owner can open Setu on a phone from anywhere. The vendor runs everything from **Super Admin** (web page + Android app).
-- Users: Indian restaurant owners, cashiers, captains, kitchen staff. UI language: short **Hinglish** ("Bill save ho gaya").
+- Users: Indian restaurant owners, cashiers, captains, kitchen staff. UI language: **professional English only** (owner rule, Oct 2026 — see below).
 - **Branding:** product name **Setu**. Keep every "Powered by Aghanya Devanya Enterprises" line and the licensing authority name.
 - Cloud host: `https://setu-cloud.theinkthreadhub.workers.dev` (worker `setu-cloud`, Cloudflare account *theinkthreadhub*).
   The Library ERP's worker `setu-erp` lives in the same account and is **never touched** by this repo.
@@ -323,7 +327,7 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 
 - 2-space indent, `const` arrow helpers, template-string HTML, semicolons; match the surrounding code and its comment density.
 - No frameworks, bundlers or CDNs; everything works offline (Google Fonts optional).
-- Every feature usable by keyboard (Enter, Esc, hotkeys). Short Hinglish UI copy. No emojis in the app UI or printed bills.
+- Every feature usable by keyboard (Enter, Esc, hotkeys). Short, professional English UI copy (no Hinglish). No emojis in the app UI or printed bills.
 - Work branch for this effort: `ccr-89eaafa4-mxbfj2` (deploys too); long-lived branch `hotel-software`; leave `main` alone unless asked.
 - Commit messages: imperative summary line, then a body that explains why.
 
