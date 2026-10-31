@@ -25,12 +25,14 @@ function wait(ms) {
 }
 
 let activeToken = null;
+let launchSecret = null; // Read only from this isolated test counter data folder.
 
 async function api(path, options = {}) {
   const url = `http://127.0.0.1:${PORT}${path}`;
   const headers = {
     'Content-Type': 'application/json',
     ...(activeToken ? { 'X-Setu-Token': activeToken } : {}),
+    ...(launchSecret ? { 'X-Setu-Launch': launchSecret } : {}),
     ...(options.headers || {})
   };
   const res = await fetch(url, {
@@ -65,6 +67,9 @@ async function startServer() {
     await wait(150);
   }
   if (!online) throw new Error('Test server failed to start on port ' + PORT);
+  // Authenticated main-counter test session; do not disable authorization.
+  launchSecret = fs.readFileSync(path.join(TEST_DIR, 'setu-launch.key'), 'utf8').trim();
+  if(!launchSecret) throw new Error('Missing counter launch secret');
 }
 
 function stopServer() {
