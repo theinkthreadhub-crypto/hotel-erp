@@ -99,7 +99,7 @@ class HoReCaOneStaticChecks(unittest.TestCase):
         self.assertIn("HoReCa One", manifest["name"])
         self.assertIn("HoReCa One", manifest["short_name"])
         sw = (ROOT / "sw.js").read_text(encoding="utf-8")
-        self.assertIn("setu-pos-v68", sw)
+        self.assertIn("setu-pos-v69", sw)
         self.assertIn("hotel_erp.html", sw)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js unavailable")
