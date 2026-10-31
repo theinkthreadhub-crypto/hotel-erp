@@ -72,24 +72,24 @@ test('TC-QR07: hotel_erp.html has CSS styling for QR tables (.tbl-chip.qr-active
   assert(html.includes('linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)') || html.includes('#8b5cf6'), 'Must use vibrant purple/violet theme for QR orders');
 });
 
-test('TC-QR08: hotel_erp.html includes the Table Status Color Legend for new users', () => {
+test('TC-QR08: table status legend has clear professional English labels', () => {
   assert(html.includes('table-legend-wrap'), 'Legend wrapper class must exist');
-  assert(html.includes('🟢 Free (खाली)'), 'Free table legend must be present');
-  assert(html.includes('🟠 Counter (चालू)'), 'Counter/waiter table legend must be present');
-  assert(html.includes('🟣 📱 QR Order (ग्राहक)'), 'QR order table legend must be present');
-  assert(html.includes('🔵 Selected (चुना हुआ)'), 'Selected table legend must be present');
+  for (const label of ['Free', 'Running', 'QR Order', 'Selected']) {
+    assert(html.includes('>'+label+'</span>'), label + ' legend label must be present');
+  }
+  assert(html.includes('class="legend-dot"'), 'Legend must use visible status markers');
 });
 
-test('TC-QR09: Table bar buttons include QR badges (📱 QR New! or ₹... QR)', () => {
-  assert(html.includes('isQrPending'), 'Must check for pending QR order');
-  assert(html.includes('isQrActive'), 'Must check for active QR order');
-  assert(html.includes('📱 QR New!'), 'Must display QR New badge for pending order');
-  assert(html.includes('>QR</span></b>'), 'Must display QR badge on running table amount');
+test('TC-QR09: table buttons show QR pending and active states', () => {
+  assert(html.includes('isQrPending'), 'Must check for pending QR orders');
+  assert(html.includes('isQrActive'), 'Must check for active QR orders');
+  assert(html.includes('>QR New</span>'), 'Pending QR order label required');
+  assert(html.includes('>QR</span></b>'), 'Running QR order amount badge required');
 });
 
-test('TC-QR10: Bottom active-tables-grid displays QR badge on active cards', () => {
-  assert(html.includes('📱 QR Order</span>'), 'Must display QR Order badge in active-tables-grid');
-  assert(html.includes('active-table-card.qr-order'), 'Must style active table card for QR orders');
+test('TC-QR10: active table card shows a distinguishable QR order status', () => {
+  assert(html.includes('QR Order</span>'), 'QR Order label is required');
+  assert(html.includes('active-table-card.qr-order'), 'QR order card style is required');
 });
 
 test('TC-QR11: qrPoll and qrApply trigger scrBill re-rendering in real-time', () => {
