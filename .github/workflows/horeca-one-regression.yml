@@ -42,5 +42,9 @@ jobs:
         run: node tests/qr_table_display_suite.cjs
       - name: Gate-1 / Gate-2 authentication suite (isolated localhost)
         run: node tests/gate1_gate2_security_suite.cjs
+      - name: Install Playwright Chromium for real cross-origin security tests
+        run: |
+          npm install --no-save --no-package-lock playwright
+          npx playwright install --with-deps chromium
       - name: Counter P0 security checks (isolated localhost, never production)
         run: node tests/p0-security.cjs
