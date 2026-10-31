@@ -21,6 +21,27 @@ import base64
 import hashlib
 import secrets
 import datetime
+import hmac
+WA_SALT = 'SetuPro-Aghanya-Devanya-WhatsApp-Vendor-Key-2026'
+
+def make_compact_voucher(install_id, credits):
+    clean_id = clean_install_id(install_id)
+    msg = f'{clean_id}:{credits}:{WA_SALT}'.encode('utf-8')
+    h = hashlib.sha256(msg).hexdigest()[:8].upper()
+    return f'WA-{credits}-{h}'
+
+def verify_compact_voucher(voucher, install_id):
+    parts = voucher.strip().upper().split('-')
+    if len(parts) != 3 or parts[0] != 'WA':
+        return None
+    try:
+        credits = int(parts[1])
+        if credits <= 0: return None
+    except ValueError:
+        return None
+    expected = make_compact_voucher(install_id, credits)
+    return credits if hmac.compare_digest(expected, voucher.strip().upper()) else None
+
 
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec
@@ -50,6 +71,15 @@ PLANS = {
     'set3m':   (5, 90,  'Set: 90 Days from today'),
     'set1y':   (5, 365, 'Set: 1 Year from today'),
     'master':  (6, 7,   'Master Key (7 days, any new PC, usable 180 days)'),
+    # WhatsApp Credits Vouchers (ECDSA signed, tied to Install ID)
+    'wa10':    (7, 10,   'WhatsApp Recharge: 10 Messages'),
+    'wa50':    (7, 50,   'WhatsApp Recharge: 50 Messages'),
+    'wa100':   (7, 100,  'WhatsApp Recharge: 100 Messages'),
+    'wa200':   (7, 200,  'WhatsApp Recharge: 200 Messages'),
+    'wa500':   (7, 500,  'WhatsApp Recharge: 500 Messages'),
+    'wa1000':  (7, 1000, 'WhatsApp Recharge: 1,000 Messages'),
+    'wa2000':  (7, 2000, 'WhatsApp Recharge: 2,000 Messages'),
+    'wa5000':  (7, 5000, 'WhatsApp Recharge: 5,000 Messages'),
 }
 
 
@@ -161,12 +191,27 @@ def main():
         sys.exit('Invalid plan')
     hotel = args[2] if len(args) > 2 else input('Hotel name (optional): ').strip()
 
-    key = make_key(install_id, plan)
-    log_key(install_id, plan, hotel, key)
     print('\n' + '*' * 64)
     print(f'  {PLANS[plan][2]} — {hotel or install_id}')
-    print('  Send this complete key to the client (copy-paste):\n')
-    print(key)
+    if plan.startswith('wa'):
+        credits = PLANS[plan][1]
+        compact = make_compact_voucher(install_id, credits)
+        print('\n  * QUICK VOUCHER CODE (Send this on WhatsApp to Client):')
+        print(f'  ================================================')
+        print(f'      {compact}')
+        print(f'  ================================================')
+        if os.path.exists(PRIVATE_KEY_FILE):
+            key = make_key(install_id, plan)
+            log_key(install_id, plan, hotel, key)
+            print('\n  Or Full Signed Key (ECDSA):')
+            print(key)
+        else:
+            log_key(install_id, plan, hotel, compact)
+    else:
+        key = make_key(install_id, plan)
+        log_key(install_id, plan, hotel, key)
+        print('  Send this complete key to the client (copy-paste):\n')
+        print(key)
     print('*' * 64)
     print('Record saved:', ISSUED_CSV)
 

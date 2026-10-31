@@ -40,6 +40,7 @@ const LIC_EPOCH = Date.UTC(2026, 0, 1);
 // Feature key -> label and the top-level data keys only that module writes. When a module is
 // off for a hotel, the server keeps its stored copy of those keys (changes are ignored).
 const FEATURES = {
+  whatsapp:     { label: 'WhatsApp Receipts & Messaging', keys: ['waMessages'] },
   kot:          { label: 'Kitchen Display (KOT)', keys: [] },
   online:       { label: 'Zomato / Swiggy Desk + Settlement', keys: ['onlineOrders'] },
   inventory:    { label: 'Stock, Purchase & Suppliers', keys: ['stock'] },
@@ -54,8 +55,8 @@ const FEATURES = {
   ai:           { label: 'Setu AI (Gemini)', keys: [] }
 };
 const TIERS = {
-  basic:   { label: 'Basic', features: ['kot', 'qr', 'tokens'] },
-  premium: { label: 'Premium', features: ['kot', 'qr', 'tokens', 'inventory', 'loyalty', 'captain', 'reservations', 'reports', 'staff', 'ai'] },
+  basic:   { label: 'Basic', features: ['whatsapp', 'kot', 'qr', 'tokens'] },
+  premium: { label: 'Premium', features: ['whatsapp', 'kot', 'qr', 'tokens', 'inventory', 'loyalty', 'captain', 'reservations', 'reports', 'staff', 'ai'] },
   diamond: { label: 'Diamond', features: Object.keys(FEATURES) }
 };
 const TEMPLATES = {
@@ -211,6 +212,9 @@ function saasView(a){
   Object.keys(FEATURES).forEach(k => features[k] = k in (c.overrides || {}) ? !!c.overrides[k] : TIERS[tier].features.includes(k));
   return { hotel: a.code, tier, tierLabel: TIERS[tier].label, businessType: c.businessType, features, billing: c.billing, rules: c.rules, ver: c.ver || 1,
     notice: a.notice || null, offline: !!a.offline,
+    waCredits: typeof a.waCredits === 'number' ? a.waCredits : 0,
+    waTotalSent: a.waTotalSent || 0,
+    waCreditSeq: a.waCreditRechargeSeq || 0,
     // Counter-PC hotel billing on the website: daily limit and an emergency unlock (shown in the app, enforced on save)
     ...(a.plan === 'counter' ? { webMax: a.webMax ?? WEB_BILLS_PER_DAY, webUnlockUntil: a.webUnlockUntil || 0 } : {}),
     lock: a.status === 'suspended' ? { lv: 2, msg: 'Your Setu account is suspended. Please contact Aghanya Devanya Enterprises.', at: a.suspendedAt || 0 } : a.lock || null };
@@ -493,6 +497,8 @@ export class SetuRegistry extends DurableObject {
     if(!cols.includes('dsize')) this.sql.exec('ALTER TABLE hotel ADD COLUMN dsize INTEGER DEFAULT 0');
     // Offline hotel (no internet at the hotel): the 30-day cloud grace does not apply, the licence key decides
     if(!cols.includes('offmode')) this.sql.exec('ALTER TABLE hotel ADD COLUMN offmode INTEGER DEFAULT 0');
+    if(!cols.includes('wa_credits')) this.sql.exec('ALTER TABLE hotel ADD COLUMN wa_credits INTEGER DEFAULT 0');
+    if(!cols.includes('wa_sent')) this.sql.exec('ALTER TABLE hotel ADD COLUMN wa_sent INTEGER DEFAULT 0');
     // Help & Support tickets from the hotels, and Install IDs the vendor blocked
     this.sql.exec(`CREATE TABLE IF NOT EXISTS ticket (id TEXT PRIMARY KEY, code TEXT NOT NULL, subject TEXT, status TEXT, msgs TEXT,
       created INTEGER, updated INTEGER, unread_admin INTEGER DEFAULT 0, unread_hotel INTEGER DEFAULT 0)`);
@@ -614,7 +620,7 @@ export class SetuRegistry extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/update'){
-      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill', 'errs', 'lasterr', 'lastbk', 'bkn', 'bksize', 'dsize', 'offmode'].filter(c => c in body);
+      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill', 'errs', 'lasterr', 'lastbk', 'bkn', 'bksize', 'dsize', 'offmode', 'wa_credits', 'wa_sent'].filter(c => c in body);
       if(cols.length) this.sql.exec(`UPDATE hotel SET ${cols.map(c => c + ' = ?').join(', ')} WHERE code = ?`, ...cols.map(c => body[c]), body.code);
       return json(200, { ok: true });
     }
@@ -851,6 +857,17 @@ export class SetuHotel extends DurableObject {
         planName: a.lifetime ? 'Lifetime (Hotel Setu Cloud)' : 'Hotel Setu Cloud', status: a.lifetime ? 'lifetime' : 'active' };
       Object.keys(sub).forEach(k => { if(d.subscription[k] !== sub[k]){ d.subscription[k] = sub[k]; changed = true; } });
       if('lastSeen' in d.subscription){ delete d.subscription.lastSeen; changed = true; }
+    }
+    // If client reported waCredits in settings, sync down credit usage:
+    if(d.settings && typeof d.settings.waCredits === 'number'){
+      const localCredits = Math.max(0, Math.round(d.settings.waCredits));
+      if(typeof a.waCredits === 'number' && localCredits < a.waCredits){
+        const sentDiff = a.waCredits - localCredits;
+        a.waCredits = localCredits;
+        a.waTotalSent = (a.waTotalSent || 0) + sentDiff;
+        this.saveAccount();
+        regCall(this.env, '/update', { code: a.code, wa_credits: a.waCredits, wa_sent: a.waTotalSent }).catch(() => {});
+      }
     }
     // Modules that are off: their data stays as the server has it
     const view = saasView(a);
@@ -1274,6 +1291,9 @@ export class SetuHotel extends DurableObject {
       plans: Object.entries(p).map(([id, x]) => ({ id, tier: x.tier || '', tierLabel: (TIERS[x.tier] || {}).label || '', label: x.label || id, price: x.price || 0, days: x.days || 30 })),
       payments: this.sql.exec('SELECT id, plan, days, amount, at FROM payment ORDER BY at DESC LIMIT 24').toArray(),
       features: view.features, version: this.meta.version, savedAt: this.meta.savedAt,
+      waCredits: typeof a.waCredits === 'number' ? a.waCredits : 0,
+      waTotalSent: a.waTotalSent || 0,
+      waCreditSeq: a.waCreditRechargeSeq || 0,
       supportLog: (a.supportLog || []).slice(0, 10), gstin: a.gstin || '', notice: a.notice || null, lock: a.lock || null,
       counter: this.counterInfo(),
       backups: this.backupDays().slice(0, 7)
@@ -1448,6 +1468,21 @@ export class SetuHotel extends DurableObject {
     }
     if(b.billing){ cfg.billing = cleanBilling(b.billing); notes.push('billing template'); }
     if(b.rules){ cfg.rules = cleanRules(b.rules); notes.push('rules'); }
+    // Vendor WhatsApp message credits allotment:
+    if(b.waCredits !== undefined){
+      const credits = Math.max(0, Math.min(1000000, Math.round(+b.waCredits) || 0));
+      a.waCredits = credits;
+      a.waCreditRechargeSeq = (a.waCreditRechargeSeq || 0) + 1;
+      notes.push('waCredits set ' + credits);
+      regCall(this.env, '/update', { code: a.code, wa_credits: a.waCredits, wa_sent: a.waTotalSent || 0 }).catch(() => {});
+    }
+    if(b.addWaCredits){
+      const add = Math.round(+b.addWaCredits) || 0;
+      a.waCredits = Math.max(0, Math.min(1000000, (a.waCredits || 0) + add));
+      a.waCreditRechargeSeq = (a.waCreditRechargeSeq || 0) + 1;
+      notes.push('waCredits +' + add + ' (total ' + a.waCredits + ')');
+      regCall(this.env, '/update', { code: a.code, wa_credits: a.waCredits, wa_sent: a.waTotalSent || 0 }).catch(() => {});
+    }
     if(b.profile){
       ['name', 'owner', 'phone', 'email'].forEach(k => { if(b.profile[k] !== undefined) a[k] = str(b.profile[k], 100); });
       if(b.profile.gstin !== undefined){
@@ -1616,6 +1651,16 @@ export class SetuHotel extends DurableObject {
     const locked = request.headers.get('X-Setu-Host-Locked') === '1';
     if(method === 'GET' && path === '/api/ping') return json(200, { setu: true, cloud: true, saas: true, local: false, hotel: this.account.code, name: this.account.name, hostLocked: locked, version: this.meta.version });
     if(method === 'GET' && path === '/api/info') return json(200, { setu: true, cloud: true, saas: true, local: false, ips: [] });
+    if(method === 'GET' && path === '/api/wa/balance'){
+      const view = saasView(this.account);
+      return json(200, {
+        ok: true,
+        credits: typeof this.account.waCredits === 'number' ? this.account.waCredits : 0,
+        totalSent: this.account.waTotalSent || 0,
+        seq: this.account.waCreditRechargeSeq || 0,
+        enabled: view.features.whatsapp !== false
+      });
+    }
     if(method === 'POST' && path === '/api/login') return this.login(request, text);
     if(method === 'POST' && path === '/api/counter/restore') return this.counterRestore(request, text);
     // QR self-ordering, guest side: no login, only a table's QR token

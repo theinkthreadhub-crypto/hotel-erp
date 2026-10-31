@@ -1708,6 +1708,7 @@ const GROWTH_DEFAULTS = {
 // On Setu Cloud the server writes D.saas (plan, modules, bill template, rules) and ignores any change
 // a device makes to it. LAN / browser installs have no D.saas, so everything stays on there.
 const FEATURE_SCREENS = {
+  whatsapp: ['wareports', 'wa-reports'],
   kot: ['kitchen'], online: ['online', 'settlement'], inventory: ['purchase', 'stock', 'suppliers'], qr: ['qr'],
   loyalty: ['customers'], staff: ['staff'], captain: ['captain'], reservations: ['reservations'], tokens: ['tokens'],
   reports: ['reports', 'analytics'], outlets: ['outlets'], ai: ['ai']
@@ -1728,6 +1729,16 @@ function applySaas(s){
   if(b.footer) s.settings.footer = b.footer;
   const r = c.rules || {};
   if(r.maxDiscPct !== null && r.maxDiscPct !== undefined) s.settings.maxDiscPct = +r.maxDiscPct;
+  // WhatsApp Cloud Allotment Sync (Auto-reflect vendor credits from Super Admin):
+  if(typeof c.waCredits === 'number'){
+    const cloudSeq = c.waCreditSeq || 0;
+    const lastSeq = s.settings.lastWaCreditSeq || 0;
+    if(cloudSeq > lastSeq || s.settings.waCredits === undefined || s.settings.waCredits === null){
+      s.settings.waCredits = Math.max(0, Math.round(c.waCredits));
+      s.settings.lastWaCreditSeq = cloudSeq;
+      if(typeof updateWaBalanceUI === 'function') updateWaBalanceUI();
+    }
+  }
 }
 function setExtra(i, v){
   const f = billFields()[i];
@@ -2676,6 +2687,7 @@ async function getActivationKeyInfo(keyStr){
     if(kind === 2) return { valid: true, id, plan: `Demo (${value} Minutes)`, minutes: value, days: +(value / 1440).toFixed(4), isLifetime: false, isDemo: true };
     const names = {30: '1 Month (30 Days)', 60: '2 Months (60 Days)', 90: '3 Months (90 Days)', 180: '6 Months (180 Days)', 365: '1 Year (365 Days)'};
     if(kind === 1) return { valid: true, id, plan: names[value] || `${value} Days Plan`, days: value, isLifetime: false };
+    if(kind === 7) return { valid: true, id, isWaVoucher: true, credits: value, plan: `WhatsApp Voucher (${value} Messages)`, days: 0 };
     // Kind 5: the vendor sets the licence to exactly N days from the key's issue day (replaces the old date, also a lifetime)
     // Kind 6: Master Key from the vendor's pendrive, any PC, N days from today, once per PC; the key itself works
     // only for MASTER_KEY_LIFE days after it was made
@@ -4046,8 +4058,14 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     return;
   }
 
+  if(!featureOn('whatsapp')){
+    toast('🔒 WhatsApp module has been disabled by your vendor. Contact SetuPro to enable.');
+    _waInFlight[billId] = false;
+    updateWaButtons(billId);
+    return;
+  }
   if(getWaCredits() <= 0){
-    toast('⚠️ WhatsApp balance is 0. Cannot send bill. Please recharge credits.');
+    toast('⚠️ WhatsApp balance is 0. Cannot send bill. Please contact vendor for recharge.');
     openWaModal(true);
     _waInFlight[billId] = false;
     updateWaButtons(billId);
@@ -16846,6 +16864,101 @@ function deductWaCredit(qty = 1){
   return nextBal;
 }
 
+
+const WA_VOUCHER_SALT = 'SetuPro-Aghanya-Devanya-WhatsApp-Vendor-Key-2026';
+
+async function verifyCompactWaVoucher(voucher, installId){
+  const parts = String(voucher || '').trim().toUpperCase().split('-');
+  if(parts.length !== 3 || parts[0] !== 'WA') return null;
+  const credits = parseInt(parts[1], 10);
+  if(isNaN(credits) || credits <= 0) return null;
+  
+  const cleanId = String(installId || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const enc = new TextEncoder();
+  const data = enc.encode(cleanId + ':' + credits + ':' + WA_VOUCHER_SALT);
+  const hashBuf = await crypto.subtle.digest('SHA-256', data);
+  const hex = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 8).toUpperCase();
+  
+  return (hex === parts[2]) ? credits : null;
+}
+
+async function redeemWaVoucherAction(){
+  const rawInput = $('#wa_voucher_input')?.value.trim().toUpperCase() || '';
+  if(!rawInput){
+    toast('Kripya valid WhatsApp recharge voucher enter karein');
+    return;
+  }
+  if(!featureOn('whatsapp')){
+    toast('🔒 WhatsApp module is disabled by your vendor. Contact SetuPro to enable.');
+    return;
+  }
+
+  if(!Array.isArray(D.settings.usedWaVouchers)) D.settings.usedWaVouchers = [];
+
+  // Check 1: Compact Voucher format (WA-500-XXXXXXXX)
+  const compactCredits = await verifyCompactWaVoucher(rawInput, D.settings.installId);
+  if(compactCredits){
+    if(D.settings.usedWaVouchers.includes(rawInput)){
+      toast('❌ Ye voucher code pehle hi redeem ho chuka hai!');
+      return;
+    }
+    D.settings.usedWaVouchers.push(rawInput);
+    applyWaCreditsAllocation(compactCredits, rawInput, 'Vendor Compact Voucher');
+    return;
+  }
+
+  // Check 2: Full ECDSA Signed Key (SETU-...)
+  const act = await licVerify(rawInput);
+  if(act && act.payload && act.payload[1] === 7){
+    const credits = (act.payload[2] << 8) | act.payload[3];
+    if(credits > 0){
+      if(D.settings.usedWaVouchers.includes(act.id)){
+        toast('❌ Ye voucher key pehle hi redeem ho chuki hai!');
+        return;
+      }
+      D.settings.usedWaVouchers.push(act.id);
+      applyWaCreditsAllocation(credits, act.id, 'Vendor Signed Key');
+      return;
+    }
+  }
+
+  toast('❌ Invalid Voucher Key! Kripya SetuPro se genuine recharge key prapt karein.');
+}
+
+function applyWaCreditsAllocation(credits, code, note){
+  const prevBal = getWaCredits();
+  const nextBal = prevBal + credits;
+  D.settings.waCredits = nextBal;
+  if(!Array.isArray(D.settings.waRecharges)) D.settings.waRecharges = [];
+  D.settings.waRecharges.unshift({
+    id: 'rech_' + Date.now() + '_' + uid(),
+    date: today(),
+    time: nowTime(),
+    at: Date.now(),
+    amount: credits,
+    prev: prevBal,
+    balance: nextBal,
+    code: code,
+    by: 'Vendor Allotment',
+    note: note || `+${credits} WhatsApp credits added`
+  });
+  if(D.settings.waRecharges.length > 50) D.settings.waRecharges = D.settings.waRecharges.slice(0, 50);
+
+  // Sync to local server if active
+  if(SRV.on && !SRV.cloud){
+    srvFetch('/api/wa/recharge', {
+      method: 'POST',
+      body: JSON.stringify({ amount: credits, code: code, note: note })
+    }).catch(() => {});
+  }
+  save();
+  updateWaHeader();
+  audit('WhatsApp Recharge', `+${credits} msgs added via vendor voucher. Balance: ${nextBal}`);
+  toast(`🎉 Recharge Successful! +${credits} Messages added. Balance: ${nextBal} Msgs`);
+  if($('#wa_voucher_input')) $('#wa_voucher_input').value = '';
+  if(isModal() && $('#wa-tab-btn-rech')) openWaModal(true);
+}
+
 function rechargeWaCredits(amount, code = 'DIRECT', note = ''){
   amount = parseInt(amount, 10);
   if(isNaN(amount) || amount <= 0){
@@ -16886,11 +16999,48 @@ function rechargeWaCredits(amount, code = 'DIRECT', note = ''){
   return true;
 }
 
+async function syncWaFromCloud(interactive = false){
+  try{
+    if(interactive) toast('Checking latest credits from SetuPro Cloud...');
+    const r = await fetch('/api/wa/cloud-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    if(r.ok){
+      const j = await r.json();
+      if(j.credits !== undefined){
+        if(D && D.settings) D.settings.waCredits = j.credits;
+        save();
+        updateWaHeader();
+        if(interactive){
+          toast('WhatsApp credits synced! Balance: ' + j.credits);
+          openWaModal(true);
+        }
+        return;
+      }
+    }
+  }catch(e){}
+  if(interactive) toast('Cloud sync underway. Latest allotment will reflect shortly.');
+}
+
 function updateWaHeader(){
   const btn = $('#top-wa-btn');
   const chip = $('#top-wa-credit-chip');
   if(!btn || !chip) return;
 
+  if(!featureOn('whatsapp')){
+    btn.className = 'top-wa-btn disabled';
+    btn.innerHTML = `<span class="top-wa-icon-slot wa-cut-wrap"><svg class="wa-base-svg" viewBox="0 0 24 24" width="20" height="20" fill="#94a3b8"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm.02 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-0.86 4.27-2.42 5.82a8.188 8.188 0 01-5.82 2.42c-1.45 0-2.88-0.38-4.14-1.11l-0.3-.17-3.1 0.81 0.83-3.02-0.19-0.31a8.19 8.19 0 01-1.25-4.44c0-4.54 3.7-8.24 8.24-8.24z"/></svg><svg class="wa-cut-svg" viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="9.5" stroke="#ef4444" stroke-width="2.5" fill="none" /><line x1="5.28" y1="5.28" x2="18.72" y2="18.72" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" /></svg></span>`;
+    btn.title = 'WhatsApp Module Disabled by Vendor (SetuPro) — Contact vendor to activate';
+    chip.innerHTML = `<span class="wa-credit-icon">🔒</span><b>Disabled</b>`;
+    chip.className = 'top-wa-credit-chip credit-zero';
+    return;
+  }
+  if(!featureOn('whatsapp')){
+    btn.className = 'top-wa-btn disabled';
+    btn.innerHTML = `<span class="top-wa-icon-slot wa-cut-wrap"><svg class="wa-base-svg" viewBox="0 0 24 24" width="20" height="20" fill="#94a3b8"><path d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0012.04 2zm.02 1.67c4.54 0 8.24 3.7 8.24 8.24 0 2.2-0.86 4.27-2.42 5.82a8.188 8.188 0 01-5.82 2.42c-1.45 0-2.88-0.38-4.14-1.11l-0.3-.17-3.1 0.81 0.83-3.02-0.19-0.31a8.19 8.19 0 01-1.25-4.44c0-4.54 3.7-8.24 8.24-8.24z"/></svg><svg class="wa-cut-svg" viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="9.5" stroke="#ef4444" stroke-width="2.5" fill="none" /><line x1="5.28" y1="5.28" x2="18.72" y2="18.72" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round" /></svg></span>`;
+    btn.title = 'WhatsApp Module Disabled by Vendor (SetuPro) — Contact vendor to activate';
+    chip.innerHTML = `<span class="wa-credit-icon">🔒</span><b>Disabled</b>`;
+    chip.className = 'top-wa-credit-chip credit-zero';
+    return;
+  }
   const activeProv = (D.settings && D.settings.waProvider) || 'meta';
   let isConnected = false;
   if(activeProv === 'gupshup'){
@@ -17037,6 +17187,9 @@ async function openWaModal(focusRecharge = false){
         <div class="wa-credit-hero">
           <span class="wa-hero-num">${credits}</span>
           <span class="wa-hero-sub">Available Message Credits (1 Credit = 1 WhatsApp Bill/Message)</span>
+          <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+            <button class="btn sm g" onclick="syncWaFromCloud(true)" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.3)">🔄 Refresh Balance from Cloud</button>
+          </div>
           ${credits <= 0 
             ? '<div style="color:#ef4444;font-weight:700;margin-top:8px">⚠️ Balance is 0! Messages are currently stopped. Please recharge below.</div>' 
             : credits <= 50 
@@ -17044,21 +17197,20 @@ async function openWaModal(focusRecharge = false){
             : '<div style="color:#10b981;font-weight:700;margin-top:8px">✓ Credits are active and ready to send.</div>'}
         </div>
 
-        <div class="card" style="margin-bottom:16px">
-          <h4 style="margin:0 0 10px">Quick Recharge (त्वरित रिचार्ज)</h4>
-          <p class="muted" style="font-size:12px;margin-top:-4px">Add WhatsApp credits directly to the client account:</p>
-          <div class="wa-quick-btns">
-            <button class="btn g" onclick="rechargeWaCredits(100, 'QUICK_100')">+100 Messages</button>
-            <button class="btn ok" onclick="rechargeWaCredits(500, 'QUICK_500')"><b>+500 Messages (Popular)</b></button>
-            <button class="btn ok" onclick="rechargeWaCredits(600, 'QUICK_600')"><b>+600 Messages</b></button>
-            <button class="btn g" onclick="rechargeWaCredits(1000, 'QUICK_1000')">+1,000 Messages (Bulk)</button>
+        <div class="card" style="margin-bottom:16px;background:var(--surface);border:1.5px solid var(--border)">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <h4 style="margin:0;color:var(--text);display:flex;align-items:center;gap:8px">
+              <span>🎟️ Redeem Vendor WhatsApp Recharge Key</span>
+              <span style="font-size:11px;background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-weight:600">Secure Voucher</span>
+            </h4>
+            <span class="muted" style="font-size:12px">Install ID: <b style="font-family:monospace;letter-spacing:1px">${esc(D.settings.installId || 'SETU-LOCAL')}</b></span>
           </div>
-
-          <h4 style="margin:16px 0 8px">Custom Recharge or Voucher (कस्टम रिचार्ज / कूपन)</h4>
-          <div class="wa-recharge-row">
-            <input type="number" id="wa_custom_amt" placeholder="Number of credits (e.g. 500)" min="1" style="flex:1">
-            <input type="text" id="wa_custom_code" placeholder="Key / Note (Optional)" style="flex:1">
-            <button class="btn ok" onclick="const a=parseInt($('#wa_custom_amt').value,10); if(a>0) rechargeWaCredits(a, $('#wa_custom_code').value || 'CUSTOM_RECHARGE'); else toast('Please enter a valid number of credits');">Recharge Credits</button>
+          <p class="muted" style="font-size:12px;margin:0 0 12px">
+            WhatsApp messages are strictly allocated by your vendor (<b>SetuPro / Aghanya Devanya Enterprises</b>). Client cannot self-recharge. Share your <b>Install ID</b> with SetuPro to purchase a recharge voucher key.
+          </p>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="wa_voucher_input" placeholder="Paste Voucher Key (e.g. WA-500-XXXXXXXX or SETU-WA-...)" style="flex:1;min-width:240px;font-family:monospace;margin:0;text-transform:uppercase">
+            <button class="btn ok" onclick="redeemWaVoucherAction()">Activate Recharge Key</button>
           </div>
         </div>
 
@@ -17105,6 +17257,10 @@ async function waStatus(){
 }
 
 async function waSend(phone, text){
+  if(!featureOn('whatsapp')){
+    toast('🔒 WhatsApp module has been disabled by your vendor. Contact SetuPro to enable.');
+    return { ok: false, error: 'MODULE_DISABLED' };
+  }
   if(getWaCredits() <= 0){
     toast('⚠️ WhatsApp balance is 0. Messages stopped. Please recharge.');
     return {ok: false, error: 'INSUFFICIENT_CREDITS: Balance is 0. Please recharge WhatsApp credits.'};

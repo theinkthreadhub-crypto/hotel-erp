@@ -658,11 +658,13 @@ function hotelSheet(code){
       <div><span>Error</span><b class="${+h.errs ? 'err' : ''}">${lastErr(h) ? `${+h.errs || 0} (24 hours) · ${esc(lastErr(h).kya)} · ${ago(lastErr(h).at)}` : 'None'}</b></div>
       <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Not yet'}</b></div>
       <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(newest: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
+      <div><span>WhatsApp</span><b style="color:#0284c7">${h.wa_credits ?? 0} messages</b></div>
       <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
       <div><span>Joined</span><b>${d8(h.created)}</b></div>
     </div>
     <div class="muted" style="font-size:12px;margin:-6px 0 4px">Bills in the last 7 days</div>${billBars(h)}
     <div class="tiles">
+      ${tile('msg', 'Recharge WA', (h.wa_credits ?? 0) + ' msgs', `waRechargePrompt('${C}')`, 'blue')}
       ${h.plan === 'counter' ? tile('key', 'Activate', 'Send key', `keygenFor('${C}')`, 'blue') : tile('key', 'Activate', 'Give days (mobile)', `cloudDays('${C}')`, 'blue')}
       ${lk === 2 ? tile('unlock', 'Unlock', 'Turn Setu on', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Turn Setu off', `lockAsk('${C}')`, 'red')}
       ${lk === 1 ? tile('warn', 'Remove warning', 'showing now', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu keeps running', `warnAsk('${C}')`, 'amber')}
@@ -723,6 +725,21 @@ const warnAsk = run(async code => {
   const v = await ask('Show a warning?', `<p class="muted" style="margin-top:0">Setu keeps running; the message shows in a red bar at the top.</p>${msgField('e.g. Please pay within 3 days.')}`, 'Show warning');
   if(v) await adminUpdate(code, {lock: {lv: 1, msg: v.lm.trim()}}, 'Warning set');
 });
+const waRechargePrompt = run(async code => {
+  const h = hotelBy(code);
+  const v = await ask('Allot WhatsApp Credits', `
+    <p>Add WhatsApp message credits to <b>${esc(h.name)}</b> (<code>${esc(code)}</code>).</p>
+    <p class="muted">Client PC will automatically sync this balance without typing any vouchers.</p>
+    <label>Credits to Add</label>
+    <input id="wa_prompt_credits" type="number" min="1" value="500" style="font-size:16px;font-weight:600">
+  `, '+ Add Credits');
+  if(!v) return;
+  const n = +v.wa_prompt_credits || 500;
+  await api('/api/admin/hotel', {code, update: {addWaCredits: n}});
+  toast('+' + n + ' WhatsApp credits allotted to ' + h.name + '!');
+  await drawHotels();
+});
+
 const setLock = run(async (code, lv) => adminUpdate(code, {lock: {lv}}, lv ? 'Applied' : 'Removed. Setu runs normally.'));
 const suspendAsk = run(async code => {
   if(await ask('Suspend the account?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: Setu stops and cloud saving pauses. Data stays safe on the PC. Press Activate to turn it back on.</p>`, 'Suspend', true))
@@ -1296,6 +1313,22 @@ function tabOverview(){
       <div class="stat"><span class="muted">Daily cloud backups</span><b>${h.backups.length}</b><span class="muted">${h.backups[0] ? 'Latest: ' + esc(h.backups[0]) : 'Starts from the 2nd day'}</span></div>
       <div class="stat"><span class="muted">Bills on cloud</span><b>${c.bills}</b><span class="muted">${c.lastBill ? 'Last bill: ' + esc(c.lastBill) : 'No bills yet'} · ${c.menu} menu items</span></div>
       <div class="stat"><span class="muted">Counter licence</span><b style="font-size:15px">${c.lifetime ? 'Lifetime' : c.licenceUntil ? d8(Date.parse(c.licenceUntil)) : '-'}</b><span class="muted">${esc(c.plan || '')}${c.licenceUntil && !c.lifetime && Date.parse(c.licenceUntil) < Date.now() ? ' · <b class="err">EXPIRED</b>' : ''}</span></div>
+    </div>
+    <h3>WhatsApp Message Credits (Vendor Allotment)</h3>
+    <p class="muted" style="margin-top:-4px">Directly allot or recharge WhatsApp message credits for this hotel. Client PC will automatically sync this balance without typing any vouchers.</p>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="stat"><span class="muted">WhatsApp Balance</span><b style="font-size:22px;color:#0284c7">${h.waCredits ?? 0}</b><span class="muted">messages remaining</span></div>
+      <div class="stat"><span class="muted">Total Dispatched</span><b style="font-size:20px;color:#10b981">${h.waTotalSent ?? 0}</b><span class="muted">messages sent</span></div>
+      <div class="stat"><span class="muted">WhatsApp Module</span><b style="font-size:16px">${CUR.features && CUR.features.whatsapp !== false ? '✅ Active' : '⛔ Disabled'}</b><span class="muted"><a href="#" onclick="event.preventDefault();TAB='features';drawHotel()">Manage in Features tab</a></span></div>
+    </div>
+    <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <input id="x_wacredits" type="number" min="1" value="500" style="width:110px" placeholder="Credits">
+      <button class="ok" onclick="const n=+x_wacredits.value||500; askThen('Add ' + n + ' WhatsApp credits to ' + esc(CUR.name) + '?', () => update({addWaCredits:n}, '+' + n + ' WhatsApp Credits added! Client PC will sync automatically.'))">+ Add Credits</button>
+      <button class="g" onclick="const n=+x_wacredits.value||0; askThen('Set exact balance to ' + n + ' messages?', () => update({waCredits:n}, 'Balance set to ' + n + '!'))">Set Exact Balance</button>
+      <button class="g" onclick="update({addWaCredits:100}, '+100 credits added')">+100</button>
+      <button class="g" onclick="update({addWaCredits:500}, '+500 credits added')">+500</button>
+      <button class="g" onclick="update({addWaCredits:1000}, '+1000 credits added')">+1000</button>
+      <button class="g" onclick="update({addWaCredits:5000}, '+5000 credits added')">+5000</button>
     </div>
     <h3>Send Activation Key (online)</h3>
     <p class="muted" style="margin-top:-4px">Easiest: <a href="#" onclick="event.preventDefault();keygenFor('${esc(h.code)}')">Keygen</a> makes the key and sends it. Or paste a key made on the PC Keygen. The counter PC activates itself on its next sync.</p>

@@ -2712,10 +2712,33 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             if path.startswith('/api/wa/') or path.startswith('/api/gupshup/'):
                 # WhatsApp link: connect / disconnect = manager; send a bill = any logged-in device
                 role = self.role()
-                if not role or (path not in ('/api/wa/send', '/api/gupshup/send', '/api/gupshup/test', '/api/wa/recharge') and role not in ('local', 'admin', 'manager', 'owner')):
+                if not role or (path not in ('/api/wa/send', '/api/gupshup/send', '/api/gupshup/test', '/api/wa/recharge', '/api/wa/cloud-refresh') and role not in ('local', 'admin', 'manager', 'owner')):
                     return self.send_json(403, {'error': 'manager only'})
                 try:
                     b = self.read_json() if int(self.headers.get('Content-Length') or 0) else {}
+                    if path == '/api/wa/cloud-refresh':
+                        if cloud and cloud.configured():
+                            try:
+                                code, res = cloud._request('GET', '/api/wa/balance')
+                                if code == 200:
+                                    j = json.loads(res)
+                                    c_credits = j.get('credits')
+                                    c_seq = j.get('seq', 0)
+                                    if c_credits is not None:
+                                        with store.lock:
+                                            d = store.data() or {}
+                                            st = d.setdefault('settings', {})
+                                            last_seq = st.get('lastWaCreditSeq', 0)
+                                            if c_seq > last_seq or st.get('waCredits') is None:
+                                                st['waCredits'] = max(0, int(c_credits))
+                                                st['lastWaCreditSeq'] = c_seq
+                                                store.write(d)
+                                        return self.send_json(200, {'ok': True, 'credits': int(c_credits), 'synced': True})
+                            except Exception as e:
+                                store.log(f'Cloud WA balance refresh exception: {e}')
+                        with store.lock:
+                            d = store.data() or {}
+                        return self.send_json(200, {'ok': True, 'credits': int(d.get('settings', {}).get('waCredits', 0)), 'synced': False})
                     if path == '/api/wa/start':
                         store.wa.start()
                         return self.send_json(200, store.wa.status())
