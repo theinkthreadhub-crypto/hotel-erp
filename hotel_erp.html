@@ -1211,6 +1211,307 @@ html[data-density="spacious"] .btn {
   body>*:not(#print){display:none!important}
   #print{display:block}
 }
+
+/* ================= FOODPIOLET ENTERPRISE DESIGN SYSTEM ================= */
+:root {
+  --ent-radius: 10px;
+  --ent-radius-sm: 6px;
+  --ent-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --ent-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --ent-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+/* Sidebar Modern Enterprise Styling */
+#side {
+  width: 220px !important;
+  background: var(--panel) !important;
+  border-left: 1px solid var(--border) !important;
+  padding: 12px 8px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  box-shadow: -1px 0 3px rgba(0,0,0,0.03) !important;
+}
+
+#side .side-section-header {
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  color: #64748b !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.9px !important;
+  padding: 10px 10px 4px !important;
+  margin-top: 6px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  transition: color 0.15s ease !important;
+}
+
+#side .side-section-header:hover {
+  color: var(--primary) !important;
+}
+
+#side .nav-item {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  text-align: left !important;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 7px 10px !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  color: var(--text) !important;
+  gap: 10px !important;
+  transition: all 0.15s ease !important;
+  position: relative !important;
+  cursor: pointer !important;
+}
+
+#side .nav-item:hover {
+  background: var(--surface) !important;
+  color: var(--primary) !important;
+}
+
+#side .nav-item.active {
+  background: rgba(2, 132, 199, 0.08) !important;
+  color: var(--primary, #0284c7) !important;
+  font-weight: 700 !important;
+}
+
+#side .nav-item.active::before {
+  content: '' !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 6px !important;
+  bottom: 6px !important;
+  width: 3.5px !important;
+  background: var(--primary, #0284c7) !important;
+  border-radius: 0 3px 3px 0 !important;
+}
+
+#side .nav-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #64748b !important;
+  flex-shrink: 0 !important;
+  width: 18px !important;
+  height: 18px !important;
+}
+
+#side .nav-item:hover .nav-icon,
+#side .nav-item.active .nav-icon {
+  color: var(--primary, #0284c7) !important;
+}
+
+#side .nav-label {
+  flex: 1 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+#side .nav-right {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-left: auto !important;
+  flex-shrink: 0 !important;
+}
+
+#side .nav-kbd {
+  font-family: inherit !important;
+  font-size: 9.5px !important;
+  font-weight: 700 !important;
+  color: #94a3b8 !important;
+  background: rgba(148, 163, 184, 0.12) !important;
+  border: 1px solid rgba(148, 163, 184, 0.25) !important;
+  border-radius: 4px !important;
+  padding: 1px 4px !important;
+  min-width: 14px !important;
+  text-align: center !important;
+  line-height: 1.2 !important;
+}
+
+#side .nav-item:hover .nav-kbd,
+#side .nav-item.active .nav-kbd {
+  color: var(--primary, #0284c7) !important;
+  border-color: rgba(2, 132, 199, 0.3) !important;
+}
+
+/* Modern Segmented Controls */
+.ent-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(148, 163, 184, 0.12);
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  gap: 2px;
+}
+
+.ent-segmented-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 13px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.ent-segmented-btn:hover {
+  color: var(--text);
+}
+
+.ent-segmented-btn.active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  font-weight: 700;
+}
+
+/* Metric KPI Cards */
+.ent-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.ent-kpi-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--ent-radius);
+  padding: 14px 16px;
+  box-shadow: var(--ent-shadow-sm);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.ent-kpi-card:hover {
+  box-shadow: var(--ent-shadow);
+}
+
+.ent-kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ent-kpi-val {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 6px 0 2px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.ent-kpi-sub {
+  font-size: 11.5px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+/* Modern Enterprise Table Cards */
+.ent-table-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--ent-radius);
+  box-shadow: var(--ent-shadow-sm);
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.ent-table-card table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ent-table-card th {
+  background: rgba(148, 163, 184, 0.05);
+  padding: 10px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.ent-table-card td {
+  padding: 11px 14px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.ent-table-card tr:last-child td {
+  border-bottom: none;
+}
+
+.ent-table-card tr:hover td {
+  background: rgba(148, 163, 184, 0.04);
+}
+
+/* Status Chips */
+.ent-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.ent-status-chip.delivered {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #86efac;
+}
+
+.ent-status-chip.read {
+  background: #ccfbf1;
+  color: #0f766e;
+  border: 1px solid #5eead4;
+}
+
+.ent-status-chip.sent {
+  background: #e0e7ff;
+  color: #4338ca;
+  border: 1px solid #a5b4fc;
+}
+
+.ent-status-chip.failed {
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
+}
+
+.ent-status-chip.queued {
+  background: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
 </style>
 </head>
 <body>
@@ -4735,35 +5036,90 @@ function sideToggle(g){
   try{ localStorage.setItem('setu_side_closed', JSON.stringify(c)); }catch(e){}
   drawSide();
 }
+
+const MENU_ICONS = {
+  gateway: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  bill: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><line x1="6" y1="8" x2="10" y2="8"/><line x1="6" y1="12" x2="18" y2="12"/><line x1="6" y1="16" x2="14" y2="16"/></svg>`,
+  bills: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  sessions: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+  online: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+  qr: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`,
+  captain: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>`,
+  kitchen: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>`,
+  tokens: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M12 17v-4"/><line x1="8" y1="15" x2="16" y2="15"/></svg>`,
+  reservations: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>`,
+  settlement: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+  purchase: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 0 1-8 0"/></svg>`,
+  stock: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+  suppliers: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>`,
+  expense: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>`,
+  income: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>`,
+  cash: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>`,
+  daybook: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+  gst: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+  report: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+  'wa-reports': `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>`,
+  analytics: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
+  reports: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
+  monthly: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>`,
+  audit: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+  outlets: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/></svg>`,
+  menu: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/></svg>`,
+  customers: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>`,
+  staff: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>`,
+  ai: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+  doctor: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+  printers: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>`,
+  errors: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+  support: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  settings: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`
+};
+
 function drawSide(){
   const allowed = userPerms(), closed = sideClosed();
   const can = m => screenOn(m[2]) && (!allowed.length || isManager() || allowed.includes(m[2]));
-  let html = `<button class="${cur==='gateway'?'active':''}" onclick="go('gateway')"><u>Esc</u> Gateway</button>`;
+  let html = `
+    <button class="nav-item ${cur==='gateway'?'active':''}" onclick="go('gateway')" title="Gateway Command Center (Esc)">
+      <span class="nav-icon">${MENU_ICONS.gateway}</span>
+      <span class="nav-label">Gateway Dashboard</span>
+      <span class="nav-right"><kbd class="nav-kbd">Esc</kbd></span>
+    </button>
+  `;
+
   MENU_GROUPS.forEach(g => {
     const items = MENU.filter(m => m[3] === g).concat((MENU_ALIAS[g] || []).map(a => [...a, g])).filter(can);
     if(!items.length) return;
     const open = !closed.includes(g) || items.some(m => m[2] === cur);
-    html += `<div class="side-cat" onclick="sideToggle('${g}')" title="Open / close">${g}<span>${open ? '▾' : '▸'}</span></div>`;
+    html += `<div class="side-section-header" onclick="sideToggle('${g}')" title="Collapse / Expand ${g}">
+      <span>${g}</span>
+      <span style="font-size:9px">${open ? '▾' : '▸'}</span>
+    </div>`;
     if(!open) return;
     items.forEach(m => {
       let badgeHtml = '';
       if(m[2] === 'online'){
         const pendingCount = (D.onlineOrders || []).filter(o => o.status === 'new').length;
-        if(pendingCount) badgeHtml = `<span style="margin-left:auto;background:var(--bad);color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount}</span>`;
+        if(pendingCount) badgeHtml = `<span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount}</span>`;
       } else if(m[2] === 'captain'){
         const capCount = (D.kots || []).filter(k => k.src === 'captain' && k.status !== 'served').length;
-        if(capCount) badgeHtml = `<span class="side-badge cap-badge pulse" title="${capCount} Active Captain App Orders">🔔 ${capCount} New</span>`;
+        if(capCount) badgeHtml = `<span class="side-badge cap-badge pulse" title="${capCount} Active Captain Orders">🔔 ${capCount}</span>`;
       } else if(m[2] === 'kitchen'){
         const kotCount = (D.kots || []).filter(k => k.status !== 'served').length;
-        if(kotCount) badgeHtml = `<span class="side-badge kot-badge pulse" title="${kotCount} Pending Kitchen KOTs">🔥 ${kotCount} KOT</span>`;
+        if(kotCount) badgeHtml = `<span class="side-badge kot-badge pulse" title="${kotCount} Pending KOTs">🔥 ${kotCount}</span>`;
       } else if(m[2] === 'qr'){
         const qrCount = ((D.qrOrders || []).filter(o => o.status === 'pending').length) + ((D.kots || []).filter(k => k.src === 'qr' && k.status !== 'served').length);
-        if(qrCount) badgeHtml = `<span class="side-badge qr-badge pulse" title="${qrCount} Pending QR Orders">📱 ${qrCount} New</span>`;
+        if(qrCount) badgeHtml = `<span class="side-badge qr-badge pulse" title="${qrCount} Pending QR Orders">📱 ${qrCount}</span>`;
       }
+
+      const iconSvg = MENU_ICONS[m[2]] || `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`;
       html += `
-      <button class="${cur===m[2]?'active':''}" onclick="go('${m[2]}')">
-        <u>${m[0]}</u> ${m[1]}
-        ${badgeHtml}
+      <button class="nav-item ${cur===m[2]?'active':''}" onclick="go('${m[2]}')" title="${m[1]} (${m[0]})">
+        <span class="nav-icon">${iconSvg}</span>
+        <span class="nav-label">${m[1]}</span>
+        <span class="nav-right">
+          ${badgeHtml}
+          <kbd class="nav-kbd">${m[0]}</kbd>
+        </span>
       </button>`;
     });
   });
@@ -12667,7 +13023,13 @@ function waMaskPhone(phone){
 function waBadgeHTML(status){
   const s = String(status || 'UNKNOWN').toUpperCase();
   const cls = s.toLowerCase();
-  return `<span class="wa-badge ${cls}">${esc(s)}</span>`;
+  let dotColor = '#94a3b8';
+  if(s === 'DELIVERED') dotColor = '#16a34a';
+  else if(s === 'READ') dotColor = '#0d9488';
+  else if(s === 'SENT') dotColor = '#4f46e5';
+  else if(s === 'FAILED') dotColor = '#dc2626';
+  else if(s === 'QUEUED' || s === 'PROCESSING') dotColor = '#d97706';
+  return `<span class="ent-status-chip ${cls}" title="Status: ${s}"><span style="width:6px;height:6px;border-radius:50%;background:${dotColor};display:inline-block"></span>${esc(s)}</span>`;
 }
 
 function waFmtTime(ts){
@@ -13094,57 +13456,107 @@ function scrWaReports(){
   else if(waTab === 'tracking') content = renderWaDeliveryTracking(allFiltered);
   else if(waTab === 'export') content = renderWaExport(allFiltered, stats);
 
+  const isToday = (waFrom === today() && waTo === today());
+  const isYesterday = (waFrom === addDays(today(), -1) && waTo === addDays(today(), -1));
+  const isLast7 = (waFrom === addDays(today(), -6) && waTo === today());
+  const isThisMonth = (waFrom === today().slice(0, 8) + '01' && waTo === today());
+  const isAllTime = (!waFrom && !waTo);
+
   main.innerHTML = `
-  <div class="title">
-    <div style="display:flex;align-items:center;gap:10px">
-      <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;background:#25d366;color:#fff;font-size:18px">💬</span>
+  <!-- Enterprise Header Block -->
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;background:#dcfce7;color:#16a34a;border:1px solid #86efac">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      </span>
       <div>
-        <div style="font-size:16px;font-weight:800">WhatsApp Reports &amp; Tracking</div>
-        <div class="muted" style="font-size:11px;font-weight:normal">Auditable Multi-Provider Message Intelligence &amp; Delivery Reconciliation</div>
+        <div style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-0.2px">WhatsApp Delivery &amp; Audit Intelligence</div>
+        <div class="muted" style="font-size:12px;margin-top:2px">Auditable Multi-Provider Message Intelligence &amp; Live Reconciliation</div>
       </div>
     </div>
-    <div class="r" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span>From <input type="date" value="${waFrom}" onchange="waFrom=this.value;waPage=1;scrWaReports()"></span>
-      <span>To <input type="date" value="${waTo}" onchange="waTo=this.value;waPage=1;scrWaReports()"></span>
-      <button class="btn g sm" onclick="go('settings')">⚙️ Settings</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn g sm" onclick="go('settings')" style="display:inline-flex;align-items:center;gap:6px">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Gateway Settings</span>
+      </button>
     </div>
   </div>
 
-  <div class="cats" style="margin-bottom:10px">
-    <button class="cat" onclick="waFrom=waTo=today();waPage=1;scrWaReports()">Today</button>
-    <button class="cat" onclick="waFrom=waTo=addDays(today(),-1);waPage=1;scrWaReports()">Yesterday</button>
-    <button class="cat" onclick="waFrom=addDays(today(),-6);waTo=today();waPage=1;scrWaReports()">Last 7 Days</button>
-    <button class="cat" onclick="waFrom=today().slice(0,8)+'01';waTo=today();waPage=1;scrWaReports()">This Month</button>
-    <button class="cat" onclick="waFrom='';waTo='';waPage=1;scrWaReports()">All Time</button>
+  <!-- Date Range Filter Segmented Control -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+    <div class="ent-segmented-control">
+      <button class="ent-segmented-btn ${isToday ? 'active' : ''}" onclick="waFrom=waTo=today();waPage=1;scrWaReports()">Today</button>
+      <button class="ent-segmented-btn ${isYesterday ? 'active' : ''}" onclick="waFrom=waTo=addDays(today(),-1);waPage=1;scrWaReports()">Yesterday</button>
+      <button class="ent-segmented-btn ${isLast7 ? 'active' : ''}" onclick="waFrom=addDays(today(),-6);waTo=today();waPage=1;scrWaReports()">Last 7 Days</button>
+      <button class="ent-segmented-btn ${isThisMonth ? 'active' : ''}" onclick="waFrom=today().slice(0,8)+'01';waTo=today();waPage=1;scrWaReports()">This Month</button>
+      <button class="ent-segmented-btn ${isAllTime ? 'active' : ''}" onclick="waFrom='';waTo='';waPage=1;scrWaReports()">All Time</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#64748b">
+      <span>From:</span>
+      <input type="date" value="${waFrom}" onchange="waFrom=this.value;waPage=1;scrWaReports()" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--panel);color:var(--text)">
+      <span>To:</span>
+      <input type="date" value="${waTo}" onchange="waTo=this.value;waPage=1;scrWaReports()" style="padding:5px 8px;border-radius:6px;border:1px solid var(--border);font-size:12px;background:var(--panel);color:var(--text)">
+    </div>
   </div>
 
-  <div class="cats" style="margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:10px">
-    <button class="cat ${waTab==='connect'?'on':''}" onclick="waTab='connect';scrWaReports()" style="font-weight:800;border:1.5px solid #10b981">
-      📱 WhatsApp Scanner & QR Connect
-    </button>
-    <button class="cat ${waTab==='dashboard'?'on':''}" onclick="waTab='dashboard';waPage=1;scrWaReports()">
+  <!-- 5 Hero Summary Metric KPI Cards -->
+  <div class="ent-kpi-grid">
+    <div class="ent-kpi-card" style="border-top:3px solid var(--primary)">
+      <div class="ent-kpi-label"><span>Total Dispatched</span><span>💬</span></div>
+      <div class="ent-kpi-val">${stats.totalRequests}</div>
+      <div class="ent-kpi-sub">${stats.totalAttempts} total attempts</div>
+    </div>
+    <div class="ent-kpi-card" style="border-top:3px solid #10b981">
+      <div class="ent-kpi-label"><span>Delivered</span><span style="color:#10b981">✓</span></div>
+      <div class="ent-kpi-val" style="color:#059669">${stats.delivered}</div>
+      <div class="ent-kpi-sub" style="color:#059669;font-weight:600">${stats.deliveryRate}% delivery rate</div>
+    </div>
+    <div class="ent-kpi-card" style="border-top:3px solid #0d9488">
+      <div class="ent-kpi-label"><span>Read / Opened</span><span style="color:#0d9488">✓✓</span></div>
+      <div class="ent-kpi-val" style="color:#0d9488">${stats.read}</div>
+      <div class="ent-kpi-sub" style="color:#0d9488;font-weight:600">${stats.readRate}% read rate</div>
+    </div>
+    <div class="ent-kpi-card" style="border-top:3px solid #ef4444">
+      <div class="ent-kpi-label"><span>Failed / Error</span><span style="color:#ef4444">⚠</span></div>
+      <div class="ent-kpi-val" style="color:#dc2626">${stats.failed}</div>
+      <div class="ent-kpi-sub" style="color:#dc2626;font-weight:600">${stats.failureRate}% failure rate</div>
+    </div>
+    <div class="ent-kpi-card" style="border-top:3px solid #f59e0b">
+      <div class="ent-kpi-label"><span>In-Transit / Queued</span><span>⏳</span></div>
+      <div class="ent-kpi-val" style="color:#d97706">${stats.pending}</div>
+      <div class="ent-kpi-sub">${stats.sent} sent to gateway</div>
+    </div>
+  </div>
+
+  <!-- Segmented Navigation Tabs Bar -->
+  <div class="ent-segmented-control" style="width:100%;display:flex;margin-bottom:16px;padding:4px;overflow-x:auto">
+    <button class="ent-segmented-btn ${waTab==='dashboard'?'active':''}" onclick="waTab='dashboard';waPage=1;scrWaReports()" style="flex:1">
       📊 Dashboard
     </button>
-    <button class="cat ${waTab==='all'?'on':''}" onclick="waTab='all';waPage=1;scrWaReports()">
-      📑 All Messages <span class="badge" style="background:rgba(255,255,255,0.25);font-size:10px;padding:1px 5px;border-radius:10px">${stats.totalRequests}</span>
+    <button class="ent-segmented-btn ${waTab==='all'?'active':''}" onclick="waTab='all';waPage=1;scrWaReports()" style="flex:1">
+      📑 All Messages <span style="background:rgba(148,163,184,0.25);padding:1px 6px;border-radius:10px;font-size:10px;margin-left:4px;font-weight:700">${stats.totalRequests}</span>
     </button>
-    <button class="cat ${waTab==='failed'?'on':''}" onclick="waTab='failed';waPage=1;scrWaReports()">
-      ⚠️ Failed Messages ${stats.failed ? `<span class="badge" style="background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px">${stats.failed}</span>` : ''}
+    <button class="ent-segmented-btn ${waTab==='failed'?'active':''}" onclick="waTab='failed';waPage=1;scrWaReports()" style="flex:1">
+      ⚠️ Failed Queue ${stats.failed ? `<span style="background:#ef4444;color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:4px;font-weight:700">${stats.failed}</span>` : ''}
     </button>
-    <button class="cat ${waTab==='pending'?'on':''}" onclick="waTab='pending';waPage=1;scrWaReports()">
-      ⏳ Pending Queue ${stats.pending ? `<span class="badge" style="background:#3b82f6;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px">${stats.pending}</span>` : ''}
+    <button class="ent-segmented-btn ${waTab==='pending'?'active':''}" onclick="waTab='pending';waPage=1;scrWaReports()" style="flex:1">
+      ⏳ In-Queue ${stats.pending ? `<span style="background:#f59e0b;color:#fff;padding:1px 6px;border-radius:10px;font-size:10px;margin-left:4px;font-weight:700">${stats.pending}</span>` : ''}
     </button>
-    <button class="cat ${waTab==='tracking'?'on':''}" onclick="waTab='tracking';waPage=1;scrWaReports()">
+    <button class="ent-segmented-btn ${waTab==='tracking'?'active':''}" onclick="waTab='tracking';waPage=1;scrWaReports()" style="flex:1">
       🎯 Delivery Tracking
     </button>
-    <button class="cat ${waTab==='export'?'on':''}" onclick="waTab='export';waPage=1;scrWaReports()">
-      📤 Export Reports
+    <button class="ent-segmented-btn ${waTab==='connect'?'active':''}" onclick="waTab='connect';scrWaReports()" style="flex:1">
+      📱 Scanner &amp; Connect
+    </button>
+    <button class="ent-segmented-btn ${waTab==='export'?'active':''}" onclick="waTab='export';waPage=1;scrWaReports()" style="flex:1">
+      📥 Export CSV
     </button>
   </div>
 
   ${content}
   `;
 }
+
 
 function renderWaDashboard(list, stats){
   const highFailure = stats.totalRequests >= 5 && +stats.failureRate > 15;
@@ -13324,20 +13736,20 @@ function renderWaAllMessages(list){
   return `
   ${renderWaFilterControls()}
 
-  <div class="card" style="padding:0;overflow:auto">
+  <div class="ent-table-card" style="overflow:auto">
     <table>
       <thead>
         <tr>
           <th>Bill #</th>
           <th>Customer</th>
-          <th>Mobile</th>
-          <th>Type</th>
-          <th>Provider</th>
-          <th>Status</th>
-          <th>Requested At</th>
-          <th>Last Update</th>
+          <th>Mobile Number</th>
+          <th>Message Type</th>
+          <th>Gateway</th>
+          <th>Delivery Status</th>
+          <th>Requested Time</th>
+          <th>Last Activity</th>
           <th style="text-align:center">Attempts</th>
-          <th class="n">Action</th>
+          <th class="n">Actions</th>
         </tr>
       </thead>
       <tbody>
