@@ -526,6 +526,12 @@ export class SetuRegistry extends DurableObject {
       return json(200, { locked: !!until, minutes: until ? Math.ceil((until - now) / 60000) : 0 });
     }
 
+    if(path === '/hotel/get'){
+      const code = String(body.code || '').toUpperCase().trim();
+      const h = one('SELECT * FROM hotel WHERE code = ?', code);
+      return json(200, { hotel: h || null });
+    }
+
     if(path === '/reserve'){
       const now = Date.now();
       if(!body.admin){
@@ -535,6 +541,13 @@ export class SetuRegistry extends DurableObject {
         const n = hit && now - hit.at < 3600000 ? hit.n : 0;
         if(n >= SIGNUP_LIMIT) return json(429, { error: 'too many signups' });
         this.sql.exec('INSERT OR REPLACE INTO hit (k, n, at) VALUES (?, ?, ?)', k, n + 1, hit && n ? hit.at : now);
+      }
+      if(body.customCode){
+        const code = String(body.customCode).toUpperCase().trim();
+        if(one('SELECT 1 AS x FROM hotel WHERE code = ?', code)) return json(409, { error: 'Hotel ID already exists' });
+        this.sql.exec(`INSERT INTO hotel (code, name, owner, phone, email, created, paid_until, status, plan, tier, btype, iid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          code, body.name, body.owner, body.phone, body.email, now, body.paidUntil, body.status || 'pending', body.plan || 'pending', body.tier || 'premium', body.btype || 'restaurant', body.iid || '');
+        return json(200, { code });
       }
       const stem = (String(body.name || '').toUpperCase().replace(/[^A-Z]/g, '') + 'SETU').slice(0, 5);
       for(let i = 0; i < 40; i++){
@@ -1578,6 +1591,99 @@ export class SetuHotel extends DurableObject {
       return json(200, { token: b.installId ? this.newToken('admin', b.owner || 'Manager') : '', syncKey, trialKey, saas: saasView(this.account) });
     }
     if(!this.account) return json(404, { error: 'hotel not found' });
+    if(path === '/internal/activate'){
+      if(!this.account) return json(404, { error: 'Hotel not found' });
+      const b = body();
+      this.account.status = 'active';
+      this.account.paidUntil = b.paidUntil || Date.now() + (b.days || 365) * DAY;
+      if(b.lifetime) this.account.lifetime = true;
+      if(b.key){
+        this.account.pendingKeys = [...new Set([...(this.account.pendingKeys || []), b.key])];
+        this.sql.exec('INSERT INTO payment (id, plan, days, amount, at, lic) VALUES (?, ?, ?, 0, ?, ?)',
+          'act_' + Date.now(), 'active', b.days || 365, Date.now(), b.key);
+      }
+      this.saveAccount();
+      await regCall(this.env, '/update', {
+        code: this.account.code,
+        status: 'active',
+        paid_until: this.account.paidUntil,
+        lic: b.key || ''
+      }).catch(() => {});
+      const token = this.newToken('admin', this.account.owner || 'Admin');
+      return json(200, {
+        ok: true,
+        status: 'active',
+        token,
+        hotelId: this.account.code,
+        hotelName: this.account.name,
+        paidUntil: this.account.paidUntil,
+        syncKey: this.account.syncKey,
+        saas: saasView(this.account)
+      });
+    }
+
+    if(path === '/internal/auth'){
+      if(!this.account) return json(404, { error: 'Hotel not found' });
+      const b = body();
+      const pw = String(b.password || '');
+      let found = false;
+      if(pw && await this.ownerMatches(pw)){
+        found = true;
+      }
+      if(!found){
+        await this.ensureSecure();
+        const pinMatch = await this.checkPin(pw);
+        if(pinMatch) found = true;
+      }
+      if(!found){
+        return json(401, { error: 'Invalid Hotel ID, Username, or Password.' });
+      }
+
+      if(this.account.status === 'pending'){
+        return json(403, {
+          error: 'PENDING_ACTIVATION',
+          code: 'PENDING_ACTIVATION',
+          hotelId: this.account.code,
+          hotelName: this.account.name,
+          owner: this.account.owner,
+          message: 'This hotel is registered but pending activation. Please enter your Activation Key.'
+        });
+      }
+
+      if(this.account.status === 'suspended'){
+        return json(403, {
+          error: 'SUSPENDED',
+          code: 'SUSPENDED',
+          message: 'This hotel account is suspended. Please contact customer support.'
+        });
+      }
+
+      const now = Date.now();
+      if(this.account.paidUntil && this.account.paidUntil < now && !this.account.lifetime){
+        return json(402, {
+          error: 'EXPIRED',
+          code: 'EXPIRED',
+          hotelId: this.account.code,
+          paidUntil: this.account.paidUntil,
+          message: 'Your Foodpiolet subscription has expired. Please renew your licence to continue.'
+        });
+      }
+
+      const token = this.newToken('admin', this.account.owner || b.username || 'Admin');
+      return json(200, {
+        ok: true,
+        token,
+        role: 'admin',
+        hotelId: this.account.code,
+        hotelName: this.account.name,
+        owner: this.account.owner,
+        phone: this.account.phone,
+        status: this.account.status,
+        syncKey: this.account.syncKey,
+        saas: saasView(this.account)
+      });
+    }
+
     if(path === '/internal/aggregator/order'){
       if(method!=='POST')return json(405,{error:'POST only'});
       if(this.blocked())return json(402,{error:'Hotel account inactive'});
@@ -2244,6 +2350,173 @@ async function createHotel(env, input, opts){
   return json(200, { code, trialDays: opts.days, ...(await h.json()) });
 }
 
+
+async function hotelRegister(request, env){
+  let b;
+  try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
+  const hotelName = String(b.hotelName || b.name || '').trim();
+  const ownerName = String(b.ownerName || b.owner || '').trim();
+  const phone = String(b.phone || b.mobile || '').replace(/\D/g, '');
+  const username = String(b.username || 'owner').trim();
+  const password = String(b.password || '').trim();
+
+  if(hotelName.length < 2) return json(400, { error: 'Hotel Name must be at least 2 characters.' });
+  if(ownerName.length < 2) return json(400, { error: 'Owner Name must be at least 2 characters.' });
+  if(phone.length < 10) return json(400, { error: 'Valid 10-digit mobile number is required.' });
+  if(password.length < 4) return json(400, { error: 'Password must be at least 4 characters.' });
+
+  // Generate unique immutable Hotel ID (HOTEL + 4 numeric digits)
+  let hotelId = '';
+  for(let i = 0; i < 50; i++){
+    const code = 'HOTEL' + String(Math.floor(1000 + Math.random() * 9000));
+    const exist = await regJson(env, '/hotel/get', { code });
+    if(!exist || !exist.hotel){
+      hotelId = code;
+      break;
+    }
+  }
+  if(!hotelId){
+    hotelId = 'HOTEL' + String(Date.now()).slice(-4);
+  }
+
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const regRes = await regCall(env, '/reserve', {
+    name: hotelName,
+    owner: ownerName,
+    phone,
+    email: b.email || '',
+    paidUntil: 0,
+    status: 'pending',
+    plan: 'pending',
+    tier: 'premium',
+    btype: 'restaurant',
+    customCode: hotelId,
+    ip
+  });
+  if(!regRes.ok){
+    const err = await regRes.json().catch(() => ({}));
+    return json(regRes.status || 500, { error: err.error || 'Failed to register hotel in registry.' });
+  }
+
+  const stub = hotelStub(env, hotelId);
+  const hRes = await stub.fetch('https://hotel/internal/create', {
+    method: 'POST',
+    body: JSON.stringify({
+      code: hotelId,
+      name: hotelName,
+      owner: ownerName,
+      phone,
+      email: b.email || '',
+      businessType: 'restaurant',
+      tier: 'premium',
+      password,
+      days: 0,
+      paidUntil: 0,
+      status: 'pending',
+      plan: 'pending',
+      noKey: true
+    })
+  });
+
+  if(!hRes.ok){
+    await regCall(env, '/release', { code: hotelId }).catch(() => {});
+    return json(500, { error: 'Could not initialize hotel data.' });
+  }
+
+  return json(200, {
+    ok: true,
+    hotelId,
+    hotelName,
+    owner: ownerName,
+    status: 'pending',
+    message: 'Hotel registered successfully. Please enter your Activation Key to activate.'
+  });
+}
+
+async function hotelActivate(request, env){
+  let b;
+  try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
+  const hotelId = String(b.hotelId || '').trim().toUpperCase();
+  const key = String(b.key || b.activationKey || '').trim().toUpperCase();
+  const installId = String(b.installId || '').trim().toUpperCase();
+
+  if(!hotelId) return json(400, { error: 'Hotel ID is required.' });
+  if(!key) return json(400, { error: 'Activation Key is required.' });
+
+  const regCheck = await regJson(env, '/hotel/get', { code: hotelId });
+  if(!regCheck || !regCheck.hotel){
+    return json(404, { error: 'Hotel ID not found.' });
+  }
+
+  let lic;
+  try {
+    lic = await verifyLicense(env, key, installId || hotelId);
+  } catch(e) {
+    const msg = /expired/i.test(e.message)
+      ? 'This Activation Key has expired. Please contact your vendor for a valid key.'
+      : 'Invalid Activation Key. Please verify the key or contact your software vendor.';
+    return json(400, { ok: false, error: msg });
+  }
+
+  const days = lic.lifetime ? 3650 : Math.max(1, Math.ceil((lic.until - Date.now()) / DAY));
+  const paidUntil = lic.lifetime ? Date.now() + 3650 * DAY : lic.until;
+
+  const stub = hotelStub(env, hotelId);
+  const actRes = await stub.fetch('https://hotel/internal/activate', {
+    method: 'POST',
+    body: JSON.stringify({
+      key,
+      days,
+      paidUntil,
+      lifetime: !!lic.lifetime
+    })
+  });
+
+  if(!actRes.ok){
+    const err = await actRes.json().catch(() => ({}));
+    return json(actRes.status || 500, { error: err.error || 'Activation failed.' });
+  }
+
+  const j = await actRes.json();
+  return json(200, {
+    ok: true,
+    hotelId,
+    status: 'active',
+    token: j.token,
+    hotelName: j.hotelName,
+    paidUntil,
+    days,
+    syncKey: j.syncKey,
+    saas: j.saas,
+    message: 'Hotel successfully activated!'
+  });
+}
+
+async function hotelLogin(request, env){
+  let b;
+  try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
+  const hotelId = String(b.hotelId || '').trim().toUpperCase();
+  const username = String(b.username || 'owner').trim();
+  const password = String(b.password || '').trim();
+
+  if(!hotelId) return json(400, { error: 'Please enter Hotel ID.' });
+  if(!password) return json(400, { error: 'Please enter Password.' });
+
+  const regCheck = await regJson(env, '/hotel/get', { code: hotelId });
+  if(!regCheck || !regCheck.hotel){
+    return json(404, { error: 'Hotel ID not found. Please check your Hotel ID or register as a New Hotel.' });
+  }
+
+  const stub = hotelStub(env, hotelId);
+  const authRes = await stub.fetch('https://hotel/internal/auth', {
+    method: 'POST',
+    body: JSON.stringify({ username, password })
+  });
+
+  const j = await authRes.json().catch(() => ({}));
+  return json(authRes.status, j);
+}
+
 async function signup(request, env){
   let b;
   try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
@@ -2654,6 +2927,9 @@ export default {
       if(path === '/download/Setu-POS-Setup.exe') return installerDownload(request, env, url);
       return env.ASSETS.fetch(request);
     }
+    if(path === '/api/hotel/register' && request.method === 'POST') return hotelRegister(request, env);
+    if(path === '/api/hotel/activate' && request.method === 'POST') return hotelActivate(request, env);
+    if(path === '/api/hotel/login' && request.method === 'POST') return hotelLogin(request, env);
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);
     if(path === '/api/counter/link' && request.method === 'POST') return counterLink(request, env);
     if(path === '/api/razorpay/webhook' && request.method === 'POST') return webhook(request, env);

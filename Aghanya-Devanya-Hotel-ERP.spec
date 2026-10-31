@@ -5,7 +5,7 @@ a = Analysis(
     ['app_main.py'],
     pathex=[],
     binaries=[],
-    datas=[('hotel_erp.html', '.'), ('manifest.json', '.'), ('sw.js', '.'), ('icon-192.png', '.'), ('icon-512.png', '.'), ('logo.png', '.'), ('favicon.ico', '.')],
+    datas=[('hotel_erp.html', '.'), ('icon-192.png', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -35,5 +35,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['favicon.ico'],
 )

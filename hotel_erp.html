@@ -1222,36 +1222,37 @@ html[data-density="spacious"] .btn {
   <!-- VIEW 0: Frosted Glass Login (Inspired by Image 4) -->
   <div class="login-card login-glass-card" id="login-view-welcome" style="display:block;max-width:460px;width:100%">
     <div style="text-align:center;margin-bottom:18px">
-      <img src="icon-192.png" alt="Aghanya Devanya Enterprises" style="width:58px;height:58px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.12);margin:0 auto 8px;display:block;border:1px solid rgba(255,255,255,0.7);background:#fff">
-      <div style="font-size:11px;font-weight:800;color:#0284c7;text-transform:uppercase;letter-spacing:1px">Aghanya Devanya Enterprises</div>
+      <img src="icon-192.png" alt="Foodpiolet ERP" style="width:58px;height:58px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.12);margin:0 auto 8px;display:block;border:1px solid rgba(255,255,255,0.7);background:#fff">
+      <div style="font-size:12px;font-weight:800;color:#0284c7;text-transform:uppercase;letter-spacing:1px">Foodpiolet ERP</div>
+      <div style="font-size:10.5px;color:#64748b;font-weight:600">Enterprise Restaurant & Hotel SaaS</div>
     </div>
 
-    <!-- Onboarding Mode Switcher Tabs -->
+    <!-- Onboarding Mode Switcher Tabs: Option B (Existing) & Option A (New) -->
     <div style="display:flex;background:rgba(226,232,240,0.6);backdrop-filter:blur(10px);border-radius:12px;padding:3px;margin-bottom:20px;border:1px solid rgba(203,213,225,0.7)">
       <button type="button" id="tab-login-existing" onclick="switchOnboardingMode('existing')" style="flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:#0f172a;box-shadow:0 2px 6px rgba(0,0,0,0.06);transition:all .15s">Existing Hotel Login</button>
       <button type="button" id="tab-login-new" onclick="switchOnboardingMode('new')" style="flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:all .15s">+ New Hotel Setup</button>
     </div>
 
-    <!-- FORM 1: EXISTING HOTEL LOGIN (Image 4 Style) -->
+    <!-- OPTION B: EXISTING HOTEL LOGIN -->
     <div id="mode-onboard-existing">
       <div style="text-align:left;margin-bottom:16px">
-        <h2 style="font-size:24px;font-weight:800;color:#0f172a;margin:0 0 4px">Login</h2>
-        <p style="font-size:13px;color:#64748b;margin:0">Welcome back! Please login to your hotel account</p>
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Login to Foodpiolet</h2>
+        <p style="font-size:13px;color:#64748b;margin:0">Enter your Hotel ID, Username & Password to continue</p>
       </div>
 
-      <form onsubmit="handleExistingPullSubmit(event)">
+      <form onsubmit="handleUnifiedLogin(event)">
         <div class="login-field">
-          <label style="font-size:12px;font-weight:700;color:#475569">Hotel ID / Code *</label>
-          <input id="exist_hotel_id" required placeholder="e.g. SETU001" autocomplete="username" style="text-transform:uppercase">
+          <label style="font-size:12px;font-weight:700;color:#475569">1. Hotel ID / Code *</label>
+          <input id="exist_hotel_id" required placeholder="e.g. HOTEL0043" autocomplete="username" style="text-transform:uppercase;font-weight:700;letter-spacing:0.5px">
         </div>
         <div class="login-field">
-          <label style="font-size:12px;font-weight:700;color:#475569">User Name / Owner Mobile *</label>
-          <input id="exist_username" required placeholder="e.g. admin or mobile" autocomplete="username">
+          <label style="font-size:12px;font-weight:700;color:#475569">2. Admin Username *</label>
+          <input id="exist_username" required placeholder="e.g. owner or admin" autocomplete="username" value="owner">
         </div>
         <div class="login-field">
-          <label style="font-size:12px;font-weight:700;color:#475569">Hotel Password *</label>
+          <label style="font-size:12px;font-weight:700;color:#475569">3. Password *</label>
           <div style="position:relative">
-            <input id="exist_password" type="password" required placeholder="Hotel Master Password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding-right:38px">
+            <input id="exist_password" type="password" required placeholder="Enter password" autocomplete="current-password" style="width:100%;box-sizing:border-box;padding-right:38px">
             <button type="button" onclick="togglePasswordVisibility('exist_password', this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#64748b;padding:4px">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
@@ -1260,70 +1261,115 @@ html[data-density="spacious"] .btn {
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;font-size:12.5px">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#475569">
-            <input type="checkbox" id="exist_remember" checked style="width:16px;height:16px;accent-color:#16a34a"> Remember me
+            <input type="checkbox" id="exist_remember" checked style="width:16px;height:16px;accent-color:#0284c7"> Remember Hotel ID
           </label>
-          <a href="javascript:void(0)" onclick="forgotPass()" style="color:#ea580c;font-weight:700;text-decoration:none">Forgot Password?</a>
+          <a href="javascript:void(0)" onclick="forgotPass()" style="color:#0284c7;font-weight:700;text-decoration:none">Forgot Password?</a>
         </div>
 
         <div id="exist_pull_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
         <div id="exist_pull_ok" style="color:#166534;background:#dcfce7;border:1px solid #86efac;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
 
         <button class="btn btn-login-gradient" id="btn-exist-pull" style="width:100%;border-radius:12px;padding:12px;font-size:15px;font-weight:800;letter-spacing:0.3px" type="submit">
-          Login & Enter Hotel
+          Login to Foodpiolet
         </button>
       </form>
+
       <div style="margin-top:14px;text-align:center;font-size:12px;display:flex;justify-content:center;gap:16px">
-        <a href="javascript:void(0)" onclick="forgotPass()" style="color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:4px">🔑 Reset via Email OTP</a>
+        <a href="javascript:void(0)" onclick="showLoginView('gate2')" style="color:#0284c7;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px">Staff Quick PIN Login →</a>
         <span style="color:#cbd5e1">•</span>
-        <a href="javascript:void(0)" onclick="openBackupJsonChooser()" style="color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:4px">📂 Restore Backup</a>
+        <a href="javascript:void(0)" onclick="openBackupJsonChooser()" style="color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:4px">Restore Backup</a>
       </div>
 
       <div style="margin-top:16px;text-align:center;font-size:12.5px;color:#64748b">
-        Don't have an account? <a href="javascript:void(0)" onclick="switchOnboardingMode('new')" style="color:#16a34a;font-weight:800;text-decoration:none">Signup / New Hotel</a>
+        New property? <a href="javascript:void(0)" onclick="switchOnboardingMode('new')" style="color:#0284c7;font-weight:800;text-decoration:none">Register New Hotel</a>
       </div>
     </div>
 
-    <!-- FORM 2: NEW HOTEL SETUP -->
+    <!-- OPTION A: NEW HOTEL REGISTRATION & ACTIVATION -->
     <div id="mode-onboard-new" style="display:none">
-      <div style="text-align:left;margin-bottom:14px">
-        <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Register New Hotel</h2>
-        <p style="font-size:12.5px;color:#64748b;margin:0">First-time property activation on this computer</p>
+      <!-- Step 1: Hotel Information Form -->
+      <div id="new_hotel_step1">
+        <div style="text-align:left;margin-bottom:14px">
+          <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">New Hotel Registration</h2>
+          <p style="font-size:12.5px;color:#64748b;margin:0">Create a centralized Foodpiolet account for your property</p>
+        </div>
+
+        <form onsubmit="handleNewHotelRegister(event)">
+          <div class="login-field">
+            <label style="font-size:12px;font-weight:700;color:#475569">Hotel / Restaurant Name *</label>
+            <input id="new_hotel_name" required placeholder="e.g. Royal Spice Restaurant">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="login-field">
+              <label style="font-size:12px;font-weight:700;color:#475569">Owner Name *</label>
+              <input id="new_owner_name" required placeholder="e.g. Rajesh Kumar">
+            </div>
+            <div class="login-field">
+              <label style="font-size:12px;font-weight:700;color:#475569">Mobile Number *</label>
+              <input id="new_owner_mobile" required placeholder="10-digit mobile" inputmode="tel" maxlength="10">
+            </div>
+          </div>
+          <div class="login-field">
+            <label style="font-size:12px;font-weight:700;color:#475569">Admin Username *</label>
+            <input id="new_admin_username" required placeholder="e.g. owner" value="owner">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div class="login-field">
+              <label style="font-size:12px;font-weight:700;color:#475569">Admin Password *</label>
+              <input id="new_admin_password" type="password" required placeholder="Min 4 characters" minlength="4">
+            </div>
+            <div class="login-field">
+              <label style="font-size:12px;font-weight:700;color:#475569">Confirm Password *</label>
+              <input id="new_confirm_password" type="password" required placeholder="Confirm password" minlength="4">
+            </div>
+          </div>
+
+          <div id="new_reg_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
+
+          <button class="btn ok" id="btn_new_reg" style="width:100%;border-radius:12px;padding:12px;font-size:14px;font-weight:800" type="submit">
+            Register Hotel & Generate Hotel ID →
+          </button>
+        </form>
       </div>
 
-      <form onsubmit="handleSignupSubmit(event)">
-        <div class="login-field">
-          <label style="font-size:12px;font-weight:700;color:#475569">Hotel / Restaurant Name *</label>
-          <input id="signup_hotel_name" required placeholder="e.g. Royal Spice Restaurant">
+      <!-- Step 2: Activation Key Entry (shown after registration or when pending activation) -->
+      <div id="new_hotel_step2" style="display:none">
+        <div style="text-align:center;margin-bottom:16px">
+          <div style="width:48px;height:48px;border-radius:50%;background:#dcfce7;color:#16a34a;display:inline-flex;align-items:center;justify-content:center;margin-bottom:8px">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <h2 style="font-size:20px;font-weight:800;color:#0f172a;margin:0 0 4px">Hotel Registered Successfully!</h2>
+          <p style="font-size:12px;color:#64748b;margin:0">Your hotel record has been created in the central cloud</p>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+        <div style="background:#f8fafc;border:1.5px dashed #0284c7;border-radius:12px;padding:14px;text-align:center;margin-bottom:16px">
+          <div style="font-size:11px;color:#64748b;font-weight:800;text-transform:uppercase;letter-spacing:0.5px">Your Unique Hotel ID</div>
+          <div id="disp_new_hotel_id" style="font-size:24px;font-weight:900;color:#0284c7;font-family:monospace;letter-spacing:2px;margin:6px 0">HOTEL0000</div>
+          <button type="button" onclick="copyNewHotelId()" class="btn btn-sm btn-outline" style="font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer">
+            📋 Copy Hotel ID
+          </button>
+          <div style="font-size:11px;color:#64748b;margin-top:6px">Share this Hotel ID with Super Admin / Vendor for key issuance</div>
+        </div>
+
+        <form onsubmit="handleNewHotelActivate(event)">
           <div class="login-field">
-            <label style="font-size:12px;font-weight:700;color:#475569">Owner Mobile *</label>
-            <input id="signup_owner_mobile" required placeholder="10-digit mobile" inputmode="tel" maxlength="10">
+            <label style="font-size:12px;font-weight:700;color:#475569">Enter Activation Key *</label>
+            <input id="new_activation_key" required placeholder="SETU-XXXX-XXXX..." style="text-transform:uppercase;font-family:monospace;letter-spacing:1px;font-weight:700">
+            <div style="font-size:11px;color:#64748b;margin-top:4px">Enter the signed licence key from your vendor to activate ERP modules.</div>
           </div>
-          <div class="login-field">
-            <label style="font-size:12px;font-weight:700;color:#475569">City / Address</label>
-            <input id="signup_city" placeholder="City name">
-          </div>
-        </div>
-        <div class="login-field">
-          <label style="font-size:12px;font-weight:700;color:#475569">Create Master Password *</label>
-          <input id="signup_password" type="password" required placeholder="At least 4 characters" minlength="4">
-        </div>
 
-        <div class="login-field">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <label style="font-size:12px;font-weight:700;color:#475569">Activation Key *</label>
-            <small style="font-size:11px;color:#0284c7;font-weight:700">Install ID: <code class="install-id-display">Generating...</code></small>
-          </div>
-          <input id="signup_key" required placeholder="XXXX-XXXX-XXXX-XXXX" style="text-transform:uppercase;font-family:monospace;letter-spacing:1.5px">
+          <div id="new_act_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
+          <div id="new_act_ok" style="color:#166534;background:#dcfce7;border:1px solid #86efac;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
+
+          <button class="btn ok" id="btn_new_act" style="width:100%;border-radius:12px;padding:12px;font-size:14px;font-weight:800" type="submit">
+            Activate Hotel & Open Dashboard →
+          </button>
+        </form>
+
+        <div style="margin-top:12px;text-align:center;font-size:12px">
+          <a href="javascript:void(0)" onclick="resetNewHotelSteps()" style="color:#64748b;text-decoration:none">← Back to Registration</a>
         </div>
-
-        <div id="signup_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
-
-        <button class="btn ok" style="width:100%;border-radius:12px;padding:12px;font-size:14px;font-weight:800" type="submit">
-          Activate & Register Property →
-        </button>
-      </form>
+      </div>
 
       <div style="margin-top:14px;text-align:center;font-size:12.5px;color:#64748b">
         Already registered? <a href="javascript:void(0)" onclick="switchOnboardingMode('existing')" style="color:#0284c7;font-weight:800;text-decoration:none">Back to Login</a>
@@ -1333,10 +1379,10 @@ html[data-density="spacious"] .btn {
     <!-- Hidden input for JSON upload -->
     <input type="file" id="json_backup_picker" accept=".json,application/json" style="display:none" onchange="handleExistingJsonUpload(this.files[0]);this.value=''">
 
-    <!-- Footer: Super Admin Gate 1 link -->
+    <!-- Footer: Official Foodpiolet notice -->
     <div style="margin-top:18px;padding-top:12px;border-top:1px solid rgba(226,232,240,0.8);display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:#64748b">
       <span>Official POS by <b>Aghanya Devanya</b></span>
-      <a href="javascript:void(0)" onclick="promptAdminForGate1('gate1')" style="color:#64748b;text-decoration:none;font-weight:600" title="Super Admin Master Access">Super Admin Gate 1</a>
+      <span style="color:#94a3b8">Cloud & Desktop Sync Ready</span>
     </div>
   </div>
 
@@ -2801,11 +2847,6 @@ function getGate1Session(){
 }
 
 function showLoginView(view){
-  // Security guard: Gate 1 and Welcome setup can NEVER be shown without Admin Password once hotel is registered!
-  if((view === 'gate1' || view === 'welcome') && D && D.auth && D.auth.isRegistered && !window._adminGate1Authorized){
-    promptAdminForGate1(view);
-    return;
-  }
   fillInstallIds();
   const vWelcome = $('#login-view-welcome');
   const vSignup = $('#login-view-signup');
@@ -17957,6 +17998,336 @@ function updateHeaderLogo(){
   const hsub = $('#hsub');
   if(hsub && D && D.settings) hsub.textContent = D.settings.outlet || D.settings.name || 'Hotel POS';
 }
+
+// Unified SaaS Login, Activation & Onboarding Functions
+async function handleUnifiedLogin(e){
+  if(e) e.preventDefault();
+  const hotel = ($('#exist_hotel_id')?.value || '').trim().toUpperCase();
+  const username = ($('#exist_username')?.value || 'owner').trim();
+  const password = ($('#exist_password')?.value || '').trim();
+  const remember = $('#exist_remember')?.checked;
+  const errBox = $('#exist_pull_err');
+  const okBox = $('#exist_pull_ok');
+  const btn = $('#btn-exist-pull');
+
+  const showErr = (msg) => {
+    if(okBox) okBox.style.display = 'none';
+    if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
+    else alert(msg);
+  };
+  const showOk = (msg) => {
+    if(errBox) errBox.style.display = 'none';
+    if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
+    else alert(msg);
+  };
+
+  if(!hotel || !password){
+    showErr('Please enter Hotel ID and Password.');
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'Logging in...';
+  }
+
+  try {
+    const endpoint = (SRV && SRV.on && SRV.local) ? '/api/hotel/login' : (SRV && SRV.cloud ? '/api/hotel/login' : 'https://setu-cloud.theinkthreadhub.workers.dev/api/hotel/login');
+    const headers = { 'Content-Type': 'application/json', 'X-Setu-Hotel': hotel };
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ hotelId: hotel, username, password })
+    });
+
+    const j = await res.json().catch(() => ({}));
+
+    if(res.status === 403 && j.error === 'PENDING_ACTIVATION'){
+      // Switch to Activation Key view for this hotel
+      switchOnboardingMode('new');
+      $('#new_hotel_step1').style.display = 'none';
+      $('#new_hotel_step2').style.display = 'block';
+      if($('#disp_new_hotel_id')) $('#disp_new_hotel_id').textContent = hotel;
+      window._pendingHotelReg = { hotelId: hotel, hotelName: j.hotelName || hotel, username, password };
+      const actErr = $('#new_act_err');
+      if(actErr){
+        actErr.textContent = 'This hotel is pending activation. Please enter your Activation Key to continue.';
+        actErr.style.display = 'block';
+      }
+      setTimeout(() => $('#new_activation_key')?.focus(), 150);
+      if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+      return;
+    }
+
+    if(res.status === 402 || j.error === 'EXPIRED'){
+      showErr(j.message || 'Your Foodpiolet subscription has expired. Please contact support or renew.');
+      if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+      return;
+    }
+
+    if(!res.ok || !j.ok){
+      showErr(j.error || ('Login failed (HTTP ' + res.status + '). Please check your credentials.'));
+      if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+      return;
+    }
+
+    // Success!
+    if(remember){
+      localStorage.setItem('foodpiolet_saved_hotel_id', hotel);
+    } else {
+      localStorage.removeItem('foodpiolet_saved_hotel_id');
+    }
+
+    if(j.token){
+      SRV.token = j.token;
+      lsSet(TOKEN_KEY, j.token);
+    }
+
+    if(!D.auth) D.auth = {};
+    D.auth.isRegistered = true;
+    D.auth.hotelId = hotel;
+    D.auth.userId = username;
+    D.auth.ownerName = j.owner || j.name || username;
+    D.auth.status = 'active';
+
+    if(!D.settings) D.settings = {};
+    D.settings.hotelId = hotel;
+    if(j.hotelName) D.settings.name = j.hotelName;
+
+    if(!D.subscription) D.subscription = {};
+    D.subscription.status = 'active';
+    if(j.paidUntil) D.subscription.validUntil = new Date(j.paidUntil).toISOString();
+
+    save();
+
+    activeUser = {
+      name: j.owner || j.name || username,
+      role: 'admin',
+      access: 'admin',
+      hotelId: hotel
+    };
+
+    showOk('Welcome, ' + activeUser.name + '! Opening dashboard...');
+    toast('Logged in successfully!');
+    setTimeout(() => {
+      finishLogin();
+    }, 500);
+
+  } catch(err) {
+    showErr('Connection error: ' + (err.message || err));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+  }
+}
+
+async function handleNewHotelRegister(e){
+  if(e) e.preventDefault();
+  const hotelName = ($('#new_hotel_name')?.value || '').trim();
+  const ownerName = ($('#new_owner_name')?.value || '').trim();
+  const mobile = ($('#new_owner_mobile')?.value || '').replace(/\D/g, '').trim();
+  const username = ($('#new_admin_username')?.value || 'owner').trim();
+  const password = ($('#new_admin_password')?.value || '').trim();
+  const confirmPassword = ($('#new_confirm_password')?.value || '').trim();
+  const errBox = $('#new_reg_err');
+  const btn = $('#btn_new_reg');
+
+  const showErr = (msg) => {
+    if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
+    else alert(msg);
+  };
+
+  if(!hotelName || !ownerName || !mobile || !password){
+    showErr('Please fill in all required fields.');
+    return;
+  }
+
+  if(mobile.length < 10){
+    showErr('Please enter a valid 10-digit mobile number.');
+    return;
+  }
+
+  if(password !== confirmPassword){
+    showErr('Passwords do not match. Please re-enter.');
+    return;
+  }
+
+  if(password.length < 4){
+    showErr('Password must be at least 4 characters long.');
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'Registering Hotel...';
+  }
+
+  try {
+    const installIdObj = typeof getInstallId === 'function' ? await getInstallId() : { id: '' };
+    const endpoint = (SRV && SRV.on && SRV.local) ? '/api/hotel/register' : (SRV && SRV.cloud ? '/api/hotel/register' : 'https://setu-cloud.theinkthreadhub.workers.dev/api/hotel/register');
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hotelName,
+        ownerName,
+        phone: mobile,
+        username,
+        password,
+        installId: installIdObj.id
+      })
+    });
+
+    const j = await res.json().catch(() => ({}));
+
+    if(!res.ok || !j.ok){
+      showErr(j.error || ('Registration failed (HTTP ' + res.status + ')'));
+      if(btn){ btn.disabled = false; btn.textContent = 'Register Hotel & Generate Hotel ID →'; }
+      return;
+    }
+
+    // Success: Generated Hotel ID
+    window._pendingHotelReg = {
+      hotelId: j.hotelId,
+      hotelName,
+      ownerName,
+      username,
+      password
+    };
+
+    $('#new_hotel_step1').style.display = 'none';
+    $('#new_hotel_step2').style.display = 'block';
+    if($('#disp_new_hotel_id')) $('#disp_new_hotel_id').textContent = j.hotelId;
+    toast('Hotel registered! Your Hotel ID is ' + j.hotelId);
+    setTimeout(() => $('#new_activation_key')?.focus(), 200);
+
+  } catch(err) {
+    showErr('Registration error: ' + (err.message || err));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = 'Register Hotel & Generate Hotel ID →'; }
+  }
+}
+
+async function handleNewHotelActivate(e){
+  if(e) e.preventDefault();
+  const hotelId = window._pendingHotelReg?.hotelId || $('#disp_new_hotel_id')?.textContent || ($('#exist_hotel_id')?.value || '').trim().toUpperCase();
+  const key = ($('#new_activation_key')?.value || '').trim().toUpperCase();
+  const errBox = $('#new_act_err');
+  const okBox = $('#new_act_ok');
+  const btn = $('#btn_new_act');
+
+  const showErr = (msg) => {
+    if(okBox) okBox.style.display = 'none';
+    if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
+    else alert(msg);
+  };
+  const showOk = (msg) => {
+    if(errBox) errBox.style.display = 'none';
+    if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
+    else alert(msg);
+  };
+
+  if(!hotelId){
+    showErr('Hotel ID is missing. Please restart registration.');
+    return;
+  }
+
+  if(!key){
+    showErr('Please enter the Activation Key provided by your vendor.');
+    return;
+  }
+
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'Validating Key...';
+  }
+
+  try {
+    const installIdObj = typeof getInstallId === 'function' ? await getInstallId() : { id: '' };
+    const endpoint = (SRV && SRV.on && SRV.local) ? '/api/hotel/activate' : (SRV && SRV.cloud ? '/api/hotel/activate' : 'https://setu-cloud.theinkthreadhub.workers.dev/api/hotel/activate');
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        hotelId,
+        key,
+        installId: installIdObj.id
+      })
+    });
+
+    const j = await res.json().catch(() => ({}));
+
+    if(!res.ok || !j.ok){
+      showErr(j.error || ('Activation failed (HTTP ' + res.status + '). Please verify the key.'));
+      if(btn){ btn.disabled = false; btn.textContent = 'Activate Hotel & Open Dashboard →'; }
+      return;
+    }
+
+    // Success!
+    showOk('Hotel activated successfully! Opening Foodpiolet...');
+    toast('Hotel activated successfully!');
+
+    if(j.token){
+      SRV.token = j.token;
+      lsSet(TOKEN_KEY, j.token);
+    }
+
+    if(!D.auth) D.auth = {};
+    D.auth.isRegistered = true;
+    D.auth.hotelId = hotelId;
+    D.auth.userId = window._pendingHotelReg?.username || 'owner';
+    D.auth.ownerName = window._pendingHotelReg?.ownerName || j.hotelName || 'Owner';
+    D.auth.status = 'active';
+
+    if(!D.settings) D.settings = {};
+    D.settings.hotelId = hotelId;
+    if(window._pendingHotelReg?.hotelName) D.settings.name = window._pendingHotelReg.hotelName;
+
+    if(!D.subscription) D.subscription = {};
+    D.subscription.status = 'active';
+    if(j.paidUntil) D.subscription.validUntil = new Date(j.paidUntil).toISOString();
+
+    save();
+
+    // Auto-remember this newly activated hotel ID
+    localStorage.setItem('foodpiolet_saved_hotel_id', hotelId);
+
+    activeUser = {
+      name: D.auth.ownerName,
+      role: 'admin',
+      access: 'admin',
+      hotelId
+    };
+
+    setTimeout(() => {
+      finishLogin();
+    }, 600);
+
+  } catch(err) {
+    showErr('Activation error: ' + (err.message || err));
+  } finally {
+    if(btn){ btn.disabled = false; btn.textContent = 'Activate Hotel & Open Dashboard →'; }
+  }
+}
+
+function copyNewHotelId(){
+  const hid = $('#disp_new_hotel_id')?.textContent;
+  if(!hid) return;
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(hid).then(() => toast('Hotel ID copied to clipboard: ' + hid));
+  } else {
+    prompt('Copy your Hotel ID:', hid);
+  }
+}
+
+function resetNewHotelSteps(){
+  $('#new_hotel_step1').style.display = 'block';
+  $('#new_hotel_step2').style.display = 'none';
+  const err = $('#new_reg_err');
+  if(err) err.style.display = 'none';
+}
+
 function switchOnboardingMode(mode){
   const tabExist = $('#tab-login-existing');
   const tabNew = $('#tab-login-new');
@@ -17973,7 +18344,13 @@ function switchOnboardingMode(mode){
     if(tabNew){ tabNew.style.background = 'transparent'; tabNew.style.color = '#64748b'; tabNew.style.boxShadow = 'none'; }
     if(formExist) formExist.style.display = 'block';
     if(formNew) formNew.style.display = 'none';
-    setTimeout(() => $('#exist_hotel_id')?.focus(), 100);
+    setTimeout(() => {
+      const savedHid = localStorage.getItem('foodpiolet_saved_hotel_id');
+      if(savedHid && $('#exist_hotel_id') && !$('#exist_hotel_id').value){
+        $('#exist_hotel_id').value = savedHid;
+      }
+      $('#exist_hotel_id')?.focus();
+    }, 100);
   }
 }
 

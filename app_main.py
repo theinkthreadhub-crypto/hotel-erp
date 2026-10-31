@@ -39,6 +39,24 @@ APP_PORT = 8000
 APP_VERSION = 'dev'   # stamped by installer/stamp-version.py when the EXE is built
 # Setu Cloud the counter PC joins by itself (like Library ERP). SETU_CLOUD_URL overrides it.
 DEFAULT_CLOUD_URL = os.environ.get('SETU_CLOUD_URL', 'https://setu-cloud.theinkthreadhub.workers.dev')
+
+def http_cloud_post(path, obj, hotel=None, timeout=12):
+    url = DEFAULT_CLOUD_URL
+    headers = {'Content-Type': 'application/json', 'User-Agent': 'Setu-Main-Counter/1.0'}
+    if hotel:
+        headers['X-Setu-Hotel'] = hotel
+    req = urllib.request.Request(url + path, data=json.dumps(obj).encode('utf-8'), method='POST', headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.status, json.loads(r.read().decode('utf-8') or '{}')
+    except urllib.error.HTTPError as e:
+        try:
+            return e.code, json.loads(e.read().decode('utf-8') or '{}')
+        except Exception:
+            return e.code, {'error': f'HTTP {e.code}'}
+    except Exception as e:
+        return None, {'error': str(e)}
+
 AUTO_LINK_EVERY = 30 * 60   # seconds between join attempts while offline / not licensed yet
 MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one database upload
 KEEP_BACKUPS = 60              # daily backup files kept
@@ -2460,6 +2478,117 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 return self.send_json(200, {
                     'ok': True,
                     'message': 'Password has been reset successfully! You can now login with your new password.'
+                })
+
+            if path == '/api/hotel/register':
+                try:
+                    b = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'Invalid JSON request'})
+                status, res = http_cloud_post('/api/hotel/register', b)
+                if status is None:
+                    return self.send_json(503, {'error': 'Hotel registration requires an active internet connection to allocate a Hotel ID.'})
+                if status == 200 and res.get('ok'):
+                    try:
+                        d = store.data() or {}
+                        st = d.setdefault('settings', {})
+                        auth = d.setdefault('auth', {})
+                        st['hotelId'] = res.get('hotelId')
+                        st['name'] = res.get('hotelName')
+                        auth['hotelId'] = res.get('hotelId')
+                        auth['ownerName'] = res.get('owner')
+                        auth['status'] = 'pending'
+                        auth['isRegistered'] = True
+                        store.save(d)
+                    except Exception:
+                        pass
+                return self.send_json(status, res)
+
+            if path == '/api/hotel/activate':
+                try:
+                    b = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'Invalid JSON request'})
+                status, res = http_cloud_post('/api/hotel/activate', b)
+                if status is None:
+                    return self.send_json(503, {'error': 'Activation Key validation requires an active internet connection.'})
+                if status == 200 and res.get('ok'):
+                    try:
+                        d = store.data() or {}
+                        auth = d.setdefault('auth', {})
+                        auth['status'] = 'active'
+                        auth['paidUntil'] = res.get('paidUntil')
+                        store.save(d)
+                        if cloud and res.get('syncKey'):
+                            cloud.set_config(DEFAULT_CLOUD_URL, res['hotelId'], res['syncKey'], True)
+                    except Exception:
+                        pass
+                return self.send_json(status, res)
+
+            if path == '/api/hotel/login':
+                try:
+                    b = self.read_json()
+                    hotel_id = str(b.get('hotelId') or '').strip().upper()
+                    username = str(b.get('username') or 'owner').strip()
+                    password = str(b.get('password') or '').strip()
+                except Exception:
+                    return self.send_json(400, {'error': 'Invalid JSON request'})
+
+                if not hotel_id or not password:
+                    return self.send_json(400, {'error': 'Hotel ID and Password are required.'})
+
+                # Try cloud first
+                status, cloud_res = http_cloud_post('/api/hotel/login', b)
+                if status is not None:
+                    if status == 200 and cloud_res.get('ok'):
+                        try:
+                            d = store.data() or {}
+                            st = d.setdefault('settings', {})
+                            auth = d.setdefault('auth', {})
+                            sec = d.setdefault('secure', {})
+                            st['hotelId'] = cloud_res.get('hotelId')
+                            st['name'] = cloud_res.get('hotelName')
+                            auth['hotelId'] = cloud_res.get('hotelId')
+                            auth['ownerName'] = cloud_res.get('owner') or username
+                            auth['status'] = 'active'
+                            auth['isRegistered'] = True
+                            sec['owner'] = SEC.hash_secret(password)
+                            store.save(d)
+                            if cloud and cloud_res.get('syncKey'):
+                                cloud.set_config(DEFAULT_CLOUD_URL, cloud_res['hotelId'], cloud_res['syncKey'], True)
+                                try:
+                                    cloud.restore(cloud_res['hotelId'], password)
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                        token = store.add_token('admin', hotel_id=cloud_res['hotelId'], name=cloud_res.get('owner') or username)
+                        cloud_res['token'] = token
+                    return self.send_json(status, cloud_res)
+
+                # Offline mode fallback
+                d = store.data() or {}
+                st = d.get('settings') or {}
+                auth = d.get('auth') or {}
+                local_hid = str(st.get('hotelId') or auth.get('hotelId') or '').upper()
+                if not local_hid or (hotel_id and hotel_id != local_hid):
+                    return self.send_json(503, {'error': 'Offline: Hotel ID not found locally. Initial login requires an active internet connection.'})
+
+                found = store.check_pin(password)
+                if not found:
+                    return self.send_json(401, {'error': 'Invalid Hotel ID, Username, or Password (offline mode).'})
+
+                role, name = found
+                token = store.add_token(role, hotel_id=local_hid, name=name)
+                return self.send_json(200, {
+                    'ok': True,
+                    'offline': True,
+                    'hotelId': local_hid,
+                    'hotelName': st.get('name') or 'Foodpiolet ERP',
+                    'role': role,
+                    'name': name,
+                    'token': token,
+                    'message': 'Logged in offline. Changes will sync when online.'
                 })
 
             if path == '/api/hotel/auth':

@@ -539,12 +539,13 @@ const AVC = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#0d9488', '#4f46e5', '
 const avatar = h => `<div class="av" style="background:${AVC[[...String(h.code)].reduce((a, c) => a + c.charCodeAt(0), 0) % AVC.length]}">${esc((h.name || h.code || '?').trim()[0].toUpperCase())}</div>`;
 // One plain word for how the hotel's Setu is right now
 function appState(h){
+  if(h.status === 'pending' || state(h) === 'pending') return ['Pending Activation', 'warn'];
   const d = licDays(h);
   if(state(h) === 'suspended') return ['Suspended', 'off'];
   if(+h.lockv === 2) return ['Locked', 'bad'];
   if(d !== null && d !== Infinity && d < 0) return ['Licence expired', 'bad'];
   if(+h.lockv === 1) return ['Warning', 'warn'];
-  return ['Running', 'ok'];
+  return ['Active', 'ok'];
 }
 // Usage: bills per day from the counter (registry bdays / ball / lastbill), days in IST like the bills
 const istDay = (ms = Date.now()) => new Date(ms + 330 * 60000).toISOString().slice(0, 10);
@@ -579,7 +580,7 @@ function urgency(h){
 }
 let KF = 'all';
 const KF_ICON = {all: 'hotels', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
-const KFS = {all: ['All', () => true], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
+const KFS = {all: ['All', () => true], pending: ['Pending Activation', h => h.status === 'pending' || state(h) === 'pending'], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
   tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
 function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'All hotels' : KFS[k][0]; haptic('tick'); }
 async function drawHotels(){
