@@ -58,6 +58,31 @@ class HoReCaOneStaticChecks(unittest.TestCase):
             self.assertRegex(map_block, r"(?m)^\s*['\"]?" + re.escape(screen) +
                              r"['\"]?\s*:")
 
+    def test_in_app_learning_center(self):
+        self.assertIn("guide: scrHoGuide", TEXT)
+        self.assertIn("'User Guide & Training','guide','Utilities'", TEXT)
+        self.assertIn("function hoFilterGuide(", TEXT)
+        self.assertIn("function hoBeginLesson(", TEXT)
+        self.assertIn("function hoGuideAnswer(", TEXT)
+        self.assertIn("const HO_HELP = {", TEXT)
+        articles = TEXT.split("const HO_HELP = {", 1)[1].split("};", 1)[0]
+        for screen in EXPECTED_SCREENS:
+            self.assertRegex(articles, r'(?m)^\\s*["\\\']?' + re.escape(screen) + r'["\\\']?\\s*:')
+        self.assertIn("m[2] === 'guide'", TEXT)
+        self.assertIn("s !== 'guide'", TEXT)
+
+    def test_guided_training_is_read_only(self):
+        block = TEXT.split("function hoRenderLesson()", 1)[1].split(
+            "function hoGuideAnswer(", 1)[0]
+        self.assertIn("STEP", block)
+        self.assertNotIn("finalizePakkaBill(", block)
+        self.assertNotIn("save()", block)
+        self.assertNotIn("srvPush(", block)
+
+    def test_ai_guidance_is_local_first(self):
+        self.assertIn("const verifiedHelp = hoGuideAnswer(q);", TEXT)
+        self.assertIn("if(verifiedHelp)", TEXT)
+
     def test_core_logic_still_present(self):
         for function in ("scrBill", "scrBills", "scrKitchen", "scrStock",
                          "scrWaReports", "scrGst", "scrReports", "applyTheme",
@@ -69,7 +94,7 @@ class HoReCaOneStaticChecks(unittest.TestCase):
         self.assertIn("HoReCa One", manifest["name"])
         self.assertIn("HoReCa One", manifest["short_name"])
         sw = (ROOT / "sw.js").read_text(encoding="utf-8")
-        self.assertIn("setu-pos-v67", sw)
+        self.assertIn("setu-pos-v68", sw)
         self.assertIn("hotel_erp.html", sw)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js unavailable")
