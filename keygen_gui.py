@@ -379,3 +379,4 @@ class KeygenApp(tk.Tk):
 if __name__ == "__main__":
     app = KeygenApp()
     app.mainloop()
+
