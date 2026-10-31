@@ -1,0 +1,46 @@
+name: HoReCa One real ERP regression (safe test data)
+on:
+  push:
+    branches:
+      - feat/horeca-one-premium-22-modules
+    paths:
+      - .github/workflows/horeca-one-regression.yml
+      - hotel_erp.html
+      - app_main.py
+      - setu_security.py
+      - tests/test_horeca_specifics.cjs
+      - tests/p0-security.cjs
+      - tests/gate1_gate2_security_suite.cjs
+      - tests/qr_table_display_suite.cjs
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-synthetic-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 14
+    env:
+      PYTHON: python3
+      CLOUD_URL: http://127.0.0.1:8787
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python syntax and core client check
+        run: |
+          python3 -m py_compile app_main.py setu_security.py setu_media.py
+          node --input-type=module --check < cloud/src/worker.js
+      - name: Main application VM runtime
+        run: node tests/test_horeca_specifics.cjs
+      - name: QR order and table display verification
+        run: node tests/qr_table_display_suite.cjs
+      - name: Gate-1 / Gate-2 authentication suite (isolated localhost)
+        run: node tests/gate1_gate2_security_suite.cjs
+      - name: Counter P0 security checks (isolated localhost, never production)
+        run: node tests/p0-security.cjs
