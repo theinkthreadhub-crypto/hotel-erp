@@ -1,0 +1,51 @@
+name: HoReCa One Windows Preview EXE (no release)
+on:
+  push:
+    branches:
+      - feat/horeca-one-premium-22-modules
+    paths:
+      - hotel_erp.html
+      - app_main.py
+      - setu_security.py
+      - setu_media.py
+      - installer/horeca_preview_hook.py
+      - .github/workflows/horeca-preview-exe.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-preview:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install preview build dependencies
+        run: python -m pip install --upgrade pyinstaller pywebview certifi
+      - name: Check Python sources
+        run: python -m py_compile app_main.py setu_security.py setu_media.py installer/horeca_preview_hook.py
+      - name: Build isolated preview EXE
+        shell: cmd
+        run: >
+          python -m PyInstaller --noconfirm --onefile --windowed
+          --name HoReCa-One-Preview --icon favicon.ico
+          --runtime-hook installer/horeca_preview_hook.py
+          --add-data "hotel_erp.html;."
+          --add-data "manifest.json;."
+          --add-data "sw.js;."
+          --add-data "icon-192.png;."
+          --add-data "icon-512.png;."
+          --add-data "logo.png;."
+          --add-data "favicon.ico;."
+          --add-data "food;food"
+          app_main.py
+      - name: Upload private test artifact only
+        uses: actions/upload-artifact@v4
+        with:
+          name: HoReCa-One-Preview-Windows
+          path: dist/HoReCa-One-Preview.exe
+          retention-days: 30
+          if-no-files-found: error
