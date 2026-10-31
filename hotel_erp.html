@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Setu</title>
+<title>HoReCa One — Hotel • Restaurant • Café</title>
 <meta name="theme-color" content="#0284c7">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -13,6 +13,163 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
+/* ================= HORECA ONE: THEME VARIABLES & 3-MODE SIDEBAR ================= */
+html[data-theme="horeca_light"] {
+  --primary: #f97316;
+  --primary-dark: #ea580c;
+  --primary-light: #ffedd5;
+  --accent: #f97316;
+  --bg: #f8fafc;
+  --panel: #ffffff;
+  --surface: #f1f5f9;
+  --border: #e2e8f0;
+  --border-focus: #fb923c;
+  --text: #0f172a;
+  --text-muted: #64748b;
+  --ok: #10b981;
+  --ok-light: #d1fae5;
+  --bad: #ef4444;
+  --bad-light: #fee2e2;
+  --warn: #f59e0b;
+  --warn-light: #fef3c7;
+  --topbar: #0f172a;
+  --side-bg: #0f172a;
+  --side-text: #94a3b8;
+  --side-muted: #64748b;
+  --side-border: #1e293b;
+  --side-active-bg: rgba(249, 115, 22, 0.16);
+  --side-active-text: #f97316;
+  --card-shadow: 0 4px 6px -1px rgba(0,0,0,0.04), 0 2px 4px -2px rgba(0,0,0,0.04);
+  --card-shadow-hover: 0 10px 15px -3px rgba(0,0,0,0.08), 0 4px 6px -4px rgba(0,0,0,0.04);
+  --radius: 12px;
+}
+
+html[data-theme="horeca_dark"] {
+  --primary: #f97316;
+  --primary-dark: #ea580c;
+  --primary-light: rgba(249, 115, 22, 0.2);
+  --accent: #fb923c;
+  --bg: #0b1120;
+  --panel: #0f172a;
+  --surface: #1e293b;
+  --border: #334155;
+  --border-focus: #f97316;
+  --text: #f8fafc;
+  --text-muted: #94a3b8;
+  --topbar: #060911;
+  --side-bg: #060911;
+  --side-text: #94a3b8;
+  --side-muted: #64748b;
+  --side-border: #1e293b;
+  --side-active-bg: rgba(249, 115, 22, 0.22);
+  --side-active-text: #f97316;
+  --card-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+  --card-shadow-hover: 0 10px 20px -3px rgba(0,0,0,0.5);
+  --radius: 12px;
+}
+
+/* ================= HORECA ONE: 3-MODE COLLAPSIBLE SIDEBAR ================= */
+#side {
+  order: -1 !important;
+  width: 230px !important;
+  min-width: 230px !important;
+  background: var(--side-bg, #0f172a) !important;
+  color: var(--side-text, #94a3b8) !important;
+  border-right: 1px solid var(--side-border, #1e293b) !important;
+  border-left: none !important;
+  padding: 12px 8px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.06) !important;
+  transition: width 0.18s cubic-bezier(0.4, 0, 0.2, 1), min-width 0.18s ease, padding 0.18s ease !important;
+  z-index: 20;
+}
+
+/* 1. Expanded Sidebar Mode (Default) */
+body.side-expanded #side {
+  width: 230px !important;
+  min-width: 230px !important;
+  display: flex !important;
+}
+
+/* 2. Compact Sidebar Mode (64px Rail) */
+body.side-compact #side {
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+  padding: 10px 6px !important;
+  display: flex !important;
+  overflow-x: hidden !important;
+  align-items: center !important;
+}
+body.side-compact #side .nav-label,
+body.side-compact #side .nav-right,
+body.side-compact #side .side-section-header span,
+body.side-compact #side .side-footer-toggle .toggle-label {
+  display: none !important;
+}
+body.side-compact #side .side-section-header {
+  padding: 0 !important;
+  margin: 6px 0 !important;
+  height: 1px !important;
+  width: 36px !important;
+  background: var(--side-border, #1e293b) !important;
+  cursor: default !important;
+}
+body.side-compact #side .nav-item {
+  width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  border-radius: 10px !important;
+  margin: 2px 0 !important;
+}
+body.side-compact #side .nav-icon {
+  margin: 0 !important;
+  width: 20px !important;
+  height: 20px !important;
+}
+body.side-compact #side .side-footer-toggle {
+  width: 44px !important;
+  height: 44px !important;
+  padding: 0 !important;
+  justify-content: center !important;
+}
+
+/* 3. Hidden Sidebar Mode (Full content focus) */
+body.side-hidden #side {
+  display: none !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+}
+body.side-hidden #main {
+  max-width: 100vw !important;
+  width: 100% !important;
+}
+
+/* Ensure hamburger button is visible and styled on desktop */
+#sidebtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: rgba(255,255,255,0.08) !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  color: #ffffff !important;
+  border-radius: 8px !important;
+  padding: 5px 10px !important;
+  font-size: 16px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+#sidebtn:hover {
+  background: rgba(249, 115, 22, 0.25) !important;
+  border-color: #f97316 !important;
+}
+
 /* Aghanya Devanya Branding & Subscription */
 .brand-sub{font-size:10px;font-weight:700;color:#38bdf8;letter-spacing:.3px}
 .sub-pill{padding:5px 12px;border-radius:20px;font-size:11px;font-weight:700;display:inline-flex;align-items:center;gap:6px;cursor:pointer;border:0;transition:all .15s ease}
@@ -1523,9 +1680,9 @@ html[data-density="spacious"] .btn {
   <!-- VIEW 0: Frosted Glass Login (Inspired by Image 4) -->
   <div class="login-card login-glass-card" id="login-view-welcome" style="display:block;max-width:460px;width:100%">
     <div style="text-align:center;margin-bottom:18px">
-      <img src="icon-192.png" alt="Foodpiolet ERP" style="width:58px;height:58px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.12);margin:0 auto 8px;display:block;border:1px solid rgba(255,255,255,0.7);background:#fff">
-      <div style="font-size:12px;font-weight:800;color:#0284c7;text-transform:uppercase;letter-spacing:1px">Foodpiolet ERP</div>
-      <div style="font-size:10.5px;color:#64748b;font-weight:600">Enterprise Restaurant & Hotel SaaS</div>
+      <div style="width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);box-shadow:0 6px 20px rgba(249,115,22,0.3);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:24px;border:1px solid rgba(255,255,255,0.4)">H1</div>
+      <div style="font-size:14px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:1px">HoReCa One</div>
+      <div style="font-size:11px;color:#f97316;font-weight:700">Hotel • Restaurant • Café · Powered by Setu Pro</div>
     </div>
 
     <!-- Onboarding Mode Switcher Tabs: Option B (Existing) & Option A (New) -->
@@ -1537,7 +1694,7 @@ html[data-density="spacious"] .btn {
     <!-- OPTION B: EXISTING HOTEL LOGIN -->
     <div id="mode-onboard-existing">
       <div style="text-align:left;margin-bottom:16px">
-        <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Login to Foodpiolet</h2>
+        <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Login to HoReCa One</h2>
         <p style="font-size:13px;color:#64748b;margin:0">Enter your Hotel ID, Username & Password to continue</p>
       </div>
 
@@ -1571,7 +1728,7 @@ html[data-density="spacious"] .btn {
         <div id="exist_pull_ok" style="color:#166534;background:#dcfce7;border:1px solid #86efac;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
 
         <button class="btn btn-login-gradient" id="btn-exist-pull" style="width:100%;border-radius:12px;padding:12px;font-size:15px;font-weight:800;letter-spacing:0.3px" type="submit">
-          Login to Foodpiolet
+          Login to HoReCa One
         </button>
       </form>
 
@@ -1592,7 +1749,7 @@ html[data-density="spacious"] .btn {
       <div id="new_hotel_step1">
         <div style="text-align:left;margin-bottom:14px">
           <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">New Hotel Registration</h2>
-          <p style="font-size:12.5px;color:#64748b;margin:0">Create a centralized Foodpiolet account for your property</p>
+          <p style="font-size:12.5px;color:#64748b;margin:0">Create a centralized HoReCa One account for your property</p>
         </div>
 
         <form onsubmit="handleNewHotelRegister(event)">
@@ -1680,7 +1837,7 @@ html[data-density="spacious"] .btn {
     <!-- Hidden input for JSON upload -->
     <input type="file" id="json_backup_picker" accept=".json,application/json" style="display:none" onchange="handleExistingJsonUpload(this.files[0]);this.value=''">
 
-    <!-- Footer: Official Foodpiolet notice -->
+    <!-- Footer: Official HoReCa One notice -->
     <div style="margin-top:18px;padding-top:12px;border-top:1px solid rgba(226,232,240,0.8);display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:#64748b">
       <span>Official POS by <b>Aghanya Devanya</b></span>
       <span style="color:#94a3b8">Cloud & Desktop Sync Ready</span>
@@ -1821,12 +1978,15 @@ html[data-density="spacious"] .btn {
 
 <!-- Header -->
 <header id="top">
-  <button id="sidebtn" onclick="document.body.classList.toggle('side-open')" title="Menu">☰</button>
-  <div class="brand-wrap" onclick="go('gateway')">
-    <img id="top-hotel-logo" src="icon-192.png" alt="Hotel Logo" style="width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.2);display:block;box-shadow:0 2px 8px rgba(0,0,0,0.25);background:#fff;object-fit:cover">
-    <div style="display:flex;flex-direction:column;line-height:1.2">
-      <b id="hname">Restaurant POS</b>
-      <span class="brand-sub" id="hsub">Hotel POS</span>
+  <button id="sidebtn" onclick="toggleHoReCaSidebar()" title="Toggle Sidebar (Expanded / Compact / Full Screen)">☰</button>
+  <div class="brand-wrap" onclick="go('gateway')" title="HoReCa One — Hotel • Restaurant • Café (Powered by Setu Pro)">
+    <div class="horeca-logo-pill" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(249,115,22,0.35);color:#fff;font-weight:900;font-size:15px;letter-spacing:-0.5px">H1</div>
+    <div style="display:flex;flex-direction:column;line-height:1.15">
+      <div style="display:flex;align-items:center;gap:6px">
+        <b id="hname" style="font-weight:800;letter-spacing:-0.2px">HoReCa One</b>
+        <span class="horeca-sub-badge" style="font-size:9px;font-weight:800;background:rgba(249,115,22,0.2);color:#fb923c;border:1px solid rgba(249,115,22,0.35);padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:0.4px">Setu Pro</span>
+      </div>
+      <span class="brand-sub" id="hsub" style="font-size:10px;font-weight:600;color:#94a3b8">Hotel • Restaurant • Café</span>
     </div>
   </div>
   <span class="scr" id="scrname"><span class="dot"></span>Gateway</span>
@@ -1892,9 +2052,11 @@ html[data-density="spacious"] .btn {
 <!-- Persistent App Footer -->
 <footer id="app-footer">
   <div style="display:flex;align-items:center;gap:6px">
-    <span>Powered by <strong>Aghanya Devanya Enterprises</strong></span>
+    <span><strong>HoReCa One</strong></span>
     <span class="footer-sep">|</span>
-    <span>Setu — Hotel & Restaurant Management POS</span>
+    <span>Hotel • Restaurant • Café</span>
+    <span class="footer-sep">|</span>
+    <span>Powered by <strong>Setu Pro</strong> & Aghanya Devanya</span>
     <span class="footer-sep">|</span>
     <span class="app-ver"></span>
     <span id="footer-hotel" style="display:none"></span>
@@ -4989,7 +5151,7 @@ const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens'];
 const userPerms = () => { const st = activeUser && activeUser.staffId && (D.staff || []).find(x => x.id === activeUser.staffId); return (st && st.perms) || []; };
 
 function go(s, approved){
-  applyTheme();
+  applyTheme(); try{ initHoReCaSidebar(); }catch(e){}
   if(!activeUser && !checkAuth()) return;
   if(checkExpiryLock()) return;
   if(activeUser.access === 'captain' && !CAPTAIN_ALLOW.includes(s)){
@@ -5123,6 +5285,14 @@ function drawSide(){
       </button>`;
     });
   });
+  const sideMode = (typeof getHoReCaSidebarMode === 'function') ? getHoReCaSidebarMode() : 'expanded';
+  const isCompact = sideMode === 'compact';
+  html += `
+    <div class="side-footer-toggle" onclick="cycleHoReCaSidebar()" title="${isCompact ? 'Expand Sidebar' : 'Collapse to Compact Rail'}">
+      <span class="nav-icon"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="${isCompact ? 'M13 5l7 7-7 7M5 5l7 7-7 7' : 'M11 19l-7-7 7-7m8 14l-7-7 7-7'}"/></svg></span>
+      <span class="nav-label toggle-label">${isCompact ? 'Expand Rail' : 'Collapse Rail'}</span>
+    </div>
+  `;
   $('#side').innerHTML = html;
 }
 
@@ -5503,6 +5673,18 @@ function ocrApply(b){
 // Classic is the original look. Themes only change colours and roundness (CSS variables), never the layout of
 // billing, KOT or printing. Saved in D.settings, so every device of the hotel shows the same.
 const THEMES = {
+  horeca_light: {
+    name: 'HoReCa One Light',
+    cat: 'HoReCa One',
+    desc: 'Signature enterprise layout: Dark navy sidebar, crisp paper canvas, and vibrant orange branding.',
+    sw: ['#0f172a', '#f97316', '#f8fafc', '#ffffff']
+  },
+  horeca_dark: {
+    name: 'HoReCa One Dark',
+    cat: 'HoReCa One',
+    desc: 'Midnight graphite canvas with luminous orange telemetry accents for dark-room POS counters.',
+    sw: ['#0b1120', '#f97316', '#0f172a', '#1e293b']
+  },
   classic: {
     name: 'Original Classic',
     cat: 'Classic',
@@ -6225,6 +6407,301 @@ function dzOpen(kind){
    ========================================================================== */
 
 /* 1. MINT OS NEUMORPHIC MASTER DASHBOARD (mint_soft, mint_system, forest_mint, mint) */
+/* ================= HORECA ONE: FLAGSHIP ENTERPRISE DASHBOARD ================= */
+function dzHoReCaOne(d){
+  const t = d.t, s = d.s, y = d.y, low = d.low, k = d.k;
+  const curTh = (typeof D !== 'undefined' && D && D.settings && D.settings.theme) || 'horeca_light';
+  const isDark = curTh === 'horeca_dark';
+  const cardBg = isDark ? '#0f172a' : '#ffffff';
+  const cardBorder = isDark ? '#1e293b' : '#e2e8f0';
+  const textMuted = isDark ? '#94a3b8' : '#64748b';
+  const textMain = isDark ? '#f8fafc' : '#0f172a';
+  const activeKots = (typeof D !== 'undefined' && D && D.kots ? D.kots : []).filter(x => x.status !== 'served').length;
+
+  // 7-day sparkline bar chart
+  const wSales = d.week || [];
+  const maxW = Math.max(1, ...wSales.map(x => x[1] || 0));
+  const weekBarsSvg = wSales.map(([day, val]) => {
+    const barH = Math.max(4, Math.round((val / maxW) * 48));
+    const isToday = day === t;
+    const barFill = isToday ? '#f97316' : (isDark ? '#334155' : '#cbd5e1');
+    const dayLabel = day.slice(8);
+    return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1" title="${day}: ${money(val)}">
+      <div style="height:52px;display:flex;align-items:flex-end;width:100%;justify-content:center">
+        <div style="width:14px;height:${barH}px;background:${barFill};border-radius:4px 4px 0 0;transition:all .2s"></div>
+      </div>
+      <span style="font-size:10px;font-weight:${isToday?'800':'600'};color:${isToday?'#f97316':textMuted}">${dayLabel}</span>
+    </div>`;
+  }).join('');
+
+  // Payment Breakdown
+  const totalPay = sum(Object.values(d.pay || {})) || 1;
+  const payModes = Object.entries(d.pay || {}).map(([mode, amt]) => {
+    const pct = Math.round((amt / totalPay) * 100);
+    return `
+      <div style="margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:3px">
+          <span>${mode}</span>
+          <span>${money(amt)} <small style="color:${textMuted}">(${pct}%)</small></span>
+        </div>
+        <div style="width:100%;height:6px;background:${isDark?'#1e293b':'#e2e8f0'};border-radius:3px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${mode==='Cash'?'#10b981':mode==='UPI'?'#0284c7':'#f97316'};border-radius:3px"></div>
+        </div>
+      </div>
+    `;
+  }).join('') || `<div style="color:${textMuted};font-size:12px">No payment transactions recorded yet today.</div>`;
+
+  // Running tables chips
+  const runningTableChips = k.length ? k.slice(0, 8).map(([tbl, val]) => {
+    const total = calc(val.cart, val.disc, gstRate()).total;
+    const mins = Math.round((Date.now() - (val.ts || Date.now())) / 60000);
+    return `
+      <div onclick="go('bill');loadKaccha('${tbl}')" style="background:${isDark?'#1e293b':'#f8fafc'};border:1px solid ${cardBorder};border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:all .15s" title="Click to open ${tbl}">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <b style="font-size:13px;color:${textMain}">Table ${tbl}</b>
+          <span style="font-size:10px;font-weight:700;background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:6px">Occupied</span>
+        </div>
+        <div style="font-size:14px;font-weight:800;color:#f97316">${money(total)}</div>
+        <small style="font-size:10px;color:${textMuted}">${val.cart ? val.cart.length : 0} items · ${mins}m seated</small>
+      </div>
+    `;
+  }).join('') : `
+    <div style="text-align:center;padding:24px 16px;background:${isDark?'#1e293b':'#f8fafc'};border-radius:10px;border:1px dashed ${cardBorder};grid-column:span 2">
+      <div style="font-size:24px;margin-bottom:4px">🍽️</div>
+      <div style="font-weight:700;font-size:13px;color:${textMain}">All Tables Currently Available</div>
+      <p style="font-size:12px;color:${textMuted};margin:4px 0 10px">Press New Bill [F1 / B] to seat guests and generate KOT</p>
+      <button class="btn ok sm" onclick="go('bill')" style="font-weight:700">Open Billing Counter [B]</button>
+    </div>
+  `;
+
+  return `
+    <div class="horeca-dashboard" style="display:flex;flex-direction:column;gap:18px">
+      <!-- 1. Hero Command Bar -->
+      <div style="background:${isDark?'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)':'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'};border:1px solid ${cardBorder};border-radius:16px;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;box-shadow:${isDark?'0 4px 20px rgba(0,0,0,0.4)':'0 4px 16px rgba(0,0,0,0.04)'}">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+            <span style="background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3);padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:800;letter-spacing:0.5px">HORECA ONE · COMMAND CENTER</span>
+            <span style="font-size:12px;color:${textMuted}">● ${d.hotel || 'Setu Pro Property'}</span>
+          </div>
+          <h2 style="font-size:22px;font-weight:800;color:${textMain};margin:0 0 4px">${d.hi}, ${esc(d.name)}!</h2>
+          <p style="font-size:12.5px;color:${textMuted};margin:0">
+            ${new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}
+            <span style="margin:0 6px">•</span>
+            <b>${s.bills.length}</b> Bills Settled
+            <span style="margin:0 6px">•</span>
+            <b style="color:#f97316">${money(s.sales)}</b> Today's Gross Sales
+            ${k.length ? `<span style="margin:0 6px">•</span><b style="color:#ef4444">${k.length} Running Tables</b>` : ''}
+          </p>
+        </div>
+
+        <!-- Quick Action Buttons -->
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button class="btn ok" onclick="go('bill')" style="background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:13.5px;font-weight:800;box-shadow:0 4px 14px rgba(249,115,22,0.35);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
+            <span>⚡ New Bill</span> <kbd style="background:rgba(255,255,255,0.25);color:#fff;border:none;padding:1px 5px;border-radius:4px;font-size:10.5px">F1 / B</kbd>
+          </button>
+          <button class="btn g" onclick="go('kaccha')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
+            <span>🍽️ Tables</span> <span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:10px">${k.length}</span>
+          </button>
+          <button class="btn g" onclick="go('kitchen')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
+            <span>🔥 KOTs</span> <span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:1px 6px;border-radius:10px">${activeKots}</span>
+          </button>
+          <button class="btn g" onclick="go('report')" style="padding:10px 14px;border-radius:10px;font-weight:700">
+            📊 Day Report [F4]
+          </button>
+        </div>
+      </div>
+
+      <!-- 2. 6-Card KPI Metrics Grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px">
+        <!-- KPI 1: Gross Sales -->
+        <div onclick="dzOpen('sales')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03);position:relative;overflow:hidden">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:${textMuted}">Today's Gross Sales</span>
+            <span style="color:#f97316;background:rgba(249,115,22,0.12);padding:4px;border-radius:8px;display:flex">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+            </span>
+          </div>
+          <b style="font-size:22px;font-weight:800;color:${textMain}">${money(s.sales)}</b>
+          <div style="font-size:11px;font-weight:700;color:${d.dSales === null ? textMuted : (d.dSales >= 0 ? '#10b981' : '#ef4444')}">
+            ${d.dSales === null ? 'No sales yesterday' : `${d.dSales >= 0 ? '▲ +' : '▼ '}${d.dSales}% vs yday`}
+          </div>
+        </div>
+
+        <!-- KPI 2: Total Orders Settled -->
+        <div onclick="go('bills')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:${textMuted}">Orders Settled</span>
+            <span style="color:#0284c7;background:#e0f2fe;padding:4px;border-radius:8px;display:flex">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </span>
+          </div>
+          <b style="font-size:22px;font-weight:800;color:${textMain}">${s.bills.length}</b>
+          <div style="font-size:11px;color:${textMuted};font-weight:600">AOV: <b>${money(d.avg)}</b></div>
+        </div>
+
+        <!-- KPI 3: Active Running Tables -->
+        <div onclick="go('kaccha')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:${textMuted}">Running Tables</span>
+            <span style="color:#8b5cf6;background:#ede9fe;padding:4px;border-radius:8px;display:flex">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+            </span>
+          </div>
+          <b style="font-size:22px;font-weight:800;color:${textMain}">${k.length}</b>
+          <div style="font-size:11px;color:${k.length ? '#f97316' : textMuted};font-weight:600">
+            ${k.length ? money(d.kAmt) + ' unbilled' : 'All tables free'}
+          </div>
+        </div>
+
+        <!-- KPI 4: Pending KOTs -->
+        <div onclick="go('kitchen')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:${textMuted}">Kitchen Backlog</span>
+            <span style="color:#ef4444;background:#fee2e2;padding:4px;border-radius:8px;display:flex">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+            </span>
+          </div>
+          <b style="font-size:22px;font-weight:800;color:${activeKots ? '#ef4444' : textMain}">${activeKots} KOTs</b>
+          <div style="font-size:11px;color:${textMuted};font-weight:600">Total tickets: <b>${d.kots}</b></div>
+        </div>
+
+        <!-- KPI 5: Cash in Drawer -->
+        <div onclick="go('cash')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:${textMuted}">Cash in Drawer</span>
+            <span style="color:#10b981;background:#d1fae5;padding:4px;border-radius:8px;display:flex">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+            </span>
+          </div>
+          <b style="font-size:22px;font-weight:800;color:${textMain}">${money(s.expected)}</b>
+          <div style="font-size:11px;color:${textMuted};font-weight:600">Spent: ${money(s.expT + s.purT)}</div>
+        </div>
+
+        <!-- KPI 6: Stock Alerts -->
+        <div onclick="go('stock')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;color:${textMuted}">Stock Alerts</span>
+            <span style="color:#eab308;background:#fef9c3;padding:4px;border-radius:8px;display:flex">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </span>
+          </div>
+          <b style="font-size:22px;font-weight:800;color:${low.length ? '#ef4444' : textMain}">${low.length} Low</b>
+          <div style="font-size:11px;color:${d.outStock ? '#ef4444' : '#10b981'};font-weight:700">
+            ${d.outStock ? d.outStock + ' Out of stock' : 'Stock level healthy'}
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Operations & Visual Analytics Two-Column Layout -->
+      <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start">
+        <!-- LEFT COLUMN: Live Running Tables & 7-Day Revenue Trend -->
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <!-- Live Running Tables Box -->
+          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:16px">🍽️</span>
+                <b style="font-size:15px;color:${textMain}">Live Floor & Running Tables</b>
+                <span class="badge" style="font-size:11px;font-weight:800;background:#fee2e2;color:#b91c1c;padding:1px 8px;border-radius:10px">${k.length} Active</span>
+              </div>
+              <button class="btn g sm" onclick="go('kaccha')" style="font-weight:700;font-size:11.5px">View Full Floor Plan →</button>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px">
+              ${runningTableChips}
+            </div>
+          </div>
+
+          <!-- 7-Day Revenue Trend Chart -->
+          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-size:16px">📈</span>
+                <b style="font-size:15px;color:${textMain}">7-Day Revenue Trajectory</b>
+              </div>
+              <span style="font-size:12px;color:${textMuted}">Peak Day: <b>${money(maxW)}</b></span>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-end;padding:8px 0">
+              ${weekBarsSvg}
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT COLUMN: Payment Distribution & Quick Watchlist -->
+        <div style="display:flex;flex-direction:column;gap:18px">
+          <!-- Payment Channels Breakdown -->
+          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+              <b style="font-size:15px;color:${textMain}">Payment Split</b>
+              <button class="btn g sm" onclick="go('bills')" style="font-size:11px">Audit</button>
+            </div>
+            ${payModes}
+          </div>
+
+          <!-- Quick Inventory Alerts Watchlist -->
+          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+              <b style="font-size:15px;color:${textMain}">Critical Stock Watch</b>
+              <button class="btn g sm" onclick="go('stock')" style="font-size:11px">Manage</button>
+            </div>
+            ${low.length ? low.slice(0, 4).map(x => `
+              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid ${cardBorder};font-size:12.5px">
+                <div>
+                  <b style="color:${textMain}">${esc(x.name)}</b>
+                  <div style="font-size:10.5px;color:${textMuted}">Min: ${x.min || 5} ${x.unit || ''}</div>
+                </div>
+                <span style="font-weight:800;color:${+x.qty <= 0 ? '#ef4444' : '#f59e0b'};background:${+x.qty <= 0 ? '#fee2e2' : '#fef3c7'};padding:2px 8px;border-radius:6px;font-size:11px">
+                  ${+x.qty} ${x.unit || ''}
+                </span>
+              </div>
+            `).join('') : `<div style="color:#10b981;font-size:12px;font-weight:700">All inventory items above threshold.</div>`}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ================= HORECA ONE: 3-MODE SIDEBAR CONTROLLER ================= */
+function setHoReCaSidebarMode(mode){
+  if(!['expanded', 'compact', 'hidden'].includes(mode)) mode = 'expanded';
+  if(typeof document !== 'undefined' && document.body && document.body.classList){
+    document.body.classList.remove('side-expanded', 'side-compact', 'side-hidden');
+    document.body.classList.add('side-' + mode);
+  }
+  try { if(typeof localStorage !== 'undefined') localStorage.setItem('horeca_sidebar_mode', mode); } catch(e){}
+  const btn = (typeof document !== 'undefined') ? (document.getElementById('sidebtn') || document.getElementById('btn-side-toggle')) : null;
+  if(btn){
+    btn.setAttribute('title', mode === 'hidden' ? 'Show Sidebar (Currently Hidden)' : (mode === 'compact' ? 'Expand Sidebar' : 'Collapse Sidebar'));
+  }
+}
+
+function getHoReCaSidebarMode(){
+  if(typeof document === 'undefined' || !document.body || !document.body.classList) return 'expanded';
+  if(document.body.classList.contains('side-compact')) return 'compact';
+  if(document.body.classList.contains('side-hidden')) return 'hidden';
+  return 'expanded';
+}
+
+function cycleHoReCaSidebar(){
+  const cur = getHoReCaSidebarMode();
+  if(cur === 'expanded') setHoReCaSidebarMode('compact');
+  else if(cur === 'compact') setHoReCaSidebarMode('expanded');
+  else setHoReCaSidebarMode('expanded');
+}
+
+function toggleHoReCaSidebar(){
+  const cur = getHoReCaSidebarMode();
+  if(cur === 'hidden') setHoReCaSidebarMode('expanded');
+  else if(cur === 'expanded') setHoReCaSidebarMode('compact');
+  else setHoReCaSidebarMode('hidden');
+}
+
+function initHoReCaSidebar(){
+  let saved = 'expanded';
+  try { if(typeof localStorage !== 'undefined') saved = localStorage.getItem('horeca_sidebar_mode') || 'expanded'; } catch(e){}
+  setHoReCaSidebarMode(saved);
+}
+
 function dzMintOS(d){
   const tok = [
     ['sales', "Today's Sales", money(d.s.sales), 'sales', d.dSales === null ? 'Active' : `${d.dSales >= 0 ? '▲' : '▼'} ${Math.abs(d.dSales)}% vs yday`, d.dSales >= 0 ? 'green' : 'red'],
@@ -6638,6 +7115,8 @@ function dzPastelLuxe(d){
 
 /* ================= COMPLETE 27-THEME DZ_LAYOUTS MAP ================= */
 const DZ_LAYOUTS = {
+  horeca_light: dzHoReCaOne,
+  horeca_dark: dzHoReCaOne,
   // Mint & Nature Family
   mint_soft: dzMintOS,
   mint_system: dzMintOS,
@@ -18677,7 +19156,7 @@ async function handleNewHotelActivate(e){
     }
 
     // Success!
-    showOk('Hotel activated successfully! Opening Foodpiolet...');
+    showOk('Hotel activated successfully! Opening HoReCa One...');
     toast('Hotel activated successfully!');
 
     if(j.token){
