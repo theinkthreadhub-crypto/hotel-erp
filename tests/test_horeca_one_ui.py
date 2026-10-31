@@ -67,7 +67,12 @@ class HoReCaOneStaticChecks(unittest.TestCase):
         self.assertIn("const HO_HELP = {", TEXT)
         articles = TEXT.split("const HO_HELP = {", 1)[1].split("};", 1)[0]
         for screen in EXPECTED_SCREENS:
-            self.assertRegex(articles, r'(?m)^\\s*["\\\']?' + re.escape(screen) + r'["\\\']?\\s*:')
+            self.assertTrue(
+                any(line.lstrip().startswith(screen + ":[") or
+                    line.lstrip().startswith('"' + screen + '":[')
+                    for line in articles.splitlines()),
+                "Missing guide for: " + screen,
+            )
         self.assertIn("m[2] === 'guide'", TEXT)
         self.assertIn("s !== 'guide'", TEXT)
 
