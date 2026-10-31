@@ -12,6 +12,8 @@ on:
       - tests/p0-security.cjs
       - tests/gate1_gate2_security_suite.cjs
       - tests/qr_table_display_suite.cjs
+      - tests/s01_double_payment_suite.cjs
+      - tests/wa_reports_tracking_suite.cjs
   workflow_dispatch:
 
 permissions:
