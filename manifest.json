@@ -1,13 +1,13 @@
 {
-  "name": "Setu — Restaurant & Hotel POS",
-  "short_name": "Setu",
-  "description": "Setu: Complete Restaurant, Hotel Billing, Tables & Online Orders Management System - Powered by Aghanya Devanya Enterprises",
+  "name": "HoReCa One — Hotel • Restaurant • Café",
+  "short_name": "HoReCa One",
+  "description": "HoReCa One hospitality ERP for hotel, restaurant and café operations. Powered by Setu Pro.",
   "start_url": "hotel_erp.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#0f172a",
-  "theme_color": "#0284c7",
+  "theme_color": "#0b172c",
   "icons": [
     {
       "src": "icon-192.png",
