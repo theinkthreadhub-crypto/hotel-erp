@@ -7016,7 +7016,7 @@ function dzHoReCaOne(d){
     `;
   }).join('') : `
     <div style="text-align:center;padding:24px 16px;background:${isDark?'#1e293b':'#f8fafc'};border-radius:10px;border:1px dashed ${cardBorder};grid-column:span 2">
-      <div style="font-size:24px;margin-bottom:4px">🍽️</div>
+      <div style="display:flex;justify-content:center;margin-bottom:8px;color:var(--primary)">${MENU_ICONS.gateway}</div>
       <div style="font-weight:700;font-size:13px;color:${textMain}">All Tables Currently Available</div>
       <p style="font-size:12px;color:${textMuted};margin:4px 0 10px">Press New Bill [F1 / B] to seat guests and generate KOT</p>
       <button class="btn ok sm" onclick="go('bill')" style="font-weight:700">Open Billing Counter [B]</button>
@@ -7046,16 +7046,16 @@ function dzHoReCaOne(d){
         <!-- Quick Action Buttons -->
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <button class="btn ok" onclick="go('bill')" style="background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:13.5px;font-weight:800;box-shadow:0 4px 14px rgba(249,115,22,0.35);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <span>⚡ New Bill</span> <kbd style="background:rgba(255,255,255,0.25);color:#fff;border:none;padding:1px 5px;border-radius:4px;font-size:10.5px">F1 / B</kbd>
+            <span>New Bill</span> <kbd style="background:rgba(255,255,255,0.25);color:#fff;border:none;padding:1px 5px;border-radius:4px;font-size:10.5px">F1 / B</kbd>
           </button>
           <button class="btn g" onclick="go('kaccha')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span>🍽️ Tables</span> <span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:10px">${k.length}</span>
+            <span>Tables</span> <span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:10px">${k.length}</span>
           </button>
           <button class="btn g" onclick="go('kitchen')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span>🔥 KOTs</span> <span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:1px 6px;border-radius:10px">${activeKots}</span>
+            <span>Kitchen Tickets</span> <span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:1px 6px;border-radius:10px">${activeKots}</span>
           </button>
           <button class="btn g" onclick="go('report')" style="padding:10px 14px;border-radius:10px;font-weight:700">
-            📊 Day Report [F4]
+            Day Report [F4]
           </button>
         </div>
       </div>
@@ -7149,7 +7149,7 @@ function dzHoReCaOne(d){
           <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
               <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:16px">🍽️</span>
+                <span style="display:inline-flex;align-items:center;color:var(--primary)">${MENU_ICONS.gateway}</span>
                 <b style="font-size:15px;color:${textMain}">Live Floor & Running Tables</b>
                 <span class="badge" style="font-size:11px;font-weight:800;background:#fee2e2;color:#b91c1c;padding:1px 8px;border-radius:10px">${k.length} Active</span>
               </div>
@@ -7164,7 +7164,7 @@ function dzHoReCaOne(d){
           <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
               <div style="display:flex;align-items:center;gap:8px">
-                <span style="font-size:16px">📈</span>
+                <span style="display:inline-flex;align-items:center;color:var(--primary)">${MENU_ICONS.analytics}</span>
                 <b style="font-size:15px;color:${textMain}">7-Day Revenue Trajectory</b>
               </div>
               <span style="font-size:12px;color:${textMuted}">Peak Day: <b>${money(maxW)}</b></span>
