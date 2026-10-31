@@ -4065,7 +4065,7 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     phone: bill.phone,
     customerName: bill.cust || bill.customer || 'Customer',
     msgType: 'receipt',
-    provider: SRV.cloud ? 'meta' : 'baileys',
+    provider: (D.settings && D.settings.waProvider) || (SRV.cloud ? 'meta' : 'baileys'),
     idemKey: idemKey,
     status: 'PROCESSING',
     staff: activeUser ? activeUser.name : 'Staff',
@@ -4079,6 +4079,7 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     const text = billText(bill);
     const controller = new AbortController();
     const timeoutTimer = setTimeout(() => controller.abort(), 15000);
+    const selectedProv = (D.settings && D.settings.waProvider) || (SRV.cloud ? 'meta' : 'baileys');
     const payload = {
       id: reqId,
       billId: bill.id,
@@ -4086,12 +4087,16 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
       phone: bill.phone,
       customerName: bill.cust || bill.customer || 'Customer',
       text: text,
+      provider: selectedProv,
       forceResend: isAuthorizedResend,
       idemKey: idemKey
     };
     const headers = { 'Content-Type': 'application/json' };
     if(SRV.token) headers['X-Setu-Token'] = SRV.token;
-    const endpoint = SRV.cloud ? '/api/receipt/send' : '/api/wa/send';
+    let endpoint = '/api/wa/send';
+    if(selectedProv === 'gupshup') endpoint = '/api/gupshup/send';
+    else if(selectedProv === 'meta') endpoint = SRV.cloud ? '/api/receipt/send' : '/api/wa/send';
+    else endpoint = '/api/wa/send';
     const res = await fetch(endpoint, {
       method: 'POST',
       headers,
@@ -13218,6 +13223,7 @@ function renderWaFilterControls(){
           <option value="all" ${waProviderFilter==='all'?'selected':''}>All Providers</option>
           <option value="meta" ${waProviderFilter==='meta'?'selected':''}>Meta Cloud API</option>
           <option value="baileys" ${waProviderFilter==='baileys'?'selected':''}>Baileys Gateway</option>
+          <option value="gupshup" ${waProviderFilter==='gupshup'?'selected':''}>Gupshup API</option>
         </select>
       </div>
       <div>
@@ -16174,9 +16180,10 @@ function scrSettings(){
       </div>
       <div>
         <label>Default Messaging Provider</label>
-        <select id="st_waProvider">
+        <select id="st_waProvider" onchange="toggleWaProviderSection()">
           <option value="meta" ${s.waProvider==='meta'||!s.waProvider?'selected':''}>Meta WhatsApp Cloud API (Graph API)</option>
           <option value="baileys" ${s.waProvider==='baileys'?'selected':''}>Baileys Gateway (Linked Phone QR)</option>
+          <option value="gupshup" ${s.waProvider==='gupshup'?'selected':''}>Gupshup WhatsApp API (Official, No Monthly Fee)</option>
         </select>
       </div>
       <div>
@@ -16193,6 +16200,39 @@ function scrSettings(){
         <label>Meta Webhook Verification Token</label>
         <input id="st_waWebhookSecret" value="${esc(s.waWebhookSecret || 'setu_verify_token')}" placeholder="Verify Token">
       </div>
+    </div>
+    <div id="gupshup_config_section" style="margin-top:16px;padding:14px;border:1.5px solid #0284c7;border-radius:10px;background:rgba(2,132,199,0.04);display:${s.waProvider==='gupshup'?'block':'none'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <h4 style="margin:0;color:#0284c7;display:flex;align-items:center;gap:8px">
+          <span>⚡ Gupshup Official WhatsApp API Configuration</span>
+          <span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:12px;font-weight:600">Pay-Per-Message • Zero Monthly Fee</span>
+        </h4>
+        <button type="button" class="btn g sm" onclick="showGupshupHelpModal()">❓ Gupshup Setup & Recharge Guide</button>
+      </div>
+      <div class="grid">
+        <div>
+          <label>Gupshup API Key (from app.gupshup.io)</label>
+          <input type="password" id="st_gupshupApiKey" value="${esc(s.gupshupApiKey || '')}" placeholder="API Key from Gupshup dashboard" autocomplete="new-password">
+        </div>
+        <div>
+          <label>Gupshup App Name (src.name)</label>
+          <input id="st_gupshupAppName" value="${esc(s.gupshupAppName || '')}" placeholder="e.g. SetuHotelPOS">
+        </div>
+        <div>
+          <label>Source Phone Number (with country code, 12 digits)</label>
+          <input id="st_gupshupSource" value="${esc(s.gupshupSource || '')}" placeholder="e.g. 919876543210 (without +)">
+        </div>
+        <div>
+          <label>Test Connection</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="st_gupshupTestNum" placeholder="10-digit mobile" style="margin:0;flex:1">
+            <button type="button" class="btn ok sm" onclick="testGupshupDirect()">Send Test</button>
+          </div>
+        </div>
+      </div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">
+        💡 <b>Multi-Client Guarantee:</b> Har restaurant client ka Gupshup account aur wallet alag hota hai. Credentials is client ki local database mein securely store hote hain.
+      </p>
     </div>
     <div style="display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap">
       <button type="button" class="btn g sm" onclick="runWaCleanup()">Run Retention Cleanup Now</button>
@@ -16851,8 +16891,15 @@ function updateWaHeader(){
   const chip = $('#top-wa-credit-chip');
   if(!btn || !chip) return;
 
+  const activeProv = (D.settings && D.settings.waProvider) || 'meta';
   let isConnected = false;
-  try{ isConnected = WA.state === 'open'; }catch(e){ return; }
+  if(activeProv === 'gupshup'){
+    isConnected = !!((D.settings && D.settings.gupshupApiKey) && (D.settings && D.settings.gupshupAppName));
+  } else if(activeProv === 'baileys'){
+    try{ isConnected = WA.state === 'open'; }catch(e){ isConnected = false; }
+  } else {
+    try{ isConnected = WA.state === 'open'; }catch(e){ isConnected = true; }
+  }
   const quota = (typeof getWaQuota === 'function' ? getWaQuota() : 500);
 
   btn.className = 'top-wa-btn ' + (isConnected ? 'connected' : 'disconnected');
@@ -16864,7 +16911,7 @@ function updateWaHeader(){
         </svg>
       </span>
     `;
-    btn.title = `WhatsApp Connected (${WA.me ? '+'+WA.me : 'Active'}) — Click to manage`;
+    btn.title = activeProv === 'gupshup' ? `Gupshup WhatsApp Active (${D.settings.gupshupSource ? '+'+D.settings.gupshupSource : 'Official API'}) — Click to manage` : `WhatsApp Connected (${WA.me ? '+'+WA.me : 'Active'}) — Click to manage`;
   } else {
     btn.innerHTML = `
       <span class="top-wa-icon-slot wa-cut-wrap">
@@ -16877,7 +16924,7 @@ function updateWaHeader(){
         </svg>
       </span>
     `;
-    btn.title = 'WhatsApp Disconnected — Click to scan QR & connect';
+    btn.title = activeProv === 'gupshup' ? 'Gupshup WhatsApp API Not Configured — Click to setup in Settings' : 'WhatsApp Disconnected — Click to scan QR & connect';
   }
 
   // 2. Balance Chip
@@ -16887,6 +16934,91 @@ function updateWaHeader(){
     <span class="wa-credit-unit">Msgs</span>
   `;
 }
+function getWaConnectionCardHTML(w, st, isConnected){
+  if(D.settings && D.settings.waProvider === 'gupshup'){
+    const isConfigured = !!((D.settings.gupshupApiKey) && (D.settings.gupshupAppName));
+    return `
+      <!-- GUPSHUP ACTIVE STATUS -->
+      <div class="card" style="margin-bottom:16px;border-left:4px solid #0284c7">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+          <h4 style="margin:0;display:flex;align-items:center;gap:8px;color:#0284c7">
+            <span>⚡ Gupshup Official WhatsApp API Active</span>
+            <span style="font-size:11px;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:12px;font-weight:600">No Disconnections • Official Meta Gateway</span>
+          </h4>
+          <button class="btn g sm" onclick="openWaModal(false)">Refresh</button>
+        </div>
+        <div style="background:rgba(2,132,199,0.08);border:1px solid #0284c7;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+          <div style="font-size:14px;font-weight:700;color:#0369a1">
+            Registered App: <b>${esc(D.settings.gupshupAppName || 'Not configured')}</b>
+          </div>
+          <div style="font-size:13px;color:var(--text);margin-top:4px">
+            Source Number: <b>${D.settings.gupshupSource ? '+'+esc(D.settings.gupshupSource) : 'Not configured'}</b>
+          </div>
+          <div class="muted" style="font-size:12px;margin-top:4px">
+            Status: <b>${isConfigured ? '✓ Ready to Send' : '⚠ API Key Missing'}</b> · Provider: Gupshup Enterprise API
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input id="wa_modal_test_num_gs" placeholder="10-digit mobile for test" style="width:200px">
+          <button class="btn ok sm" onclick="const num=$('#wa_modal_test_num_gs')?.value.trim();if(!num)return toast('Number dalein');fetch('/api/gupshup/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:num,text:'Gupshup Test from '+(D.settings.name||'Setu')+' ✅'})}).then(r=>r.json()).then(j=>toast(j.ok?'Test Sent Successfully!':'Failed: '+(j.error||j.message||'Error')))">Send Test Message</button>
+          <button class="btn g sm" onclick="closeModal();scrSettings();">Configure in Settings</button>
+          <button class="btn g sm" onclick="showGupshupHelpModal()">Recharge Guide</button>
+        </div>
+      </div>
+    `;
+  }
+
+  // Baileys / QR Card
+  return `
+    <!-- CONNECTION SECTION -->
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="margin:0;display:flex;align-items:center;gap:8px">
+          ${isConnected 
+            ? '<span style="color:#10b981">● Connected (WhatsApp चालू है)</span>' 
+            : '<span style="color:#ef4444">🚫 Disconnected (WhatsApp कट / बंद है)</span>'}
+        </h4>
+        <button class="btn g sm" onclick="waStatus().then(()=>openWaModal(false))">Refresh Status</button>
+      </div>
+
+      ${isConnected ? `
+        <p>Your WhatsApp is linked and ready to send bills automatically.</p>
+        <div style="background:rgba(16,185,129,0.1);border:1px solid #10b981;border-radius:8px;padding:12px 16px;margin-bottom:12px">
+          <b style="color:#10b981;font-size:15px">✓ Active Number: ${w.me ? '+'+esc(w.me) : 'Connected'}</b>
+          <div class="muted" style="font-size:12px;margin-top:4px">
+            Sent today: <b>${w.sentToday || 0}</b> / ${w.limit || 400} daily limit · Queued: <b>${w.queued || 0}</b>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <input id="wa_modal_test_num" placeholder="10-digit number for test" style="width:220px">
+          <button class="btn g" onclick="waSend($('#wa_modal_test_num').value, 'Test message from ' + (D.settings.name || 'Setu') + ' ✅').then(r=>toast(r.ok?'Test message sent!':'Send failed: '+r.error))">Send Test</button>
+          <button class="btn bad" onclick="if(confirm('Disconnect WhatsApp?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}">Disconnect WhatsApp</button>
+        </div>
+      ` : st === 'qr' ? `
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <img src="${w.qr}" alt="WhatsApp QR" style="width:200px;height:200px;background:#fff;padding:8px;border-radius:10px;border:1px solid var(--border)">
+          <div style="flex:1;min-width:240px">
+            <h4 style="margin:0 0 8px;color:var(--text)">Scan QR to Link WhatsApp</h4>
+            <ol style="margin:0;padding-left:18px;line-height:1.8;font-size:13px">
+              <li>Open <b>WhatsApp</b> on your hotel's phone</li>
+              <li>Tap <b>⋮ Menu</b> (or Settings on iPhone) → <b>Linked devices</b></li>
+              <li>Tap <b>Link a device</b></li>
+              <li>Point your phone camera at this QR code</li>
+            </ol>
+            <div class="muted" style="font-size:12px;margin-top:10px">The QR code refreshes automatically.</div>
+          </div>
+        </div>
+        <div class="btns"><button class="btn g sm" onclick="waApi('stop',{}).then(()=>openWaModal(false))">Cancel</button></div>
+      ` : `
+        <p>Link your restaurant phone via WhatsApp Web QR code. Customers will automatically receive digital bill receipts on their WhatsApp numbers.</p>
+        <div class="btns">
+          <button class="btn ok" onclick="waApi('start',{}).then(()=>openWaModal(false)).catch(e=>toast(e.message))">Connect WhatsApp (Scan QR)</button>
+        </div>
+      `}
+    </div>
+  `;
+}
+
 async function openWaModal(focusRecharge = false){
   const w = await waStatus();
   const st = w.state, isConnected = (st === 'open');
@@ -16900,54 +17032,7 @@ async function openWaModal(focusRecharge = false){
         <button class="btn ${focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-rech" onclick="openWaModal(true)">Message Credits & Recharge (रिचार्ज सिस्टम)</button>
       </div>
 
-      ${!focusRecharge ? `
-        <!-- CONNECTION SECTION -->
-        <div class="card" style="margin-bottom:16px">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h4 style="margin:0;display:flex;align-items:center;gap:8px">
-              ${isConnected 
-                ? '<span style="color:#10b981">● Connected (WhatsApp चालू है)</span>' 
-                : '<span style="color:#ef4444">🚫 Disconnected (WhatsApp कट / बंद है)</span>'}
-            </h4>
-            <button class="btn g sm" onclick="waStatus().then(()=>openWaModal(false))">Refresh Status</button>
-          </div>
-
-          ${isConnected ? `
-            <p>Your WhatsApp is linked and ready to send bills automatically.</p>
-            <div style="background:rgba(16,185,129,0.1);border:1px solid #10b981;border-radius:8px;padding:12px 16px;margin-bottom:12px">
-              <b style="color:#10b981;font-size:15px">✓ Active Number: ${w.me ? '+'+esc(w.me) : 'Connected'}</b>
-              <div class="muted" style="font-size:12px;margin-top:4px">
-                Sent today: <b>${w.sentToday || 0}</b> / ${w.limit || 400} daily limit · Queued: <b>${w.queued || 0}</b>
-              </div>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-              <input id="wa_modal_test_num" placeholder="10-digit number for test" style="width:220px">
-              <button class="btn g" onclick="waSend($('#wa_modal_test_num').value, 'Test message from ' + (D.settings.name || 'Setu') + ' ✅').then(r=>toast(r.ok?'Test message sent!':'Send failed: '+r.error))">Send Test</button>
-              <button class="btn bad" onclick="if(confirm('Disconnect WhatsApp?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}">Disconnect WhatsApp</button>
-            </div>
-          ` : st === 'qr' ? `
-            <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
-              <img src="${w.qr}" alt="WhatsApp QR" style="width:200px;height:200px;background:#fff;padding:8px;border-radius:10px;border:1px solid var(--border)">
-              <div style="flex:1;min-width:240px">
-                <h4 style="margin:0 0 8px;color:var(--text)">Scan QR to Link WhatsApp</h4>
-                <ol style="margin:0;padding-left:18px;line-height:1.8;font-size:13px">
-                  <li>Open <b>WhatsApp</b> on your hotel's phone</li>
-                  <li>Tap <b>⋮ Menu</b> (or Settings on iPhone) → <b>Linked devices</b></li>
-                  <li>Tap <b>Link a device</b></li>
-                  <li>Point your phone camera at this QR code</li>
-                </ol>
-                <div class="muted" style="font-size:12px;margin-top:10px">The QR code refreshes automatically.</div>
-              </div>
-            </div>
-            <div class="btns"><button class="btn g sm" onclick="waApi('stop',{}).then(()=>openWaModal(false))">Cancel</button></div>
-          ` : `
-            <p>Link your restaurant phone via WhatsApp Web QR code. Customers will automatically receive digital bill receipts on their WhatsApp numbers.</p>
-            <div class="btns">
-              <button class="btn ok" onclick="waApi('start',{}).then(()=>openWaModal(false)).catch(e=>toast(e.message))">Connect WhatsApp (Scan QR)</button>
-            </div>
-          `}
-        </div>
-      ` : `
+      ${!focusRecharge ? getWaConnectionCardHTML(w, st, isConnected) : `
         <!-- RECHARGE & CREDITS SECTION -->
         <div class="wa-credit-hero">
           <span class="wa-hero-num">${credits}</span>
@@ -17392,10 +17477,96 @@ async function runWaCleanup(){
   toast(`Local cleanup complete: pruned ${pruned} messages (${D.waMessages.length} kept)`);
 }
 
+
+function toggleWaProviderSection(){
+  const prov = $('#st_waProvider')?.value;
+  const gsSec = $('#gupshup_config_section');
+  if(gsSec) gsSec.style.display = (prov === 'gupshup') ? 'block' : 'none';
+}
+
+async function testGupshupDirect(){
+  const apiKey = $('#st_gupshupApiKey')?.value.trim();
+  const appName = $('#st_gupshupAppName')?.value.trim();
+  const source = $('#st_gupshupSource')?.value.trim();
+  const testNum = $('#st_gupshupTestNum')?.value.trim();
+
+  if(!apiKey || !appName || !source){
+    toast('Kripya Gupshup API Key, App Name aur Source Number enter karein');
+    return;
+  }
+  if(!testNum || testNum.replace(/\D/g, '').length < 10){
+    toast('Kripya valid 10-digit test mobile number enter karein');
+    return;
+  }
+  toast('Sending test WhatsApp message via Gupshup...');
+  try {
+    const res = await fetch('/api/gupshup/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey,
+        appName,
+        source,
+        phone: testNum,
+        text: `*Aghanya Devanya / Foodpiolet POS*\n\n✅ Gupshup WhatsApp Integration Test Successful!\nTime: ${new Date().toLocaleTimeString()}\nHotel: ${D.settings.name || 'Setu Restaurant'}`
+      })
+    });
+    const j = await res.json().catch(() => ({}));
+    if(res.ok && j.ok){
+      toast('✅ Gupshup Test Message Sent Successfully!');
+    } else {
+      toast('❌ Gupshup Error: ' + (j.error || j.message || 'Send failed'));
+    }
+  } catch(e) {
+    toast('Network Error: ' + e.message);
+  }
+}
+
+function showGupshupHelpModal(){
+  modal('Gupshup WhatsApp API — Setup & Wallet Recharge Guide', `
+    <div style="line-height:1.6;font-size:13px">
+      <div style="background:rgba(2,132,199,0.08);border-left:4px solid #0284c7;padding:12px;border-radius:6px;margin-bottom:14px">
+        <b style="color:#0284c7;font-size:14px">💰 Zero Fixed Monthly Fee • Pay Only When Messages Are Sent</b>
+        <div style="margin-top:4px">
+          Gupshup ka koi monthly software subscription nahi hai. Sirf wallet recharge karna hota hai (~₹0.22 per message).
+        </div>
+      </div>
+
+      <h4 style="margin:12px 0 6px;color:var(--text)">1. Multi-Client Architecture (Har Client Ka Alag Account)</h4>
+      <p style="margin:0 0 10px">
+        Har restaurant client ke liye <b>alag Gupshup account</b> banega ya client ka apna dedicated number register hoga. Client ke credentials is software ke settings mein save hote hain — kisi aur client se mix nahi hote!
+      </p>
+
+      <h4 style="margin:12px 0 6px;color:var(--text)">2. Gupshup Wallet Recharge Kaise Karein?</h4>
+      <ol style="margin:0 0 12px;padding-left:20px">
+        <li><b>app.gupshup.io</b> pe login karein.</li>
+        <li>Top-right corner mein <b>"My Wallet"</b> par click karein.</li>
+        <li><b>"Add Money"</b> button dabayein.</li>
+        <li>Amount daalein (Minimum recharge <b>₹500</b> hota hai).</li>
+        <li><b>UPI, Debit/Credit Card, ya Net Banking</b> se payment complete karein.</li>
+        <li>Amount turant wallet balance mein jud jaata hai.</li>
+      </ol>
+
+      <h4 style="margin:12px 0 6px;color:var(--text)">3. Cost Calculation (Simple Math):</h4>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:12px">
+        <div>• <b>Meta Charge:</b> ~₹0.11 / utility conversation</div>
+        <div>• <b>Gupshup Markup:</b> ~₹0.08 / message</div>
+        <div>• <b>GST (18%):</b> ~₹0.03</div>
+        <div style="font-weight:700;color:#10b981;margin-top:4px">• <b>Total per bill message:</b> ~₹0.22 (22 Paise)</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">1,000 bills per month ≈ sirf ₹220 ka recharge!</div>
+      </div>
+
+      <div class="btns" style="margin-top:16px">
+        <button class="btn ok" onclick="closeModal()">Theek Hai, Samajh Gaya</button>
+      </div>
+    </div>
+  `);
+}
+
 function saveSettings(){
   // A PIN box left blank keeps the saved PIN (the server never sends PINs back)
   ['adminPin', 'cashierPin'].forEach(k => { const el = $('#st_' + k); if(el && el.value.trim()) D.settings[k] = el.value.trim(); });
-  ['name','address','phone','email','gstin','sac','owner','footer','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa','waWebhookSecret'].forEach(k => {
+  ['name','address','phone','email','gstin','sac','owner','footer','zomatoId','swiggyId','orderWa','menuUrl','review','upi','fssai','gstScheme','caName','caWa','waWebhookSecret','gupshupApiKey','gupshupAppName','gupshupSource'].forEach(k => {
     if($('#st_'+k)) D.settings[k] = $('#st_'+k).value.trim();
   });
   ['ptsPer100','ptValue','minRedeem','kotLate','maxDiscPct'].forEach(k => {

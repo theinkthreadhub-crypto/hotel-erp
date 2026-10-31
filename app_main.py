@@ -2709,10 +2709,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     b = {}
                 code, j = store.wa.call('/pair', b)
                 return self.send_json(code, j)
-            if path.startswith('/api/wa/'):
+            if path.startswith('/api/wa/') or path.startswith('/api/gupshup/'):
                 # WhatsApp link: connect / disconnect = manager; send a bill = any logged-in device
                 role = self.role()
-                if not role or (path not in ('/api/wa/send', '/api/wa/recharge') and role not in ('local', 'admin', 'manager', 'owner')):
+                if not role or (path not in ('/api/wa/send', '/api/gupshup/send', '/api/gupshup/test', '/api/wa/recharge') and role not in ('local', 'admin', 'manager', 'owner')):
                     return self.send_json(403, {'error': 'manager only'})
                 try:
                     b = self.read_json() if int(self.headers.get('Content-Length') or 0) else {}
@@ -2753,6 +2753,156 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                             st_dict['waRecharges'] = recharges[:50]
                             store.write(d)
                         return self.send_json(200, {'ok': True, 'credits': new_c, 'amount': amt})
+                    if path in ('/api/gupshup/send', '/api/gupshup/test'):
+                        with store.lock:
+                            d_chk = store.data() or {}
+                        st_settings = d_chk.get('settings', {})
+                        cur_credits = int(st_settings.get('waCredits', 500))
+                        is_test = (path == '/api/gupshup/test')
+
+                        if not is_test and cur_credits <= 0:
+                            return self.send_json(402, {
+                                'ok': False,
+                                'error': 'INSUFFICIENT_CREDITS',
+                                'message': 'WhatsApp message balance is 0. Please recharge to continue sending messages.'
+                            })
+
+                        api_key = str(b.get('apiKey') or st_settings.get('gupshupApiKey') or '').strip()
+                        app_name = str(b.get('appName') or st_settings.get('gupshupAppName') or '').strip()
+                        src_num = str(b.get('source') or st_settings.get('gupshupSource') or '').strip()
+
+                        if not api_key or not app_name or not src_num:
+                            return self.send_json(400, {
+                                'ok': False,
+                                'error': 'GUPSHUP_NOT_CONFIGURED',
+                                'message': 'Gupshup API credentials missing. Please set Gupshup API Key, App Name, and Source Number in Settings.'
+                            })
+
+                        raw_ph = re.sub(r'\D', '', str(b.get('phone') or ''))
+                        if len(raw_ph) == 10:
+                            raw_ph = '91' + raw_ph
+                        elif len(raw_ph) < 10 or len(raw_ph) > 15:
+                            return self.send_json(400, {'ok': False, 'error': 'Invalid phone number: must be 10 to 15 digits'})
+
+                        raw_src = re.sub(r'\D', '', str(src_num))
+                        if len(raw_src) == 10:
+                            raw_src = '91' + raw_src
+
+                        bill_id = b.get('billId')
+                        force_resend = bool(b.get('forceResend'))
+                        if bill_id and not is_test:
+                            with store.lock:
+                                d = store.data() or {}
+                            msgs = d.get('waMessages') or []
+                            prior = next((m for m in reversed(msgs) if m.get('billId') == bill_id and m.get('status') != 'CANCELLED'), None)
+                            if prior:
+                                cur_st = prior.get('status')
+                                if cur_st == 'PROCESSING':
+                                    return self.send_json(409, {
+                                        'ok': False,
+                                        'error': 'CONCURRENT_REQUEST',
+                                        'message': 'Message is currently being dispatched',
+                                        'id': prior.get('id')
+                                    })
+                                if cur_st in ('SUBMITTED', 'SENT', 'DELIVERED', 'READ') and not force_resend:
+                                    return self.send_json(409, {
+                                        'ok': False,
+                                        'error': 'ALREADY_SUBMITTED',
+                                        'message': 'Bill already submitted to WhatsApp',
+                                        'existingMessage': prior
+                                    })
+
+                        token_data = store.tokens.get(self.headers.get('X-Setu-Token', ''))
+                        tok_hotel = token_data.get('hotelId') if isinstance(token_data, dict) else None
+                        h_id = str(b.get('hotelId') or self.headers.get('X-Hotel-ID') or self.headers.get('X-Setu-Hotel') or tok_hotel or 'default').strip()
+
+                        req_id = b.get('id') or f'wa_req_{int(time.time()*1000)}_{secrets.token_hex(4)}'
+                        idem_key = b.get('idemKey') or f'wa_bill_{h_id}_{bill_id or req_id}'
+                        now_ts = int(time.time() * 1000)
+
+                        if not is_test:
+                            store.record_wa_message({
+                                'id': req_id,
+                                'hotelId': h_id,
+                                'billId': bill_id,
+                                'billNo': b.get('billNo'),
+                                'phone': b.get('phone'),
+                                'customerName': b.get('customerName') or 'Customer',
+                                'provider': 'gupshup',
+                                'idemKey': idem_key,
+                                'status': 'PROCESSING',
+                                'staff': role or 'staff',
+                                'note': 'Gupshup dispatch initiated'
+                            })
+
+                        text_content = str(b.get('text') or '').strip()
+                        msg_obj = json.dumps({'type': 'text', 'text': text_content}, ensure_ascii=False)
+                        post_params = {
+                            'channel': 'whatsapp',
+                            'source': raw_src,
+                            'destination': raw_ph,
+                            'message': msg_obj,
+                            'src.name': app_name
+                        }
+                        encoded_payload = urllib.parse.urlencode(post_params).encode('utf-8')
+                        req = urllib.request.Request('https://api.gupshup.io/wa/api/v1/msg', data=encoded_payload, method='POST')
+                        req.add_header('apikey', api_key)
+                        req.add_header('Content-Type', 'application/x-www-form-urlencoded')
+
+                        try:
+                            with urllib.request.urlopen(req, timeout=15) as resp:
+                                g_code = resp.getcode()
+                                g_raw = resp.read().decode('utf-8')
+                                g_json = json.loads(g_raw) if g_raw else {}
+                        except urllib.error.HTTPError as he:
+                            g_code = he.code
+                            err_txt = he.read().decode('utf-8', errors='ignore')
+                            try:
+                                g_json = json.loads(err_txt)
+                            except Exception:
+                                g_json = {'error': err_txt or str(he)}
+                        except Exception as e:
+                            g_code = 503
+                            g_json = {'error': str(e)}
+
+                        now_ts = int(time.time() * 1000)
+                        p_id = str(g_json.get('messageId') or '')
+                        st = 'SUBMITTED' if (g_code in (200, 202) and (g_json.get('status') == 'submitted' or p_id)) else 'FAILED'
+                        err_reason = str(g_json.get('message') or g_json.get('error') or '') if st == 'FAILED' else ''
+
+                        if not is_test:
+                            updated = store.record_wa_message({
+                                'id': req_id,
+                                'hotelId': h_id,
+                                'billId': bill_id,
+                                'providerMsgId': p_id,
+                                'status': st,
+                                'submittedAt': now_ts if st == 'SUBMITTED' else None,
+                                'failedAt': now_ts if st == 'FAILED' else None,
+                                'errorCode': str(g_code) if st == 'FAILED' else '',
+                                'errorReason': err_reason,
+                                'note': f'Gupshup API response: HTTP {g_code}'
+                            })
+                            if st == 'SUBMITTED':
+                                with store.lock:
+                                    d_up = store.data() or {}
+                                    st_set = d_up.setdefault('settings', {})
+                                    prev_c = int(st_set.get('waCredits', 500))
+                                    st_set['waCredits'] = max(0, prev_c - 1)
+                                    st_set['waTotalSent'] = int(st_set.get('waTotalSent', 0)) + 1
+                                    store.write(d_up)
+                        else:
+                            updated = {'id': req_id, 'status': st}
+
+                        return self.send_json(200 if st == 'SUBMITTED' else (g_code if g_code >= 400 else 400), {
+                            'ok': st == 'SUBMITTED',
+                            'id': req_id,
+                            'status': st,
+                            'providerMsgId': p_id,
+                            'error': err_reason,
+                            'message': updated
+                        })
+
                     if path == '/api/wa/send':
                         with store.lock:
                             d_chk = store.data() or {}
