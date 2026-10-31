@@ -2178,6 +2178,32 @@ html[data-theme^="horeca_"] body[data-horeca-screen="captain"] #main .card{
   html[data-theme^="horeca_"] #main .grid{grid-template-columns:minmax(0,1fr)}
 }
 
+
+/* HORECA ACCESSIBILITY FINISH */
+html[data-theme^="horeca_"] :is(button,a,input,select,textarea,[role="button"],[tabindex]):focus-visible{outline:3px solid #438af7!important;outline-offset:2px!important}
+html[data-theme^="horeca_"] button:disabled{cursor:not-allowed!important;opacity:.52!important;box-shadow:none!important}
+html[data-theme^="horeca_"] #main :is(input,select,textarea,.card,.bill,.grid,.kds,.ent-kpi-grid){max-width:100%;min-width:0}
+html[data-theme^="horeca_"] #main :is(.red,.green){font-weight:750}
+@media(max-width:760px){
+ html[data-theme^="horeca_"] #main{padding:12px!important}
+ html[data-theme^="horeca_"] #main .title{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start}
+ html[data-theme^="horeca_"] #main .title .r{max-width:100%;flex-wrap:wrap}
+ html[data-theme^="horeca_"] #main .card{padding:13px!important}
+ html[data-theme^="horeca_"] #main .btns{gap:7px}
+ html[data-theme^="horeca_"] #main .btns>.btn{min-height:38px;white-space:normal;text-align:center}
+ html[data-theme^="horeca_"] #main .ent-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ html[data-theme^="horeca_"] #main .ent-kpi-card{padding:12px;min-width:0}
+ html[data-theme^="horeca_"] #main .ent-kpi-val{font-size:clamp(18px,5vw,25px);overflow-wrap:anywhere}
+}
+@media(max-width:420px){
+ html[data-theme^="horeca_"] #main .ent-kpi-grid{grid-template-columns:minmax(0,1fr)}
+ html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .items{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(prefers-reduced-motion:reduce){
+ html[data-theme^="horeca_"] *,html[data-theme^="horeca_"] *::before,html[data-theme^="horeca_"] *::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}
+}
+/* END HORECA ACCESSIBILITY FINISH */
+
 /* END HORECA ONE PREMIUM UI */
 
 </style>
