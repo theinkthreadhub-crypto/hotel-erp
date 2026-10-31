@@ -1963,6 +1963,120 @@ html[data-theme^="horeca_"] #app-footer{
  html[data-theme^="horeca_"] .btn,
  html[data-theme^="horeca_"] .nav-item{transition:none!important;animation:none!important}
 }
+
+/* HoReCa One premium workflow refinement - scoped to each active module */
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .channel-bar{
+  gap:9px;flex-wrap:wrap;padding:4px 0;margin-bottom:15px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .channel-btn{
+  flex:1 1 155px;min-height:43px;border-radius:11px!important;
+  box-shadow:none!important;background:var(--panel);
+  border:1px solid var(--border);color:var(--text);font-weight:750
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .channel-btn.active{
+  color:#fff;background:#155fe3;border-color:#155fe3;
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .tbl-chip{
+  border-radius:9px;padding:8px 12px;box-shadow:none!important
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .items{
+  gap:11px!important;padding:4px 3px 12px!important
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .item{
+  border:1px solid var(--border);border-radius:12px!important;
+  box-shadow:none;transition:box-shadow .15s,border-color .15s,background .15s;
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .item:hover{
+  transform:none;box-shadow:var(--card-shadow-hover);border-color:var(--primary)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .bill{
+  grid-template-columns:minmax(0,1.15fr) minmax(345px,1fr);gap:16px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .bill > *{min-width:0}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .cat{
+  border-radius:8px!important;padding:7px 12px;font-size:11px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .cat.on{
+  background:var(--primary-light);border-color:var(--primary);
+  color:var(--primary-dark);
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kds{
+  grid-template-columns:repeat(auto-fill,minmax(285px,1fr));gap:13px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kcard{
+  border-radius:12px;background:var(--panel);
+  border:1px solid var(--border);border-left:4px solid var(--primary);
+  box-shadow:var(--card-shadow);padding:15px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kcard.new{
+  border-left-color:var(--warn)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kcard.ready{
+  border-left-color:var(--ok)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kcard.late{
+  border-left-color:var(--bad);background:var(--panel)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kcard h4{
+  font-size:15px;letter-spacing:-.02em
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kcard ul{
+  font-size:14px;line-height:1.6
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="stock"] #main .btns{
+  gap:7px;margin-bottom:12px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="stock"] #main .card{
+  overflow-x:auto
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="purchase"] #main .grid,
+html[data-theme^="horeca_"] body[data-horeca-screen="stock"] #main .grid{
+  gap:13px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="wa-reports"] #main .ent-segmented-control,
+html[data-theme^="horeca_"] body[data-horeca-screen="wareports"] #main .ent-segmented-control{
+  display:flex;flex-wrap:wrap;width:fit-content;max-width:100%;
+  background:var(--surface);border:1px solid var(--border);
+  gap:3px;padding:4px;border-radius:11px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="wa-reports"] #main .ent-segmented-btn,
+html[data-theme^="horeca_"] body[data-horeca-screen="wareports"] #main .ent-segmented-btn{
+  color:var(--text-muted);border-radius:8px;padding:8px 11px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="wa-reports"] #main .ent-segmented-btn.active,
+html[data-theme^="horeca_"] body[data-horeca-screen="wareports"] #main .ent-segmented-btn.active{
+  background:var(--panel);color:var(--primary);
+  box-shadow:0 1px 4px rgba(16,43,82,.1)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="wa-reports"] #main .ent-kpi-card,
+html[data-theme^="horeca_"] body[data-horeca-screen="wareports"] #main .ent-kpi-card{
+  border:1px solid var(--border);border-radius:12px;
+  background:var(--panel);box-shadow:var(--card-shadow)
+}
+html[data-theme^="horeca_"] #main .ent-kpi-label,
+html[data-theme^="horeca_"] #main .ent-kpi-sub{color:var(--text-muted)}
+html[data-theme^="horeca_"] #main .ent-kpi-val{color:var(--text)}
+@media(max-width:1120px){
+  html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .bill{
+    grid-template-columns:minmax(0,1fr)
+  }
+  html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .items{
+    max-height:none!important
+  }
+}
+@media(max-width:700px){
+  html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .channel-btn{
+    flex:1 1 42%;min-width:115px
+  }
+  html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .items{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important
+  }
+  html[data-theme^="horeca_"] body[data-horeca-screen="kitchen"] #main .kds{
+    grid-template-columns:minmax(0,1fr)
+  }
+}
+/* END HORECA MODULE WORKFLOW REFINEMENT */
+
 /* END HORECA ONE PREMIUM UI */
 
 </style>
@@ -5568,13 +5682,13 @@ function drawSide(){
         if(pendingCount) badgeHtml = `<span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 6px;border-radius:10px;font-weight:700">${pendingCount}</span>`;
       } else if(m[2] === 'captain'){
         const capCount = (D.kots || []).filter(k => k.src === 'captain' && k.status !== 'served').length;
-        if(capCount) badgeHtml = `<span class="side-badge cap-badge pulse" title="${capCount} Active Captain Orders">🔔 ${capCount}</span>`;
+        if(capCount) badgeHtml = `<span class="side-badge cap-badge" title="${capCount} Active Captain Orders">${capCount}</span>`;
       } else if(m[2] === 'kitchen'){
         const kotCount = (D.kots || []).filter(k => k.status !== 'served').length;
-        if(kotCount) badgeHtml = `<span class="side-badge kot-badge pulse" title="${kotCount} Pending KOTs">🔥 ${kotCount}</span>`;
+        if(kotCount) badgeHtml = `<span class="side-badge kot-badge" title="${kotCount} Pending KOTs">${kotCount}</span>`;
       } else if(m[2] === 'qr'){
         const qrCount = ((D.qrOrders || []).filter(o => o.status === 'pending').length) + ((D.kots || []).filter(k => k.src === 'qr' && k.status !== 'served').length);
-        if(qrCount) badgeHtml = `<span class="side-badge qr-badge pulse" title="${qrCount} Pending QR Orders">📱 ${qrCount}</span>`;
+        if(qrCount) badgeHtml = `<span class="side-badge qr-badge" title="${qrCount} Pending QR Orders">${qrCount}</span>`;
       }
 
       const iconSvg = MENU_ICONS[m[2]] || `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`;
