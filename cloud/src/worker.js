@@ -297,7 +297,7 @@ async function licPrivMatches(env, pem){
 
 // Vendor's PUBLIC keys (same as LIC_PUBKEYS in hotel_erp.html): current key file first, then the earlier one.
 // LICENSE_PUBKEY overrides them (tests).
-const LIC_PUBKEYS = ['BIaSZabMX2d0YUMVTeNbvQvwWGvewBdIUMBTDu83hyD84V2ursUn7/DNMjWY5yQcQULZ3zgHMuJCTwZol9WrPg0=', 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M='];
+const LIC_PUBKEYS = ['BLqTi3yiy2JnNcdhuUtUD4psUtpVU9/SjOOwYqkNLwSgA9I3s86nKT8u1rDhLU4CGzIjWnwdERCdri/jAH7Tttc=', 'BIaSZabMX2d0YUMVTeNbvQvwWGvewBdIUMBTDu83hyD84V2ursUn7/DNMjWY5yQcQULZ3zgHMuJCTwZol9WrPg0=', 'BM5bUDY3UM7RlEK5DtWhEq0N3mySWG27xZA3gmkCzNETrSpwrM1GaubNvi0XKGLeBZHPE8HeXlzpFeUBzFS25/M='];
 const pubKeys = env => env.LICENSE_PUBKEY ? [env.LICENSE_PUBKEY] : LIC_PUBKEYS;
 
 function b32decode(text, n){
