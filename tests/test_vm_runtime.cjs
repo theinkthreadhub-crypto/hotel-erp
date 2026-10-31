@@ -137,6 +137,7 @@ try {
   }
 
   console.log('\nALL VERIFICATIONS PASSED 100%!');
+  process.exit(0);
 } catch (err) {
   console.error('\nEXECUTION CRASH DETECTED:');
   console.error(err);
