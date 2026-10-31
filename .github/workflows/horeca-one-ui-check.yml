@@ -1,0 +1,33 @@
+name: HoReCa One UI review (no deploy)
+on:
+  push:
+    branches:
+      - feat/horeca-one-premium-22-modules
+    paths:
+      - hotel_erp.html
+      - manifest.json
+      - sw.js
+      - tests/test_horeca_one_ui.py
+      - .github/workflows/horeca-one-ui-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify branding, 22 screen mappings and embedded JS syntax
+        run: python -m unittest discover -s tests -p 'test_horeca_one_ui.py' -v
+      - name: Verify unchanged Python server parses
+        run: python -m py_compile app_main.py setu_security.py keygen.py
+      - name: Verify cloud Worker parses
+        run: node --input-type=module --check < cloud/src/worker.js
