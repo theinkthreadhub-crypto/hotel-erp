@@ -1,5 +1,7 @@
 # AGENTS.md — Setu (Restaurant & Hotel POS) — A to Z
 
+> **Customer-facing product brand (Oct 2026): HoReCa One — Hotel • Restaurant • Café, Powered by Setu Pro.** Keep internal Setu identifiers, activation/security keys, cloud APIs, data directories and migration contracts unchanged. The `horeca_light` and `horeca_dark` themes carry the new premium UI; do not remove existing classic/customer themes. UI integration must use test branches until regression QA is signed off.
+
 > **Owner rule (permanent): every software, app, screen, message, document and test label we build must be in
 > professional English only — no Hinglish or Hindi words in the UI, buttons, toasts, errors, native Android strings,
 > release notes or docs. Use a professional typeface (Inter in web pages; the system sans in native views).**
