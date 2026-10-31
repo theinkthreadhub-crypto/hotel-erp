@@ -1,0 +1,151 @@
+# Builds the Windows EXE on GitHub, so nobody needs Python on their own PC.
+# Download: the "setu-latest" release on GitHub (Releases -> Setu-POS-Setup.exe installer),
+# or Actions -> "Build Setu EXE" -> latest run -> Artifacts -> Setu-POS-Setup.
+name: Build Setu EXE
+
+on:
+  push:
+    branches: [ccr-89eaafa4-mxbfj2]
+    paths:
+      - 'app_main.py'
+      - 'setu_*.py'
+      - 'food/**'
+      - 'hotel_erp.html'
+      - 'sw.js'
+      - 'manifest.json'
+      - '*.png'
+      - 'favicon.ico'
+      - '*.bat'
+      - 'installer/**'
+      - 'whatsapp/**'
+      - '.github/workflows/build-exe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to update the setu-latest release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: python -m pip install --upgrade pyinstaller pywebview certifi
+
+      # The version shown in Setu and sent to Super Admin = the installer's version
+      - name: Stamp version
+        shell: cmd
+        run: python installer\stamp-version.py 1.0.${{ github.run_number }}
+
+      # Same flags as Build-New-EXE.bat; keep both in sync
+      - name: Build EXE
+        shell: cmd
+        run: python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "food;food" app_main.py
+
+      # WhatsApp link helper: Baileys + its own node.exe (no Node needed on the client PC)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: WhatsApp helper
+        shell: pwsh
+        run: |
+          cd whatsapp
+          npm ci --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item (Get-Command node).Source node.exe
+          node -e "require('@whiskeysockets/baileys'); console.log('baileys ok')"
+
+      # Only what a client PC needs: never keygen.py, keys or the cloud code
+      - name: Pack setup folder
+        shell: cmd
+        run: |
+          mkdir Setu-POS-Setup
+          copy dist\Aghanya-Devanya-Hotel-ERP.exe Setu-POS-Setup\
+          for %%f in (Install-Aghanya-Devanya-ERP-Setup.bat hotel_erp.html manifest.json sw.js icon-192.png icon-512.png logo.png favicon.ico) do copy %%f Setu-POS-Setup\
+          xcopy /E /I /Q whatsapp Setu-POS-Setup\whatsapp
+
+      # Optional copy; the release below is the real download (private repos run out of artifact storage)
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: Setu-POS-Setup
+          path: Setu-POS-Setup
+          retention-days: 90
+
+      # Real installer: Setu-POS-Setup.exe (Next -> Install -> Finish, shows in Apps & Uninstall)
+      - name: Build installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile installer\MicrosoftEdgeWebview2Setup.exe
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=1.0.${{ github.run_number }}" installer\setu-setup.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # Optional copy; the release below is the real download (private repos run out of artifact storage)
+      - uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: Setu-POS-Installer
+          path: Output/Setu-POS-Setup.exe
+          retention-days: 90
+
+      # One fixed download link that always has the newest EXE
+      - name: Zip setup folder
+        shell: pwsh
+        run: Compress-Archive -Path Setu-POS-Setup -DestinationPath Setu-POS-Setup.zip -Force
+
+      - name: Update setu-latest release
+        if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = "Setu v1.0.${{ github.run_number }}. Newest Setu EXE (branch ${{ github.ref_name }}, commit ${{ github.sha }}). Download Setu-POS-Setup.exe and double-click it (Next, Install, Finish). Setu-POS-Setup.zip = same app without installer."
+          gh release view setu-latest *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create setu-latest Output/Setu-POS-Setup.exe Setu-POS-Setup.zip --title "Setu POS - Latest EXE" --notes $notes --target ${{ github.sha }}
+          } else {
+            gh release edit setu-latest --notes $notes
+            gh release upload setu-latest Output/Setu-POS-Setup.exe Setu-POS-Setup.zip --clobber
+          }
+
+  # Publish the new installer on Hotel Setu Cloud (/download/), so counter PCs update themselves
+  # and the website's "Install for PC" gets it. Same steps as setu-cloud-deploy.yml.
+  publish-cloud:
+    if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: setu-cloud-deploy
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: cloud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check Cloudflare secrets
+        id: secrets
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then echo "::warning::CLOUDFLARE_API_TOKEN is not set; the update was not published."; echo "ok=false" >> "$GITHUB_OUTPUT"; else echo "ok=true" >> "$GITHUB_OUTPUT"; fi
+      - run: npm ci --no-audit --no-fund
+      - run: node scripts/copy-assets.mjs && node --check src/worker.js
+      - name: Add the newest Setu installer for download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash scripts/fetch-exe.sh
+      - name: Deploy to Cloudflare
+        if: steps.secrets.outputs.ok == 'true'
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

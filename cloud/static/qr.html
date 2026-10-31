@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a"><meta name="robots" content="noindex">
+<title>Order at your table</title>
+<style>
+  :root{ --ink:#0f172a; --mut:#64748b; --line:#e2e8f0; --bg:#f8fafc; --card:#fff; --ok:#16a34a; --acc:#ea580c; --bad:#dc2626 }
+  *{ box-sizing:border-box } body{ margin:0; font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); padding-bottom:110px }
+  header{ background:var(--ink); color:#fff; padding:16px 16px 12px; position:sticky; top:0; z-index:5 }
+  header h1{ margin:0; font-size:19px } header .t{ color:#fdba74; font-weight:700; font-size:14px; margin-top:2px }
+  .cats{ display:flex; gap:8px; overflow-x:auto; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); position:sticky; top:62px; z-index:4; scrollbar-width:none }
+  .cats::-webkit-scrollbar{ display:none }
+  .cat{ flex:none; border:1px solid var(--line); background:var(--card); border-radius:99px; padding:7px 14px; font-weight:600; font-size:14px; color:var(--ink) }
+  .cat.on{ background:var(--ink); color:#fff; border-color:var(--ink) }
+  main{ padding:8px 16px }
+  h2{ font-size:15px; margin:16px 0 8px; color:var(--mut); text-transform:uppercase; letter-spacing:.5px }
+  .it{ display:flex; gap:12px; align-items:center; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:8px }
+  .it img{ width:64px; height:64px; object-fit:cover; border-radius:10px; flex:none; background:#f1f5f9 }
+  .it.off{ opacity:.55 } .it.off img{ filter:grayscale(1) }
+  .it .n{ flex:1; min-width:0 } .it b{ display:block; font-size:15px } .it small{ color:var(--mut) } .it .p{ font-weight:700; margin-top:3px }
+  .veg{ display:inline-block; width:12px; height:12px; border:2px solid var(--ok); border-radius:2px; margin-right:6px; vertical-align:-1px; position:relative }
+  .veg.nv{ border-color:var(--bad) } .veg::after{ content:''; position:absolute; inset:2px; border-radius:50%; background:currentColor; color:var(--ok) } .veg.nv::after{ color:var(--bad) }
+  .q{ display:flex; align-items:center; gap:6px } .q button{ width:34px; height:34px; border-radius:10px; border:1px solid var(--line); background:var(--card); font-size:20px; font-weight:700; color:var(--ink) }
+  .q span{ min-width:20px; text-align:center; font-weight:700 } .add{ border:1px solid var(--acc); color:var(--acc); background:#fff7ed; border-radius:10px; padding:8px 16px; font-weight:700; font-size:14px }
+  .bar{ position:fixed; left:0; right:0; bottom:0; background:var(--card); border-top:1px solid var(--line); padding:10px 16px calc(10px + env(safe-area-inset-bottom)); z-index:6 }
+  .bar .row{ display:flex; gap:8px } .btn{ flex:1; border:0; border-radius:12px; padding:13px; font-weight:700; font-size:15px; background:var(--acc); color:#fff }
+  .btn.g{ background:#f1f5f9; color:var(--ink) } .btn:disabled{ opacity:.5 }
+  .sheet{ position:fixed; inset:0; background:rgba(15,23,42,.5); display:none; align-items:flex-end; z-index:9 } .sheet.open{ display:flex }
+  .box{ background:var(--card); width:100%; max-height:88vh; overflow:auto; border-radius:18px 18px 0 0; padding:18px 16px calc(18px + env(safe-area-inset-bottom)) }
+  .box h3{ margin:0 0 10px } .line{ display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid var(--line) }
+  textarea,input{ width:100%; border:1px solid var(--line); border-radius:10px; padding:10px; font:inherit; margin-top:8px }
+  .st{ border-radius:12px; padding:12px; margin:8px 0; background:#f1f5f9 } .st b{ display:block }
+  .tag{ display:inline-block; border-radius:99px; padding:3px 10px; font-size:12px; font-weight:700; background:#e2e8f0 }
+  .tag.ok{ background:#dcfce7; color:#166534 } .tag.w{ background:#ffedd5; color:#9a3412 } .tag.bad{ background:#fee2e2; color:#991b1b }
+  .msg{ text-align:center; padding:60px 20px; color:var(--mut) } .toast{ position:fixed; left:16px; right:16px; bottom:96px; background:var(--ink); color:#fff; padding:12px; border-radius:12px; text-align:center; display:none; z-index:10 }
+  .foot{ text-align:center; color:var(--mut); font-size:11px; margin:20px 0 }
+</style></head>
+<body>
+<header><h1 id="h">Menu</h1><div class="t" id="tb"></div></header>
+<div class="cats" id="cats"></div>
+<main id="m"><div class="msg">Loading the menu…</div></main>
+<div class="bar" id="bar" style="display:none"><div class="row">
+  <button class="btn g" onclick="openOrders()">My orders</button>
+  <button class="btn g" onclick="openHelp()">Call waiter</button>
+  <button class="btn" id="cartbtn" onclick="openCart()" disabled>Cart</button></div></div>
+<div class="sheet" id="sh" onclick="if(event.target.id==='sh')closeSheet()"><div class="box" id="box"></div></div>
+<div class="toast" id="toast"></div>
+<script src="/food/food-match.js"></script>
+<script>
+// Guest menu for one table. The address is /q/<HOTEL>/<token>; the token only allows this table's menu, orders and calls.
+const parts = location.pathname.split('/').filter(Boolean), HOTEL = parts[1] || '', TOKEN = parts[2] || '';
+const $ = s => document.querySelector(s), esc = t => String(t ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+const rs = n => '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN');
+let MENU = null, CART = {}, CAT = '', STATUS = null, NOTE = '', NAME = '';
+try{ CART = JSON.parse(sessionStorage.getItem('cart:' + TOKEN) || '{}'); }catch(e){}
+const keepCart = () => { try{ sessionStorage.setItem('cart:' + TOKEN, JSON.stringify(CART)); }catch(e){} };
+async function call(path, body){
+  const r = await fetch(path + (body ? '' : (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(TOKEN)), {method: body ? 'POST' : 'GET', cache: 'no-store',
+    headers: {'X-Setu-Hotel': HOTEL, 'Content-Type': 'application/json'}, body: body ? JSON.stringify({...body, t: TOKEN}) : undefined});
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok) throw Object.assign(new Error(j.error || 'Please try again'), {status: r.status});
+  return j;
+}
+function toast(t){ const e = $('#toast'); e.textContent = t; e.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => e.style.display = 'none', 2600); }
+async function load(){
+  try{ MENU = await call('/api/guest/menu'); }
+  catch(e){ $('#m').innerHTML = `<div class="msg"><b>${esc(e.message)}</b><br><br>${e.status === 410 ? 'The QR code may be old. Please ask the staff for help.' : 'Please check the internet and scan again.'}</div>`; return; }
+  document.title = MENU.hotel; $('#h').textContent = MENU.hotel; $('#tb').textContent = 'Table ' + MENU.table;
+  Object.keys(CART).forEach(k => { if(!MENU.items.some(i => i.id === k && !i.out)) delete CART[k]; });
+  $('#bar').style.display = ''; draw(); poll();
+}
+function cats(){ return [...new Set(MENU.items.map(i => i.cat))]; }
+// Smart Food Visuals: the hotel's own photo, its own link, or a representative library picture (never a file path)
+function pic(i){
+  const FV = window.FoodVisuals, p = FV ? FV.pick(i) : (i.img ? {src: i.img, kind: 'link'} : null);
+  if(!p) return '';
+  const url = p.kind === 'custom' ? '/api/media/' + p.src + '.t?h=' + encodeURIComponent(HOTEL) : p.kind === 'link' ? (p.src.startsWith('http') || p.src.startsWith('/') ? p.src : '/' + p.src) : '/food/thumb/' + p.src + '.webp';
+  return `<img src="${esc(url)}" alt="" loading="lazy" decoding="async" width="64" height="64" onerror="this.style.visibility='hidden'">`;
+}
+function draw(){
+  const cs = cats();
+  $('#cats').innerHTML = cs.map(c => `<button class="cat ${CAT === c ? 'on' : ''}" onclick="jump('${esc(c).replace(/'/g, '&#39;')}')">${esc(c)}</button>`).join('');
+  $('#m').innerHTML = cs.map(c => `<h2 id="c-${encodeURIComponent(c)}">${esc(c)}</h2>` + MENU.items.filter(i => i.cat === c).map(i => {
+    const n = CART[i.id] || 0;
+    return `<div class="it${i.out ? ' off' : ''}">${pic(i)}<div class="n"><b>${i.veg === true ? '<span class="veg"></span>' : i.veg === false ? '<span class="veg nv"></span>' : ''}${esc(i.name)}</b>${i.desc ? `<small>${esc(i.desc)}</small>` : ''}<div class="p">${rs(i.price)}</div></div>
+      ${i.out ? '<span class="tag">Not available</span>' : n ? `<div class="q"><button onclick="qty('${i.id}',-1)">−</button><span>${n}</span><button onclick="qty('${i.id}',1)">+</button></div>` : `<button class="add" onclick="qty('${i.id}',1)">ADD</button>`}</div>`;
+  }).join('')).join('') + '<div class="foot">Pictures are for illustration. Powered by Setu · Aghanya Devanya Enterprises</div>';
+  const n = Object.values(CART).reduce((a, b) => a + b, 0), t = MENU.items.reduce((a, i) => a + (CART[i.id] || 0) * i.price, 0);
+  $('#cartbtn').disabled = !n; $('#cartbtn').textContent = n ? `Cart (${n}) · ${rs(t)}` : 'Cart';
+}
+function jump(c){ CAT = c; draw(); const e = document.getElementById('c-' + encodeURIComponent(c)); if(e) window.scrollTo({top: e.offsetTop - 120, behavior: 'smooth'}); }
+function qty(id, d){ CART[id] = Math.max(0, Math.min(50, (CART[id] || 0) + d)); if(!CART[id]) delete CART[id]; keepCart(); draw(); if($('#sh').classList.contains('open') && $('#box').dataset.v === 'cart') openCart(); }
+function sheet(v, html){ const b = $('#box'); b.dataset.v = v; b.innerHTML = html; $('#sh').classList.add('open'); }
+function closeSheet(){ $('#sh').classList.remove('open'); }
+function openCart(){
+  const lines = MENU.items.filter(i => CART[i.id]);
+  if(!lines.length){ closeSheet(); return; }
+  const t = lines.reduce((a, i) => a + CART[i.id] * i.price, 0);
+  sheet('cart', `<h3>Your order · Table ${esc(MENU.table)}</h3>${lines.map(i => `<div class="line"><span>${esc(i.name)}<br><small style="color:var(--mut)">${rs(i.price)} each</small></span>
+      <div class="q"><button onclick="qty('${i.id}',-1)">−</button><span>${CART[i.id]}</span><button onclick="qty('${i.id}',1)">+</button></div></div>`).join('')}
+    <div class="line"><b>Total</b><b>${rs(t)}</b></div>${MENU.gst && !MENU.incl ? `<small style="color:var(--mut)">GST ${MENU.gst}% is added on the bill.</small>` : ''}
+    <textarea id="note" rows="2" maxlength="200" placeholder="Cooking notes (less spicy, no onion…)">${esc(NOTE)}</textarea>
+    <input id="nm" maxlength="60" placeholder="Your name (optional)" value="${esc(NAME)}">
+    <div class="row" style="display:flex;gap:8px;margin-top:12px"><button class="btn g" onclick="closeSheet()">Add more</button><button class="btn" id="place" onclick="place()">Place order</button></div>`);
+}
+async function place(){
+  NOTE = $('#note').value; NAME = $('#nm').value;
+  const items = Object.entries(CART).map(([mid, qty]) => ({mid, qty}));
+  if(!items.length) return;
+  const btn = $('#place'); btn.disabled = true; btn.textContent = 'Sending…';
+  // One id per cart: a retry after a slow network sends the same id, so the order is never made twice
+  let id = sessionStorage.getItem('oid:' + TOKEN);
+  if(!id){ id = (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 32); sessionStorage.setItem('oid:' + TOKEN, id); }
+  try{
+    await call('/api/guest/order', {id, items, note: NOTE, name: NAME});
+    CART = {}; NOTE = ''; keepCart(); sessionStorage.removeItem('oid:' + TOKEN);
+    draw(); toast('Order sent! The staff will confirm it.'); await poll(); openOrders();
+  }catch(e){ btn.disabled = false; btn.textContent = 'Place order'; toast(e.message); }
+}
+const ST = {pending: ['Waiting for the staff', 'w'], accepted: ['Accepted', 'ok'], done: ['Sent to the kitchen', 'ok'], rejected: ['Not accepted', 'bad']};
+const KT = {preparing: 'Preparing', ready: 'Ready — coming to your table', served: 'Served'};
+function openOrders(){
+  const os = (STATUS && STATUS.orders || []).slice().reverse();
+  sheet('orders', `<h3>My orders · Table ${esc(MENU.table)}</h3>${os.map(o => {
+    const s = ST[o.status] || [o.status, ''];
+    return `<div class="st"><span class="tag ${s[1]}">${o.kot && o.status === 'done' ? esc(KT[o.kot] || o.kot) : s[0]}</span> <small style="color:var(--mut)">${new Date(o.at).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'})}</small>
+      <b style="margin-top:6px">${o.items.map(i => esc(i.qty + ' × ' + i.name)).join(', ')}</b>${o.reason ? `<small>${esc(o.reason)}</small>` : ''}</div>`;
+  }).join('') || '<p style="color:var(--mut)">No order yet. Choose items from the menu.</p>'}
+    <div class="row" style="display:flex;gap:8px;margin-top:12px"><button class="btn g" onclick="closeSheet()">Order more</button><button class="btn" onclick="ask('bill')">Request bill</button></div>`);
+}
+function openHelp(){
+  sheet('help', `<h3>Need help?</h3><div style="display:flex;flex-direction:column;gap:8px">
+    <button class="btn" onclick="ask('waiter')">Call waiter</button><button class="btn g" onclick="ask('water')">Water please</button><button class="btn g" onclick="ask('bill')">Request bill</button>
+    <button class="btn g" onclick="closeSheet()">Close</button></div>`);
+}
+async function ask(kind){
+  try{ await call('/api/guest/call', {kind}); closeSheet(); toast(kind === 'bill' ? 'The bill is on its way.' : 'The staff has been told. Please wait.'); }
+  catch(e){ toast(e.message); }
+}
+async function poll(){
+  clearTimeout(poll.t);
+  try{ STATUS = await call('/api/guest/status'); if($('#sh').classList.contains('open') && $('#box').dataset.v === 'orders') openOrders(); }catch(e){}
+  const live = STATUS && STATUS.orders.some(o => o.status !== 'rejected' && o.kot !== 'served');
+  poll.t = setTimeout(poll, live ? 8000 : 30000);
+}
+load();
+</script>
+</body></html>

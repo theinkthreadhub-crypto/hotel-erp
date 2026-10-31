@@ -1,0 +1,34 @@
+name: Baileys WhatsApp Receipt Tests
+
+on:
+  push:
+    branches: [feat/whatsapp-baileys]
+    paths:
+      - 'baileys-gateway/**'
+      - 'cloud/src/worker.js'
+      - 'tests/whatsapp-receipts.cjs'
+      - '.github/workflows/baileys-receipts.yml'
+  pull_request:
+    branches: [ccr-89eaafa4-mxbfj2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  receipt-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check gateway and Worker syntax
+        run: |
+          node --check baileys-gateway/core.mjs
+          node --check baileys-gateway/server.mjs
+          node --check cloud/src/worker.js
+      - name: Test persisted receipt relay and duplicate protection
+        run: node --test baileys-gateway/test/*.test.mjs
+      - name: Test consent and existing Meta fallback
+        run: node tests/whatsapp-receipts.cjs

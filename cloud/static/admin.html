@@ -1,0 +1,1615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Setu Hotel Admin</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script>/* look before the first paint: dark glass unless this device chose light */ try{ document.documentElement.dataset.look = localStorage.getItem('setu_admin_look') || 'glass'; }catch(e){ document.documentElement.dataset.look = 'glass'; }</script>
+<link rel="manifest" href="admin.webmanifest">
+<meta name="theme-color" content="#1e3a8a">
+<link rel="icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  /* Setu Hotel Admin — Material 3 style, built for the Android app (also used in a browser) */
+  :root{ --bg:#f7f9fc; --card:#fff; --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --pri:#1e3a8a; --pri2:#2563eb; --pri-ink:#fff; --brand:#1e3a8a;
+    --tonal:#e0e7ff; --tonal-ink:#1e3a8a; --ok:#15803d; --bad:#dc2626; --warn:#b45309; --soft:#f1f5f9; --gold:#a16207;
+    --e1:0 1px 2px rgba(15,23,42,.06), 0 1px 3px rgba(15,23,42,.05); --e2:0 4px 14px rgba(15,23,42,.10); --e3:0 10px 30px rgba(15,23,42,.18);
+    --ease:cubic-bezier(.2,0,0,1); --bar:64px }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent }
+  [hidden]{ display:none !important }
+  html{ overscroll-behavior-y:contain }
+  /* Inter: a clean professional typeface; numbers line up in lists (tabular figures) */
+  body{ margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 Inter, Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing:antialiased; font-feature-settings:"cv11", "ss01", "tnum"; letter-spacing:-.005em }
+  /* An app does not select text or show the long-press menu, except where you type or copy */
+  body{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none }
+  input, textarea, code, .keybox, .sel{ -webkit-user-select:text; user-select:text }
+  svg.i{ width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; flex:none }
+  button, .hc, .li, .tile, .chip, .plan, a{ touch-action:manipulation }
+
+  /* ---------- top app bar (large title that shrinks on scroll) ---------- */
+  header{ position:sticky; top:0; z-index:5; background:var(--bg); display:flex; align-items:center; gap:4px; padding:8px 8px 8px 16px; min-height:var(--bar); transition:box-shadow .2s, background .2s }
+  header.lifted{ box-shadow:0 1px 0 var(--line), 0 2px 6px rgba(15,23,42,.05); background:#fff }
+  header .t{ flex:1; min-width:0 }
+  header h1{ font-size:22px; font-weight:600; margin:0; letter-spacing:-.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:font-size .2s var(--ease) }
+  header.lifted h1{ font-size:19px }
+  header small{ color:var(--muted); font-size:12.5px; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; transition:opacity .2s, height .2s }
+  header.lifted small{ opacity:0; height:0 }
+  .ib{ background:transparent; color:var(--ink); border:0; width:44px; height:44px; border-radius:50%; display:grid; place-items:center; padding:0; position:relative; overflow:hidden; flex:none }
+  .ib:active{ background:rgba(15,23,42,.08) }
+  #hback{ margin-left:-10px; display:none } header.sub #hback{ display:grid }
+
+  /* ---------- bottom navigation bar with the active pill ---------- */
+  nav{ display:flex; position:fixed; left:0; right:0; bottom:0; background:#fff; z-index:6; padding:6px 0 calc(8px + env(safe-area-inset-bottom)); box-shadow:0 -1px 0 var(--line) }
+  nav button{ flex:1; background:transparent; color:var(--muted); border:0; border-radius:0; padding:4px 2px 2px; font-size:12px; font-weight:500; display:flex; flex-direction:column; align-items:center; gap:4px; position:relative; overflow:visible }
+  nav button .pill{ width:60px; height:32px; border-radius:16px; display:grid; place-items:center; transition:background .25s var(--ease); position:relative; overflow:hidden }
+  nav button.on{ color:var(--ink); font-weight:700 } nav button.on .pill{ background:var(--tonal); color:var(--tonal-ink) }
+  nav .badge{ position:absolute; top:-2px; left:calc(50% + 8px); z-index:1 }
+  main{ padding:4px 16px 120px; max-width:760px; margin:0 auto }
+  main.enter{ opacity:0; transform:translateY(10px) }
+  main.shown{ transition:opacity .22s var(--ease), transform .26s var(--ease) }
+
+  /* ---------- controls ---------- */
+  input, button, select, textarea{ font:inherit; padding:12px 14px; border-radius:12px; border:1px solid #cbd5e1; background:var(--card); color:var(--ink); max-width:100% }
+  input:focus, select:focus, textarea:focus{ outline:0; border-color:var(--pri); box-shadow:0 0 0 1px var(--pri) }
+  button{ cursor:pointer; background:var(--pri); color:var(--pri-ink); border:0; font-weight:600; border-radius:22px; padding:11px 20px; position:relative; overflow:hidden; transition:box-shadow .2s, transform .1s }
+  button:active{ transform:scale(.98) }
+  button.g{ background:var(--card); color:var(--pri); border:1px solid #cbd5e1 }
+  button.bad{ background:var(--bad); color:#fff } button.okb{ background:var(--ok); color:#fff }
+  button.big{ width:100%; padding:15px; font-size:16px; border-radius:28px }
+  button:disabled{ opacity:.45; cursor:default }
+  label{ display:block; font-size:12.5px; color:var(--muted); margin:14px 0 6px; font-weight:600; letter-spacing:.1px }
+  .card{ background:var(--card); border-radius:20px; padding:18px; margin-bottom:12px; box-shadow:var(--e1) }
+  .card > h2:first-child{ margin-top:0 }
+  .card > input:not([type=checkbox]), .card > select, .card > textarea{ width:100% }
+  .muted{ color:var(--muted) } .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center }
+  .err{ color:var(--bad); font-weight:600 } .ok{ color:var(--ok); font-weight:600 }
+  code{ font:12px ui-monospace, "Roboto Mono", Consolas, monospace; background:var(--soft); padding:3px 7px; border-radius:6px; word-break:break-all }
+  .badge{ background:var(--bad); color:#fff; border-radius:20px; font-size:10px; padding:1px 6px; font-weight:700; min-width:16px; text-align:center }
+  h2{ font-size:18px; font-weight:600; margin:0 0 10px; letter-spacing:-.1px } h3{ font-size:14px; margin:18px 0 8px; font-weight:700 }
+  /* M3 switch for every checkbox */
+  input[type=checkbox]{ -webkit-appearance:none; appearance:none; width:44px !important; height:26px; border-radius:13px; background:#cbd5e1; border:0; padding:0; position:relative; flex:none; transition:background .2s; cursor:pointer; margin:0 }
+  input[type=checkbox]::after{ content:''; position:absolute; top:3px; left:3px; width:20px; height:20px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:transform .2s var(--ease) }
+  input[type=checkbox]:checked{ background:var(--pri) } input[type=checkbox]:checked::after{ transform:translateX(18px) }
+  input[type=checkbox]:focus{ box-shadow:none }
+  .ripple{ position:absolute; border-radius:50%; transform:scale(0); background:currentColor; opacity:.16; pointer-events:none; animation:rip .5s var(--ease) forwards }
+  @keyframes rip{ to{ transform:scale(2.6); opacity:0 } }
+
+  /* ---------- hotels list ---------- */
+  .search{ display:flex; align-items:center; gap:10px; background:#e9eef5; border-radius:28px; padding:0 16px; margin:4px 0 12px; color:var(--muted); height:52px }
+  .search input{ border:0; flex:1; padding:12px 0; outline:0; background:transparent; box-shadow:none }
+  .chips{ display:flex; gap:8px; overflow-x:auto; margin:0 -16px 14px; padding:0 16px; scrollbar-width:none } .chips::-webkit-scrollbar{ display:none }
+  .chip{ flex:none; background:var(--card); color:var(--ink); border:1px solid #cbd5e1; border-radius:10px; padding:7px 14px; font-size:13.5px; font-weight:500; height:36px }
+  .chip.on{ background:var(--tonal); color:var(--tonal-ink); border-color:transparent; font-weight:700 } .chip b{ margin-left:6px; opacity:.6; font-weight:600 }
+  .hc{ background:var(--card); border-radius:20px; padding:14px 16px; margin-bottom:10px; cursor:pointer; box-shadow:var(--e1); position:relative; overflow:hidden; transition:transform .12s var(--ease) }
+  .hc:active{ transform:scale(.985) }
+  .hc .top{ display:flex; align-items:center; gap:12px }
+  .av{ width:44px; height:44px; border-radius:50%; display:grid; place-items:center; color:#fff; font-weight:700; font-size:18px; flex:none }
+  .hc .mid{ flex:1; min-width:0 } .hc b.nm{ display:block; font-size:16px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .hc small{ color:var(--muted); font-size:12.5px }
+  .tags{ display:flex; gap:6px; flex-wrap:wrap; margin-top:10px }
+  .tag{ font-size:11.5px; font-weight:600; padding:4px 9px; border-radius:8px; background:var(--soft); color:#475569 }
+  .tag.ok{ background:#dcfce7; color:#166534 } .tag.warn{ background:#fef3c7; color:#92400e } .tag.bad{ background:#fee2e2; color:#991b1b }
+  .st{ font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:99px; white-space:nowrap }
+  .st.ok{ background:#dcfce7; color:#166534 } .st.warn{ background:#fef3c7; color:#92400e } .st.bad{ background:#fee2e2; color:#991b1b } .st.off{ background:#e2e8f0; color:#334155 }
+  .strip{ margin-top:10px; font-size:12.5px; font-weight:600; padding:8px 12px; border-radius:12px }
+  .strip.warn{ background:#fef3c7; color:#92400e } .strip.bad{ background:#fee2e2; color:#991b1b }
+  .sum{ display:flex; gap:12px; align-items:center; padding:16px; border-radius:20px; background:linear-gradient(135deg, #1e3a8a, #2563eb); color:#fff; margin-bottom:12px; box-shadow:var(--e2) }
+  .sum .big{ font-size:28px; font-weight:700; line-height:1 } .sum small{ opacity:.85 } .sum .err{ color:#fecaca }
+  .fab{ position:fixed; right:16px; bottom:calc(96px + env(safe-area-inset-bottom)); z-index:7; display:flex; align-items:center; gap:10px; height:56px; padding:0 20px 0 16px; border-radius:16px; background:var(--tonal); color:var(--tonal-ink); box-shadow:var(--e3); font-weight:700; font-size:15px; transition:width .25s var(--ease), padding .25s var(--ease) }
+  .fab.mini span{ display:none } .fab.mini{ padding:0 16px }
+
+  /* ---------- one hotel (bottom sheet) ---------- */
+  .hero{ display:flex; gap:14px; align-items:center; margin-bottom:14px } .hero .av{ width:56px; height:56px; font-size:22px }
+  .hero h2{ margin:0; font-size:20px }
+  .quick{ display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px }
+  .quick a{ display:flex; align-items:center; justify-content:center; gap:8px; padding:12px; border-radius:24px; text-decoration:none; font-weight:700; background:var(--tonal); color:var(--tonal-ink); position:relative; overflow:hidden }
+  .quick a.wa{ background:#dcfce7; color:#166534 }
+  .facts{ background:var(--card); border-radius:20px; overflow:hidden; margin-bottom:14px; box-shadow:var(--e1) }
+  .facts div{ display:flex; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--soft); font-size:14px } .facts div:last-child{ border-bottom:0 }
+  .facts span{ color:var(--muted) } .facts b{ text-align:right; font-weight:600 }
+  .tiles{ display:grid; grid-template-columns:repeat(3, 1fr); gap:8px }
+  .tile{ background:var(--card); color:var(--ink); border:0; border-radius:20px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12.5px; font-weight:700; text-align:center; line-height:1.2; box-shadow:var(--e1) }
+  .tile svg.i{ width:26px; height:26px; padding:8px; box-sizing:content-box; border-radius:50%; background:var(--soft) } .tile small{ font-weight:500; color:var(--muted); font-size:10.5px }
+  .tile.blue svg.i{ color:var(--pri); background:var(--tonal) } .tile.red svg.i{ color:var(--bad); background:#fee2e2 } .tile.amber svg.i{ color:var(--warn); background:#fef3c7 } .tile.green svg.i{ color:var(--ok); background:#dcfce7 }
+  .tile.on{ outline:2px solid #fecaca }
+  /* ---------- keygen ---------- */
+  .plans{ display:grid; grid-template-columns:repeat(2, 1fr); gap:8px }
+  .plan{ background:var(--card); color:var(--ink); border:1.5px solid #cbd5e1; border-radius:16px; padding:12px 14px; text-align:left; font-weight:700 }
+  .plan small{ display:block; color:var(--muted); font-weight:500; font-size:11.5px } .plan.on{ border-color:var(--pri); background:var(--tonal); color:var(--tonal-ink) }
+  .keybox{ font:13px/1.5 ui-monospace, "Roboto Mono", Consolas, monospace; background:#0f172a; color:#e2e8f0; padding:14px; border-radius:14px; word-break:break-all }
+  .steps{ margin:0; padding-left:20px } .steps li{ margin:6px 0 }
+  .switch{ display:flex; align-items:center; gap:12px; margin-top:14px; font-size:14px; color:var(--ink) }
+  /* ---------- lists ---------- */
+  .li{ display:flex; align-items:center; gap:14px; padding:14px 16px; background:var(--card); border:0; border-radius:0; margin:0; cursor:pointer; font-weight:500; width:100%; color:var(--ink); text-align:left; box-shadow:none }
+  .group{ background:var(--card); border-radius:20px; overflow:hidden; margin-bottom:14px; box-shadow:var(--e1) } .group .li + .li{ border-top:1px solid var(--soft) }
+  .gh{ font-size:12.5px; font-weight:700; color:var(--pri); margin:18px 4px 8px; letter-spacing:.3px }
+  .li .ico{ width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:var(--tonal); color:var(--tonal-ink); flex:none } .li > span:not(.ico){ flex:1 } .li small{ display:block; color:var(--muted); font-weight:400; font-size:12.5px }
+  .li .chev{ color:#94a3b8 }
+  .lr{ display:flex; gap:12px; align-items:center; padding:12px 16px; border-bottom:1px solid var(--soft) } .lr:last-child{ border-bottom:0 } .lr .x{ flex:1; min-width:0 } .lr b{ font-weight:600 }
+  .lr small{ display:block; color:var(--muted); font-size:12px } .lr.click{ cursor:pointer } .lr.click:active{ background:var(--soft) }
+  .msg{ max-width:85%; padding:10px 13px; border-radius:18px; margin:6px 0; white-space:pre-wrap } .msg.hotel{ background:var(--soft); border-bottom-left-radius:6px } .msg.admin{ background:var(--tonal); color:#172554; margin-left:auto; border-bottom-right-radius:6px }
+  .msg small{ display:block; color:var(--muted); font-size:11px }
+  .hcard{ padding:12px 0; border-bottom:1px solid var(--soft) } .hcard:last-child{ border-bottom:0 }
+  /* ---------- bottom sheet, dialog, snackbar ---------- */
+  #sheet, #ask{ position:fixed; inset:0; background:rgba(15,23,42,0); display:none; z-index:15; align-items:flex-end; justify-content:center; transition:background .25s }
+  #ask{ z-index:30; align-items:center; padding:24px }
+  #sheet.open, #ask.open{ display:flex } #sheet.in, #ask.in{ background:rgba(15,23,42,.42) }
+  #sheet .box{ background:var(--bg); width:100%; max-width:640px; border-radius:28px 28px 0 0; max-height:94vh; overflow:auto; padding:8px 16px 24px; padding-bottom:max(24px, env(safe-area-inset-bottom)); transform:translateY(100%); transition:transform .32s var(--ease); overscroll-behavior:contain }
+  #sheet.in .box{ transform:none } #sheet .box.drag{ transition:none }
+  #sheet .grab{ width:36px; height:4px; border-radius:9px; background:#94a3b8; margin:8px auto 16px; opacity:.6 }
+  #ask .box{ background:#fff; width:100%; max-width:400px; border-radius:28px; padding:24px; transform:scale(.92); opacity:0; transition:transform .22s var(--ease), opacity .18s; box-shadow:var(--e3) }
+  #ask.in .box{ transform:none; opacity:1 } #ask h2{ font-size:20px; margin-bottom:12px }
+  #sheet textarea, #sheet input:not([type=checkbox]), #sheet select, #ask textarea, #ask input:not([type=checkbox]){ width:100% }
+  .btns{ display:flex; gap:8px; margin-top:18px } .btns button{ flex:1; padding:12px }
+  #ask .btns{ justify-content:flex-end } #ask .btns button{ flex:none; min-width:96px }
+  #toast{ position:fixed; bottom:calc(92px + env(safe-area-inset-bottom)); left:16px; right:16px; margin:0 auto; max-width:560px; background:#1e293b; color:#f1f5f9; padding:14px 16px; border-radius:12px; display:block; z-index:40; font-size:14px; box-shadow:var(--e3); transform:translateY(24px); opacity:0; pointer-events:none; transition:transform .25s var(--ease), opacity .2s }
+  #toast.show{ transform:none; opacity:1 } #toast.err{ background:#991b1b }
+  /* pull to refresh */
+  #ptr{ position:fixed; top:var(--bar); left:50%; width:40px; height:40px; margin-left:-20px; border-radius:50%; background:#fff; box-shadow:var(--e2); z-index:8; display:grid; place-items:center; color:var(--pri); transform:translateY(-70px); opacity:0; pointer-events:none }
+  #ptr svg.i{ width:22px; height:22px } #ptr.spin svg.i, .ib.spin svg.i{ animation:spin .8s linear infinite }
+  @keyframes spin{ to{ transform:rotate(360deg) } }
+  /* skeleton while a screen loads */
+  .sk{ border-radius:20px; background:linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%); background-size:200% 100%; animation:sk 1.2s infinite linear; margin-bottom:10px }
+  @keyframes sk{ from{ background-position:200% 0 } to{ background-position:-200% 0 } }
+  /* ---------- login ---------- */
+  #login{ max-width:420px; margin:0 auto; padding:12vh 20px 24px; min-height:100vh; display:flex; flex-direction:column }
+  #login .logo{ width:84px; height:84px; border-radius:24px; box-shadow:var(--e2); background:#fff }
+  .field{ position:relative; margin-top:8px }
+  .field input{ width:100%; height:56px; padding:22px 48px 6px 16px; border-radius:12px; font-size:16px }
+  .field span{ position:absolute; left:16px; top:18px; color:var(--muted); pointer-events:none; transition:all .15s var(--ease); font-size:16px }
+  .field input:focus + span, .field input:not(:placeholder-shown) + span{ top:7px; font-size:12px; color:var(--pri); font-weight:600 }
+  .field .eye{ position:absolute; right:4px; top:6px; color:var(--muted) }
+  /* ---------- full-screen hotel page (all settings) ---------- */
+  .grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(190px, 1fr)); gap:10px }
+  .grid > div > input, .grid > div > select{ width:100% }
+  .stats{ display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; margin-bottom:12px }
+  .stat{ background:var(--card); border-radius:18px; padding:14px; box-shadow:var(--e1) }
+  .stat b{ display:block; font-size:22px; font-weight:700 }
+  table{ width:100%; border-collapse:collapse }
+  th, td{ text-align:left; padding:10px; border-bottom:1px solid var(--soft); vertical-align:middle }
+  th{ font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em }
+  tr.click{ cursor:pointer }
+  .pill{ padding:3px 9px; border-radius:99px; font-size:12px; font-weight:700; white-space:nowrap }
+  .p-active{ background:#dcfce7; color:#166534 } .p-trial{ background:#e0f2fe; color:#075985 }
+  .p-expired{ background:#fee2e2; color:#991b1b } .p-suspended{ background:#e2e8f0; color:#334155 } .p-pending{ background:#fef3c7; color:#92400e }
+  .h-ok{ background:#dcfce7; color:#166534 } .h-warn{ background:#fef3c7; color:#92400e } .h-bad{ background:#fee2e2; color:#991b1b }
+  .tabs{ display:flex; gap:0; border-bottom:1px solid var(--line); margin:0 -16px 14px; padding:0 8px; overflow-x:auto; scrollbar-width:none; position:sticky; top:var(--bar); background:#fff; z-index:2 }
+  .tabs::-webkit-scrollbar{ display:none }
+  .tabs button{ flex:none; background:transparent; color:var(--muted); border-radius:0; white-space:nowrap; padding:14px 14px 12px; font-weight:600; border-bottom:3px solid transparent }
+  .tabs button.on{ color:var(--pri); border-bottom-color:var(--pri) }
+  .feat{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:14px; background:var(--card); box-shadow:var(--e1) }
+  .feat select{ margin-left:auto }
+  .two{ display:grid; grid-template-columns:1fr 300px; gap:16px } @media (max-width:820px){ .two{ grid-template-columns:1fr } }
+  .rcpt{ background:#fff; color:#000; font:12px/1.35 ui-monospace, Consolas, monospace; padding:10px; border:1px dashed #94a3b8; margin:0 auto }
+  .rcpt .c{ text-align:center } .rcpt hr{ border:0; border-top:1px dashed #000 } .rcpt .r{ text-align:right } .rcpt td{ padding:1px 0; border:0 }
+  #drawer{ position:fixed; inset:0; background:var(--bg); display:none; z-index:20; overflow:auto; transform:translateX(100%); transition:transform .3s var(--ease); overscroll-behavior:contain }
+  #drawer.in{ transform:none }
+  #drawer .dbar{ position:sticky; top:0; z-index:3; background:#fff; display:flex; align-items:center; gap:4px; padding:8px; min-height:var(--bar); box-shadow:0 1px 0 var(--line) }
+  #drawer .dbar .t{ flex:1; min-width:0 } #drawer .dbar b{ display:block; font-size:18px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis } #drawer .dbar small{ color:var(--muted); font-size:12px }
+  #drawer .panel{ max-width:980px; margin:0 auto; padding:0 16px 40px }
+  #drawer .panel input:not([type=checkbox]), #drawer .panel select, #drawer .panel textarea{ max-width:100% }
+  @media (min-width:900px){ main{ padding-top:12px } }
+  /* ================= Dark glass look (default): warm black, frosted cards, orange accent ================= */
+  html[data-look=glass]{ --bg:#0e0b09; --card:rgba(255,255,255,.06); --ink:#f8f3ee; --muted:#a39a92; --line:rgba(255,255,255,.10); --soft:rgba(255,255,255,.06);
+    --pri:#ff7a18; --pri2:#ff9a3c; --pri-ink:#fff; --tonal:rgba(255,122,24,.16); --tonal-ink:#ffb06b; --ok:#4ade80; --bad:#f87171; --warn:#fbbf24;
+    --glass:rgba(255,255,255,.07); --glass2:rgba(255,255,255,.11); --edge:rgba(255,255,255,.12); --orange:linear-gradient(135deg, #ff9a3c 0%, #ff6a00 100%);
+    --e1:0 1px 0 rgba(255,255,255,.04) inset, 0 8px 24px rgba(0,0,0,.35); --e2:0 12px 32px rgba(0,0,0,.45); --e3:0 18px 50px rgba(0,0,0,.6); color-scheme:dark }
+  html[data-look=glass] body{ background:radial-gradient(520px 360px at 85% -6%, rgba(255,122,24,.28), transparent 70%), radial-gradient(420px 320px at -10% 38%, rgba(255,106,0,.13), transparent 70%),
+    radial-gradient(480px 380px at 110% 85%, rgba(255,140,40,.12), transparent 70%), #0e0b09; background-attachment:fixed }
+  html[data-look=glass] .card, html[data-look=glass] .hc, html[data-look=glass] .group, html[data-look=glass] .facts, html[data-look=glass] .tile, html[data-look=glass] .stat, html[data-look=glass] .feat,
+  html[data-look=glass] .plan, html[data-look=glass] .chip, html[data-look=glass] .search{ background:var(--glass); border:1px solid var(--edge); backdrop-filter:blur(18px) saturate(140%); -webkit-backdrop-filter:blur(18px) saturate(140%); box-shadow:var(--e1) }
+  html[data-look=glass] .card, html[data-look=glass] .hc{ border-radius:24px }
+  /* app bar: transparent over the glow, frosted when lifted */
+  html[data-look=glass] header{ background:transparent }
+  html[data-look=glass] header.lifted{ background:rgba(14,11,9,.72); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); box-shadow:0 1px 0 var(--edge) }
+  html[data-look=glass] .ib{ color:var(--ink); background:var(--glass); border:1px solid var(--edge); width:42px; height:42px; backdrop-filter:blur(12px) }
+  html[data-look=glass] .ib:active{ background:var(--glass2) }
+  html[data-look=glass] header.home:not(.lifted) .t{ visibility:hidden }
+  /* the greeting at the top of Hotels */
+  .hello{ display:none }
+  html[data-look=glass] .hello{ display:block; margin:-4px 2px 18px }
+  .hello small{ color:var(--muted); font-size:14px } .hello h1{ margin:4px 0 0; font-size:32px; line-height:1.12; font-weight:700; letter-spacing:-.6px }
+  .hello h1 span{ background:var(--orange); -webkit-background-clip:text; background-clip:text; color:transparent }
+  /* inputs and buttons */
+  html[data-look=glass] input, html[data-look=glass] select, html[data-look=glass] textarea{ background:rgba(255,255,255,.05); border-color:var(--edge); color:var(--ink) }
+  html[data-look=glass] input::placeholder, html[data-look=glass] textarea::placeholder{ color:#7d746c }
+  html[data-look=glass] select option{ background:#1c1612; color:var(--ink) }
+  html[data-look=glass] input:focus, html[data-look=glass] select:focus, html[data-look=glass] textarea:focus{ border-color:var(--pri); box-shadow:0 0 0 1px var(--pri), 0 0 24px rgba(255,122,24,.18) }
+  html[data-look=glass] button{ background:var(--orange); box-shadow:0 8px 22px rgba(255,106,0,.35) }
+  html[data-look=glass] button.g{ background:var(--glass); color:var(--ink); border:1px solid var(--edge); box-shadow:none }
+  html[data-look=glass] button.bad{ background:linear-gradient(135deg, #f87171, #dc2626); box-shadow:0 8px 22px rgba(220,38,38,.3) }
+  html[data-look=glass] button.okb{ background:linear-gradient(135deg, #4ade80, #16a34a); box-shadow:0 8px 22px rgba(22,163,74,.3) }
+  html[data-look=glass] .ib, html[data-look=glass] nav button, html[data-look=glass] .chip, html[data-look=glass] .plan, html[data-look=glass] .tile, html[data-look=glass] .tabs button, html[data-look=glass] .li{ box-shadow:none }
+  html[data-look=glass] nav button, html[data-look=glass] .tabs button, html[data-look=glass] .li{ background:transparent }
+  html[data-look=glass] input[type=checkbox]{ background:rgba(255,255,255,.18); box-shadow:none }
+  html[data-look=glass] input[type=checkbox]:checked{ background:var(--orange) }
+  html[data-look=glass] code{ background:rgba(255,255,255,.08); color:#ffd2a8 }
+  /* filter chips become icon tiles, the chosen one orange */
+  html[data-look=glass] .chips{ gap:10px; margin-bottom:18px }
+  html[data-look=glass] .chip{ height:auto; min-width:76px; padding:12px 10px 10px; border-radius:20px; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:12px; color:var(--ink) }
+  html[data-look=glass] .chip svg.i{ width:26px; height:26px; color:#ffb06b }
+  html[data-look=glass] .chip b{ margin:0; font-size:11px; opacity:.75 }
+  html[data-look=glass] .chip.on{ background:var(--orange); border-color:transparent; color:#fff; box-shadow:0 10px 24px rgba(255,106,0,.4) }
+  html[data-look=glass] .chip.on svg.i{ color:#fff }
+  .chip svg.i{ width:16px; height:16px; vertical-align:-3px; margin-right:6px } html[data-look=glass] .chip svg.i{ margin:0 }
+  html[data-look=glass] .search{ border-radius:24px; height:54px; color:var(--muted) }
+  html[data-look=glass] .search input{ background:transparent; border:0; box-shadow:none }
+  /* summary banner, like an offer card */
+  html[data-look=glass] .sum{ background:linear-gradient(135deg, rgba(255,255,255,.09), rgba(255,255,255,.03)); border:1px solid var(--edge); backdrop-filter:blur(18px); -webkit-backdrop-filter:blur(18px); box-shadow:var(--e2); border-radius:26px; padding:18px; position:relative; overflow:hidden }
+  html[data-look=glass] .sum::after{ content:''; position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%; background:radial-gradient(circle, rgba(255,122,24,.45), transparent 70%) }
+  html[data-look=glass] .sum .big{ font-size:34px; background:var(--orange); -webkit-background-clip:text; background-clip:text; color:transparent }
+  html[data-look=glass] .sum small{ color:var(--muted); opacity:1 } html[data-look=glass] .sum .err{ color:#fca5a5 }
+  .sum .eyebrow{ font-size:12px; color:#ffb06b; font-weight:600; letter-spacing:.3px }
+  .sum .go{ display:none } html[data-look=glass] .sum .go{ display:inline-flex; margin-top:12px; padding:10px 20px; font-size:14px; border-radius:22px; align-items:center; gap:6px; position:relative; z-index:1 }
+  .bars7{ display:flex; gap:6px; align-items:flex-end; height:82px; position:relative; z-index:1 }
+  .bars7 i{ display:block; width:12px; border-radius:6px; background:rgba(255,255,255,.85) } html[data-look=glass] .bars7 i{ background:var(--orange); box-shadow:0 0 14px rgba(255,122,24,.4) }
+  .bars7 i.z{ opacity:.25 }
+  .sec{ display:flex; justify-content:space-between; align-items:baseline; margin:8px 4px 10px } .sec b{ font-size:17px; font-weight:600 } .sec a{ color:var(--muted); font-size:13px; text-decoration:none; cursor:pointer }
+  /* hotel cards and tags */
+  html[data-look=glass] .hc:active{ background:var(--glass2) }
+  html[data-look=glass] .tag{ background:rgba(255,255,255,.08); color:#d6cec7 }
+  html[data-look=glass] .tag.ok, html[data-look=glass] .st.ok{ background:rgba(74,222,128,.14); color:#86efac }
+  html[data-look=glass] .tag.warn, html[data-look=glass] .st.warn{ background:rgba(251,191,36,.15); color:#fcd34d }
+  html[data-look=glass] .tag.bad, html[data-look=glass] .st.bad{ background:rgba(248,113,113,.16); color:#fca5a5 }
+  html[data-look=glass] .st.off{ background:rgba(255,255,255,.1); color:#d6cec7 }
+  html[data-look=glass] .strip.warn{ background:rgba(251,191,36,.12); color:#fcd34d } html[data-look=glass] .strip.bad{ background:rgba(248,113,113,.13); color:#fca5a5 }
+  html[data-look=glass] .pill.p-active, html[data-look=glass] .pill.h-ok{ background:rgba(74,222,128,.14); color:#86efac }
+  html[data-look=glass] .pill.p-expired, html[data-look=glass] .pill.h-bad{ background:rgba(248,113,113,.16); color:#fca5a5 }
+  html[data-look=glass] .pill.p-trial{ background:rgba(56,189,248,.14); color:#7dd3fc } html[data-look=glass] .pill.p-pending, html[data-look=glass] .pill.h-warn{ background:rgba(251,191,36,.15); color:#fcd34d }
+  html[data-look=glass] .pill.p-suspended{ background:rgba(255,255,255,.1); color:#d6cec7 }
+  /* floating glass navigation bar */
+  html[data-look=glass] nav{ left:14px; right:14px; bottom:calc(12px + env(safe-area-inset-bottom)); padding:8px 4px; border-radius:26px; background:rgba(28,22,18,.72); border:1px solid var(--edge);
+    backdrop-filter:blur(22px) saturate(150%); -webkit-backdrop-filter:blur(22px) saturate(150%); box-shadow:0 14px 40px rgba(0,0,0,.55) }
+  html[data-look=glass] nav button{ color:#8f867e }
+  html[data-look=glass] nav button.on{ color:#ff8a2a } html[data-look=glass] nav button.on .pill{ background:rgba(255,122,24,.16); color:#ff8a2a }
+  html[data-look=glass] .fab{ background:var(--orange); color:#fff; box-shadow:0 14px 32px rgba(255,106,0,.45); bottom:calc(104px + env(safe-area-inset-bottom)) }
+  html[data-look=glass] main{ padding-bottom:140px }
+  /* sheet, dialog, snackbar */
+  html[data-look=glass] #sheet.in, html[data-look=glass] #ask.in{ background:rgba(0,0,0,.6) }
+  html[data-look=glass] #sheet .box{ background:rgba(24,19,16,.86); backdrop-filter:blur(26px) saturate(140%); -webkit-backdrop-filter:blur(26px) saturate(140%); border:1px solid var(--edge); border-bottom:0 }
+  html[data-look=glass] #ask .box{ background:rgba(30,24,20,.92); backdrop-filter:blur(26px); -webkit-backdrop-filter:blur(26px); border:1px solid var(--edge) }
+  html[data-look=glass] #toast{ background:rgba(40,32,27,.95); border:1px solid var(--edge); color:var(--ink); bottom:calc(104px + env(safe-area-inset-bottom)) }
+  html[data-look=glass] #toast.err{ background:rgba(127,29,29,.95) }
+  html[data-look=glass] #ptr{ background:#231b16; color:#ff8a2a; border:1px solid var(--edge) }
+  html[data-look=glass] .sk{ background:linear-gradient(90deg, rgba(255,255,255,.05) 25%, rgba(255,255,255,.10) 50%, rgba(255,255,255,.05) 75%); background-size:200% 100% }
+  /* one hotel */
+  html[data-look=glass] .quick a{ background:var(--glass); color:var(--ink); border:1px solid var(--edge) } html[data-look=glass] .quick a.wa{ background:rgba(74,222,128,.14); color:#86efac; border-color:rgba(74,222,128,.25) }
+  html[data-look=glass] .quick a:first-child{ background:var(--orange); color:#fff; border-color:transparent }
+  html[data-look=glass] .facts div{ border-bottom-color:rgba(255,255,255,.06) }
+  html[data-look=glass] .tile svg.i{ background:rgba(255,255,255,.08); color:#ffb06b }
+  html[data-look=glass] .tile.blue svg.i{ background:rgba(255,122,24,.18); color:#ff9a3c } html[data-look=glass] .tile.red svg.i{ background:rgba(248,113,113,.16); color:#fca5a5 }
+  html[data-look=glass] .tile.amber svg.i{ background:rgba(251,191,36,.15); color:#fcd34d } html[data-look=glass] .tile.green svg.i{ background:rgba(74,222,128,.15); color:#86efac }
+  html[data-look=glass] .tile.on{ outline-color:rgba(248,113,113,.5) }
+  html[data-look=glass] .plan{ color:var(--ink) } html[data-look=glass] .plan.on{ background:rgba(255,122,24,.16); border-color:#ff8a2a; color:#ffd2a8 }
+  html[data-look=glass] .keybox{ background:rgba(0,0,0,.45); border:1px solid var(--edge); color:#ffd2a8 }
+  html[data-look=glass] .li .ico{ background:rgba(255,122,24,.15); color:#ff9a3c } html[data-look=glass] .group .li + .li, html[data-look=glass] .lr{ border-color:rgba(255,255,255,.06) }
+  html[data-look=glass] .gh{ color:#ff9a3c }
+  html[data-look=glass] .lr.click:active{ background:rgba(255,255,255,.05) }
+  html[data-look=glass] .msg.hotel{ background:rgba(255,255,255,.07) } html[data-look=glass] .msg.admin{ background:rgba(255,122,24,.18); color:#ffe3c9 }
+  html[data-look=glass] .hcard{ border-color:rgba(255,255,255,.06) }
+  html[data-look=glass] th, html[data-look=glass] td{ border-color:rgba(255,255,255,.07) }
+  html[data-look=glass] .tabs{ background:rgba(14,11,9,.85); backdrop-filter:blur(18px); border-color:var(--edge) }
+  html[data-look=glass] .tabs button.on{ color:#ff8a2a; border-bottom-color:#ff8a2a }
+  html[data-look=glass] #drawer{ background:#0e0b09 } html[data-look=glass] #drawer .dbar{ background:rgba(14,11,9,.85); backdrop-filter:blur(18px); box-shadow:0 1px 0 var(--edge) }
+  html[data-look=glass] .rcpt{ color:#000 }
+  /* login */
+  html[data-look=glass] #login .logo{ box-shadow:0 14px 40px rgba(255,106,0,.25) }
+  html[data-look=glass] #login h2{ font-size:28px }
+  html[data-look=glass] .field input{ background:rgba(255,255,255,.06) }
+  html[data-look=glass] .field input:focus + span, html[data-look=glass] .field input:not(:placeholder-shown) + span{ color:#ff9a3c }
+  html[data-look=glass] .ok{ color:#86efac } html[data-look=glass] .err{ color:#fca5a5 }
+</style>
+</head>
+<body>
+<div id="login">
+  <div style="text-align:center"><img class="logo" src="icon-192.png" alt="">
+    <h2 style="margin:18px 0 4px;font-size:24px">Setu Hotel Admin</h2>
+    <p class="muted" style="margin:0 0 28px">Manage every hotel from one place</p></div>
+  <form id="lf">
+    <div class="field"><input id="key" type="password" placeholder=" " autocomplete="off" required><span>Admin Key</span>
+      <button type="button" class="ib eye" aria-label="Show key" onclick="const k=$('#key');k.type=k.type==='password'?'text':'password'"></button></div>
+    <label class="switch" style="margin:18px 2px 22px;font-weight:500"><input id="remember" type="checkbox" checked> Remember on this phone</label>
+    <button class="big">Open</button>
+    <p id="lerr" class="err" style="text-align:center"></p>
+  </form>
+  <p class="muted" style="text-align:center;font-size:12px;margin-top:auto;padding-top:24px">Aghanya Devanya Enterprises</p>
+</div>
+
+<div id="app" hidden>
+  <header id="hdr">
+    <button class="ib" id="hback" aria-label="Back" onclick="goBack()"></button>
+    <div class="t"><h1 id="htitle">Hotels</h1><small id="hsub">Setu Hotel Admin</small></div>
+    <button class="ib" id="hrefresh" onclick="refresh()" title="Refresh" aria-label="Refresh"></button>
+  </header>
+  <main id="main"></main>
+  <nav id="nav"></nav>
+</div>
+<div id="drawer"><div class="dbar"><button class="ib" aria-label="Back" onclick="closeHotel()" id="dback"></button><div class="t"><b id="dtitle"></b><small id="dsub"></small></div></div><div class="panel" id="panel"></div></div>
+<div id="sheet"><div class="box"><div class="grab"></div><div id="sbox"></div></div></div>
+<div id="ask"><div class="box" id="abox"></div></div>
+<div id="ptr"></div>
+<div id="toast"></div>
+
+<script>
+let KEY = '', META = null, HOTELS = [], VIEW = 'hotels', CUR = null, TAB = 'overview';
+// The Setu Hotel Admin app (v2+) keeps the Admin Key in the phone's Keystore (SA.keyGet); a browser uses localStorage
+const APP = !!(window.SA && SA.keyGet);
+const keyRemember = k => { try{ if(APP) SA.keySet(k); else localStorage.setItem('setu_admin', k); }catch(e){} };
+const keyForget = () => { try{ if(APP) SA.keyClear(); localStorage.removeItem('setu_admin'); sessionStorage.removeItem('setu_admin'); }catch(e){} };
+try{
+  if(APP){ const old = localStorage.getItem('setu_admin'); if(old){ if(!SA.keyGet()) SA.keySet(old); localStorage.removeItem('setu_admin'); } }
+  KEY = sessionStorage.getItem('setu_admin') || (APP ? SA.keyGet() : localStorage.getItem('setu_admin')) || '';
+}catch(e){}
+const haptic = k => { try{ if(APP) SA.haptic(k); }catch(e){} };
+// Status / navigation bar colour: the dark glass look keeps them dark with light icons
+const glassLook = () => document.documentElement.dataset.look === 'glass';
+const bars = c => { try{ if(APP && SA.bars){ const g = glassLook(); SA.bars(g ? '#0E0B09' : c, !g); } }catch(e){} };
+function setLook(glass){
+  const v = glass ? 'glass' : 'light';
+  document.documentElement.dataset.look = v;
+  try{ localStorage.setItem('setu_admin_look', v); }catch(e){}
+  bars(window.scrollY > 8 ? '#FFFFFF' : '#F7F9FC');
+  haptic('tick');
+}
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const d8 = ms => ms ? new Date(ms).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : '-';
+const dt = ms => ms ? new Date(ms).toLocaleString('en-IN', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit'}) : '-';
+const rs = n => '₹' + Math.round(n || 0).toLocaleString('en-IN');
+const state = h => h.status === 'suspended' ? 'suspended' : ((h.paid_until ?? h.paidUntil) < Date.now() && !h.lifetime ? 'expired' : h.status);
+const pill = s => `<span class="pill p-${esc(s)}">${esc(s)}</span>`;
+const ago = ms => { const m = Math.round((Date.now() - ms) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' hours ago' : Math.round(m / 1440) + ' days ago'; };
+// Backup health = when the hotel's data last reached the cloud
+const health = ms => !ms ? '<span class="pill h-bad">No backup yet</span>'
+  : Date.now() - ms < 26 * 36e5 ? `<span class="pill h-ok">OK · ${ago(ms)}</span>`
+  : Date.now() - ms < 72 * 36e5 ? `<span class="pill h-warn">${ago(ms)}</span>`
+  : `<span class="pill h-bad">${ago(ms)}</span>`;
+const backupIssue = h => state(h) !== 'suspended' && (!h.seen || Date.now() - h.seen > 48 * 36e5);
+
+// Line icons (no external files)
+const ICONS = {
+  hotels: 'M3 21h18M5 21V7l7-4 7 4v14M9 9h1M14 9h1M9 13h1M14 13h1M10 21v-4h4v4',
+  key: 'M14.5 4a5.5 5.5 0 1 1-4.3 8.9L4 19v-3h2.5v-2.5H9l1.2-1.2A5.5 5.5 0 0 1 14.5 4zM16 8h.01',
+  ticket: 'M4 5h16v11H9l-5 4z',
+  cloud: 'M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.6 1.5A3.3 3.3 0 0 0 7 18z',
+  more: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  lock: 'M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 7 0v3',
+  unlock: 'M6 11h12v10H6zM8.5 11V8a3.5 3.5 0 0 1 6.8-1.2',
+  warn: 'M12 3l9.5 17h-19zM12 10v4.5M12 17.5v.01',
+  pause: 'M9 5v14M15 5v14',
+  play: 'M8 5l11 7-11 7z',
+  msg: 'M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z',
+  download: 'M12 4v11M7 10l5 5 5-5M5 20h14',
+  user: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.5 21a7.5 7.5 0 0 1 15 0',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1',
+  trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+  phone: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z',
+  copy: 'M9 9h11v11H9zM5 15V4h11',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20.5 20.5l-4.5-4.5',
+  refresh: 'M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5',
+  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  plus: 'M12 5v14M5 12h14',
+  spark: 'M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z',
+  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
+  block: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM5.6 5.6l12.8 12.8',
+  out: 'M15 4h4v16h-4M10 8l-4 4 4 4M6 12h11',
+  share: 'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4',
+  back: 'M20 12H5M11 5l-7 7 7 7',
+  eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  chev: 'M9 6l6 6-6 6',
+  finger: 'M12 11v4M8.5 8.5A5 5 0 0 1 17 12v2M7 12.5V15a5 5 0 0 0 2 4M17 17a5 5 0 0 1-1 2.5M12 3a9 9 0 0 1 9 9v1M3 13v-1a9 9 0 0 1 4-7.5'
+};
+const ic = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${ICONS[n]}"/></svg>`;
+$('#hrefresh').innerHTML = ic('refresh'); $('#hback').innerHTML = ic('back'); $('#dback').innerHTML = ic('back');
+$('#ptr').innerHTML = ic('refresh'); document.querySelector('#lf .eye').innerHTML = ic('eye');
+
+// Snackbar (bottom, above the navigation bar)
+function toast(t, bad){
+  const e = $('#toast'); e.textContent = t; e.className = (bad ? 'err ' : '') + 'show';
+  haptic(bad ? 'error' : 'tick');
+  clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), bad ? 5000 : 2800);
+}
+// Copy / share work in a browser and in the Setu Hotel Admin phone app (SA bridge)
+function copyText(t, label){
+  if(window.SA && SA.copy){ SA.copy(t); return toast((label || 'Text') + ' copied'); }
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast((label || 'Text') + ' copied'), () => {
+    const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select();
+    try{ document.execCommand('copy'); toast((label || 'Text') + ' copied'); }catch(e){ toast('Could not copy; please select it by hand', true); }
+    a.remove(); });
+}
+function shareText(t){
+  if(window.SA && SA.share) return SA.share(t);
+  if(navigator.share) return navigator.share({text: t}).catch(() => {});
+  window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank');
+}
+
+// Authenticator app: a right 6-digit code gives this device a 30-day session
+const otpGet = () => { try{ return localStorage.getItem('setu_admin_otp') || ''; }catch(e){ return ''; } };
+const otpSet = v => { try{ v ? localStorage.setItem('setu_admin_otp', v) : localStorage.removeItem('setu_admin_otp'); }catch(e){} };
+async function api(path, body, again){
+  const r = await fetch(path, {method: 'POST', headers: {'X-Setu-Admin': KEY, 'X-Setu-Otp': otpGet(), 'Content-Type': 'application/json'}, body: JSON.stringify(body || {})});
+  const j = await r.json().catch(() => ({}));
+  if(r.status === 401 && j.error === 'otp' && !again){
+    otpSet('');
+    const v = await ask('Authenticator code', '<p class="muted" style="margin-top:0">Open the Authenticator app on your phone and type the 6-digit code for Setu Super Admin.</p><input id="otp_c" inputmode="numeric" maxlength="6" autocomplete="one-time-code">', 'Verify');
+    if(!v) throw new Error('Authenticator code needed');
+    const s = await api('/api/admin/totp/login', {code: v.otp_c}, true);
+    otpSet(s.session);
+    return api(path, body, true);
+  }
+  if(r.status === 401) throw new Error(j.error === 'otp' || /authenticator/i.test(j.error || '') ? (j.error === 'otp' ? 'Authenticator code needed' : j.error) : 'Invalid Admin Key');
+  if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+  return j;
+}
+// Errors show in the page: the phone app has no native alert()
+const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ toast(e.message, true); } };
+
+// ----- layers: Android back closes the top one -----
+let LAYERS = 0;
+function pushLayer(){ LAYERS++; try{ history.pushState({layer: LAYERS}, ''); }catch(e){} }
+function popLayer(){ if(LAYERS > 0){ try{ history.back(); }catch(e){ closeTop(); } } }
+// Open with a slide / fade: 'open' shows it, 'in' (next frame) animates it in; closing reverses
+function layerIn(el){ el.classList.add('open'); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in'))); }
+function layerOut(el, then){ el.classList.remove('in'); clearTimeout(el._t); el._t = setTimeout(() => { if(!el.classList.contains('in')){ el.classList.remove('open'); then && then(); } }, 280); }
+function closeTop(){
+  LAYERS = Math.max(0, LAYERS - 1);
+  if($('#ask').classList.contains('open')) return askDone(null);
+  if($('#drawer').style.display === 'block') return closeHotelNow();
+  if($('#sheet').classList.contains('open')) return layerOut($('#sheet'));
+}
+window.addEventListener('popstate', closeTop);
+
+function sheet(html){
+  $('#sbox').innerHTML = html;
+  const sh = $('#sheet');
+  if(!sh.classList.contains('open') || !sh.classList.contains('in')){ const was = sh.classList.contains('open'); layerIn(sh); if(!was) pushLayer(); }
+  $('#sheet .box').scrollTop = 0;
+}
+function closeSheet(){ if($('#sheet').classList.contains('open')) popLayer(); }
+$('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
+
+// In-page confirm: resolves with the box's input values ({id: value}) on OK, null on cancel
+let ASK = null;
+function ask(title, html, ok, danger){
+  $('#abox').innerHTML = `<h2>${title}</h2>${html || ''}<div class="btns"><button class="g" onclick="popLayer()">Cancel</button><button class="${danger ? 'bad' : ''}" id="ask-ok">${ok || 'OK'}</button></div>`;
+  layerIn($('#ask')); pushLayer();
+  setTimeout(() => { const f = $('#abox input, #abox textarea'); f && f.focus(); }, 250);
+  $('#ask-ok').onclick = () => {
+    const v = {}; $('#abox').querySelectorAll('input, textarea, select').forEach(x => v[x.id] = x.type === 'checkbox' ? x.checked : x.value);
+    // The box closes when its history entry is gone (popstate), so Android back stays in step
+    const r = ASK; ASK = null; popLayer(); r && r(v);
+  };
+  return new Promise(res => ASK = res);
+}
+function askDone(v){ layerOut($('#ask')); const r = ASK; ASK = null; r && r(v); }
+
+// ---------------- navigation ----------------
+const VIEWS = {hotels: ['Hotels', 'hotels'], keygen: ['Keygen', 'key'], tickets: ['Tickets', 'ticket'], more: ['More', 'more']};
+const SUB = {dash: 'Dashboard', add: 'New Hotel', ai: 'Setu AI', audit: 'Activity Log', blocked: 'Blocked computers', backups: 'Backups', security: 'Login security', updates: 'Software updates'};
+let UNREAD = 0;
+function nav(){
+  const top = SUB[VIEW] ? 'more' : VIEW;
+  $('#nav').innerHTML = Object.entries(VIEWS).map(([k, [v, i]]) => `<button class="${top === k ? 'on' : ''}" onclick="${top === k ? `refresh()` : `show('${k}')`}"><span class="pill">${ic(i)}</span>${v}${k === 'tickets' && UNREAD ? `<span class="badge">${UNREAD}</span>` : ''}</button>`).join('');
+  $('#htitle').textContent = SUB[VIEW] || VIEWS[VIEW][0];
+  $('#hsub').textContent = VIEW === 'hotels' && HOTELS.length ? HOTELS.length + ' hotels · Aghanya Devanya Enterprises' : SUB[VIEW] ? 'More' : 'Setu Hotel Admin';
+  $('#hdr').classList.toggle('sub', !!SUB[VIEW]);
+  $('#hdr').classList.toggle('home', VIEW === 'hotels');   // the big greeting replaces the title until you scroll
+}
+// Grey placeholder cards while a screen loads (shown only if loading takes a moment)
+const SKEL = {hotels: () => '<div class="sk" style="height:84px"></div><div class="sk" style="height:52px;border-radius:28px"></div>' + '<div class="sk" style="height:112px"></div>'.repeat(5),
+  def: () => '<div class="sk" style="height:180px"></div><div class="sk" style="height:120px"></div><div class="sk" style="height:120px"></div>'};
+let FIRST = true;
+const show = run(async v => {
+  const changed = v !== VIEW;
+  VIEW = v; nav();
+  if(changed){ window.scrollTo(0, 0); haptic('tick'); }
+  const m = $('#main'), sk = setTimeout(() => { m.innerHTML = (SKEL[v] || SKEL.def)(); }, 140);
+  try{ await ({hotels: drawHotels, keygen: drawKeygen, tickets: drawTickets, more: drawMore, dash: drawDash, add: drawAdd, ai: drawAI, audit: drawAudit, blocked: drawBlocked, backups: drawBackups, security: drawSecurity, updates: drawUpdates})[v](); }
+  finally{ clearTimeout(sk); }
+  nav(); onScroll();
+  if(changed || FIRST){ m.classList.remove('shown'); m.classList.add('enter'); requestAnimationFrame(() => requestAnimationFrame(() => { m.classList.add('shown'); m.classList.remove('enter'); })); }
+  if(FIRST){ FIRST = false; try{ if(APP && SA.ready) SA.ready(); }catch(e){} }
+});
+const refresh = () => { $('#hrefresh').classList.add('spin'); return show(VIEW).finally(() => $('#hrefresh').classList.remove('spin')); };
+// Sub-screens of More get the app bar's back arrow instead of a button in the page
+const backBtn = () => '';
+function goBack(){ if(LAYERS) return popLayer(); if(SUB[VIEW]) return show('more'); if(VIEW !== 'hotels') return show('hotels'); }
+// Android back (the app asks the page first): close the top layer, then go up a screen; false = on the home list
+window.SAback = () => {
+  if(!$('#app') || $('#app').hidden) return false;
+  if(LAYERS){ popLayer(); return true; }
+  if(SUB[VIEW] || VIEW !== 'hotels'){ goBack(); return true; }
+  return false;
+};
+
+async function loadHotels(){ const j = await api('/api/admin/hotels'); HOTELS = j.hotels; UNREAD = j.ticketsUnread || 0; }
+
+// ---------------- hotels (simple list) ----------------
+const DAYMS = 864e5;
+// Counter licence from the hotel's data: 'lifetime' or a date (ISO)
+const licDays = h => h.lic === 'lifetime' ? Infinity : h.lic ? Math.ceil((Date.parse(h.lic) - Date.now()) / DAYMS) : null;
+const payDays = h => h.paid_until ? Math.ceil((h.paid_until - Date.now()) / DAYMS) : null;
+const staleH = h => h.seen ? (Date.now() - h.seen) / 36e5 : 1e9;
+const telHref = p => 'tel:' + String(p || '').replace(/[^\d+]/g, '');
+const waHref = (p, name) => { let d = String(p || '').replace(/\D/g, ''); if(d.length === 10) d = '91' + d;
+  return 'https://wa.me/' + d + '?text=' + encodeURIComponent('Hello ' + (name || '') + ', this is Aghanya Devanya Enterprises (Setu POS).'); };
+const AVC = ['#2563eb', '#7c3aed', '#db2777', '#ea580c', '#0d9488', '#4f46e5', '#0891b2', '#65a30d'];
+const avatar = h => `<div class="av" style="background:${AVC[[...String(h.code)].reduce((a, c) => a + c.charCodeAt(0), 0) % AVC.length]}">${esc((h.name || h.code || '?').trim()[0].toUpperCase())}</div>`;
+// One plain word for how the hotel's Setu is right now
+function appState(h){
+  if(h.status === 'pending' || state(h) === 'pending') return ['Pending Activation', 'warn'];
+  const d = licDays(h);
+  if(state(h) === 'suspended') return ['Suspended', 'off'];
+  if(+h.lockv === 2) return ['Locked', 'bad'];
+  if(d !== null && d !== Infinity && d < 0) return ['Licence expired', 'bad'];
+  if(+h.lockv === 1) return ['Warning', 'warn'];
+  return ['Active', 'ok'];
+}
+// Usage: bills per day from the counter (registry bdays / ball / lastbill), days in IST like the bills
+const istDay = (ms = Date.now()) => new Date(ms + 330 * 60000).toISOString().slice(0, 10);
+const bdays = h => { try{ return JSON.parse(h.bdays || '{}') || {}; }catch(e){ return {}; } };
+const billsToday = h => +bdays(h)[istDay()] || 0;
+const bills7 = h => { const b = bdays(h), from = istDay(Date.now() - 6 * DAYMS); return Object.keys(b).filter(k => k >= from).reduce((a, k) => a + (+b[k] || 0), 0); };
+// Days since the last bill (null = no bill ever); a hotel joined less than 3 days ago is not "idle" yet
+const idleDays = h => h.lastbill ? Math.floor((Date.parse(istDay()) - Date.parse(h.lastbill)) / DAYMS) : null;
+const notUsing = h => state(h) !== 'suspended' && Date.now() - h.created > 3 * DAYMS && (idleDays(h) === null || idleDays(h) >= 3);
+// Last 7 days as small bars (oldest left, today right)
+function billBars(h){
+  const b = bdays(h), days = [...Array(7)].map((_, i) => istDay(Date.now() - (6 - i) * DAYMS)), max = Math.max(1, ...days.map(d => +b[d] || 0));
+  const wd = d => ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'][new Date(d + 'T12:00:00Z').getUTCDay()];
+  return `<div style="display:flex;gap:6px;align-items:flex-end;height:74px;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:var(--card)">
+    ${days.map(d => { const n = +b[d] || 0; return `<div style="flex:1;text-align:center;font-size:10px;color:var(--muted)"><div style="font-weight:700;color:var(--ink)">${n}</div>
+      <div style="height:${Math.round(34 * n / max) + 2}px;border-radius:4px;background:${n ? 'var(--pri)' : 'var(--line)'};margin:2px 0"></div>${wd(d)}</div>`; }).join('')}</div>`;
+}
+const billTag = h => { const t = billsToday(h), w = bills7(h);
+  return `<span class="tag ${t ? 'ok' : notUsing(h) ? 'bad' : ''}">Today ${t} bills · 7 days ${w}</span>`; };
+
+// Hotels that need you come first: licence running out, no backup, open tickets
+function urgency(h){
+  const d = licDays(h), p = payDays(h);
+  let u = 0;
+  if(d !== null && d !== Infinity){ if(d < 0) u = 200; else if(d <= 5) u = 150 - d; }
+  if(p !== null && state(h) !== 'suspended' && h.plan !== 'counter'){ if(p < 0) u = Math.max(u, 120); else if(p <= 5) u = Math.max(u, 100 - p); }
+  if(h.tickets) u = Math.max(u, 90);
+  if(staleH(h) > 48 && h.seen) u = Math.max(u, 50);
+  if(notUsing(h)) u = Math.max(u, 60);
+  if(+h.errs) u = Math.max(u, 55);
+  return u;
+}
+let KF = 'all';
+const KF_ICON = {all: 'hotels', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
+const KFS = {all: ['All', () => true], pending: ['Pending Activation', h => h.status === 'pending' || state(h) === 'pending'], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
+  tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
+function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'All hotels' : KFS[k][0]; haptic('tick'); }
+async function drawHotels(){
+  await loadHotels();
+  const live = HOTELS.filter(h => state(h) !== 'suspended'), today = HOTELS.reduce((a, h) => a + billsToday(h), 0), using = live.filter(h => billsToday(h) > 0).length;
+  const idle = HOTELS.filter(notUsing).length, errs = HOTELS.filter(h => +h.errs).length;
+  // Bills of all hotels for the last 7 days (oldest left) for the banner's small chart
+  const days7 = [...Array(7)].map((_, i) => istDay(Date.now() - (6 - i) * DAYMS)), tot7 = days7.map(d => HOTELS.reduce((a, h) => a + (+bdays(h)[d] || 0), 0)), mx = Math.max(1, ...tot7);
+  $('#main').innerHTML = `<div class="hello"><small>Welcome back, Admin</small><h1>All Your Hotels<br><span>One Place.</span></h1></div>
+    <div class="search">${ic('search')}<input id="q" type="search" placeholder="Search name, code, mobile or Install ID"></div><div id="kpis"></div>
+    <div class="sum"><div style="flex:1;position:relative;z-index:1"><div class="eyebrow">TODAY'S BILLS</div><div class="big">${today} <span style="font-size:15px;font-weight:500">bills</span></div>
+      <small>${using} / ${live.length} hotels billed today${idle ? ` · <b class="err" onclick="setKF('idle')">${idle} idle (3+ days)</b>` : ''}${errs ? ` · <b class="err" onclick="setKF('err')">${errs} ${errs === 1 ? 'hotel' : 'hotels'} with errors</b>` : ''}</small>
+      <br><button class="go" onclick="show('keygen')">${ic('key')} Create key</button></div>
+      <div class="bars7" title="Last 7 days">${tot7.map(n => `<i class="${n ? '' : 'z'}" style="height:${Math.round(70 * n / mx) + 8}px"></i>`).join('')}</div></div>
+    <div class="sec"><b>${KF === 'all' ? 'All hotels' : esc(KFS[KF][0])}</b><a onclick="setKF('all')">View all</a></div><div id="cards"></div>
+    <button class="fab" onclick="show('add')">${ic('plus')}<span>New hotel</span></button>`;
+  $('#q').oninput = drawCards;
+  drawHotelsBody();
+}
+function drawHotelsBody(){
+  $('#kpis').innerHTML = `<div class="chips">${Object.entries(KFS).map(([k, [l, f]]) => `<button class="chip ${KF === k ? 'on' : ''}" onclick="setKF('${k}')">${ic(KF_ICON[k])}<span>${l}</span><b>${HOTELS.filter(f).length}</b></button>`).join('')}</div>`;
+  drawCards();
+}
+function hotelAlert(h){
+  const d = licDays(h);
+  if(d !== null && d !== Infinity && d < 0) return ['bad', 'Licence ' + d8(Date.parse(h.lic)) + ' — expired'];
+  if(d !== null && d !== Infinity && d <= 5) return ['warn', 'Licence ends in ' + d + ' days (' + d8(Date.parse(h.lic)) + ')'];
+  if(h.tickets) return ['warn', h.tickets + ' new ticket messages'];
+  if(+h.errs){ const e = lastErr(h); return ['bad', `${h.errs} errors (24 hours)${e ? ' · ' + e.kya : ''}`]; }
+  if(notUsing(h)) return ['bad', idleDays(h) === null ? 'No bill made yet' : `No bills for ${idleDays(h)} days (last ${d8(Date.parse(h.lastbill))}) — talk to the client`];
+  if(h.seen && staleH(h) > 48) return ['warn', 'No data from the PC since ' + ago(h.seen)];
+  return null;
+}
+function licTag(h){
+  const d = licDays(h);
+  if(d === Infinity) return '<span class="tag ok">Lifetime</span>';
+  if(d === null) return '<span class="tag">Licence -</span>';
+  return `<span class="tag ${d < 0 ? 'bad' : d <= 5 ? 'warn' : 'ok'}">Licence ${d < 0 ? 'expired' : d + ' days'}</span>`;
+}
+// Setu version on the hotel's counter PC; older than the newest one seen = needs the new EXE
+const verNum = v => String(v || '').split('.').map(n => +n || 0).reduce((a, n) => a * 10000 + n, 0);
+const newestVer = () => HOTELS.reduce((m, h) => verNum(h.appv) > verNum(m) ? h.appv : m, '');
+const verTag = h => !h.appv ? '<span class="tag">Version -</span>' : `<span class="tag ${verNum(h.appv) < verNum(newestVer()) ? 'warn' : ''}">v${esc(h.appv)}${verNum(h.appv) < verNum(newestVer()) ? ' · outdated' : ''}</span>`;
+// Error Log from the hotel's devices (D.errSync): count in 24 hours + the newest error
+const lastErr = h => { try{ return h.lasterr ? JSON.parse(h.lasterr) : null; }catch(e){ return null; } };
+const errTag = h => +h.errs ? `<span class="tag bad">${h.errs} error</span>` : '';
+const seenTag = h => `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Not synced yet'}</span>`;
+function drawCards(){
+  const q = ($('#q').value || '').trim().toLowerCase();
+  const list = HOTELS.filter(KFS[KF][1]).filter(h => !q || [h.name, h.code, h.phone, h.owner, h.iid || ''].join(' ').toLowerCase().includes(q))
+    .sort((a, b) => urgency(b) - urgency(a) || b.created - a.created);
+  const clearBtn = KF === 'err' && list.length ? `<button class="bad" style="width:100%;margin-bottom:12px" onclick="errClearEvery()">${ic('trash')} Clear errors in all hotels</button>` : '';
+  $('#cards').innerHTML = clearBtn + list.map(h => {
+    const [sl, sc] = appState(h), al = hotelAlert(h);
+    return `<div class="hc" onclick="hotelSheet('${esc(h.code)}')"><div class="top">${avatar(h)}
+        <div class="mid"><b class="nm">${esc(h.name)}</b><small>${esc(h.code)}${h.owner ? ' · ' + esc(h.owner) : ''}</small></div><span class="st ${sc}">${sl}</span></div>
+      <div class="tags">${errTag(h)}${billTag(h)}${licTag(h)}${seenTag(h)}${verTag(h)}${h.notice ? '<span class="tag warn">Message showing</span>' : ''}</div>
+      ${al ? `<div class="strip ${al[0]}">${esc(al[1])}</div>` : ''}</div>`;
+  }).join('') || `<div class="card muted" style="text-align:center">${KF === 'all' && !q ? 'No hotels yet. Install the EXE on a new PC and activate it with Keygen.' : 'Nothing in this list'}</div>`;
+}
+
+// ---------------- one hotel: big simple actions ----------------
+const hotelBy = code => HOTELS.find(h => h.code === code) || {code, name: code};
+function hotelSheet(code){
+  const h = hotelBy(code), [sl, sc] = appState(h), C = esc(h.code), d = licDays(h);
+  const lk = +h.lockv, sus = state(h) === 'suspended';
+  const tile = (icon, label, sub, fn, cls) => `<button class="tile ${cls || ''}" onclick="${fn}">${ic(icon)}${label}${sub ? `<small>${sub}</small>` : ''}</button>`;
+  sheet(`<div class="hero">${avatar(h)}<div style="flex:1;min-width:0"><h2>${esc(h.name)}</h2>
+      <div class="row" style="gap:6px;margin-top:4px"><code onclick="copyText('${C}', 'Hotel Code')">${C}</code><span class="st ${sc}">${sl}</span></div></div></div>
+    ${h.phone ? `<div class="quick"><a href="${telHref(h.phone)}">${ic('phone')}Call</a><a class="wa" href="${waHref(h.phone, h.owner)}" target="_blank" rel="noopener">${ic('msg')}WhatsApp</a></div>` : ''}
+    <div class="facts">
+      <div><span>Owner</span><b>${esc(h.owner || '-')} ${h.phone ? '· ' + esc(h.phone) : ''}</b></div>
+      <div><span>Licence</span><b class="${d === Infinity ? 'ok' : d !== null && d <= 5 ? 'err' : ''}">${d === Infinity ? 'Lifetime' : d === null ? '-' : d8(Date.parse(h.lic)) + (d < 0 ? ' · expired' : ' · ' + d + ' days')}</b></div>
+      <div><span>Bill</span><b>Today ${billsToday(h)} · 7 days ${bills7(h)} · total ${(+h.ball || 0).toLocaleString('en-IN')}</b></div>
+      <div><span>Last bill</span><b class="${notUsing(h) ? 'err' : ''}">${h.lastbill ? d8(Date.parse(h.lastbill)) + (idleDays(h) ? ` · ${idleDays(h)} days ago` : ' · today') : 'None yet'}</b></div>
+      <div><span>Error</span><b class="${+h.errs ? 'err' : ''}">${lastErr(h) ? `${+h.errs || 0} (24 hours) · ${esc(lastErr(h).kya)} · ${ago(lastErr(h).at)}` : 'None'}</b></div>
+      <div><span>Last sync</span><b>${h.seen ? ago(h.seen) : 'Not yet'}</b></div>
+      <div><span>Setu version</span><b>${h.appv ? 'v' + esc(h.appv) + (verNum(h.appv) < verNum(newestVer()) ? ` <span class="err">(newest: v${esc(newestVer())})</span>` : '') : '-'}</b></div>
+      <div><span>WhatsApp</span><b style="color:#0284c7">${h.wa_credits ?? 0} messages</b></div>
+      <div><span>Install ID</span><b>${h.iid ? `<code onclick="copyText('${esc(h.iid)}', 'Install ID')">${esc(h.iid)}</code>` : '-'}</b></div>
+      <div><span>Joined</span><b>${d8(h.created)}</b></div>
+    </div>
+    <div class="muted" style="font-size:12px;margin:-6px 0 4px">Bills in the last 7 days</div>${billBars(h)}
+    <div class="tiles">
+      ${tile('msg', 'Recharge WA', (h.wa_credits ?? 0) + ' msgs', `waRechargePrompt('${C}')`, 'blue')}
+      ${h.plan === 'counter' ? tile('key', 'Activate', 'Send key', `keygenFor('${C}')`, 'blue') : tile('key', 'Activate', 'Give days (mobile)', `cloudDays('${C}')`, 'blue')}
+      ${lk === 2 ? tile('unlock', 'Unlock', 'Turn Setu on', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Turn Setu off', `lockAsk('${C}')`, 'red')}
+      ${lk === 1 ? tile('warn', 'Remove warning', 'showing now', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu keeps running', `warnAsk('${C}')`, 'amber')}
+      ${sus ? tile('play', 'Activate', 'account on', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account off', `suspendAsk('${C}')`, 'red')}
+      ${+h.offmode ? tile('cloud', 'Offline hotel', 'licence key only · tap for online', `setOffline('${C}', false)`, 'amber on') : tile('cloud', 'Online hotel', '30-day cloud check · tap if no internet', `setOffline('${C}', true)`)}
+      ${h.plan === 'counter' ? tile('play', 'Website billing', '5 a day · unlock 24 h', `webUnlock('${C}')`) : ''}
+      ${tile('msg', 'Message', h.notice ? 'showing' : 'send a popup', `noticeBox('${C}')`)}
+      ${tile('warn', 'Error Log', +h.errs ? h.errs + ' (24 hours)' : 'see all', `hotelErrors('${C}')`, +h.errs ? 'red' : '')}
+      ${tile('ticket', 'Tickets', h.tickets ? h.tickets + ' new' : '', `hotelTickets('${C}')`)}
+      ${tile('download', 'Backup', 'download', `dlBackup('${C}')`)}
+      ${tile('trash', 'Delete code', 'bulk delete · 30 min', `delCode('${C}')`, 'red')}
+      ${tile('user', 'Password', 'owner', `pwAsk('${C}')`)}
+      ${tile('gear', 'All settings', 'plan, bill...', `openHotel('${C}')`)}
+    </div>
+    <button class="g" style="width:100%;margin-top:14px;color:var(--bad)" onclick="delBox('${C}')">${'Delete hotel'}</button>`);
+}
+const adminUpdate = async (code, update, msg) => {
+  await api('/api/admin/hotel', {code, update});
+  toast(msg);
+  await loadHotels();
+  if(VIEW === 'hotels') drawHotelsBody();
+  if($('#sheet').classList.contains('open')) hotelSheet(code);
+};
+// Phone-only hotel (no counter PC, plan is not 'counter'): its licence is the cloud period, no key needed
+let CD = {days: 30, set: true, life: false};
+function cloudDays(code){
+  const h = hotelBy(code), old = h.lic === 'lifetime' ? null : h.paid_until;
+  const plans = [[30, '1 Month'], [90, '3 Months'], [180, '6 Months'], [365, '1 Year']];
+  const base = CD.set || !old || old < Date.now() ? Date.now() : old;
+  sheet(`<h2>Activate — ${esc(h.name)}</h2>
+    <p class="muted" style="margin-top:0">This hotel runs without a computer (mobile / cloud). Days given here apply on the phone at once; no key is needed.</p>
+    <div class="plans">${plans.map(([d, l]) => `<button class="plan ${!CD.life && CD.days === d ? 'on' : ''}" onclick="CD.days=${d};CD.life=false;cloudDays('${esc(code)}')">${l}<small>${d} days</small></button>`).join('')}
+      <button class="plan ${CD.life ? 'on' : ''}" onclick="CD.life=true;cloudDays('${esc(code)}')">Lifetime<small>forever</small></button>
+      <button class="plan ${!CD.life && !plans.some(p => p[0] === CD.days) ? 'on' : ''}" onclick="CD.days=0;CD.life=false;cloudDays('${esc(code)}')">Custom days<small>any number</small></button></div>
+    ${!CD.life && !plans.some(p => p[0] === CD.days) ? `<label>Days</label><input id="cd_days" type="number" min="1" max="3650" value="${CD.days || 30}" oninput="CD.days=+this.value">` : ''}
+    ${CD.life ? '' : `<label>How should the date apply?</label>
+      <div class="plans"><button class="plan ${CD.set ? 'on' : ''}" onclick="CD.set=true;cloudDays('${esc(code)}')">${CD.days || '?'} days from today<small>replaces the old date</small></button>
+        <button class="plan ${CD.set ? '' : 'on'}" onclick="CD.set=false;cloudDays('${esc(code)}')">Add to the old date<small>days left + new days</small></button></div>
+      <p class="muted" style="font-size:13px">Licence until: <b>${CD.days ? d8(base + CD.days * DAYMS) : '-'}</b> · now: <b>${h.lic === 'lifetime' ? 'Lifetime' : old ? d8(old) : '-'}</b></p>`}
+    <label>Payment received (₹, optional)</label><input id="cd_amt" type="number" min="0" placeholder="e.g. 999">
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button><button onclick="cloudDaysSave('${esc(code)}')">Apply</button></div>`);
+}
+const cloudDaysSave = run(async code => {
+  if($('#cd_days')) CD.days = +$('#cd_days').value;
+  const amt = +($('#cd_amt') || {}).value || 0;
+  if(!CD.life && !(CD.days >= 1)) return toast('Enter the days', true);
+  const u = CD.life ? {lifetime: true} : CD.set ? {setDays: CD.days} : {days: CD.days, amount: amt};
+  await adminUpdate(code, u, CD.life ? 'Lifetime given' : 'Days applied. On the phone at once.');
+  hotelSheet(code);
+});
+
+const msgField = (ph, val) => `<label>Message (shown in Setu)</label><textarea id="lm" rows="3" maxlength="300" placeholder="${ph}">${esc(val || '')}</textarea>`;
+const lockAsk = run(async code => {
+  const v = await ask('Lock Setu?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: Setu stops on all devices and only your message shows. Data stays safe. Press Unlock to turn it back on.</p>${msgField('e.g. Payment is due. Please contact Aghanya Devanya Enterprises.')}`, 'Lock', true);
+  if(v) await adminUpdate(code, {lock: {lv: 2, msg: v.lm.trim()}}, 'Setu locked. It applies as soon as the PC is online.');
+});
+const warnAsk = run(async code => {
+  const v = await ask('Show a warning?', `<p class="muted" style="margin-top:0">Setu keeps running; the message shows in a red bar at the top.</p>${msgField('e.g. Please pay within 3 days.')}`, 'Show warning');
+  if(v) await adminUpdate(code, {lock: {lv: 1, msg: v.lm.trim()}}, 'Warning set');
+});
+const waRechargePrompt = run(async code => {
+  const h = hotelBy(code);
+  const v = await ask('Allot WhatsApp Credits', `
+    <p>Add WhatsApp message credits to <b>${esc(h.name)}</b> (<code>${esc(code)}</code>).</p>
+    <p class="muted">Client PC will automatically sync this balance without typing any vouchers.</p>
+    <label>Credits to Add</label>
+    <input id="wa_prompt_credits" type="number" min="1" value="500" style="font-size:16px;font-weight:600">
+  `, '+ Add Credits');
+  if(!v) return;
+  const n = +v.wa_prompt_credits || 500;
+  await api('/api/admin/hotel', {code, update: {addWaCredits: n}});
+  toast('+' + n + ' WhatsApp credits allotted to ' + h.name + '!');
+  await drawHotels();
+});
+
+const setLock = run(async (code, lv) => adminUpdate(code, {lock: {lv}}, lv ? 'Applied' : 'Removed. Setu runs normally.'));
+const suspendAsk = run(async code => {
+  if(await ask('Suspend the account?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: Setu stops and cloud saving pauses. Data stays safe on the PC. Press Activate to turn it back on.</p>`, 'Suspend', true))
+    await adminUpdate(code, {status: 'suspended'}, 'Suspended. The lock shows as soon as the PC is online.');
+});
+// Offline hotel: no internet at the hotel, so no 30-day cloud check; renew it with a licence key (Keygen)
+const setOffline = run(async (code, on) => {
+  if(on && !(await ask('Make this an Offline hotel?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: for a hotel without internet. Setu will not lock after 30 days without the cloud; it runs until its licence key ends. Renew with Keygen. The PC must sync once more to get this change.</p>`, 'Offline hotel'))) return;
+  await adminUpdate(code, {offline: on}, on ? 'Offline hotel. Reaches the PC on its next sync.' : 'Online hotel (30-day cloud check)');
+});
+// Counter-PC hotel: the website allows 5 bills a day (emergency). Unlock for 24 hours when its PC is broken.
+const webUnlock = run(async code => {
+  if(await ask('Unlock website billing for 24 hours?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: for 24 hours the website has no daily bill limit (normally 5 a day). Use when the hotel's PC is broken or has no power.</p>`, 'Unlock 24 hours'))
+    await adminUpdate(code, {webUnlock: true}, 'Website billing unlocked for 24 hours');
+});
+// One-time code for a bulk delete inside the hotel's Setu (only the vendor can allow it)
+const delCode = run(async code => {
+  if(!(await ask('Allow a bulk delete?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: makes a 6-digit code for one bulk delete (bills, entries, menu or stock) in their Setu, valid 30 minutes. Setu downloads a backup before deleting.</p>`, 'Make code', true))) return;
+  const r = await api('/api/admin/delcode', {code});
+  await ask('Delete code: ' + r.code, `<p style="font-size:28px;font-weight:800;letter-spacing:6px;text-align:center;margin:8px 0">${esc(r.code)}</p><p class="muted">Valid until ${new Date(r.until).toLocaleTimeString('en-IN')} · one use. Type it in Setu → Import & Delete (7) → Delete.</p>`, 'OK');
+});
+const setSuspend = run(async (code, on) => adminUpdate(code, {status: on ? 'suspended' : 'active'}, on ? 'Suspended' : 'Account active again'));
+const pwAsk = run(async code => {
+  const v = await ask('New owner password', `<p class="muted" style="margin-top:0">Owner forgot the password? Type a new one. It works on the phone app at once and on the counter PC after the next sync (it is also the Manager PIN).</p><input id="pw" maxlength="40" placeholder="At least 6 characters" autocomplete="off">`, 'Set');
+  if(!v) return;
+  if(v.pw.trim().length < 6) return toast('Password: at least 6 characters', true);
+  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'New password: ' + v.pw.trim() + ' (tell the owner)');
+});
+function noticeBox(code){
+  const h = hotelBy(code);
+  sheet(`<h2>Message: ${esc(h.name)}</h2><p class="muted">A popup shows in the hotel’s Setu (as soon as the PC is online). Clear it and press Remove to take it down.</p>
+    <textarea id="nm" rows="4" maxlength="500" placeholder="e.g. Payment is due, please pay. — Aghanya Devanya Enterprises">${esc(h.notice || '')}</textarea>
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button>${h.notice ? `<button class="bad" onclick="saveNotice('${esc(code)}', false)">Remove</button>` : ''}<button onclick="saveNotice('${esc(code)}', true)">Send</button></div>`);
+}
+const saveNotice = run(async (code, on) => {
+  const t = on ? $('#nm').value.trim() : '';
+  if(on && !t) return toast('Type a message', true);
+  await adminUpdate(code, {notice: t}, on ? 'Message sent' : 'Message removed');
+});
+
+// ---------------- Keygen (activation keys from the phone) ----------------
+let KG = {plan: '1m', days: 30, iid: '', code: '', send: true, set: true, res: null};
+const KG_DAYS = {'1m': 30, '3m': 90, '6m': 180, '1y': 365};
+// "Set" keys (date from today, replaces the old one) need Setu v1.0.16 or newer on the counter
+const SET_MIN_VER = '1.0.16';
+let KGS = null;
+const KG_PLANS = [['1m', '1 Month', '30 days'], ['3m', '3 Months', '90 days'], ['6m', '6 Months', '180 days'], ['1y', '1 Year', '365 days'],
+  ['life', 'Lifetime', 'forever'], ['demo24h', 'Demo', '24 hours'], ['days', 'Custom days', 'any number'], ['reset', 'Password Reset', 'owner forgot']];
+function keygenFor(code){
+  const h = hotelBy(code);
+  KG = {...KG, iid: h.iid || '', code: h.code, send: true, res: null};
+  closeAll();
+  show('keygen');
+}
+async function drawKeygen(){
+  if(!HOTELS.length) await loadHotels();
+  KGS = await api('/api/admin/keygen', {});
+  if(!KGS.ready) return drawKeygenSetup();
+  const match = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  const r = KG.res;
+  $('#main').innerHTML = `
+    ${r ? `<div class="card" style="border-color:#bbf7d0">
+      <h2 class="ok">Key created · ${esc(r.label)}</h2>
+      ${r.sentTo ? `<p style="margin-top:0"><b>${esc(hotelBy(r.sentTo).name)}</b>: sent to the PC through the cloud. It activates by itself as soon as the PC is online (a few seconds).</p>`
+        : `<p style="margin-top:0">${r.note ? esc(r.note) + ' ' : ''}Enter this key in Setu’s activation box on the PC (copy-paste via WhatsApp Web / pendrive).</p>`}
+      <div class="keybox">${esc(r.key)}</div>
+      <div class="btns"><button class="g" onclick="copyText(KG.res.key, 'Key')">${'Copy'}</button><button class="okb" onclick="shareText('Setu Activation Key (' + KG.res.label + '):\\n' + KG.res.key)">WhatsApp / Share</button></div>
+      <button class="g" style="width:100%;margin-top:8px" onclick="KG.res=null;drawKeygen()">Make another key</button></div>` : ''}
+    <div class="card">
+      <h2>Make an Activation Key</h2>
+      <label style="margin-top:0">Install ID (shown on Setu’s activation screen)</label>
+      <input id="kg_iid" value="${esc(KG.iid)}" placeholder="SETU-XXXX-XXXX" autocomplete="off" style="width:100%;text-transform:uppercase;font-family:ui-monospace,Consolas,monospace">
+      ${HOTELS.some(h => h.iid) ? `<select id="kg_pick" style="width:100%;margin-top:8px"><option value="">… or choose a connected hotel</option>${HOTELS.filter(h => h.iid).map(h => `<option value="${esc(h.code)}" ${KG.code === h.code ? 'selected' : ''}>${esc(h.name)} (${esc(h.code)})</option>`).join('')}</select>` : ''}
+      <div id="kg_match" class="muted" style="font-size:13px;margin-top:6px">${match ? `Hotel: <b>${esc(match.name)}</b> (${esc(match.code)}) · connected to the cloud` : KG.iid ? 'This PC is not connected to the cloud yet (new PC). Enter the key on the PC yourself.' : ''}</div>
+      <label>For how many days?</label>
+      <div class="plans">${KG_PLANS.map(([k, l, s]) => `<button class="plan ${KG.plan === k ? 'on' : ''}" onclick="kgPlan('${k}')">${l}<small>${s}</small></button>`).join('')}</div>
+      ${KG.plan === 'days' ? `<label>Days</label><input id="kg_days" type="number" min="1" max="3650" value="${+KG.days || 30}" style="width:100%" oninput="KG.days=+this.value;kgDateLine()">` : ''}
+      ${KG_DAYS[KG.plan] || KG.plan === 'days' ? `<label>How should the date apply?</label>
+        <div class="plans"><button class="plan ${KG.set ? 'on' : ''}" onclick="kgSet(true)">${kgDays()} days from today<small>replaces the old date (can also shorten)</small></button>
+          <button class="plan ${KG.set ? '' : 'on'}" onclick="kgSet(false)">Add to the old date<small>days left + ${kgDays()} days</small></button></div>
+        <div id="kg_date" class="muted" style="font-size:13px;margin-top:6px"></div>` : ''}
+      ${match && KG.plan !== 'reset' ? `<label class="switch"><input type="checkbox" id="kg_send" ${KG.send ? 'checked' : ''}> Send straight to this hotel’s PC through the cloud</label>` : ''}
+      <button class="big" style="margin-top:14px" onclick="kgMake()">${ic('key')} Make Key</button>
+    </div>
+    <div class="card"><h2>Master Key (for your pendrive)</h2>
+      <p class="muted" style="margin-top:0">One key works on every new PC. Setu runs only for those days (it stops by itself even if you forget). As soon as the PC activates it appears in Hotels; then send the real days for the client from above (<b>N days from today</b>). A key can be used on new PCs for 180 days; then make a new one.</p>
+      <div class="row"><input id="mk_days" type="number" min="1" max="30" value="${+KG.mdays || 7}" style="width:90px"> <span>days</span>
+        <button style="flex:1" onclick="kgMaster()">${ic('key')} Make Master Key</button></div>
+      ${KG.master ? `<div class="keybox" style="margin-top:10px">${esc(KG.master.key)}</div>
+        <p class="muted" style="font-size:12px;margin:6px 0 0">${esc(KG.master.label)} · usable on new PCs until ${d8(KG.master.usableTill)}</p>
+        <div class="btns"><button class="g" onclick="copyText(KG.master.key, 'Master Key')">Copy</button><button class="okb" onclick="kgMasterFile()">File save (pendrive)</button></div>` : ''}
+    </div>
+    <div class="card"><h2>New PC (first time)</h2>
+      <ol class="steps"><li>Install the Setu EXE on the PC (from the pendrive).</li><li>Paste the <b>Master Key</b> at sign-up (or make a key for its Install ID here).</li>
+        <li>With internet on, the PC connects to the cloud by itself and appears in <b>Hotels</b>.</li>
+        <li>Open the hotel → <b>Activate</b> → choose days → <b>N days from today</b> → the key goes straight to the PC.</li>
+        <li>After that, Activate, Lock and Suspend everything from here, from anywhere.</li></ol>
+      <p class="muted" style="margin-bottom:0;font-size:12px">Keygen: ${KGS.from === 'secret' ? 'from the Cloudflare secret' : 'from the saved key file'} · <a href="#" onclick="event.preventDefault();drawKeygenSetup()">Setup</a></p></div>`;
+  kgDateLine();
+  $('#kg_iid').oninput = e => { KG.iid = e.target.value.trim(); KG.code = ''; const s = $('#kg_pick'); if(s) s.value = ''; kgMatchLine(); };
+  if($('#kg_pick')) $('#kg_pick').onchange = e => { const h = hotelBy(e.target.value); KG.code = e.target.value; KG.iid = e.target.value ? h.iid : ''; KG.send = true; drawKeygen(); };
+}
+const kgDays = () => KG.plan === 'days' ? (+KG.days || 0) : KG_DAYS[KG.plan] || 0;
+function kgSet(on){ KG.iid = $('#kg_iid').value.trim(); if($('#kg_send')) KG.send = $('#kg_send').checked; KG.set = on; drawKeygen(); }
+// What the licence will read after this key (for a hotel already on the cloud)
+function kgDateLine(){
+  const el = $('#kg_date');
+  if(!el) return;
+  const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, '')), d = kgDays();
+  const old = m && m.lic && m.lic !== 'lifetime' ? Date.parse(m.lic) : null;
+  const base = KG.set || !old || old < Date.now() ? Date.now() : old;
+  let t = `Licence until: <b>${d8(base + d * DAYMS)}</b>` + (m ? ` · now: <b>${m.lic === 'lifetime' ? 'Lifetime' : m.lic ? d8(Date.parse(m.lic)) : '-'}</b>` : '');
+  if(KG.set && m && verNum(m.appv) < verNum(SET_MIN_VER)) t += `<div class="err">This hotel has Setu ${m.appv ? 'v' + esc(m.appv) : 'an old version'}. For a "from today" key install the new EXE (v${SET_MIN_VER}+) first, or the key will not apply there.</div>`;
+  el.innerHTML = t;
+}
+function kgMatchLine(){
+  const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  if(!!m !== !!$('#kg_send')) return drawKeygen().then(() => { const i = $('#kg_iid'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); });
+  $('#kg_match').innerHTML = m ? `Hotel: <b>${esc(m.name)}</b> (${esc(m.code)}) · connected to the cloud` : KG.iid ? 'This PC is not connected to the cloud yet (new PC). Enter the key on the PC yourself.' : '';
+  kgDateLine();
+}
+function kgPlan(k){ KG.iid = $('#kg_iid').value.trim(); if($('#kg_days')) KG.days = +$('#kg_days').value; if($('#kg_send')) KG.send = $('#kg_send').checked; KG.plan = k; drawKeygen(); }
+const kgMake = run(async () => {
+  KG.iid = $('#kg_iid').value.trim().toUpperCase();
+  if($('#kg_days')) KG.days = +$('#kg_days').value;
+  KG.send = !!($('#kg_send') && $('#kg_send').checked);
+  if(!KG.iid) return toast('Enter the Install ID', true);
+  if(KG.plan === 'life' && !await ask('Lifetime key?', '<p class="muted" style="margin-top:0">This PC will run forever.</p>', 'Yes, make it')) return;
+  const m = HOTELS.find(h => h.iid && h.iid.replace(/-/g, '') === KG.iid.replace(/[^A-Z0-9]/g, ''));
+  KG.res = await api('/api/admin/keygen', {installId: KG.iid, plan: KG.plan === 'days' ? '' : KG.plan, days: KG.days, set: !!KG.set && !!kgDays(), send: KG.send, code: KG.send && m ? m.code : ''});
+  toast(KG.res.sentTo ? 'Key sent to the PC' : 'Key created');
+  await drawKeygen();
+  window.scrollTo(0, 0);
+});
+function drawKeygenSetup(){
+  const ready = KGS && KGS.ready;
+  $('#main').innerHTML = `${ready ? '' : `<div class="card" style="border-color:#fecaca;background:#fef2f2">
+      <h2 class="err" style="margin-bottom:6px">Keygen is not set up yet</h2>
+      <p style="margin:0">Save the key file below once and all of this turns on:</p>
+      <ul class="steps" style="margin-top:6px"><li><b>Master Key</b> (for the pendrive, 7 days on any new PC)</li><li>Sending an <b>Activation Key</b> to a hotel (N days from today / add)</li><li>Password Reset key</li></ul></div>`}
+    <div class="card"><h2>Keygen setup (only once)</h2>
+    <p class="muted" style="margin-top:0">The cloud needs your <b>setu-license-private.pem</b> file — the key file we sent you. Save it here once.</p>
+    <ol class="steps"><li>Keep that file on the phone (Downloads / Files).</li><li>Below, <b>choose the file</b> → setu-license-private.pem.</li><li>Press <b>Save</b>. The cloud refuses a wrong file.</li></ol>
+    <label>Key file</label><input type="file" id="pem_file" accept=".pem,text/plain,application/x-pem-file,*/*" style="width:100%">
+    <label>… or paste the file’s text here</label><textarea id="pem_txt" rows="4" placeholder="-----BEGIN PRIVATE KEY-----" style="width:100%;font-family:ui-monospace,Consolas,monospace;font-size:12px"></textarea>
+    <button class="big" style="margin-top:12px" onclick="kgSetup()">Save</button>
+    <p class="muted" style="font-size:12px">Never send this file to anyone. On the cloud it is used only with the Admin Key and never goes to any hotel’s app.</p>
+    ${ready ? `<div class="row" style="justify-content:space-between;margin-top:6px"><span class="ok">Keygen is on (${KGS.from === 'secret' ? 'Cloudflare secret' : 'saved file'})</span>
+      <span class="row"><button class="g" onclick="drawKeygen()">‹ Keygen</button>${KGS.from === 'saved' ? `<button class="g" style="color:var(--bad)" onclick="kgRemove()">Remove</button>` : ''}</span></div>` : ''}</div>`;
+  $('#pem_file').onchange = e => { const f = e.target.files[0]; if(!f) return; const r = new FileReader(); r.onload = () => $('#pem_txt').value = String(r.result || ''); r.readAsText(f); };
+}
+const kgMaster = run(async () => {
+  KG.mdays = +$('#mk_days').value || 7;
+  KG.master = await api('/api/admin/keygen', {master: true, days: KG.mdays});
+  toast('Master Key created');
+  await drawKeygen();
+});
+function kgMasterFile(){
+  const m = KG.master, text = `Setu POS — Master Key (${m.days} days)\r\nAghanya Devanya Enterprises\r\n\r\n${m.key}\r\n\r\nOn a new PC: install Setu-POS-Setup.exe → paste this key at Sign Up.\r\nUsable on new PCs until ${d8(m.usableTill)}. Do not share.\r\n`;
+  if(window.SA && SA.save){ SA.save('Setu-Master-Key.txt', 'text/plain', btoa(unescape(encodeURIComponent(text)))); return toast('File: save or share it'); }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
+  a.download = 'Setu-Master-Key.txt';
+  a.click();
+  toast('Setu-Master-Key.txt downloaded');
+}
+const kgSetup = run(async () => {
+  const t = $('#pem_txt').value.trim();
+  if(!/PRIVATE KEY|^MI/.test(t)) return toast('Choose the .pem file or paste its text first', true);
+  KGS = await api('/api/admin/keygen', {setKey: t});
+  toast('Keygen is on');
+  await drawKeygen();
+});
+const kgRemove = run(async () => {
+  if(!await ask('Remove the Keygen file?', '<p class="muted" style="margin-top:0">Making keys from the phone stops (the PC Keygen keeps working).</p>', 'Remove', true)) return;
+  KGS = await api('/api/admin/keygen', {setKey: ''});
+  toast('Removed'); drawKeygenSetup();
+});
+
+// ---------------- More ----------------
+function drawMore(){
+  const row = (icon, t, s, fn) => `<button class="li" onclick="${fn}"><span class="ico">${ic(icon)}</span><span>${t}<small>${s}</small></span><span class="chev">${ic('chev')}</span></button>`;
+  let lk = null;
+  try{ lk = APP && SA.lockState ? JSON.parse(SA.lockState()) : null; }catch(e){}
+  const appv = (navigator.userAgent.match(/SetuHotelAdminApp\/([\d.]+)/) || [])[1];
+  $('#main').innerHTML = `<div class="gh">HOTELS</div><div class="group">`
+    + row('chart', 'Dashboard', 'Hotels, payments, backups', "show('dash')")
+    + row('plus', 'Create new hotel', 'Phone-app hotel without a PC', "show('add')")
+    + row('download', 'Backups', 'Every hotel: last sync, backup, size', "show('backups')")
+    + row('refresh', 'Software updates', 'Newest Setu EXE: pause or release', "show('updates')")
+    + `</div><div class="gh">SETTINGS</div><div class="group">`
+    + row('spark', 'Setu AI', 'Gemini key and daily limit', "show('ai')")
+    + row('key', 'Keygen setup', 'Create keys from this phone', "show('keygen').then(() => drawKeygenSetup())")
+    + row('list', 'Activity Log', 'What changed and when', "show('audit')")
+    + row('block', 'Blocked computers', 'PCs blocked when a hotel was deleted', "show('blocked')")
+    + `</div><div class="gh">SECURITY</div><div class="group">`
+    + (lk ? `<label class="li" style="cursor:pointer"><span class="ico">${ic('finger')}</span><span>App lock<small>${lk.available ? 'Fingerprint or screen lock when the app opens' : 'Set a screen lock on this phone first'}</small></span>
+        <input type="checkbox" id="applock" ${lk.on ? 'checked' : ''} ${lk.available ? '' : 'disabled'} onchange="appLock(this.checked)"></label>` : '')
+    + row('key', 'Login security', 'Authenticator app (2-step login)', "show('security')")
+    + `</div><div class="gh">APP</div><div class="group"><label class="li" style="cursor:pointer"><span class="ico">${ic('spark')}</span><span>Dark glass look<small>Off = light look (this phone only)</small></span>
+        <input type="checkbox" ${glassLook() ? 'checked' : ''} onchange="setLook(this.checked)"></label>`
+    + row('out', 'Logout', 'Remove the Admin Key from this phone', 'logoutAsk()')
+    + `</div><p class="muted" style="text-align:center;font-size:12px">${appv ? 'Setu Hotel Admin app v' + esc(appv) : 'Setu Hotel Admin (browser)'}${newestVer() ? ' · Newest Setu EXE: v' + esc(newestVer()) : ''}</p>`;
+}
+// App lock (native): turning it on or off asks for the fingerprint / screen lock; the answer comes back in SAevent
+function appLock(on){ try{ SA.lockSet(on); }catch(e){} }
+window.SAevent = (name, d) => {
+  if(name === 'lock'){
+    const c = $('#applock'); if(c) c.checked = !!d.on;
+    if(d.error === 'noscreenlock') toast('Set a screen lock in the phone Settings first', true);
+    else if(d.error) toast('Fingerprint check failed', true);
+    else toast(d.on ? 'App lock is on: fingerprint is asked when the app opens' : 'App lock off');
+  }
+  if(name === 'resume' && $('#app') && !$('#app').hidden && VIEW === 'hotels' && !LAYERS) loadHotels().then(drawHotelsBody).catch(() => {});
+};
+const logoutAsk = run(async () => { if(await ask('Logout?', '<p class="muted" style="margin-top:0">The Admin Key will be removed from this phone. You will need to enter it again to sign in.</p>', 'Logout', true)) logout(); });
+
+// ---------------- dashboard ----------------
+async function drawDash(){
+  await loadHotels();
+  const st = await api('/api/admin/stats');
+  const c = s => HOTELS.filter(h => state(h) === s).length;
+  // Monthly recurring estimate from each paying hotel's monthly price for its tier
+  const monthly = t => { const p = Object.values(META.plans).find(x => x.tier === t && x.days <= 31); return p ? p.price : 0; };
+  const mrr = HOTELS.filter(h => state(h) === 'active').reduce((a, h) => a + monthly(h.tier), 0);
+  const month = Date.now() - 30 * 864e5;
+  const soon = HOTELS.filter(h => ['active', 'trial'].includes(state(h)) && h.paid_until - Date.now() < 7 * 864e5).sort((a, b) => a.paid_until - b.paid_until);
+  $('#main').innerHTML = backBtn() + `
+    <div class="stats">${[['Total Hotels', HOTELS.length], ['Paid', c('active')], ['Trial', c('trial')], ['Expired', c('expired')], ['Suspended', c('suspended')],
+      ['New (30 days)', HOTELS.filter(h => h.created > month).length], ['Payments (30 days)', rs(st.paid30.s / 100)], ['MRR (estimate)', rs(mrr)]]
+      .map(([k, v]) => `<div class="stat"><span class="muted">${k}</span><b>${v}</b></div>`).join('')}</div>
+    <div class="gh">EXPIRING IN 7 DAYS</div><div class="group">
+      ${soon.map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div><div style="text-align:right">${pill(state(h))}<small class="muted" style="display:block;margin-top:4px">${d8(h.paid_until)}</small></div></div>`).join('') || '<div class="lr muted">None</div>'}</div>
+    <div class="gh">NO BACKUP (2+ DAYS)</div><div class="group">
+      ${HOTELS.filter(backupIssue).map(h => `<div class="lr click" onclick="hotelSheet('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b><small>${esc(h.code)} · ${esc(h.phone)}</small></div>${health(h.seen)}</div>`).join('') || '<div class="lr ok">All hotels are backing up</div>'}</div>
+    <div class="gh">RECENT PAYMENTS</div><div class="group">
+      ${st.recent.map(p => `<div class="lr"><div class="x"><b>${esc(p.name || p.code)}</b><small>${esc(p.plan)} · ${dt(p.at)}</small></div><b>${p.amount ? rs(p.amount / 100) : '<span class="muted">manual</span>'}</b></div>`).join('') || '<div class="lr muted">None yet</div>'}</div>`;
+}
+
+const dlBackup = run(async code => {
+  const r = await fetch('/api/admin/backup', {method: 'POST', headers: {'X-Setu-Admin': KEY, 'X-Setu-Otp': otpGet(), 'Content-Type': 'application/json'}, body: JSON.stringify({code})});
+  if(!r.ok) throw new Error('Backup download failed (HTTP ' + r.status + ')');
+  const blob = await r.blob(), name = `setu-${code}-backup.json`;
+  // Setu Hotel Admin phone app: hand the file to Android (save to Files / send on WhatsApp, Gmail, Drive)
+  if(window.SA && SA.save){
+    const u = new Uint8Array(await blob.arrayBuffer());
+    let bin = '';
+    for(let i = 0; i < u.length; i += 0x8000) bin += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000));
+    SA.save(name, 'application/json', btoa(bin));
+    return toast('Backup ready — choose where to save / send');
+  }
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+  toast('Backup downloaded');
+});
+function delBox(code){
+  const h = hotelBy(code);
+  sheet(`<h2 class="err">Delete hotel?</h2><p><b>${esc(h.name)}</b> (${esc(code)})</p>
+    <p class="muted">All cloud data, backups, domains and tickets are removed for ever. <b>This cannot be undone.</b> The hotel PC keeps its own data but is disconnected from the cloud (and reconnects by itself with a new Hotel Code unless you block it).</p>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin:10px 0;font-size:13px;color:var(--ink)"><input type="checkbox" id="dbk" style="width:auto;margin-top:3px"><span><b>Block this computer</b> (Install ID ${esc(h.iid || '-')}) — it cannot connect to the cloud again. You can unblock it later under Blocked.</span></label>
+    <label>Confirm: type the Hotel Code (${esc(code)})</label><input id="dc" autocomplete="off" style="text-transform:uppercase">
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">‹ Back</button><button class="bad" onclick="doDelete('${esc(code)}')">Yes, delete</button></div>`);
+}
+const doDelete = run(async code => {
+  await api('/api/admin/delete', {code, confirm: $('#dc').value.trim(), block: $('#dbk').checked});
+  toast(code + ' deleted');
+  closeAll();
+  await show('hotels');
+});
+
+// ----- tickets -----
+let TICKETS = [];
+async function drawTickets(code){
+  TICKETS = (await api('/api/admin/tickets', {code: code || '', read: true})).tickets;
+  await loadHotels();
+  $('#main').innerHTML = `<div class="card"><h2>Tickets${code ? ' — ' + esc(hotelBy(code).name) : ''}</h2>
+    ${code ? `<button class="g" onclick="show('tickets')">All hotels</button>` : '<p class="muted" style="margin-top:-6px">Hotels write from Setu → Help &amp; Support (1). Your reply shows there.</p>'}
+    ${TICKETS.map(t => `<div class="hcard" style="cursor:pointer" onclick="ticketBox('${esc(t.id)}')"><b>${esc(t.subject)}</b> ${t.unread_admin ? '<span class="badge">new</span>' : ''} ${pill(t.status === 'resolved' ? 'active' : 'pending').replace(/>(active|pending)</, '>' + (t.status === 'resolved' ? 'resolved' : 'open') + '<')}
+      <div class="muted" style="font-size:12px">${esc(t.hotel_name || hotelBy(t.code).name)} · <code>${esc(t.code)}</code> · ${dt(t.updated)}</div>
+      <div class="muted" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(((t.msgs || []).slice(-1)[0] || {}).text || '')}</div></div>`).join('') || '<p class="muted">No tickets yet.</p>'}</div>`;
+}
+// One hotel's Error Log: every device (counter PC, phones), what went wrong, where, how often.
+// Dismiss / Clear all only hide them here (they come back if the same error happens again).
+let ERRS = [], ERRSHOW = false, ERRN = {open: 0, cleared: 0};
+async function loadErrs(code, extra){
+  const r = await api('/api/admin/errors', {code, showCleared: ERRSHOW, ...(extra || {})});
+  ERRS = r.errors || []; ERRN = {open: +r.open || 0, cleared: +r.cleared || 0};
+}
+function drawErrs(code){
+  const h = hotelBy(code);
+  sheet(`<h2>Error Log — ${esc(h.name)}</h2>
+    <p class="muted" style="margin-top:0">Errors reported by the hotel's devices (counter PC and phones) in the last 7 days. ${ERRN.open} open${ERRN.cleared ? ` · ${ERRN.cleared} cleared` : ''}.</p>
+    ${ERRN.cleared ? `<label class="switch" style="margin:0 0 10px"><input type="checkbox" ${ERRSHOW ? 'checked' : ''} onchange="errShowCleared('${esc(code)}', this.checked)"> Show cleared errors</label>` : ''}
+    ${ERRS.map(e => `<div class="card" style="border-left:4px solid ${e.cleared ? 'var(--line)' : Date.now() - e.at < DAYMS ? 'var(--bad)' : 'var(--warn)'};padding:12px 14px;margin:8px 0;${e.cleared ? 'opacity:.55' : ''}">
+      <div style="display:flex;gap:10px;align-items:flex-start"><b style="word-break:break-word;flex:1">${esc(e.kya)}</b>
+        ${e.cleared ? '<span class="tag">Cleared</span>' : `<button class="g" style="padding:6px 12px;font-size:12.5px;flex:none" onclick="errDismiss('${esc(code)}', '${esc(e.id)}')">Dismiss</button>`}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${esc(e.dev || '-')}${e.user ? ' · ' + esc(e.user) : ''} · ${ago(e.at)} (${dt(e.at)})${+e.n > 1 ? ` · <b>${e.n} times</b>` : ''}${e.ver && e.ver !== 'dev' ? ' · v' + esc(e.ver) : ''}</div>
+      ${e.kahan ? `<div style="font-size:13px;margin-top:4px"><b>Where:</b> ${esc(e.kahan)}</div>` : ''}
+      ${e.kaise ? `<details style="margin-top:4px"><summary class="muted" style="font-size:12px">Technical details</summary><code style="display:block;white-space:pre-wrap;font-size:11px">${esc(e.kaise)}</code></details>` : ''}
+    </div>`).join('') || `<div class="card muted" style="text-align:center">${ERRN.cleared ? 'No open errors. Everything is working.' : 'No errors. Everything is working.'}</div>`}
+    <div class="btns"><button class="g" onclick="hotelSheet('${esc(code)}')">Back</button>${ERRS.length ? `<button class="g" onclick="errsCopy('${esc(code)}')">Copy</button>` : ''}${ERRN.open ? `<button class="bad" onclick="errClearAll('${esc(code)}')">Clear all</button>` : ''}</div>`);
+}
+const hotelErrors = run(async code => {
+  sheet(`<h2>Error Log — ${esc(hotelBy(code).name)}</h2><p class="muted">Loading...</p>`);
+  ERRSHOW = false;
+  await loadErrs(code);
+  drawErrs(code);
+});
+const errShowCleared = run(async (code, on) => { ERRSHOW = on; await loadErrs(code); drawErrs(code); });
+const errDismiss = run(async (code, id) => {
+  const e = ERRS.find(x => x.id === id) || {};
+  await loadErrs(code, {clear: true, id, kya: e.kya});
+  toast('Error dismissed');
+  await loadHotels(); if(VIEW === 'hotels') drawHotelsBody();
+  drawErrs(code);
+});
+const errClearAll = run(async code => {
+  if(!await ask('Clear all errors?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: all ${ERRN.open} open errors are marked as cleared. An error shows again only if it happens again.</p>`, 'Clear all', true)) return;
+  await loadErrs(code, {clear: true});
+  toast('All errors cleared');
+  await loadHotels(); if(VIEW === 'hotels') drawHotelsBody();
+  drawErrs(code);
+});
+// Every hotel at once (Hotels → Errors filter)
+const errClearEvery = run(async () => {
+  const list = HOTELS.filter(h => +h.errs > 0);
+  if(!list.length) return toast('No hotel has open errors');
+  if(!await ask('Clear errors in all hotels?', `<p class="muted" style="margin-top:0">Open errors in ${list.length} hotels are marked as cleared. They show again only if they happen again.</p>`, 'Clear all', true)) return;
+  for(const h of list) await api('/api/admin/errors', {code: h.code, clear: true});
+  toast(`Errors cleared in ${list.length} hotels`);
+  await loadHotels(); drawHotelsBody();
+});
+function errsCopy(code){
+  copyText([`Setu Error Log · ${hotelBy(code).name} (${code})`].concat(ERRS.map(e => `${dt(e.at)} | ${e.dev} | ${e.kya} | ${e.kahan || ''}${+e.n > 1 ? ' | ' + e.n + 'x' : ''}`)).join('\n'), 'Error Log');
+}
+const hotelTickets = run(async code => { closeAll(); VIEW = 'tickets'; nav(); await drawTickets(code); });
+function ticketBox(id){
+  const t = TICKETS.find(x => x.id === id);
+  if(!t) return;
+  sheet(`<h2>${esc(t.subject)}</h2><p class="muted">${esc(t.hotel_name || hotelBy(t.code).name)} · <code>${esc(t.code)}</code> · ${esc(t.status)}</p>
+    <div>${(t.msgs || []).map(m => `<div class="msg ${m.by}">${esc(m.text)}<small>${m.by === 'admin' ? 'You' : 'Hotel'} · ${dt(m.at)}</small></div>`).join('')}</div>
+    <label>Reply</label><textarea id="rp" rows="3" placeholder="Type your reply to the hotel"></textarea>
+    <div class="row" style="margin-top:10px"><button onclick="sendReply('${esc(id)}', false)">Send reply</button><button class="g" onclick="sendReply('${esc(id)}', true)">Reply &amp; resolve</button>
+      <button class="g" onclick="toggleTicket('${esc(id)}')">${t.status === 'resolved' ? 'Reopen' : 'Mark resolved'}</button><button class="g" onclick="closeSheet()">Close</button></div>`);
+}
+const sendReply = run(async (id, resolve) => {
+  const t = TICKETS.find(x => x.id === id), reply = $('#rp').value.trim();
+  if(!reply && !resolve) return toast('Write a reply');
+  await api('/api/admin/ticket', {code: t.code, id, reply, status: resolve ? 'resolved' : undefined});
+  toast('Sent'); closeSheet(); await drawTickets();
+});
+const toggleTicket = run(async id => {
+  const t = TICKETS.find(x => x.id === id);
+  await api('/api/admin/ticket', {code: t.code, id, status: t.status === 'resolved' ? 'open' : 'resolved'});
+  toast('Updated'); closeSheet(); await drawTickets();
+});
+
+// ----- Setu AI (one Gemini key for all hotels; stays on the cloud) -----
+async function drawAI(res){
+  const j = res || await api('/api/admin/ai', {});
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Setu AI (Gemini)</h2>
+    <p class="muted" style="margin-top:-6px">aistudio.google.com → Get API key → Create. Paste the key here and press Save. The key stays only in Hotel Setu Cloud and never goes to any hotel’s app.</p>
+    <label>Gemini API Key ${j.hasKey ? `(saved, ...${esc(j.keyEnd)} · enter only to change it)` : ''}</label>
+    <input id="ai_key" type="password" autocomplete="off" placeholder="${j.hasKey ? '••••••••••••' : 'AIza... or AQ....'}" style="width:100%">
+    <div class="grid" style="margin-top:8px">
+      <div><label>Daily limit per hotel (questions)</label><input id="ai_limit" type="number" min="1" max="1000" value="${+j.limit || 30}"></div>
+      <div><label>Model</label><input id="ai_model" value="${esc(j.model || '')}"></div>
+    </div>
+    <div class="row" style="margin-top:10px"><button onclick="saveAI(false)">Save</button><button class="g" onclick="saveAI(true)">Save &amp; Test</button></div>
+    ${j.test ? `<p class="${j.test.ok ? 'ok' : 'err'}" style="margin:10px 0 0">${j.test.ok ? '✔ The key works. Gemini answered: ' + esc(j.test.answer) : '✖ ' + esc(j.test.error)}</p>` : ''}
+    <p class="muted" style="margin:10px 0 0">Status: ${j.hasKey ? '<b class="ok">Key saved</b>' : '<b class="err">No key, AI is off</b>'} · Today ${j.today || 0} questions, ${j.hotelsToday || 0} hotels</p>
+    <p class="muted">Which hotels get AI: open the hotel → Plan &amp; Features → "Setu AI (Gemini)" ON / OFF. ON by default in Premium and Diamond plans.</p></div>`;
+}
+const saveAI = run(async test => {
+  const j = await api('/api/admin/ai', {set: true, key: $('#ai_key').value.trim(), limit: +$('#ai_limit').value, model: $('#ai_model').value.trim(), test});
+  toast(test ? (j.test && j.test.ok ? 'The key works' : 'Test failed') : 'Saved');
+  drawAI(j);
+});
+
+// ----- blocked computers -----
+// ---------------- software updates for every counter PC ----------------
+async function drawUpdates(){
+  const u = await api('/api/admin/update');
+  const old = HOTELS.length ? HOTELS : (await loadHotels(), HOTELS);
+  const behind = old.filter(h => h.appv && u.version && h.appv !== u.version);
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Software updates</h2>
+    <p class="muted" style="margin-top:-6px">Every new EXE build is published here. Counter PCs show "Software Update" in Settings (G); the owner installs it there. Pause it if a release has a problem.</p>
+    <p>Newest: <b>${u.version ? 'Setu v' + esc(u.version) : 'not published yet'}</b>${u.at ? ` <span class="muted">(${esc(u.at.slice(0, 10))})</span>` : ''}</p>
+    <p>Status: ${u.hold ? '<span class="err"><b>Paused</b>: no PC is offered this update</span>' : '<span class="ok"><b>Released</b> to all PCs</span>'}</p>
+    <label>Message shown with the update (optional)</label><input id="up_notes" maxlength="300" value="${esc(u.notes || '')}">
+    <div class="btns">${u.hold ? `<button onclick="updSet(false)">Release to all PCs</button>` : `<button class="g" style="color:var(--bad)" onclick="updSet(true)">Pause updates</button>`}<button class="g" onclick="updSet(null)">Save message</button></div>
+    ${u.version ? `<p class="muted" style="font-size:12px">Download link for new clients: <code>${esc(location.origin)}/download/Setu-POS-Setup.exe</code></p>` : ''}</div>
+    <div class="card"><h2>PCs on an older version (${behind.length})</h2>
+    ${behind.map(h => `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></span><span class="tag warn">v${esc(h.appv)}</span></div>`).join('') || '<p class="muted">All connected PCs are on the newest version.</p>'}</div>`;
+}
+const updSet = run(async hold => {
+  await api('/api/admin/update', {...(hold === null ? {} : {hold}), notes: $('#up_notes').value});
+  toast(hold === true ? 'Updates paused' : hold === false ? 'Update released' : 'Saved'); await drawUpdates();
+});
+
+// ---------------- login security: Authenticator app ----------------
+async function drawSecurity(){
+  const st = await api('/api/admin/totp');
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Login security</h2>
+    <p class="muted" style="margin-top:-6px">With the Authenticator app on, the Admin Key alone is not enough: a new phone or browser also needs the 6-digit code from your Authenticator app (asked once per device, every 30 days).</p>
+    <p>Status: ${st.on ? '<span class="ok"><b>On</b></span>' : '<span class="err"><b>Off</b></span>'}</p>
+    ${st.on ? `<button class="g" style="color:var(--bad)" onclick="totpOff()">Switch off</button>` : `<button onclick="totpSetup()">Switch on</button>`}
+    <div id="totp_box"></div></div>
+    <div class="card"><h2>Lost the phone?</h2><p class="muted" style="margin:0">On Cloudflare (Workers → setu-cloud → Settings → Variables), add <code>ADMIN_TOTP_OFF</code> = <code>1</code>. The code is not asked any more; switch it off here, set it up again, then delete that variable.</p></div>`;
+}
+const totpSetup = run(async () => {
+  const s = await api('/api/admin/totp/setup');
+  $('#totp_box').innerHTML = `<ol class="steps"><li>Install <b>Google Authenticator</b> (or Microsoft Authenticator) on your phone.</li>
+    <li>Tap <a href="${esc(s.uri)}"><b>Add to Authenticator</b></a>, or in the app choose "Enter a setup key" and type:<br><code style="font-size:15px;letter-spacing:1px;word-break:break-all">${esc(s.secret.replace(/(.{4})/g, '$1 ').trim())}</code></li>
+    <li>Type the 6-digit code the app shows:</li></ol>
+    <div class="row"><input id="totp_c" inputmode="numeric" maxlength="6" style="max-width:160px"><button onclick="totpOn()">Verify & switch on</button></div>
+    <p class="muted" style="font-size:12px">Keep the setup key somewhere safe (not in WhatsApp). It is shown only now.</p>`;
+});
+const totpOn = run(async () => {
+  const r = await api('/api/admin/totp/enable', {code: $('#totp_c').value});
+  otpSet(r.session); toast('Authenticator app is on'); await drawSecurity();
+});
+const totpOff = run(async () => {
+  const v = await ask('Switch off the Authenticator app?', '<p class="muted" style="margin-top:0">Type the current 6-digit code.</p><input id="otp_off" inputmode="numeric" maxlength="6">', 'Switch off', true);
+  if(!v) return;
+  await api('/api/admin/totp/disable', {code: v.otp_off}); otpSet(''); toast('Authenticator app is off'); await drawSecurity();
+});
+
+// ---------------- backups: one table for all hotels ----------------
+let BKF = 'all';
+const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round((n || 0) / 1024)) + ' KB';
+function bkState(h){
+  const day = 864e5, seen = +h.seen || 0, bkAge = h.lastbk ? (Date.now() - Date.parse(h.lastbk)) / day : null;
+  if(!seen) return ['never', 'Never synced', 'bad'];
+  if(+h.offmode) return ['offline', 'Offline hotel', 'warn'];
+  if(Date.now() - seen > 3 * day) return ['offline', 'Offline ' + Math.floor((Date.now() - seen) / day) + ' days', 'bad'];
+  if(bkAge === null || bkAge > 3) return ['failed', 'No recent backup', 'bad'];
+  if(Date.now() - seen > 2 * 3600e3) return ['delayed', 'Sync delayed', 'warn'];
+  return ['ok', 'Backup OK', 'ok'];
+}
+async function drawBackups(){
+  await loadHotels();
+  const F = {all: 'All', ok: 'Backup OK', delayed: 'Sync delayed', offline: 'Offline', failed: 'No backup', never: 'Never synced'};
+  const q = ($('#bk_q') && $('#bk_q').value || '').toLowerCase();
+  const L = HOTELS.filter(h => (BKF === 'all' || bkState(h)[0] === BKF) && (!q || (h.name + ' ' + h.code + ' ' + (h.iid || '')).toLowerCase().includes(q)));
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Backups</h2>
+    <p class="muted" style="margin-top:-6px">Each hotel keeps ${30} end-of-day backups on Hotel Setu Cloud (compressed). Tap a hotel to download its data.</p>
+    <input id="bk_q" placeholder="Search name, code or Install ID" value="${esc(q)}" oninput="drawBackups()" style="margin-bottom:8px">
+    <div class="chips">${Object.entries(F).map(([k, v]) => `<button class="chip ${BKF === k ? 'on' : ''}" onclick="BKF='${k}';drawBackups()">${v} ${HOTELS.filter(h => k === 'all' || bkState(h)[0] === k).length}</button>`).join('')}</div>
+    </div><div class="group">
+    ${L.map(h => { const st = bkState(h); return `<div class="lr click" onclick="dlBackup('${esc(h.code)}')">${avatar(h)}<div class="x"><b>${esc(h.name)}</b>
+      <small>${esc(h.code)} · sync ${h.seen ? ago(h.seen) : '-'} · backup ${h.lastbk ? esc(h.lastbk) : '-'}</small><small>${+h.bkn || 0} backups · ${h.bksize ? kb(+h.bksize) : '-'}${h.dsize ? ` · live ${kb(+h.dsize)}` : ''}</small></div>
+      <span class="tag ${st[2]}">${st[1]}</span></div>`; }).join('') || '<div class="lr muted">Nothing in this list</div>'}</div>`;
+  const i = $('#bk_q'); if(q){ i.focus(); i.setSelectionRange(q.length, q.length); }
+}
+
+async function drawBlocked(){
+  const L = (await api('/api/admin/blocked')).blocked || [];
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Blocked computers</h2><p class="muted" style="margin-top:-6px">These Install IDs cannot join Hotel Setu Cloud again (blocked when the hotel was deleted).</p>
+    ${L.map(b => `<div class="row" style="justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)"><span><b>${esc(b.name || b.code)}</b><br><span class="muted"><code>${esc(b.iid)}</code> · ${esc(b.code)} · ${d8(b.at)}</span></span>
+      <button class="g" onclick="unblock('${esc(b.iid)}')">Unblock</button></div>`).join('') || '<p class="muted">No blocked computer.</p>'}</div>`;
+}
+const unblock = run(async iid => { await api('/api/admin/unblock', {iid}); toast('Unblocked'); await drawBlocked(); });
+
+// ---------------- add hotel (onboarding) ----------------
+function drawAdd(){
+  const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  $('#main').innerHTML = backBtn() + `<div class="card"><h2>Create New Hotel</h2>
+    <p class="muted">Customer → Business Type → Plan → Features → Login. The hotel signs in the first time with the Hotel Code and this password, then builds its own data.</p>
+    <form id="af"><div class="grid">
+      <div><label>Hotel / Restaurant name *</label><input name="name" required></div>
+      <div><label>Owner name *</label><input name="owner" required></div>
+      <div><label>Mobile (10 digit) *</label><input name="phone" required pattern="[0-9]{10}" inputmode="numeric"></div>
+      <div><label>Email</label><input name="email" type="email"></div>
+      <div><label>GSTIN (optional)</label><input name="gstin" maxlength="15" style="text-transform:uppercase"></div>
+      <div><label>Business Type (Template)</label><select name="businessType" id="a_type">${tpl}</select></div>
+      <div><label>Plan</label><select name="tier" id="a_tier">${tiers}</select></div>
+      <div><label>Days</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
+      <div><label>Payment</label><select name="paid"><option value="">Free trial</option><option value="1">Paid (cash / UPI received)</option></select></div>
+      <div><label>Owner initial password (6+ characters) *</label><input name="password" required minlength="6"></div>
+    </div><div class="row" style="margin-top:12px"><button>Create Hotel</button><span id="ares"></span></div></form></div>`;
+  $('#a_type').onchange = () => $('#a_tier').value = META.templates[$('#a_type').value].tier;
+  $('#a_type').onchange();
+  $('#af').onsubmit = run(async e => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(e.target));
+    f.paid = !!f.paid;
+    const gstin = (f.gstin || '').trim(); delete f.gstin;
+    $('#ares').innerHTML = '<span class="muted">Creating…</span>';
+    let j;
+    try{ j = await api('/api/admin/create', f); }catch(err){ $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err; }
+    if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
+    $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
+      <p>Send this to the owner on WhatsApp:</p>
+      <div class="card" style="background:var(--soft)" id="newmsg">Setu POS (mobile) — ${esc(f.name)}<br>1. Install <b>SetuPOS.apk</b>.<br>2. Open the app → <b>Over the internet (Hotel Setu Cloud)</b> → Open Cloud.<br>
+        3. Hotel Code: <b>${esc(j.code)}</b><br>4. Password: <b>${esc(f.password)}</b><br>(Also in a browser: ${esc(location.origin)}/hotel_erp.html)</div>
+      <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText($('#newmsg').innerText)">WhatsApp / Share</button><button class="g" onclick="copyText($('#newmsg').innerText, 'Message')">Copy</button></div>
+      <details class="muted" style="font-size:12px;margin-bottom:10px"><summary>If a computer is added later (Counter PC Sync Key)</summary><code>${esc(j.syncKey)}</code> (will not be shown again)</details>
+      <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Create Another</button></div></div>`;
+  });
+}
+
+// ---------------- audit ----------------
+async function drawAudit(code){
+  const j = await api('/api/admin/audit', {code: code || ''});
+  const html = `<div class="group">${j.rows.map(r => `<div class="lr"><div class="x"><b>${esc(r.action)}</b> <code>${esc(r.code)}</code><small style="white-space:normal">${esc(r.detail)}</small><small>${dt(r.at)} · ${esc(r.actor)}</small></div></div>`).join('') || '<div class="lr muted">Nothing yet</div>'}</div>`;
+  if(code) return html;
+  $('#main').innerHTML = `<p class="muted" style="margin:0 4px 12px">Every change, support session and new hotel is recorded here.</p>${html}`;
+}
+
+// ---------------- one hotel ----------------
+const openHotel = run(async code => {
+  CUR = await api('/api/admin/hotel', {code});
+  TAB = 'overview';
+  const dr = $('#drawer');
+  if(dr.style.display !== 'block'){ dr.style.display = 'block'; requestAnimationFrame(() => requestAnimationFrame(() => dr.classList.add('in'))); pushLayer(); bars('#FFFFFF'); }
+  dr.scrollTop = 0;
+  drawHotel();
+});
+function closeHotel(){ popLayer(); }
+async function closeHotelNow(){
+  const dr = $('#drawer'); dr.classList.remove('in'); CUR = null; onScroll();
+  setTimeout(() => { if(!dr.classList.contains('in')) dr.style.display = 'none'; }, 300);
+  await loadHotels().catch(() => {});
+  if(VIEW === 'hotels') drawHotelsBody();
+  if($('#sheet').classList.contains('open')) hotelSheet(($('#sbox code') || {}).textContent || '');
+}
+const update = run(async (u, msg) => {
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: u});
+  toast(msg || 'Saved — applies to the hotel devices within seconds');
+  drawHotel();
+});
+
+const TABS = {overview: 'Overview & Subscription', features: 'Plan & Features', billing: 'Billing Builder', rules: 'Rules', domains: 'Domains', support: 'Support', log: 'History'};
+function drawHotel(){
+  const h = CUR;
+  $('#dtitle').textContent = h.name;
+  $('#dsub').textContent = h.code + ' · ' + ((META.templates[h.businessType] || {}).label || '') + ' · ' + h.tierLabel;
+  $('#panel').innerHTML = `<div class="tabs">${Object.entries(TABS).map(([k, v]) => `<button class="${TAB === k ? 'on' : ''}" onclick="TAB='${k}';drawHotel()">${v}</button>`).join('')}</div>
+    <div id="tab"></div>`;
+  ({overview: tabOverview, features: tabFeatures, billing: tabBilling, rules: tabRules, domains: tabDomains, support: tabSupport, log: tabLog})[TAB]();
+}
+
+function tabOverview(){
+  const h = CUR, c = h.counter || {};
+  $('#tab').innerHTML = `
+    <div class="grid">
+      <div><label>Hotel name</label><input id="p_name" value="${esc(h.name)}"></div>
+      <div><label>Owner</label><input id="p_owner" value="${esc(h.owner)}"></div>
+      <div><label>Mobile</label><input id="p_phone" value="${esc(h.phone)}"></div>
+      <div><label>Email</label><input id="p_email" value="${esc(h.email)}"></div>
+      <div><label>GSTIN (optional)</label><input id="p_gst" maxlength="15" style="text-transform:uppercase" value="${esc(h.gstin || '')}" placeholder="${esc(c.hotelGstin || '')}"></div>
+    </div>
+    <div class="row" style="margin-top:8px"><button class="g" onclick="update({profile:{name:p_name.value,owner:p_owner.value,phone:p_phone.value,email:p_email.value,gstin:p_gst.value}})">Save Profile</button></div>
+    <h3>Owner Password</h3>
+    <p class="muted" style="margin-top:-4px">Owner forgot the password? Set a new one: it works on the phone app at once and on the counter PC after its next sync (it is also the Manager PIN there).</p>
+    <div class="row"><input id="o_pw2" placeholder="New owner password (6+ characters)" maxlength="40" style="min-width:240px">
+      <button onclick="ownerPw2()">Set Owner Password</button></div>
+    <h3>Counter PC Connection</h3>
+    <div class="row">Hotel Code: <code style="font-size:14px">${esc(h.code)}</code>
+      Sync Key: ${h.storedSyncKey ? `<code style="font-size:14px">${esc(h.storedSyncKey)}</code><button class="g" onclick="copyText('${esc(h.storedSyncKey)}', 'Sync Key')">Copy</button>`
+        : '<span class="muted">not stored (made before this option) — Support tab → New Counter PC Sync Key, or record the current key there</span>'}</div>
+    <div class="row" style="margin-top:6px">Owner password (last set by you): ${h.storedOwnerPass ? `<code style="font-size:14px">${esc(h.storedOwnerPass)}</code>` : '<span class="muted">not stored — set a new one below</span>'}
+      <span class="muted">(if the owner changed it in Setu Settings, theirs is newer)</span></div>
+    ${(h.counter || {}).installId ? '' : `<p class="muted" style="margin:6px 0 0">Install ID appears here after the hotel's Setu connects: Setu → Settings (G) → Hotel Setu Cloud Sync → Hotel Code <b>${esc(h.code)}</b> + the Sync Key above → Save &amp; Connect.</p>`}
+    <h3>Counter PC &amp; Backup</h3>
+    <div class="grid">
+      <div class="stat"><span class="muted">Last data received</span><b style="font-size:15px">${health(h.savedAt)}</b><span class="muted">${h.savedAt ? dt(h.savedAt) : 'Counter PC not connected yet'}</span></div>
+      <div class="stat"><span class="muted">Daily cloud backups</span><b>${h.backups.length}</b><span class="muted">${h.backups[0] ? 'Latest: ' + esc(h.backups[0]) : 'Starts from the 2nd day'}</span></div>
+      <div class="stat"><span class="muted">Bills on cloud</span><b>${c.bills}</b><span class="muted">${c.lastBill ? 'Last bill: ' + esc(c.lastBill) : 'No bills yet'} · ${c.menu} menu items</span></div>
+      <div class="stat"><span class="muted">Counter licence</span><b style="font-size:15px">${c.lifetime ? 'Lifetime' : c.licenceUntil ? d8(Date.parse(c.licenceUntil)) : '-'}</b><span class="muted">${esc(c.plan || '')}${c.licenceUntil && !c.lifetime && Date.parse(c.licenceUntil) < Date.now() ? ' · <b class="err">EXPIRED</b>' : ''}</span></div>
+    </div>
+    <h3>WhatsApp Message Credits (Vendor Allotment)</h3>
+    <p class="muted" style="margin-top:-4px">Directly allot or recharge WhatsApp message credits for this hotel. Client PC will automatically sync this balance without typing any vouchers.</p>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="stat"><span class="muted">WhatsApp Balance</span><b style="font-size:22px;color:#0284c7">${h.waCredits ?? 0}</b><span class="muted">messages remaining</span></div>
+      <div class="stat"><span class="muted">Total Dispatched</span><b style="font-size:20px;color:#10b981">${h.waTotalSent ?? 0}</b><span class="muted">messages sent</span></div>
+      <div class="stat"><span class="muted">WhatsApp Module</span><b style="font-size:16px">${CUR.features && CUR.features.whatsapp !== false ? '✅ Active' : '⛔ Disabled'}</b><span class="muted"><a href="#" onclick="event.preventDefault();TAB='features';drawHotel()">Manage in Features tab</a></span></div>
+    </div>
+    <div class="row" style="flex-wrap:wrap;gap:8px;margin-bottom:14px">
+      <input id="x_wacredits" type="number" min="1" value="500" style="width:110px" placeholder="Credits">
+      <button class="ok" onclick="const n=+x_wacredits.value||500; askThen('Add ' + n + ' WhatsApp credits to ' + esc(CUR.name) + '?', () => update({addWaCredits:n}, '+' + n + ' WhatsApp Credits added! Client PC will sync automatically.'))">+ Add Credits</button>
+      <button class="g" onclick="const n=+x_wacredits.value||0; askThen('Set exact balance to ' + n + ' messages?', () => update({waCredits:n}, 'Balance set to ' + n + '!'))">Set Exact Balance</button>
+      <button class="g" onclick="update({addWaCredits:100}, '+100 credits added')">+100</button>
+      <button class="g" onclick="update({addWaCredits:500}, '+500 credits added')">+500</button>
+      <button class="g" onclick="update({addWaCredits:1000}, '+1000 credits added')">+1000</button>
+      <button class="g" onclick="update({addWaCredits:5000}, '+5000 credits added')">+5000</button>
+    </div>
+    <h3>Send Activation Key (online)</h3>
+    <p class="muted" style="margin-top:-4px">Easiest: <a href="#" onclick="event.preventDefault();keygenFor('${esc(h.code)}')">Keygen</a> makes the key and sends it. Or paste a key made on the PC Keygen. The counter PC activates itself on its next sync.</p>
+    <div class="row">Install ID: <code style="font-size:14px">${esc(c.installId || 'not connected yet')}</code>${c.installId ? `<button class="g" onclick="copyText('${esc(c.installId)}', 'Install ID')">Copy</button>` : ''}
+      ${c.keysWaiting ? `<span class="pill h-warn">${c.keysWaiting} key waiting for the counter PC</span>` : ''}</div>
+    <div class="row" style="margin-top:8px"><textarea id="x_key" rows="3" style="flex:1;min-width:260px;font-family:ui-monospace,Consolas,monospace" placeholder="SETU-XXXXXXXX-XXXXXXXX-..."></textarea>
+      <button onclick="if(x_key.value.trim()) update({pushKey:x_key.value.trim()}, 'Key sent — the counter PC activates on its next sync')">Send Key</button></div>
+    <h3>Cloud Subscription</h3>
+    <p>Status: ${pill(state(h))} · Paid till: <b>${h.lifetime ? 'Lifetime' : d8(h.paidUntil)}</b> · Auto-pay: <b>${esc(h.autoPay || '-')}</b> · Data version: ${h.version} (${dt(h.savedAt)})</p>
+    <div class="row">
+      <input id="x_days" type="number" min="1" value="30" style="width:90px"> days
+      <input id="x_amt" type="number" min="0" placeholder="₹ received (optional)" style="width:160px">
+      <button onclick="askThen('Add days?', () => update({days:+x_days.value, amount:+x_amt.value||0}, 'Days added'))">+ Add Days</button>
+      ${h.status === 'suspended' ? `<button class="g" onclick="update({status:'active'})">Activate</button>` : `<button class="bad" onclick="askThen('Suspend this hotel? Setu locks and cloud saving stops.', () => update({status:'suspended'}))">Suspend</button>`}
+      <button class="g" onclick="askThen('${h.lifetime ? 'Remove lifetime' : 'Give lifetime'}?', () => update({lifetime:${!h.lifetime}}))">${h.lifetime ? 'Remove Lifetime' : 'Give Lifetime'}</button>
+    </div>
+    <h3>Payments</h3>
+    <table><tr><th>Date</th><th>Plan</th><th>Days</th><th>Amount</th></tr>${h.payments.map(p => `<tr><td>${dt(p.at)}</td><td>${esc(p.plan)}</td><td>${p.days}</td><td>${p.amount ? rs(p.amount / 100) : '-'}</td></tr>`).join('')}</table>`;
+}
+
+function tabFeatures(){
+  const c = CUR.config, ov = c.overrides || {};
+  const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}" ${k === c.tier ? 'selected' : ''}>${esc(v.label)}</option>`).join('');
+  const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
+  const inTier = k => META.tiers[c.tier].features.includes(k);
+  $('#tab').innerHTML = `
+    <div class="row"><label style="margin:0">Plan</label><select id="f_tier">${tiers}</select>
+      <button onclick="update({tier:f_tier.value}, 'Plan changed')">Save plan</button>
+      <span class="muted" style="margin-left:12px">Template:</span><select id="f_tpl">${tpl}</select>
+      <button class="g" onclick="askThen('Apply this template? Features, bill template and rules go back to the template defaults.', () => update({applyTemplate:f_tpl.value}, 'Template applied'))">Apply Template</button></div>
+    <h3>Feature Manager</h3>
+    <p class="muted">"Per plan" follows the plan automatically. ON / OFF overrides it for this hotel only. The server does not save data for disabled modules.</p>
+    <div class="grid">${Object.entries(META.features).map(([k, label]) => `<div class="feat">
+      <span>${CUR.features[k] ? '✅' : '⛔'}</span><span>${esc(label)}</span>
+      <select data-f="${k}"><option value="">Per plan (${inTier(k) ? 'ON' : 'OFF'})</option><option value="1" ${ov[k] === true ? 'selected' : ''}>ON</option><option value="0" ${ov[k] === false ? 'selected' : ''}>OFF</option></select></div>`).join('')}</div>
+    <div class="row" style="margin-top:12px"><button onclick="saveFeatures()">Save features</button></div>`;
+}
+function saveFeatures(){
+  const o = {};
+  document.querySelectorAll('[data-f]').forEach(s => { if(s.value) o[s.dataset.f] = s.value === '1'; });
+  update({overrides: o}, 'Features saved — applied to the hotel');
+}
+
+function tabBilling(){
+  const b = CUR.config.billing;
+  $('#tab').innerHTML = `<div class="two"><div>
+    <div class="grid">
+      <div><label>Paper</label><select id="b_paper">${[['80', '80 mm Thermal'], ['58', '58 mm Thermal'], ['A6', 'A6 (105 × 148 mm)']].map(([v, l]) => `<option value="${v}" ${b.paper === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div><label>Logo URL (https, optional)</label><input id="b_logo" value="${esc(b.logoUrl)}" placeholder="https://..."></div>
+      <div><label><input type="checkbox" id="b_showLogo" ${b.showLogo ? 'checked' : ''}> Show logo (A6 / print dialog)</label>
+        <label><input type="checkbox" id="b_table" ${b.showTable ? 'checked' : ''}> Show table number</label>
+        <label><input type="checkbox" id="b_cust" ${b.showCustomer ? 'checked' : ''}> Show customer name</label></div>
+      <div><label>Header line (below the name)</label><input id="b_head" value="${esc(b.headerNote)}" maxlength="100" placeholder="Pure Veg · Since 1998"></div>
+      <div style="grid-column:1/-1"><label>Footer (blank = hotel setting)</label><input id="b_foot" value="${esc(b.footer)}" maxlength="200" style="width:100%"></div>
+    </div>
+    <h3>Custom fields on the bill (max 6)</h3>
+    <div id="b_fields"></div>
+    <div class="row" style="margin-top:8px"><button class="g" onclick="addField()">+ Field</button><button onclick="saveBilling()">Save bill template</button></div>
+    <p class="muted">Existing bills are not changed; the new template applies to new bills only.</p>
+  </div><div><label>Preview</label><div id="b_prev"></div></div></div>`;
+  FIELDS = (b.fields || []).map(f => ({...f}));
+  drawFields();
+  $('#tab').addEventListener('input', preview);
+  $('#tab').addEventListener('change', preview);
+}
+let FIELDS = [];
+function drawFields(){
+  $('#b_fields').innerHTML = FIELDS.map((f, i) => `<div class="row" style="margin-bottom:6px">
+    <input value="${esc(f.label)}" maxlength="30" placeholder="e.g. Vehicle No / Room No" oninput="FIELDS[${i}].label=this.value">
+    <label style="margin:0"><input type="checkbox" ${f.required ? 'checked' : ''} onchange="FIELDS[${i}].required=this.checked"> Required</label>
+    <button class="g" onclick="FIELDS.splice(${i},1);drawFields()">Remove</button></div>`).join('') || '<p class="muted">No custom fields</p>';
+  preview();
+}
+function addField(){ if(FIELDS.length < 6){ FIELDS.push({label: '', required: false}); drawFields(); } }
+function billingForm(){
+  return {paper: $('#b_paper').value, logoUrl: $('#b_logo').value.trim(), showLogo: $('#b_showLogo').checked, showTable: $('#b_table').checked,
+    showCustomer: $('#b_cust').checked, headerNote: $('#b_head').value, footer: $('#b_foot').value, fields: FIELDS.filter(f => f.label.trim())};
+}
+function preview(){
+  const b = billingForm(), w = {58: '200px', 80: '270px', A6: '300px'}[b.paper];
+  const logo = b.showLogo && /^https:\/\//.test(b.logoUrl) ? `<div class="c"><img src="${esc(b.logoUrl)}" alt="" style="max-height:44px;max-width:70%"></div>` : '';
+  $('#b_prev').innerHTML = `<div class="rcpt" style="width:${w}">${logo}<div class="c"><b>${esc(CUR.name)}</b></div><div class="c">Main Road, Shahar</div>
+    ${b.headerNote ? `<div class="c">${esc(b.headerNote)}</div>` : ''}<hr><div class="c"><b>TAX INVOICE</b></div>
+    <div>Bill No: #1024 &nbsp; 09/10/2026 8:15 PM</div>${b.showTable ? '<div>Table/Ref: <b>T-4</b></div>' : ''}${b.showCustomer ? '<div>Customer: Rahul</div>' : ''}
+    ${b.fields.map(f => `<div>${esc(f.label)}: <b>……</b></div>`).join('')}<hr>
+    <table style="width:100%"><tr><td>Paneer Tikka</td><td class="r">1</td><td class="r">240.00</td></tr><tr><td>Butter Naan</td><td class="r">4</td><td class="r">200.00</td></tr></table><hr>
+    <table style="width:100%"><tr><td>Sub Total</td><td class="r">440.00</td></tr><tr><td>CGST @2.5%</td><td class="r">11.00</td></tr><tr><td>SGST @2.5%</td><td class="r">11.00</td></tr><tr><td><b>TOTAL</b></td><td class="r"><b>₹462.00</b></td></tr></table><hr>
+    <div class="c">${esc(b.footer || 'Thank you! Visit again')}</div><div class="c" style="font-size:10px">Powered by Aghanya Devanya Enterprises</div></div>
+    <p class="muted" style="font-size:11px">${b.paper === 'A6' ? 'A6 via print dialog' : b.paper + ' mm thermal'} · the logo does not print in thermal "Direct print" mode</p>`;
+}
+function saveBilling(){ update({billing: billingForm()}, 'Billing template saved — applies to new bills'); }
+
+function tabRules(){
+  const r = CUR.config.rules;
+  $('#tab').innerHTML = `<div class="grid">
+      <div><label>Cashier max discount % (above this needs Manager PIN)</label><input id="r_disc" type="number" min="0" max="100" value="${r.maxDiscPct ?? ''}" placeholder="blank = hotel setting"></div>
+      <div><label>Customer mobile required for bills above ₹</label><input id="r_phone" type="number" min="0" value="${r.phoneAbove ?? ''}" placeholder="blank = off"></div>
+    </div><div class="row" style="margin-top:12px"><button onclick="update({rules:{maxDiscPct:r_disc.value,phoneAbove:r_phone.value}}, 'Rules saved')">Save rules</button></div>
+    <p class="muted">Rules apply to every device of the hotel; cashiers cannot change them in Settings.</p>`;
+}
+
+function tabDomains(){
+  const h = CUR;
+  $('#tab').innerHTML = `
+    <table><tr><th>Domain</th><th>Type</th><th>Status</th><th></th></tr>
+    ${(h.domains || []).map(d => `<tr><td><b>${esc(d.host)}</b>${d.status === 'active' ? ` <a href="https://${esc(d.host)}/hotel_erp.html" target="_blank" rel="noopener">open</a>` : ''}</td><td>${d.kind === 'sub' ? 'Subdomain' : 'Custom'}</td><td>${pill(d.status)}</td>
+      <td class="row">${d.kind === 'custom' ? `<button class="g" onclick="checkDomain('${esc(d.host)}')">Check Status</button>` : ''}<button class="bad" onclick="removeDomain('${esc(d.host)}')">Remove</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">No domains — the hotel signs in with its Hotel Code</td></tr>'}</table>
+    <div id="dns"></div>
+    <h3>Subdomain ${META.baseDomain ? `(<code>xxx.${esc(META.baseDomain)}</code>)` : ''}</h3>
+    ${META.baseDomain ? `<div class="row"><input id="d_slug" placeholder="royal" style="width:180px"><span>.${esc(META.baseDomain)}</span><button onclick="addDomain('sub', d_slug.value)">Add</button></div>`
+      : '<p class="muted">Set BASE_DOMAIN (your Cloudflare domain) in wrangler.toml.</p>'}
+    <h3>Hotel custom domain</h3>
+    ${META.customDomains ? `<div class="row"><input id="d_host" placeholder="erp.hotelroyal.com" style="width:260px"><button onclick="addDomain('custom', d_host.value)">Add</button></div>
+      <p class="muted">If the hotel already has a website, use a subdomain such as <code>erp.</code> — do not replace the main site.</p>`
+      : '<p class="muted">Requires Cloudflare for SaaS: secrets CF_API_TOKEN + CF_ZONE_ID and var SAAS_CNAME_TARGET.</p>'}`;
+}
+function dnsTable(j){
+  if(!j.records || !j.records.length) return '';
+  return `<div class="card" style="background:var(--soft);margin-top:10px"><b>Add these DNS records at the hotel domain provider:</b>
+    <table><tr><th>Type</th><th>Name</th><th>Value</th></tr>${j.records.map(r => `<tr><td>${esc(r.type)}</td><td><code>${esc(r.name)}</code></td><td><code>${esc(r.value)}</code></td></tr>`).join('')}</table>
+    <p class="muted">The domain goes live once verification and HTTPS are ready (${esc(j.cf || 'pending')} / ssl ${esc(j.ssl || 'pending')}).</p></div>`;
+}
+const addDomain = run(async (kind, value) => {
+  const j = await api('/api/admin/domain/add', {code: CUR.code, kind, value});
+  CUR = await api('/api/admin/hotel', {code: CUR.code});
+  tabDomains();
+  $('#dns').innerHTML = dnsTable(j);
+  toast(j.status === 'active' ? 'Domain live: ' + j.host : 'Add the DNS records, then check the status');
+});
+const checkDomain = run(async host => {
+  const j = await api('/api/admin/domain/check', {code: CUR.code, host});
+  CUR = await api('/api/admin/hotel', {code: CUR.code});
+  tabDomains();
+  $('#dns').innerHTML = dnsTable(j);
+});
+const removeDomain = run(async host => {
+  if(!await ask('Remove ' + esc(host) + '?', '<p class="muted" style="margin-top:0">Setu will no longer open from that address.</p>', 'Remove', true)) return;
+  await api('/api/admin/domain/remove', {code: CUR.code, host});
+  CUR = await api('/api/admin/hotel', {code: CUR.code});
+  tabDomains();
+});
+
+function tabSupport(){
+  $('#tab').innerHTML = `<p>Support Access gives you <b>read-only</b> access to the hotel Setu (nothing is saved). The link expires automatically, and the hotel can see in Settings when support viewed it.</p>
+    <div class="grid"><div><label>Duration</label><select id="s_min"><option value="30">30 minutes</option><option value="60" selected>1 hour</option><option value="120">2 hours</option></select></div>
+      <div style="grid-column:span 2"><label>Reason (visible to the hotel)</label><input id="s_why" maxlength="120" placeholder="e.g. checking a GST report issue" style="width:100%"></div></div>
+    <div class="row" style="margin-top:10px"><button onclick="supportOpen()">Create Support Link</button></div><div id="s_out"></div>
+    <h3>Previous Support Access</h3>
+    ${(CUR.supportLog || []).map(x => `<div>${dt(x.at)} · ${x.minutes} min · ${esc(x.reason || '')}</div>`).join('') || '<p class="muted">Never</p>'}
+    <h3>Lost keys</h3>
+    <p class="muted">New Counter PC Sync Key: the old key stops working; enter the new one on the counter PC (Settings → Hotel Setu Cloud Sync). Owner password: Overview tab.</p>
+    <div class="row"><input id="k_set" placeholder="Current Sync Key (40 characters)" maxlength="40" style="min-width:300px"><button class="g" onclick="setSyncKey()">Record This Key</button></div>
+    <div class="row" style="margin-top:8px"><button onclick="newSyncKey()">New Counter PC Sync Key</button></div>
+    <div id="k_out"></div>`;
+}
+const newSyncKey = run(async () => {
+  if(!await ask('New Sync Key?', '<p class="muted" style="margin-top:0">The counter PC must be updated with it.</p>', 'Create')) return;
+  const j = await api('/api/admin/hotel', {code: CUR.code, update: {newSyncKey: true}});
+  $('#k_out').innerHTML = `<p>Hotel Code: <b>${esc(CUR.code)}</b><br>New Sync Key (shown only now): <b style="font-family:monospace">${esc(j.syncKey || '')}</b></p>`;
+});
+const setSyncKey = run(async () => {
+  const k = $('#k_set').value.trim();
+  if(!k) return;
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: {setSyncKey: k}});
+  toast('Sync Key recorded');
+  TAB = 'overview'; drawHotel();
+});
+const ownerPw2 = run(async () => {
+  const pw = $('#o_pw2').value.trim();
+  if(!pw) return;
+  if(!await ask('New owner password for ' + esc(CUR.name) + '?', '', 'Set')) return;
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: {ownerPassword: pw}});
+  toast('Owner password set — tell the owner: ' + pw);
+  drawHotel();
+});
+const supportOpen = run(async () => {
+  if(!$('#s_why').value.trim()) return toast('Please enter a reason (visible to the hotel)', true);
+  const j = await api('/api/admin/support', {code: CUR.code, minutes: +$('#s_min').value, reason: $('#s_why').value});
+  $('#s_out').innerHTML = `<p class="ok">Link created (${j.minutes} min): <a href="${esc(j.url)}" target="_blank" rel="noopener">Open the hotel Setu</a></p>`;
+});
+
+const tabLog = run(async () => { $('#tab').innerHTML = await drawAudit(CUR.code); });
+
+const askThen = run(async (msg, fn) => { if(await ask(msg, '', 'Yes')) await fn(); });
+// Close every open layer at once (e.g. jumping to Keygen from a hotel)
+function closeAll(){
+  if(ASK){ const r = ASK; ASK = null; r(null); }
+  $('#ask').classList.remove('open', 'in'); $('#sheet').classList.remove('open', 'in');
+  if($('#drawer').style.display === 'block'){ $('#drawer').classList.remove('in'); $('#drawer').style.display = 'none'; CUR = null; }
+  const n = LAYERS; LAYERS = 0;
+  if(n) try{ history.go(-n); }catch(e){}
+}
+
+// ---------------- feel of a phone app ----------------
+// App bar lifts (white + line) once the list scrolls under it; the FAB shrinks to an icon while scrolling down
+let lastY = 0;
+function onScroll(){
+  const y = window.scrollY, h = $('#hdr'), lifted = y > 8;
+  if(h && h.classList.contains('lifted') !== lifted){ h.classList.toggle('lifted', lifted); if(!$('#drawer').classList.contains('in')) bars(lifted ? '#FFFFFF' : '#F7F9FC'); }
+  // Small jitters do not count: only a real move up / down changes the button
+  if(Math.abs(y - lastY) > 6){ const f = $('.fab'); if(f) f.classList.toggle('mini', y > lastY && y > 80); lastY = y; }
+}
+window.addEventListener('scroll', onScroll, {passive: true});
+// Touch ripple on everything you can press
+document.addEventListener('pointerdown', e => {
+  let b = e.target.closest('button, .hc, .li, .tile, .quick a, .lr.click, .plan, .chip');
+  if(!b || b.disabled || e.target.closest('input, select, textarea')) return;
+  if(b.matches('nav button')) b = b.querySelector('.pill');
+  const r = b.getBoundingClientRect(), d = Math.max(r.width, r.height), sp = document.createElement('span');
+  sp.className = 'ripple';
+  sp.style.cssText = `width:${d}px;height:${d}px;left:${e.clientX - r.left - d / 2}px;top:${e.clientY - r.top - d / 2}px`;
+  if(getComputedStyle(b).position === 'static') b.style.position = 'relative';
+  b.style.overflow = 'hidden';
+  b.appendChild(sp);
+  setTimeout(() => sp.remove(), 550);
+}, {passive: true});
+// Pull down at the top of a list to refresh it
+let PT = null;
+document.addEventListener('touchstart', e => {
+  PT = !$('#app').hidden && !LAYERS && window.scrollY <= 0 && e.touches.length === 1 && !e.target.closest('.chips, input, textarea, select') ? {y: e.touches[0].clientY, d: 0} : null;
+}, {passive: true});
+document.addEventListener('touchmove', e => {
+  if(!PT) return;
+  PT.d = Math.max(0, e.touches[0].clientY - PT.y);
+  const d = Math.min(PT.d * .5, 110), p = $('#ptr');
+  p.style.transition = 'none';
+  p.style.opacity = Math.min(1, d / 60);
+  p.style.transform = `translateY(${d - 60}px) rotate(${d * 3}deg)`;
+}, {passive: true});
+document.addEventListener('touchend', () => {
+  if(!PT) return;
+  const p = $('#ptr'), go = PT.d * .5 > 70;
+  PT = null;
+  p.style.transition = 'transform .25s, opacity .25s';
+  if(!go){ p.style.opacity = 0; p.style.transform = 'translateY(-70px)'; return; }
+  haptic('tick');
+  p.style.transform = 'translateY(16px)'; p.classList.add('spin');
+  show(VIEW).finally(() => { p.classList.remove('spin'); p.style.opacity = 0; p.style.transform = 'translateY(-70px)'; });
+});
+// Bottom sheet: swipe down on it (when scrolled to its top) to close
+(() => {
+  const box = $('#sheet .box'); let y0 = null, dy = 0;
+  box.addEventListener('touchstart', e => { y0 = box.scrollTop <= 0 && !e.target.closest('input, textarea, select') ? e.touches[0].clientY : null; dy = 0; }, {passive: true});
+  box.addEventListener('touchmove', e => {
+    if(y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if(dy > 0){ box.classList.add('drag'); box.style.transform = `translateY(${dy}px)`; }
+  }, {passive: true});
+  box.addEventListener('touchend', () => {
+    if(y0 === null) return;
+    box.classList.remove('drag'); box.style.transform = '';
+    if(dy > 110){ haptic('tick'); closeSheet(); }
+    y0 = null;
+  });
+})();
+
+// ---------------- start ----------------
+function logout(){ keyForget(); try{ localStorage.removeItem('setu_admin_otp'); }catch(e){} location.reload(); }
+async function openPanel(){
+  try{
+    META = await api('/api/admin/meta');
+    try{ sessionStorage.setItem('setu_admin', KEY); }catch(e){}
+    if(!$('#remember') || $('#remember').checked) keyRemember(KEY);
+    $('#login').hidden = true;
+    $('#app').hidden = false;
+    show('hotels');   // like Library ERP: open on the list, most urgent first
+  }catch(e){
+    // A remembered key that no longer works must not keep trying (it would lock this device)
+    if(/Invalid Admin Key/.test(e.message)){ keyForget(); KEY = ''; }
+    $('#lerr').textContent = e.message;
+    haptic('error');
+    try{ if(APP && SA.ready) SA.ready(); }catch(x){}
+  }
+}
+$('#lf').onsubmit = e => { e.preventDefault(); KEY = $('#key').value.trim(); openPanel(); };
+$('#drawer').onclick = e => { if(e.target.id === 'drawer') closeHotel(); };
+document.addEventListener('keydown', e => { if(e.key === 'Escape' && LAYERS) popLayer(); });
+bars('#F7F9FC');
+if(KEY) openPanel();
+else try{ if(APP && SA.ready) SA.ready(); }catch(e){}
+</script>
+</body>
+</html>

@@ -1,0 +1,584 @@
+{
+ "version": 1,
+ "note": "Representative pictures, not the restaurant's actual dishes.",
+ "size": 512,
+ "thumb": 160,
+ "images": {
+  "bean-curry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6472,
+   "thumbBytes": 1288
+  },
+  "burger": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5024,
+   "thumbBytes": 1270
+  },
+  "cake": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4644,
+   "thumbBytes": 1062
+  },
+  "cat-beverage": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3010,
+   "thumbBytes": 776
+  },
+  "cat-bread": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4884,
+   "thumbBytes": 1086
+  },
+  "cat-chinese": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4110,
+   "thumbBytes": 996
+  },
+  "cat-dessert": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3312,
+   "thumbBytes": 828
+  },
+  "cat-fastfood": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3868,
+   "thumbBytes": 844
+  },
+  "cat-generic": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3168,
+   "thumbBytes": 828
+  },
+  "cat-main": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4182,
+   "thumbBytes": 930
+  },
+  "cat-rice": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3010,
+   "thumbBytes": 732
+  },
+  "cat-snacks": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4394,
+   "thumbBytes": 952
+  },
+  "cat-soup": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3684,
+   "thumbBytes": 878
+  },
+  "cat-south": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4054,
+   "thumbBytes": 934
+  },
+  "cat-starter": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3582,
+   "thumbBytes": 878
+  },
+  "chaat": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6106,
+   "thumbBytes": 1204
+  },
+  "chicken-biryani": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 8866,
+   "thumbBytes": 1646
+  },
+  "chicken-curry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6112,
+   "thumbBytes": 1256
+  },
+  "coffee-cold": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3868,
+   "thumbBytes": 898
+  },
+  "coffee-hot": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4248,
+   "thumbBytes": 932
+  },
+  "dal": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6834,
+   "thumbBytes": 1464
+  },
+  "dosa": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6230,
+   "thumbBytes": 1300
+  },
+  "egg-curry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6880,
+   "thumbBytes": 1472
+  },
+  "fish-curry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6864,
+   "thumbBytes": 1472
+  },
+  "fish-fry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6938,
+   "thumbBytes": 1418
+  },
+  "fried-rice": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 9090,
+   "thumbBytes": 1714
+  },
+  "fries": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5854,
+   "thumbBytes": 1370
+  },
+  "ice-cream": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3994,
+   "thumbBytes": 904
+  },
+  "idli": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3658,
+   "thumbBytes": 728
+  },
+  "indian-sweet": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6054,
+   "thumbBytes": 1300
+  },
+  "indo-chinese": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5670,
+   "thumbBytes": 1254
+  },
+  "juice": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5584,
+   "thumbBytes": 1208
+  },
+  "kebab": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 8224,
+   "thumbBytes": 1784
+  },
+  "lassi": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3166,
+   "thumbBytes": 694
+  },
+  "momos": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4212,
+   "thumbBytes": 806
+  },
+  "mutton-curry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5404,
+   "thumbBytes": 1184
+  },
+  "naan": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5414,
+   "thumbBytes": 1160
+  },
+  "noodles": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 10096,
+   "thumbBytes": 1986
+  },
+  "pakora": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6944,
+   "thumbBytes": 1518
+  },
+  "paneer-curry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6630,
+   "thumbBytes": 1494
+  },
+  "paneer-tikka": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 7996,
+   "thumbBytes": 1714
+  },
+  "papad": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 7274,
+   "thumbBytes": 1616
+  },
+  "paratha": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 7136,
+   "thumbBytes": 1448
+  },
+  "pasta": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6422,
+   "thumbBytes": 1176
+  },
+  "pav-bhaji": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 7088,
+   "thumbBytes": 1520
+  },
+  "pizza": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 10708,
+   "thumbBytes": 2330
+  },
+  "puri": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5490,
+   "thumbBytes": 1180
+  },
+  "raita": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5238,
+   "thumbBytes": 1064
+  },
+  "rice": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5564,
+   "thumbBytes": 760
+  },
+  "roti": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6044,
+   "thumbBytes": 1288
+  },
+  "salad": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5316,
+   "thumbBytes": 1128
+  },
+  "samosa": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6852,
+   "thumbBytes": 1470
+  },
+  "sandwich": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6504,
+   "thumbBytes": 1342
+  },
+  "shake": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4130,
+   "thumbBytes": 966
+  },
+  "soft-drink": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5642,
+   "thumbBytes": 1272
+  },
+  "soup": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 4914,
+   "thumbBytes": 1102
+  },
+  "spring-roll": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6630,
+   "thumbBytes": 1384
+  },
+  "tandoori-chicken": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 7052,
+   "thumbBytes": 1492
+  },
+  "tea": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 3840,
+   "thumbBytes": 812
+  },
+  "thali": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 6544,
+   "thumbBytes": 1482
+  },
+  "veg-biryani": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 7988,
+   "thumbBytes": 1424
+  },
+  "veg-curry": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 7230,
+   "thumbBytes": 1500
+  },
+  "veg-kebab": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 5796,
+   "thumbBytes": 1238
+  },
+  "water": {
+   "source": "Original artwork drawn for this software (tools/food-library/art.py)",
+   "author": "Aghanya Devanya Enterprises",
+   "license": "Proprietary — part of Setu POS, may be redistributed with it",
+   "licenseUrl": "",
+   "kind": "illustration",
+   "bytes": 2786,
+   "thumbBytes": 750
+  }
+ }
+}

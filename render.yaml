@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: setu-baileys-receipts
+    runtime: node
+    rootDir: baileys-gateway
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BAILEYS_DATA_DIR
+        value: /var/data
+      - key: BAILEYS_GATEWAY_SECRET
+        generateValue: true
+      - key: BAILEYS_ADMIN_PASSWORD
+        generateValue: true
+    disk:
+      name: whatsapp-linked-session
+      mountPath: /var/data
+      sizeGB: 1

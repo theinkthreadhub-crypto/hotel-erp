@@ -1,0 +1,501 @@
+﻿Item Code,Category,Item Name,Food Type,Selling Price (INR),Unit,Available
+MENU0001,Indian Soups,Tomato Soup,Veg,110,Plate,Yes
+MENU0002,Indian Soups,Cream of Tomato Soup,Veg,125,Plate,Yes
+MENU0003,Indian Soups,Hot and Sour Veg Soup,Veg,140,Plate,Yes
+MENU0004,Indian Soups,Sweet Corn Veg Soup,Veg,155,Plate,Yes
+MENU0005,Indian Soups,Manchow Veg Soup,Veg,170,Plate,Yes
+MENU0006,Indian Soups,Lemon Coriander Soup,Veg,185,Plate,Yes
+MENU0007,Indian Soups,Clear Vegetable Soup,Veg,120,Plate,Yes
+MENU0008,Indian Soups,Palak Soup,Veg,135,Plate,Yes
+MENU0009,Indian Soups,Mushroom Soup,Veg,150,Plate,Yes
+MENU0010,Indian Soups,Broccoli Almond Soup,Veg,165,Plate,Yes
+MENU0011,Indian Soups,Veg Talumein Soup,Veg,180,Plate,Yes
+MENU0012,Indian Soups,Mulligatawny Soup,Veg,195,Plate,Yes
+MENU0013,Indian Soups,Roasted Pumpkin Soup,Veg,130,Plate,Yes
+MENU0014,Indian Soups,Carrot Ginger Soup,Veg,145,Plate,Yes
+MENU0015,Indian Soups,Cream of Spinach Soup,Veg,160,Plate,Yes
+MENU0016,Indian Soups,Garlic Pepper Soup,Veg,175,Plate,Yes
+MENU0017,Indian Soups,Corn Spinach Soup,Veg,190,Plate,Yes
+MENU0018,Indian Soups,Thai Coconut Veg Soup,Veg,205,Plate,Yes
+MENU0019,Indian Soups,Vegetable Noodle Soup,Veg,140,Plate,Yes
+MENU0020,Indian Soups,Cream of Asparagus Soup,Veg,155,Plate,Yes
+MENU0021,Non Veg Soups,Chicken Clear Soup,Non-Veg,160,Plate,Yes
+MENU0022,Non Veg Soups,Chicken Sweet Corn Soup,Non-Veg,175,Plate,Yes
+MENU0023,Non Veg Soups,Chicken Hot and Sour Soup,Non-Veg,190,Plate,Yes
+MENU0024,Non Veg Soups,Chicken Manchow Soup,Non-Veg,205,Plate,Yes
+MENU0025,Non Veg Soups,Chicken Lemon Coriander Soup,Non-Veg,220,Plate,Yes
+MENU0026,Non Veg Soups,Chicken Noodle Soup,Non-Veg,235,Plate,Yes
+MENU0027,Non Veg Soups,Cream of Chicken Soup,Non-Veg,170,Plate,Yes
+MENU0028,Non Veg Soups,Chicken Mushroom Soup,Non-Veg,185,Plate,Yes
+MENU0029,Non Veg Soups,Chicken Talumein Soup,Non-Veg,200,Plate,Yes
+MENU0030,Non Veg Soups,Chicken Pepper Soup,Non-Veg,215,Plate,Yes
+MENU0031,Non Veg Soups,Mutton Shorba,Non-Veg,230,Plate,Yes
+MENU0032,Non Veg Soups,Mutton Yakhni Soup,Non-Veg,245,Plate,Yes
+MENU0033,Non Veg Soups,Mutton Paya Soup,Non-Veg,180,Plate,Yes
+MENU0034,Non Veg Soups,Lamb Pepper Soup,Non-Veg,195,Plate,Yes
+MENU0035,Non Veg Soups,Fish Clear Soup,Non-Veg,210,Plate,Yes
+MENU0036,Non Veg Soups,Fish Hot and Sour Soup,Non-Veg,225,Plate,Yes
+MENU0037,Non Veg Soups,Prawn Sweet Corn Soup,Non-Veg,240,Plate,Yes
+MENU0038,Non Veg Soups,Prawn Tom Yum Soup,Non-Veg,255,Plate,Yes
+MENU0039,Non Veg Soups,Seafood Chowder,Non-Veg,190,Plate,Yes
+MENU0040,Non Veg Soups,Egg Drop Soup,Non-Veg,205,Plate,Yes
+MENU0041,Veg Starters,Paneer Tikka,Veg,170,Plate,Yes
+MENU0042,Veg Starters,Paneer Malai Tikka,Veg,185,Plate,Yes
+MENU0043,Veg Starters,Paneer Achari Tikka,Veg,200,Plate,Yes
+MENU0044,Veg Starters,Paneer Hariyali Tikka,Veg,215,Plate,Yes
+MENU0045,Veg Starters,Paneer Lasooni Tikka,Veg,230,Plate,Yes
+MENU0046,Veg Starters,Tandoori Mushroom,Veg,245,Plate,Yes
+MENU0047,Veg Starters,Stuffed Tandoori Mushroom,Veg,180,Plate,Yes
+MENU0048,Veg Starters,Tandoori Aloo,Veg,195,Plate,Yes
+MENU0049,Veg Starters,Hara Bhara Kebab,Veg,210,Plate,Yes
+MENU0050,Veg Starters,Veg Seekh Kebab,Veg,225,Plate,Yes
+MENU0051,Veg Starters,Dahi Ke Kebab,Veg,240,Plate,Yes
+MENU0052,Veg Starters,Corn Cheese Balls,Veg,255,Plate,Yes
+MENU0053,Veg Starters,Crispy Corn,Veg,190,Plate,Yes
+MENU0054,Veg Starters,Veg Spring Roll,Veg,205,Plate,Yes
+MENU0055,Veg Starters,Cheese Chilli Toast,Veg,220,Plate,Yes
+MENU0056,Veg Starters,Veg Cutlet,Veg,235,Plate,Yes
+MENU0057,Veg Starters,Paneer Pakora,Veg,250,Plate,Yes
+MENU0058,Veg Starters,Mix Veg Pakora,Veg,265,Plate,Yes
+MENU0059,Veg Starters,Stuffed Tandoori Broccoli,Veg,200,Plate,Yes
+MENU0060,Veg Starters,Soya Chaap Tikka,Veg,215,Plate,Yes
+MENU0061,Non Veg Starters,Chicken Tikka,Non-Veg,250,Plate,Yes
+MENU0062,Non Veg Starters,Chicken Malai Tikka,Non-Veg,265,Plate,Yes
+MENU0063,Non Veg Starters,Chicken Achari Tikka,Non-Veg,280,Plate,Yes
+MENU0064,Non Veg Starters,Chicken Hariyali Tikka,Non-Veg,295,Plate,Yes
+MENU0065,Non Veg Starters,Chicken Reshmi Kebab,Non-Veg,310,Plate,Yes
+MENU0066,Non Veg Starters,Chicken Seekh Kebab,Non-Veg,325,Plate,Yes
+MENU0067,Non Veg Starters,Tandoori Chicken Half,Non-Veg,290,Plate,Yes
+MENU0068,Non Veg Starters,Tandoori Chicken Full,Non-Veg,455,Plate,Yes
+MENU0069,Non Veg Starters,Chicken Tangdi Kebab,Non-Veg,290,Plate,Yes
+MENU0070,Non Veg Starters,Chicken Afghani Tikka,Non-Veg,305,Plate,Yes
+MENU0071,Non Veg Starters,Chicken 65,Non-Veg,320,Plate,Yes
+MENU0072,Non Veg Starters,Chicken Lollipop,Non-Veg,335,Plate,Yes
+MENU0073,Non Veg Starters,Chicken Pakora,Non-Veg,270,Plate,Yes
+MENU0074,Non Veg Starters,Mutton Seekh Kebab,Non-Veg,285,Plate,Yes
+MENU0075,Non Veg Starters,Mutton Shami Kebab,Non-Veg,300,Plate,Yes
+MENU0076,Non Veg Starters,Mutton Galouti Kebab,Non-Veg,315,Plate,Yes
+MENU0077,Non Veg Starters,Fish Tikka,Non-Veg,330,Plate,Yes
+MENU0078,Non Veg Starters,Fish Amritsari,Non-Veg,345,Plate,Yes
+MENU0079,Non Veg Starters,Prawn Tikka,Non-Veg,280,Plate,Yes
+MENU0080,Non Veg Starters,Tandoori Fish,Non-Veg,295,Plate,Yes
+MENU0081,Veg Chinese Starters,Veg Manchurian Dry,Veg,180,Plate,Yes
+MENU0082,Veg Chinese Starters,Gobi Manchurian Dry,Veg,195,Plate,Yes
+MENU0083,Veg Chinese Starters,Paneer Chilli Dry,Veg,210,Plate,Yes
+MENU0084,Veg Chinese Starters,Mushroom Chilli Dry,Veg,225,Plate,Yes
+MENU0085,Veg Chinese Starters,Crispy Honey Chilli Potato,Veg,240,Plate,Yes
+MENU0086,Veg Chinese Starters,Chilli Garlic Potato,Veg,255,Plate,Yes
+MENU0087,Veg Chinese Starters,Veg Salt and Pepper,Veg,190,Plate,Yes
+MENU0088,Veg Chinese Starters,Crispy Vegetables,Veg,205,Plate,Yes
+MENU0089,Veg Chinese Starters,Kung Pao Vegetables,Veg,220,Plate,Yes
+MENU0090,Veg Chinese Starters,Sesame Chilli Paneer,Veg,235,Plate,Yes
+MENU0091,Veg Chinese Starters,Veg Schezwan Balls,Veg,250,Plate,Yes
+MENU0092,Veg Chinese Starters,Chinese Bhel,Veg,265,Plate,Yes
+MENU0093,Veg Chinese Starters,Chilli Baby Corn,Veg,200,Plate,Yes
+MENU0094,Veg Chinese Starters,Crispy Chilli Corn,Veg,215,Plate,Yes
+MENU0095,Veg Chinese Starters,Mushroom Pepper Salt,Veg,230,Plate,Yes
+MENU0096,Veg Chinese Starters,Veg Dragon Roll,Veg,245,Plate,Yes
+MENU0097,Veg Chinese Starters,Veg Wonton Fried,Veg,260,Plate,Yes
+MENU0098,Veg Chinese Starters,Paneer 65,Veg,275,Plate,Yes
+MENU0099,Veg Chinese Starters,Schezwan Paneer Fingers,Veg,210,Plate,Yes
+MENU0100,Veg Chinese Starters,Crispy Lotus Stem,Veg,225,Plate,Yes
+MENU0101,Non Veg Chinese Starters,Chilli Chicken Dry,Non-Veg,250,Plate,Yes
+MENU0102,Non Veg Chinese Starters,Chicken Manchurian Dry,Non-Veg,265,Plate,Yes
+MENU0103,Non Veg Chinese Starters,Chicken Schezwan Dry,Non-Veg,280,Plate,Yes
+MENU0104,Non Veg Chinese Starters,Chicken Salt and Pepper,Non-Veg,295,Plate,Yes
+MENU0105,Non Veg Chinese Starters,Chicken Dragon,Non-Veg,310,Plate,Yes
+MENU0106,Non Veg Chinese Starters,Crispy Honey Chicken,Non-Veg,325,Plate,Yes
+MENU0107,Non Veg Chinese Starters,Kung Pao Chicken,Non-Veg,260,Plate,Yes
+MENU0108,Non Veg Chinese Starters,Chicken Garlic Pepper,Non-Veg,275,Plate,Yes
+MENU0109,Non Veg Chinese Starters,Chicken Popcorn,Non-Veg,290,Plate,Yes
+MENU0110,Non Veg Chinese Starters,Chicken Wonton Fried,Non-Veg,305,Plate,Yes
+MENU0111,Non Veg Chinese Starters,Chilli Fish Dry,Non-Veg,320,Plate,Yes
+MENU0112,Non Veg Chinese Starters,Fish Salt and Pepper,Non-Veg,335,Plate,Yes
+MENU0113,Non Veg Chinese Starters,Schezwan Fish Dry,Non-Veg,270,Plate,Yes
+MENU0114,Non Veg Chinese Starters,Prawn Chilli Dry,Non-Veg,285,Plate,Yes
+MENU0115,Non Veg Chinese Starters,Prawn Salt and Pepper,Non-Veg,300,Plate,Yes
+MENU0116,Non Veg Chinese Starters,Prawn Tempura,Non-Veg,315,Plate,Yes
+MENU0117,Non Veg Chinese Starters,Crispy Garlic Prawns,Non-Veg,330,Plate,Yes
+MENU0118,Non Veg Chinese Starters,Chicken Sesame Toast,Non-Veg,345,Plate,Yes
+MENU0119,Non Veg Chinese Starters,Egg Chilli Dry,Non-Veg,280,Plate,Yes
+MENU0120,Non Veg Chinese Starters,Chicken Drumsticks,Non-Veg,295,Plate,Yes
+MENU0121,Paneer Main Course,Shahi Paneer,Veg,220,Plate,Yes
+MENU0122,Paneer Main Course,Kadai Paneer,Veg,235,Plate,Yes
+MENU0123,Paneer Main Course,Paneer Butter Masala,Veg,250,Plate,Yes
+MENU0124,Paneer Main Course,Paneer Lababdar,Veg,265,Plate,Yes
+MENU0125,Paneer Main Course,Paneer Tikka Masala,Veg,280,Plate,Yes
+MENU0126,Paneer Main Course,Palak Paneer,Veg,295,Plate,Yes
+MENU0127,Paneer Main Course,Matar Paneer,Veg,230,Plate,Yes
+MENU0128,Paneer Main Course,Paneer Do Pyaza,Veg,245,Plate,Yes
+MENU0129,Paneer Main Course,Paneer Bhurji,Veg,260,Plate,Yes
+MENU0130,Paneer Main Course,Paneer Pasanda,Veg,275,Plate,Yes
+MENU0131,Paneer Main Course,Paneer Handi,Veg,290,Plate,Yes
+MENU0132,Paneer Main Course,Paneer Kolhapuri,Veg,305,Plate,Yes
+MENU0133,Paneer Main Course,Paneer Kali Mirch,Veg,240,Plate,Yes
+MENU0134,Paneer Main Course,Paneer Makhani,Veg,255,Plate,Yes
+MENU0135,Paneer Main Course,Paneer Jalfrezi,Veg,270,Plate,Yes
+MENU0136,Paneer Main Course,Paneer Korma,Veg,285,Plate,Yes
+MENU0137,Paneer Main Course,Paneer Khurchan,Veg,300,Plate,Yes
+MENU0138,Paneer Main Course,Paneer Mughlai,Veg,315,Plate,Yes
+MENU0139,Paneer Main Course,Paneer Hyderabadi,Veg,250,Plate,Yes
+MENU0140,Paneer Main Course,Paneer Angara,Veg,265,Plate,Yes
+MENU0141,Veg Main Course,Mix Veg Curry,Veg,170,Plate,Yes
+MENU0142,Veg Main Course,Veg Kolhapuri,Veg,185,Plate,Yes
+MENU0143,Veg Main Course,Veg Jalfrezi,Veg,200,Plate,Yes
+MENU0144,Veg Main Course,Veg Kadai,Veg,215,Plate,Yes
+MENU0145,Veg Main Course,Veg Handi,Veg,230,Plate,Yes
+MENU0146,Veg Main Course,Veg Kofta Curry,Veg,245,Plate,Yes
+MENU0147,Veg Main Course,Malai Kofta,Veg,180,Plate,Yes
+MENU0148,Veg Main Course,Navratan Korma,Veg,195,Plate,Yes
+MENU0149,Veg Main Course,Dum Aloo Kashmiri,Veg,210,Plate,Yes
+MENU0150,Veg Main Course,Dum Aloo Banarasi,Veg,225,Plate,Yes
+MENU0151,Veg Main Course,Aloo Gobi Masala,Veg,240,Plate,Yes
+MENU0152,Veg Main Course,Bhindi Masala,Veg,255,Plate,Yes
+MENU0153,Veg Main Course,Bhindi Do Pyaza,Veg,190,Plate,Yes
+MENU0154,Veg Main Course,Baingan Bharta,Veg,205,Plate,Yes
+MENU0155,Veg Main Course,Mushroom Masala,Veg,220,Plate,Yes
+MENU0156,Veg Main Course,Mushroom Do Pyaza,Veg,235,Plate,Yes
+MENU0157,Veg Main Course,Methi Matar Malai,Veg,250,Plate,Yes
+MENU0158,Veg Main Course,Gobi Matar Masala,Veg,265,Plate,Yes
+MENU0159,Veg Main Course,Soya Chaap Masala,Veg,200,Plate,Yes
+MENU0160,Veg Main Course,Soya Chaap Lababdar,Veg,215,Plate,Yes
+MENU0161,Dal and Kadhi,Dal Fry,Veg,130,Plate,Yes
+MENU0162,Dal and Kadhi,Dal Tadka,Veg,145,Plate,Yes
+MENU0163,Dal and Kadhi,Dal Makhani,Veg,160,Plate,Yes
+MENU0164,Dal and Kadhi,Dal Panchmel,Veg,175,Plate,Yes
+MENU0165,Dal and Kadhi,Dal Palak,Veg,190,Plate,Yes
+MENU0166,Dal and Kadhi,Yellow Dal Plain,Veg,205,Plate,Yes
+MENU0167,Dal and Kadhi,Dal Lasooni,Veg,140,Plate,Yes
+MENU0168,Dal and Kadhi,Dal Kolhapuri,Veg,155,Plate,Yes
+MENU0169,Dal and Kadhi,Dal Handi,Veg,170,Plate,Yes
+MENU0170,Dal and Kadhi,Dal Bukhara,Veg,185,Plate,Yes
+MENU0171,Dal and Kadhi,Chana Masala,Veg,200,Plate,Yes
+MENU0172,Dal and Kadhi,Punjabi Chole,Veg,215,Plate,Yes
+MENU0173,Dal and Kadhi,Rajma Masala,Veg,150,Plate,Yes
+MENU0174,Dal and Kadhi,Kadhi Pakora,Veg,165,Plate,Yes
+MENU0175,Dal and Kadhi,Plain Kadhi,Veg,180,Plate,Yes
+MENU0176,Dal and Kadhi,Gujarati Kadhi,Veg,195,Plate,Yes
+MENU0177,Dal and Kadhi,Black Chana Curry,Veg,210,Plate,Yes
+MENU0178,Dal and Kadhi,Lobia Masala,Veg,225,Plate,Yes
+MENU0179,Dal and Kadhi,Sabut Moong Dal,Veg,160,Plate,Yes
+MENU0180,Dal and Kadhi,Dal Amritsari,Veg,175,Plate,Yes
+MENU0181,Chicken Main Course,Butter Chicken Half,Non-Veg,310,Plate,Yes
+MENU0182,Chicken Main Course,Butter Chicken Full,Non-Veg,475,Plate,Yes
+MENU0183,Chicken Main Course,Kadai Chicken,Non-Veg,310,Plate,Yes
+MENU0184,Chicken Main Course,Chicken Curry,Non-Veg,325,Plate,Yes
+MENU0185,Chicken Main Course,Chicken Masala,Non-Veg,340,Plate,Yes
+MENU0186,Chicken Main Course,Chicken Tikka Masala,Non-Veg,355,Plate,Yes
+MENU0187,Chicken Main Course,Chicken Handi,Non-Veg,290,Plate,Yes
+MENU0188,Chicken Main Course,Chicken Do Pyaza,Non-Veg,305,Plate,Yes
+MENU0189,Chicken Main Course,Chicken Korma,Non-Veg,320,Plate,Yes
+MENU0190,Chicken Main Course,Chicken Kolhapuri,Non-Veg,335,Plate,Yes
+MENU0191,Chicken Main Course,Chicken Chettinad,Non-Veg,350,Plate,Yes
+MENU0192,Chicken Main Course,Chicken Hyderabadi,Non-Veg,365,Plate,Yes
+MENU0193,Chicken Main Course,Chicken Mughlai,Non-Veg,300,Plate,Yes
+MENU0194,Chicken Main Course,Chicken Saagwala,Non-Veg,315,Plate,Yes
+MENU0195,Chicken Main Course,Chicken Kali Mirch,Non-Veg,330,Plate,Yes
+MENU0196,Chicken Main Course,Chicken Rara,Non-Veg,345,Plate,Yes
+MENU0197,Chicken Main Course,Chicken Changezi,Non-Veg,360,Plate,Yes
+MENU0198,Chicken Main Course,Chicken Bhuna,Non-Veg,375,Plate,Yes
+MENU0199,Chicken Main Course,Chicken Patiala,Non-Veg,310,Plate,Yes
+MENU0200,Chicken Main Course,Chicken Lababdar,Non-Veg,325,Plate,Yes
+MENU0201,Mutton Main Course,Mutton Curry,Non-Veg,380,Plate,Yes
+MENU0202,Mutton Main Course,Mutton Rogan Josh,Non-Veg,395,Plate,Yes
+MENU0203,Mutton Main Course,Mutton Korma,Non-Veg,410,Plate,Yes
+MENU0204,Mutton Main Course,Mutton Bhuna,Non-Veg,425,Plate,Yes
+MENU0205,Mutton Main Course,Mutton Kadai,Non-Veg,440,Plate,Yes
+MENU0206,Mutton Main Course,Mutton Handi,Non-Veg,455,Plate,Yes
+MENU0207,Mutton Main Course,Mutton Do Pyaza,Non-Veg,390,Plate,Yes
+MENU0208,Mutton Main Course,Mutton Saagwala,Non-Veg,405,Plate,Yes
+MENU0209,Mutton Main Course,Mutton Kolhapuri,Non-Veg,420,Plate,Yes
+MENU0210,Mutton Main Course,Mutton Masala,Non-Veg,435,Plate,Yes
+MENU0211,Mutton Main Course,Mutton Rara,Non-Veg,450,Plate,Yes
+MENU0212,Mutton Main Course,Mutton Keema Matar,Non-Veg,465,Plate,Yes
+MENU0213,Mutton Main Course,Mutton Nalli Nihari,Non-Veg,400,Plate,Yes
+MENU0214,Mutton Main Course,Mutton Yakhni,Non-Veg,415,Plate,Yes
+MENU0215,Mutton Main Course,Mutton Laal Maas,Non-Veg,430,Plate,Yes
+MENU0216,Mutton Main Course,Mutton Kosha,Non-Veg,445,Plate,Yes
+MENU0217,Mutton Main Course,Mutton Pepper Fry,Non-Veg,460,Plate,Yes
+MENU0218,Mutton Main Course,Mutton Mughlai,Non-Veg,475,Plate,Yes
+MENU0219,Mutton Main Course,Mutton Hyderabadi,Non-Veg,410,Plate,Yes
+MENU0220,Mutton Main Course,Mutton Achari,Non-Veg,425,Plate,Yes
+MENU0221,Fish and Prawns,Fish Curry,Non-Veg,350,Plate,Yes
+MENU0222,Fish and Prawns,Fish Masala,Non-Veg,365,Plate,Yes
+MENU0223,Fish and Prawns,Fish Tawa Fry,Non-Veg,380,Plate,Yes
+MENU0224,Fish and Prawns,Fish Kadai,Non-Veg,395,Plate,Yes
+MENU0225,Fish and Prawns,Fish Goan Curry,Non-Veg,410,Plate,Yes
+MENU0226,Fish and Prawns,Fish Malabari Curry,Non-Veg,425,Plate,Yes
+MENU0227,Fish and Prawns,Fish Amritsari Curry,Non-Veg,360,Plate,Yes
+MENU0228,Fish and Prawns,Fish Chettinad,Non-Veg,375,Plate,Yes
+MENU0229,Fish and Prawns,Fish Bengali Mustard,Non-Veg,390,Plate,Yes
+MENU0230,Fish and Prawns,Fish Kali Mirch,Non-Veg,405,Plate,Yes
+MENU0231,Fish and Prawns,Prawn Curry,Non-Veg,420,Plate,Yes
+MENU0232,Fish and Prawns,Prawn Masala,Non-Veg,435,Plate,Yes
+MENU0233,Fish and Prawns,Prawn Kadai,Non-Veg,370,Plate,Yes
+MENU0234,Fish and Prawns,Prawn Butter Masala,Non-Veg,385,Plate,Yes
+MENU0235,Fish and Prawns,Prawn Goan Curry,Non-Veg,400,Plate,Yes
+MENU0236,Fish and Prawns,Prawn Malabari,Non-Veg,415,Plate,Yes
+MENU0237,Fish and Prawns,Prawn Pepper Fry,Non-Veg,430,Plate,Yes
+MENU0238,Fish and Prawns,Prawn Coconut Curry,Non-Veg,445,Plate,Yes
+MENU0239,Fish and Prawns,Fish Tikka Masala,Non-Veg,380,Plate,Yes
+MENU0240,Fish and Prawns,Prawn Tikka Masala,Non-Veg,395,Plate,Yes
+MENU0241,Indian Breads,Plain Roti,Veg,15,Piece,Yes
+MENU0242,Indian Breads,Butter Roti,Veg,30,Piece,Yes
+MENU0243,Indian Breads,Tandoori Roti,Veg,45,Piece,Yes
+MENU0244,Indian Breads,Butter Tandoori Roti,Veg,60,Piece,Yes
+MENU0245,Indian Breads,Plain Naan,Veg,75,Piece,Yes
+MENU0246,Indian Breads,Butter Naan,Veg,90,Piece,Yes
+MENU0247,Indian Breads,Garlic Naan,Veg,25,Piece,Yes
+MENU0248,Indian Breads,Cheese Naan,Veg,40,Piece,Yes
+MENU0249,Indian Breads,Chilli Garlic Naan,Veg,55,Piece,Yes
+MENU0250,Indian Breads,Lachha Paratha,Veg,70,Piece,Yes
+MENU0251,Indian Breads,Pudina Paratha,Veg,85,Piece,Yes
+MENU0252,Indian Breads,Missi Roti,Veg,100,Piece,Yes
+MENU0253,Indian Breads,Roomali Roti,Veg,35,Piece,Yes
+MENU0254,Indian Breads,Kulcha Plain,Veg,50,Piece,Yes
+MENU0255,Indian Breads,Butter Kulcha,Veg,65,Piece,Yes
+MENU0256,Indian Breads,Stuffed Kulcha,Veg,80,Piece,Yes
+MENU0257,Indian Breads,Aloo Paratha,Veg,95,Piece,Yes
+MENU0258,Indian Breads,Paneer Paratha,Veg,110,Piece,Yes
+MENU0259,Indian Breads,Onion Paratha,Veg,45,Piece,Yes
+MENU0260,Indian Breads,Stuffed Amritsari Kulcha,Veg,60,Piece,Yes
+MENU0261,Rice and Pulao,Steamed Rice,Veg,90,Plate,Yes
+MENU0262,Rice and Pulao,Jeera Rice,Veg,105,Plate,Yes
+MENU0263,Rice and Pulao,Ghee Rice,Veg,120,Plate,Yes
+MENU0264,Rice and Pulao,Peas Pulao,Veg,135,Plate,Yes
+MENU0265,Rice and Pulao,Veg Pulao,Veg,150,Plate,Yes
+MENU0266,Rice and Pulao,Kashmiri Pulao,Veg,165,Plate,Yes
+MENU0267,Rice and Pulao,Paneer Pulao,Veg,100,Plate,Yes
+MENU0268,Rice and Pulao,Mushroom Pulao,Veg,115,Plate,Yes
+MENU0269,Rice and Pulao,Corn Pulao,Veg,130,Plate,Yes
+MENU0270,Rice and Pulao,Tawa Pulao,Veg,145,Plate,Yes
+MENU0271,Rice and Pulao,Masala Rice,Veg,160,Plate,Yes
+MENU0272,Rice and Pulao,Lemon Rice,Veg,175,Plate,Yes
+MENU0273,Rice and Pulao,Coconut Rice,Veg,110,Plate,Yes
+MENU0274,Rice and Pulao,Curd Rice,Veg,125,Plate,Yes
+MENU0275,Rice and Pulao,Tomato Rice,Veg,140,Plate,Yes
+MENU0276,Rice and Pulao,Palak Rice,Veg,155,Plate,Yes
+MENU0277,Rice and Pulao,Garlic Rice,Veg,170,Plate,Yes
+MENU0278,Rice and Pulao,Saffron Rice,Veg,185,Plate,Yes
+MENU0279,Rice and Pulao,Veg Tahri,Veg,120,Plate,Yes
+MENU0280,Rice and Pulao,Navratan Pulao,Veg,135,Plate,Yes
+MENU0281,Biryani,Veg Dum Biryani,Veg,200,Plate,Yes
+MENU0282,Biryani,Paneer Biryani,Veg,215,Plate,Yes
+MENU0283,Biryani,Mushroom Biryani,Veg,230,Plate,Yes
+MENU0284,Biryani,Soya Chaap Biryani,Veg,245,Plate,Yes
+MENU0285,Biryani,Hyderabadi Veg Biryani,Veg,260,Plate,Yes
+MENU0286,Biryani,Lucknowi Veg Biryani,Veg,275,Plate,Yes
+MENU0287,Biryani,Kathal Biryani,Veg,210,Plate,Yes
+MENU0288,Biryani,Egg Biryani,Non-Veg,225,Plate,Yes
+MENU0289,Biryani,Chicken Dum Biryani,Non-Veg,240,Plate,Yes
+MENU0290,Biryani,Chicken Hyderabadi Biryani,Non-Veg,255,Plate,Yes
+MENU0291,Biryani,Chicken Lucknowi Biryani,Non-Veg,270,Plate,Yes
+MENU0292,Biryani,Chicken Tikka Biryani,Non-Veg,285,Plate,Yes
+MENU0293,Biryani,Chicken 65 Biryani,Non-Veg,220,Plate,Yes
+MENU0294,Biryani,Chicken Handi Biryani,Non-Veg,235,Plate,Yes
+MENU0295,Biryani,Mutton Dum Biryani,Non-Veg,250,Plate,Yes
+MENU0296,Biryani,Mutton Hyderabadi Biryani,Non-Veg,265,Plate,Yes
+MENU0297,Biryani,Mutton Lucknowi Biryani,Non-Veg,280,Plate,Yes
+MENU0298,Biryani,Fish Biryani,Non-Veg,295,Plate,Yes
+MENU0299,Biryani,Prawn Biryani,Non-Veg,230,Plate,Yes
+MENU0300,Biryani,Special Mixed Non Veg Biryani,Non-Veg,245,Plate,Yes
+MENU0301,Noodles,Veg Hakka Noodles,Veg,140,Plate,Yes
+MENU0302,Noodles,Veg Schezwan Noodles,Veg,155,Plate,Yes
+MENU0303,Noodles,Veg Chilli Garlic Noodles,Veg,170,Plate,Yes
+MENU0304,Noodles,Veg Singapore Noodles,Veg,185,Plate,Yes
+MENU0305,Noodles,Veg Pan Fried Noodles,Veg,200,Plate,Yes
+MENU0306,Noodles,Veg Hong Kong Noodles,Veg,215,Plate,Yes
+MENU0307,Noodles,Veg Triple Schezwan Noodles,Veg,150,Plate,Yes
+MENU0308,Noodles,Veg American Chopsuey,Veg,165,Plate,Yes
+MENU0309,Noodles,Veg Chinese Chopsuey,Veg,180,Plate,Yes
+MENU0310,Noodles,Veg Garlic Noodles,Veg,195,Plate,Yes
+MENU0311,Noodles,Egg Hakka Noodles,Non-Veg,210,Plate,Yes
+MENU0312,Noodles,Egg Schezwan Noodles,Non-Veg,225,Plate,Yes
+MENU0313,Noodles,Chicken Hakka Noodles,Non-Veg,160,Plate,Yes
+MENU0314,Noodles,Chicken Schezwan Noodles,Non-Veg,175,Plate,Yes
+MENU0315,Noodles,Chicken Chilli Garlic Noodles,Non-Veg,190,Plate,Yes
+MENU0316,Noodles,Chicken Singapore Noodles,Non-Veg,205,Plate,Yes
+MENU0317,Noodles,Chicken Pan Fried Noodles,Non-Veg,220,Plate,Yes
+MENU0318,Noodles,Chicken American Chopsuey,Non-Veg,235,Plate,Yes
+MENU0319,Noodles,Mixed Non Veg Noodles,Non-Veg,170,Plate,Yes
+MENU0320,Noodles,Prawn Hakka Noodles,Non-Veg,185,Plate,Yes
+MENU0321,Fried Rice,Veg Fried Rice,Veg,130,Plate,Yes
+MENU0322,Fried Rice,Veg Schezwan Fried Rice,Veg,145,Plate,Yes
+MENU0323,Fried Rice,Veg Burnt Garlic Rice,Veg,160,Plate,Yes
+MENU0324,Fried Rice,Veg Singapore Fried Rice,Veg,175,Plate,Yes
+MENU0325,Fried Rice,Veg Triple Schezwan Rice,Veg,190,Plate,Yes
+MENU0326,Fried Rice,Veg Mushroom Fried Rice,Veg,205,Plate,Yes
+MENU0327,Fried Rice,Veg Paneer Fried Rice,Veg,140,Plate,Yes
+MENU0328,Fried Rice,Veg Hong Kong Fried Rice,Veg,155,Plate,Yes
+MENU0329,Fried Rice,Veg Chilli Garlic Rice,Veg,170,Plate,Yes
+MENU0330,Fried Rice,Veg Basil Fried Rice,Veg,185,Plate,Yes
+MENU0331,Fried Rice,Egg Fried Rice,Non-Veg,200,Plate,Yes
+MENU0332,Fried Rice,Egg Schezwan Rice,Non-Veg,215,Plate,Yes
+MENU0333,Fried Rice,Chicken Fried Rice,Non-Veg,150,Plate,Yes
+MENU0334,Fried Rice,Chicken Schezwan Rice,Non-Veg,165,Plate,Yes
+MENU0335,Fried Rice,Chicken Burnt Garlic Rice,Non-Veg,180,Plate,Yes
+MENU0336,Fried Rice,Chicken Singapore Fried Rice,Non-Veg,195,Plate,Yes
+MENU0337,Fried Rice,Chicken Triple Schezwan Rice,Non-Veg,210,Plate,Yes
+MENU0338,Fried Rice,Mixed Non Veg Fried Rice,Non-Veg,225,Plate,Yes
+MENU0339,Fried Rice,Prawn Fried Rice,Non-Veg,160,Plate,Yes
+MENU0340,Fried Rice,Prawn Schezwan Rice,Non-Veg,175,Plate,Yes
+MENU0341,Chinese Gravies,Veg Manchurian Gravy,Veg,190,Plate,Yes
+MENU0342,Chinese Gravies,Gobi Manchurian Gravy,Veg,205,Plate,Yes
+MENU0343,Chinese Gravies,Paneer Chilli Gravy,Veg,220,Plate,Yes
+MENU0344,Chinese Gravies,Mushroom Chilli Gravy,Veg,235,Plate,Yes
+MENU0345,Chinese Gravies,Veg Hot Garlic Sauce,Veg,250,Plate,Yes
+MENU0346,Chinese Gravies,Veg Schezwan Gravy,Veg,265,Plate,Yes
+MENU0347,Chinese Gravies,Baby Corn Manchurian Gravy,Veg,200,Plate,Yes
+MENU0348,Chinese Gravies,Mixed Vegetable Black Bean Sauce,Veg,215,Plate,Yes
+MENU0349,Chinese Gravies,Kung Pao Paneer Gravy,Veg,230,Plate,Yes
+MENU0350,Chinese Gravies,Tofu Chilli Gravy,Veg,245,Plate,Yes
+MENU0351,Chinese Gravies,Chicken Manchurian Gravy,Non-Veg,260,Plate,Yes
+MENU0352,Chinese Gravies,Chilli Chicken Gravy,Non-Veg,275,Plate,Yes
+MENU0353,Chinese Gravies,Chicken Hot Garlic Sauce,Non-Veg,210,Plate,Yes
+MENU0354,Chinese Gravies,Chicken Schezwan Gravy,Non-Veg,225,Plate,Yes
+MENU0355,Chinese Gravies,Chicken Black Pepper Sauce,Non-Veg,240,Plate,Yes
+MENU0356,Chinese Gravies,Chicken Hong Kong Sauce,Non-Veg,255,Plate,Yes
+MENU0357,Chinese Gravies,Fish Chilli Gravy,Non-Veg,270,Plate,Yes
+MENU0358,Chinese Gravies,Fish Hot Garlic Sauce,Non-Veg,285,Plate,Yes
+MENU0359,Chinese Gravies,Prawn Chilli Gravy,Non-Veg,220,Plate,Yes
+MENU0360,Chinese Gravies,Prawn Schezwan Gravy,Non-Veg,235,Plate,Yes
+MENU0361,South Indian,Plain Dosa,Veg,80,Plate,Yes
+MENU0362,South Indian,Masala Dosa,Veg,95,Plate,Yes
+MENU0363,South Indian,Mysore Masala Dosa,Veg,110,Plate,Yes
+MENU0364,South Indian,Rava Dosa,Veg,125,Plate,Yes
+MENU0365,South Indian,Rava Masala Dosa,Veg,140,Plate,Yes
+MENU0366,South Indian,Onion Dosa,Veg,155,Plate,Yes
+MENU0367,South Indian,Onion Rava Dosa,Veg,90,Plate,Yes
+MENU0368,South Indian,Paneer Dosa,Veg,105,Plate,Yes
+MENU0369,South Indian,Cheese Dosa,Veg,120,Plate,Yes
+MENU0370,South Indian,Schezwan Dosa,Veg,135,Plate,Yes
+MENU0371,South Indian,Set Dosa,Veg,150,Plate,Yes
+MENU0372,South Indian,Paper Dosa,Veg,165,Plate,Yes
+MENU0373,South Indian,Plain Uttapam,Veg,100,Plate,Yes
+MENU0374,South Indian,Onion Uttapam,Veg,115,Plate,Yes
+MENU0375,South Indian,Tomato Uttapam,Veg,130,Plate,Yes
+MENU0376,South Indian,Mixed Veg Uttapam,Veg,145,Plate,Yes
+MENU0377,South Indian,Idli Sambar,Veg,160,Plate,Yes
+MENU0378,South Indian,Medu Vada Sambar,Veg,175,Plate,Yes
+MENU0379,South Indian,Idli Vada Combo,Veg,110,Plate,Yes
+MENU0380,South Indian,Podi Idli,Veg,125,Plate,Yes
+MENU0381,Breakfast and Snacks,Poha,Veg,60,Plate,Yes
+MENU0382,Breakfast and Snacks,Indori Poha,Veg,75,Plate,Yes
+MENU0383,Breakfast and Snacks,Upma,Veg,90,Plate,Yes
+MENU0384,Breakfast and Snacks,Veg Sandwich,Veg,105,Plate,Yes
+MENU0385,Breakfast and Snacks,Grilled Veg Sandwich,Veg,120,Plate,Yes
+MENU0386,Breakfast and Snacks,Cheese Grilled Sandwich,Veg,135,Plate,Yes
+MENU0387,Breakfast and Snacks,Paneer Sandwich,Veg,70,Plate,Yes
+MENU0388,Breakfast and Snacks,Bombay Sandwich,Veg,85,Plate,Yes
+MENU0389,Breakfast and Snacks,Veg Burger,Veg,100,Plate,Yes
+MENU0390,Breakfast and Snacks,Cheese Burger,Veg,115,Plate,Yes
+MENU0391,Breakfast and Snacks,Paneer Burger,Veg,130,Plate,Yes
+MENU0392,Breakfast and Snacks,Aloo Tikki Burger,Veg,145,Plate,Yes
+MENU0393,Breakfast and Snacks,French Fries,Veg,80,Plate,Yes
+MENU0394,Breakfast and Snacks,Peri Peri Fries,Veg,95,Plate,Yes
+MENU0395,Breakfast and Snacks,Masala Maggi,Veg,110,Plate,Yes
+MENU0396,Breakfast and Snacks,Cheese Maggi,Veg,125,Plate,Yes
+MENU0397,Breakfast and Snacks,Veg Maggi,Veg,140,Plate,Yes
+MENU0398,Breakfast and Snacks,Bread Pakora,Veg,155,Plate,Yes
+MENU0399,Breakfast and Snacks,Pav Bhaji,Veg,90,Plate,Yes
+MENU0400,Breakfast and Snacks,Chole Bhature,Veg,105,Plate,Yes
+MENU0401,Pizza and Pasta,Margherita Pizza,Veg,220,Regular,Yes
+MENU0402,Pizza and Pasta,Farmhouse Pizza,Veg,235,Regular,Yes
+MENU0403,Pizza and Pasta,Veggie Delight Pizza,Veg,250,Regular,Yes
+MENU0404,Pizza and Pasta,Paneer Tikka Pizza,Veg,265,Regular,Yes
+MENU0405,Pizza and Pasta,Mexican Green Wave Pizza,Veg,280,Regular,Yes
+MENU0406,Pizza and Pasta,Corn Cheese Pizza,Veg,295,Regular,Yes
+MENU0407,Pizza and Pasta,Mushroom Pizza,Veg,230,Regular,Yes
+MENU0408,Pizza and Pasta,Tandoori Paneer Pizza,Veg,245,Regular,Yes
+MENU0409,Pizza and Pasta,Peri Peri Veg Pizza,Veg,260,Regular,Yes
+MENU0410,Pizza and Pasta,Four Cheese Pizza,Veg,275,Regular,Yes
+MENU0411,Pizza and Pasta,Chicken Tikka Pizza,Non-Veg,290,Regular,Yes
+MENU0412,Pizza and Pasta,BBQ Chicken Pizza,Non-Veg,305,Regular,Yes
+MENU0413,Pizza and Pasta,Chicken Supreme Pizza,Non-Veg,240,Regular,Yes
+MENU0414,Pizza and Pasta,Chicken Sausage Pizza,Non-Veg,255,Regular,Yes
+MENU0415,Pizza and Pasta,White Sauce Pasta,Veg,270,Plate,Yes
+MENU0416,Pizza and Pasta,Red Sauce Pasta,Veg,285,Plate,Yes
+MENU0417,Pizza and Pasta,Pink Sauce Pasta,Veg,300,Plate,Yes
+MENU0418,Pizza and Pasta,Pesto Pasta,Veg,315,Plate,Yes
+MENU0419,Pizza and Pasta,Chicken Alfredo Pasta,Non-Veg,250,Plate,Yes
+MENU0420,Pizza and Pasta,Chicken Arrabbiata Pasta,Non-Veg,265,Plate,Yes
+MENU0421,Salads Raita Papad,Green Salad,Veg,40,Plate,Yes
+MENU0422,Salads Raita Papad,Onion Salad,Veg,55,Plate,Yes
+MENU0423,Salads Raita Papad,Kachumber Salad,Veg,70,Plate,Yes
+MENU0424,Salads Raita Papad,Cucumber Salad,Veg,85,Plate,Yes
+MENU0425,Salads Raita Papad,Russian Salad,Veg,100,Plate,Yes
+MENU0426,Salads Raita Papad,Fruit Salad,Veg,115,Plate,Yes
+MENU0427,Salads Raita Papad,Sprout Salad,Veg,50,Plate,Yes
+MENU0428,Salads Raita Papad,Corn Salad,Veg,65,Plate,Yes
+MENU0429,Salads Raita Papad,Greek Salad,Veg,80,Plate,Yes
+MENU0430,Salads Raita Papad,Coleslaw Salad,Veg,95,Plate,Yes
+MENU0431,Salads Raita Papad,Plain Curd,Veg,110,Plate,Yes
+MENU0432,Salads Raita Papad,Boondi Raita,Veg,125,Plate,Yes
+MENU0433,Salads Raita Papad,Mix Veg Raita,Veg,60,Plate,Yes
+MENU0434,Salads Raita Papad,Cucumber Raita,Veg,75,Plate,Yes
+MENU0435,Salads Raita Papad,Pineapple Raita,Veg,90,Plate,Yes
+MENU0436,Salads Raita Papad,Mint Raita,Veg,105,Plate,Yes
+MENU0437,Salads Raita Papad,Plain Papad,Veg,120,Plate,Yes
+MENU0438,Salads Raita Papad,Roasted Papad,Veg,135,Plate,Yes
+MENU0439,Salads Raita Papad,Masala Papad,Veg,70,Plate,Yes
+MENU0440,Salads Raita Papad,Fried Papad,Veg,85,Plate,Yes
+MENU0441,Desserts,Gulab Jamun 2 Pcs,Veg,70,2 Pieces,Yes
+MENU0442,Desserts,Rasgulla 2 Pcs,Veg,85,2 Pieces,Yes
+MENU0443,Desserts,Rasmalai 2 Pcs,Veg,100,2 Pieces,Yes
+MENU0444,Desserts,Gajar Halwa,Veg,115,Plate,Yes
+MENU0445,Desserts,Moong Dal Halwa,Veg,130,Plate,Yes
+MENU0446,Desserts,Suji Halwa,Veg,145,Plate,Yes
+MENU0447,Desserts,Shahi Tukda,Veg,80,Plate,Yes
+MENU0448,Desserts,Rabri,Veg,95,Plate,Yes
+MENU0449,Desserts,Phirni,Veg,110,Plate,Yes
+MENU0450,Desserts,Rice Kheer,Veg,125,Plate,Yes
+MENU0451,Desserts,Kulfi Malai,Veg,140,Plate,Yes
+MENU0452,Desserts,Kulfi Pista,Veg,155,Plate,Yes
+MENU0453,Desserts,Vanilla Ice Cream,Veg,90,Scoop,Yes
+MENU0454,Desserts,Chocolate Ice Cream,Veg,105,Scoop,Yes
+MENU0455,Desserts,Strawberry Ice Cream,Veg,120,Scoop,Yes
+MENU0456,Desserts,Butterscotch Ice Cream,Veg,135,Scoop,Yes
+MENU0457,Desserts,Brownie with Ice Cream,Veg,150,Scoop,Yes
+MENU0458,Desserts,Chocolate Brownie,Veg,165,Plate,Yes
+MENU0459,Desserts,Fruit Custard,Veg,100,Plate,Yes
+MENU0460,Desserts,Matka Kulfi,Veg,115,Plate,Yes
+MENU0461,Beverages,Mineral Water 500 ml,Veg,15,Bottle,Yes
+MENU0462,Beverages,Mineral Water 1 L,Veg,25,Bottle,Yes
+MENU0463,Beverages,Masala Chai,Veg,50,Glass,Yes
+MENU0464,Beverages,Ginger Tea,Veg,65,Glass,Yes
+MENU0465,Beverages,Elaichi Tea,Veg,80,Glass,Yes
+MENU0466,Beverages,Green Tea,Veg,95,Glass,Yes
+MENU0467,Beverages,Lemon Tea,Veg,30,Glass,Yes
+MENU0468,Beverages,Black Coffee,Veg,45,Glass,Yes
+MENU0469,Beverages,Milk Coffee,Veg,60,Glass,Yes
+MENU0470,Beverages,Cappuccino,Veg,75,Glass,Yes
+MENU0471,Beverages,Cold Coffee,Veg,90,Glass,Yes
+MENU0472,Beverages,Cold Coffee with Ice Cream,Veg,105,Glass,Yes
+MENU0473,Beverages,Sweet Lassi,Veg,40,Glass,Yes
+MENU0474,Beverages,Salted Lassi,Veg,55,Glass,Yes
+MENU0475,Beverages,Fresh Lime Water,Veg,70,Glass,Yes
+MENU0476,Beverages,Fresh Lime Soda,Veg,85,Glass,Yes
+MENU0477,Beverages,Jaljeera,Veg,100,Glass,Yes
+MENU0478,Beverages,Masala Buttermilk,Veg,115,Glass,Yes
+MENU0479,Beverages,Hot Chocolate,Veg,50,Glass,Yes
+MENU0480,Beverages,Iced Tea Lemon,Veg,65,Glass,Yes
+MENU0481,Shakes Mocktails Juices,Vanilla Shake,Veg,90,Glass,Yes
+MENU0482,Shakes Mocktails Juices,Chocolate Shake,Veg,105,Glass,Yes
+MENU0483,Shakes Mocktails Juices,Strawberry Shake,Veg,120,Glass,Yes
+MENU0484,Shakes Mocktails Juices,Mango Shake,Veg,135,Glass,Yes
+MENU0485,Shakes Mocktails Juices,Banana Shake,Veg,150,Glass,Yes
+MENU0486,Shakes Mocktails Juices,Oreo Shake,Veg,165,Glass,Yes
+MENU0487,Shakes Mocktails Juices,KitKat Shake,Veg,100,Glass,Yes
+MENU0488,Shakes Mocktails Juices,Butterscotch Shake,Veg,115,Glass,Yes
+MENU0489,Shakes Mocktails Juices,Kesar Pista Shake,Veg,130,Glass,Yes
+MENU0490,Shakes Mocktails Juices,Dry Fruit Shake,Veg,145,Glass,Yes
+MENU0491,Shakes Mocktails Juices,Virgin Mojito,Veg,160,Glass,Yes
+MENU0492,Shakes Mocktails Juices,Blue Lagoon Mocktail,Veg,175,Glass,Yes
+MENU0493,Shakes Mocktails Juices,Green Apple Mojito,Veg,110,Glass,Yes
+MENU0494,Shakes Mocktails Juices,Watermelon Cooler,Veg,125,Glass,Yes
+MENU0495,Shakes Mocktails Juices,Virgin Pina Colada,Veg,140,Glass,Yes
+MENU0496,Shakes Mocktails Juices,Fruit Punch Mocktail,Veg,155,Glass,Yes
+MENU0497,Shakes Mocktails Juices,Orange Juice,Veg,170,Glass,Yes
+MENU0498,Shakes Mocktails Juices,Pineapple Juice,Veg,185,Glass,Yes
+MENU0499,Shakes Mocktails Juices,Watermelon Juice,Veg,120,Glass,Yes
+MENU0500,Shakes Mocktails Juices,Sweet Lime Juice,Veg,135,Glass,Yes
