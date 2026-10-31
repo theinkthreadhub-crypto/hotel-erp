@@ -52,11 +52,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "horeca-one-preview-20261031-rc1"
-          $notes = "TEST BUILD ONLY. Isolated local data in HoReCaOnePreview/Data, port 8161. This does not replace the production ERP. Dummy data only; not certified for customer use."
+          $tag = "horeca-one-preview-20261031-rc2"
+          $notes = "REVIEW RC2, TEST ONLY. Premium 22-module UI + 35-topic guide. Isolated local data in HoReCaOnePreview/Data, port 8161. This does not replace the production ERP. Dummy data only; staging/physical device UAT still required."
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag dist/HoReCa-One-Preview.exe dist/HoReCa-One-Preview.sha256.txt --clobber
           } else {
-            gh release create $tag dist/HoReCa-One-Preview.exe dist/HoReCa-One-Preview.sha256.txt --target ${{ github.sha }} --title "HoReCa One Preview RC1 — Testing Only" --notes $notes --prerelease --latest=false
+            gh release create $tag dist/HoReCa-One-Preview.exe dist/HoReCa-One-Preview.sha256.txt --target ${{ github.sha }} --title "HoReCa One Review RC2 — Testing Only" --notes $notes --prerelease --latest=false
           }
