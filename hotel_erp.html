@@ -2099,6 +2099,85 @@ html[data-theme^="horeca_"] #main .ent-kpi-val{color:var(--text)}
 #ho-lesson-panel button:disabled{opacity:.4;cursor:not-allowed}
 @media(max-width:700px){.ho-learning-grid{grid-template-columns:1fr}.ho-learning-article{padding:14px}}
 
+
+/* HoReCa One: finishing layer across accounting, orders, reports and settings */
+html[data-theme^="horeca_"] #main{scrollbar-color:var(--border) transparent}
+html[data-theme^="horeca_"] #main .title{min-height:55px}
+html[data-theme^="horeca_"] #main .card .grid{gap:13px}
+html[data-theme^="horeca_"] #main .btns{gap:8px;align-items:center}
+html[data-theme^="horeca_"] #main .btn:not(:disabled):hover{filter:brightness(.975)}
+html[data-theme^="horeca_"] #main .btn.bad{background:#dc3545;border:1px solid #dc3545;color:#fff}
+html[data-theme^="horeca_"] #main .btn.ok{background:#0c9474;border:1px solid #0c9474;color:#fff}
+html[data-theme^="horeca_"] #main .btn.sm{min-height:32px;padding:7px 10px}
+html[data-theme^="horeca_"] #main label{font-weight:750;font-size:11px;color:var(--text-muted)}
+html[data-theme^="horeca_"] #main input[readonly]{background:var(--surface);color:var(--text-muted)}
+html[data-theme^="horeca_"] #main :is(.grid,.btns,.cats,.kpi-grid,.quick-grid,.ent-kpi-grid)>*{min-width:0}
+html[data-theme^="horeca_"] #main :is(.grid,.btns,.cats,.kpi-grid,.quick-grid,.ent-kpi-grid){max-width:100%}
+html[data-theme^="horeca_"] #main .table-container,
+html[data-theme^="horeca_"] #main .table-wrap{max-width:100%;overflow-x:auto}
+html[data-theme^="horeca_"] #main table{font-variant-numeric:tabular-nums}
+html[data-theme^="horeca_"] #main th{white-space:nowrap}
+html[data-theme^="horeca_"] #main td{vertical-align:middle}
+html[data-theme^="horeca_"] #main .sub-pill{font-size:10px;border-radius:7px}
+html[data-theme^="horeca_"] #main .tag{border-radius:7px}
+html[data-theme^="horeca_"] #main .btn:disabled{opacity:.5;cursor:not-allowed}
+html[data-theme^="horeca_"] #main .muted{color:var(--text-muted)}
+html[data-theme^="horeca_"] #main .red{color:var(--bad)}
+html[data-theme^="horeca_"] #main .green{color:var(--ok)}
+html[data-theme^="horeca_"] #main .card h3{font-size:15px;font-weight:800;margin-bottom:13px}
+html[data-theme^="horeca_"] #main .card h4{font-size:13px;font-weight:800}
+html[data-theme^="horeca_"] #main .table-bar-wrap{scrollbar-width:thin}
+html[data-theme^="horeca_"] #main .status-pill{box-shadow:none!important}
+html[data-theme^="horeca_"] #main .ent-segmented-btn{font-family:inherit}
+html[data-theme^="horeca_"] #main .ent-kpi-card{border-radius:12px!important;box-shadow:var(--card-shadow)}
+html[data-theme^="horeca_"] #main .ent-kpi-label,
+html[data-theme^="horeca_"] #main .ent-kpi-sub{color:var(--text-muted)}
+html[data-theme^="horeca_"] #main .ent-kpi-val{color:var(--text)}
+html[data-theme^="horeca_"] body[data-horeca-screen="bills"] #main table,
+html[data-theme^="horeca_"] body[data-horeca-screen="sessions"] #main table,
+html[data-theme^="horeca_"] body[data-horeca-screen="analytics"] #main table,
+html[data-theme^="horeca_"] body[data-horeca-screen="reports"] #main table,
+html[data-theme^="horeca_"] body[data-horeca-screen="gst"] #main table,
+html[data-theme^="horeca_"] body[data-horeca-screen="daybook"] #main table,
+html[data-theme^="horeca_"] body[data-horeca-screen="audit"] #main table{
+  border-radius:12px;border:1px solid var(--border)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="qr"] #main .card,
+html[data-theme^="horeca_"] body[data-horeca-screen="reservations"] #main .card,
+html[data-theme^="horeca_"] body[data-horeca-screen="suppliers"] #main .card,
+html[data-theme^="horeca_"] body[data-horeca-screen="expense"] #main .card,
+html[data-theme^="horeca_"] body[data-horeca-screen="cash"] #main .card,
+html[data-theme^="horeca_"] body[data-horeca-screen="settings"] #main .card,
+html[data-theme^="horeca_"] body[data-horeca-screen="ai"] #main .card{
+  border-radius:13px;box-shadow:var(--card-shadow)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="ai"] #main #ai_out{
+  border-color:var(--border);color:var(--text)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="tokens"] #main .card,
+html[data-theme^="horeca_"] body[data-horeca-screen="captain"] #main .card{
+  border-radius:13px;box-shadow:var(--card-shadow)
+}
+@media(max-width:1400px){
+  html[data-theme^="horeca_"] #top{gap:7px}
+  html[data-theme^="horeca_"] #top .clock{font-size:10px}
+  html[data-theme^="horeca_"] #top .online-pill{padding:4px 7px}
+  html[data-theme^="horeca_"] #topsearch{max-width:275px}
+}
+@media(max-width:1024px){
+  html[data-theme^="horeca_"] #top .top-wa-credit-chip{display:none}
+  html[data-theme^="horeca_"] #top .clock{display:none}
+  html[data-theme^="horeca_"] #main .grid{grid-template-columns:repeat(auto-fit,minmax(175px,1fr))}
+}
+@media(max-width:680px){
+  html[data-theme^="horeca_"] #top{flex-wrap:nowrap;min-width:0}
+  html[data-theme^="horeca_"] #topsearch{max-width:100px}
+  html[data-theme^="horeca_"] #top .user-pill .role{display:none}
+  html[data-theme^="horeca_"] #main table{font-size:11px}
+  html[data-theme^="horeca_"] #main .title{font-size:15px}
+  html[data-theme^="horeca_"] #main .grid{grid-template-columns:minmax(0,1fr)}
+}
+
 /* END HORECA ONE PREMIUM UI */
 
 </style>
@@ -5612,6 +5691,7 @@ function go(s, approved){
     return;
   }
   cur = s;
+  if(typeof hoEndLesson==='function')hoEndLesson();
   clearInterval(kdsTimer);
   if(s !== 'kitchen' && s !== 'tokens') document.body.classList.remove('kitchen-mode');
   closeModal();
@@ -16030,7 +16110,7 @@ function scrAI(){
     ${ready ? '' : '<p><b>Setu AI needs the Setu Desktop App (counter PC) and Hotel Setu Cloud.</b></p>'}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${AI_QUICK.map((q, i) => `<button class="btn g sm" style="margin:0" onclick="aiAsk(AI_QUICK[${i}])">${esc(q)}</button>`).join('')}</div>
     <div style="display:flex;gap:8px"><input id="ai_q" style="flex:1" maxlength="500" placeholder="Type your question..." onkeydown="if(event.key==='Enter')aiAsk()">
-      <button class="btn" id="ai_btn" style="margin:0;background:#7c3aed;border-color:#7c3aed;color:#fff" onclick="aiAsk()">Poochhiye</button></div>
+      <button class="btn" id="ai_btn" style="margin:0;background:#7c3aed;border-color:#7c3aed;color:#fff" onclick="aiAsk()">Ask Setu AI</button></div>
     <div id="ai_out">${AI_LAST ? aiCard(AI_LAST) : ''}</div>
   </div>`;
   setTimeout(() => $('#ai_q') && $('#ai_q').focus(), 30);
@@ -17399,7 +17479,7 @@ async function scrSupport(){
   }
   SUP = j.tickets || [];
   el.innerHTML = `<h3 style="margin-top:0">New complaint / question</h3>
-    <div class="grid"><div style="grid-column:1/-1"><label>Vishay (Subject)</label><input id="sup_sub" maxlength="100" placeholder="e.g. The printer is not printing bills"></div>
+    <div class="grid"><div style="grid-column:1/-1"><label>Subject</label><input id="sup_sub" maxlength="100" placeholder="e.g. The printer is not printing bills"></div>
       <div style="grid-column:1/-1"><label>Describe the problem</label><textarea id="sup_txt" rows="3" maxlength="2000" style="width:100%"></textarea></div></div>
     <div class="btns"><button class="btn ok" onclick="supSend()">Send</button><button class="btn g" onclick="scrSupport()">Refresh</button></div>
     <h3>Your tickets</h3>
