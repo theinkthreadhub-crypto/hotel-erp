@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-preview:
@@ -42,10 +42,21 @@ jobs:
           --add-data "favicon.ico;."
           --add-data "food;food"
           app_main.py
-      - name: Upload private test artifact only
-        uses: actions/upload-artifact@v4
-        with:
-          name: HoReCa-One-Preview-Windows
-          path: dist/HoReCa-One-Preview.exe
-          retention-days: 30
-          if-no-files-found: error
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist/HoReCa-One-Preview.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  HoReCa-One-Preview.exe" | Set-Content -Encoding ascii dist/HoReCa-One-Preview.sha256.txt
+      - name: Publish isolated private preview prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "horeca-one-preview-20261031-rc1"
+          $notes = "TEST BUILD ONLY. Isolated local data in HoReCaOnePreview/Data, port 8161. This does not replace the production ERP. Dummy data only; not certified for customer use."
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag dist/HoReCa-One-Preview.exe dist/HoReCa-One-Preview.sha256.txt --clobber
+          } else {
+            gh release create $tag dist/HoReCa-One-Preview.exe dist/HoReCa-One-Preview.sha256.txt --target ${{ github.sha }} --title "HoReCa One Preview RC1 — Testing Only" --notes $notes --prerelease --latest=false
+          }
