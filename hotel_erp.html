@@ -21657,7 +21657,7 @@ async function autoPrinterSetup(){
 // Register Service Worker for 100% offline computer execution
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(e => console.log('SW reg note:', e));
+    navigator.serviceWorker.register('sw.js').then(reg => { reg.update(); }).catch(e => console.log('SW reg note:', e));
   });
 }
 
@@ -21751,7 +21751,14 @@ async function handleUnifiedLogin(e){
   }
 
   try {
-    const endpoint = (SRV && SRV.on && SRV.local) ? '/api/hotel/login' : (SRV && SRV.cloud ? '/api/hotel/login' : 'https://setu-cloud.theinkthreadhub.workers.dev/api/hotel/login');
+    function getAuthEndpoint(path){
+  if(SRV && SRV.on && SRV.local) return path;
+  if(typeof location !== 'undefined' && location.protocol && location.protocol.startsWith('http')){
+    return path;
+  }
+  return 'https://setu-cloud.theinkthreadhub.workers.dev' + path;
+}
+  const endpoint = getAuthEndpoint('/api/hotel/login');
     const headers = { 'Content-Type': 'application/json', 'X-Setu-Hotel': hotel };
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -21883,7 +21890,7 @@ async function handleNewHotelRegister(e){
 
   try {
     const installIdObj = typeof getInstallId === 'function' ? await getInstallId() : { id: '' };
-    const endpoint = (SRV && SRV.on && SRV.local) ? '/api/hotel/register' : (SRV && SRV.cloud ? '/api/hotel/register' : 'https://setu-cloud.theinkthreadhub.workers.dev/api/hotel/register');
+    const endpoint = getAuthEndpoint('/api/hotel/register');
 
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -21964,7 +21971,7 @@ async function handleNewHotelActivate(e){
 
   try {
     const installIdObj = typeof getInstallId === 'function' ? await getInstallId() : { id: '' };
-    const endpoint = (SRV && SRV.on && SRV.local) ? '/api/hotel/activate' : (SRV && SRV.cloud ? '/api/hotel/activate' : 'https://setu-cloud.theinkthreadhub.workers.dev/api/hotel/activate');
+    const endpoint = getAuthEndpoint('/api/hotel/activate');
 
     const res = await fetch(endpoint, {
       method: 'POST',
