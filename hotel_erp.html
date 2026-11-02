@@ -3092,6 +3092,185 @@ html[data-theme^="horeca_"] .ho-v3-empty-compact{
 }
 /* END HoReCa One V3 Reference Skin */
 
+
+/* HoReCa One V3 detailed module styling */
+html[data-theme^="horeca_"] #main .ho-v3-item-footer{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  gap:9px;flex-wrap:wrap
+}
+html[data-theme^="horeca_"] #main .ho-v3-add-chip{
+  background:#1669e8;color:#fff;border:1px solid #1669e8;
+  border-radius:8px;padding:6px 8px;font-size:10.5px;
+  font-weight:790;white-space:nowrap;line-height:1.2
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-metrics{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;
+  margin-bottom:14px
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat{
+  display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--card-shadow);padding:18px;
+  min-height:112px
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat small{
+  color:var(--text-muted);font-size:11.5px;font-weight:650
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat b{
+  color:var(--text);font-size:25px;font-weight:840;line-height:1.2;
+  font-variant-numeric:tabular-nums;letter-spacing:-.04em
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat span{
+  color:#09a47a;font-size:11px;line-height:1.35
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-layout{
+  display:grid;grid-template-columns:minmax(255px,.82fr) minmax(0,1.55fr);
+  gap:17px;align-items:start
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu{
+  background:var(--panel);border:1px solid var(--border);border-radius:13px;
+  box-shadow:var(--card-shadow);padding:8px 16px;display:flex;
+  flex-direction:column;min-width:0
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button{
+  background:transparent;border:0;border-bottom:1px solid var(--border);
+  border-radius:0;color:var(--text);padding:15px 12px;text-align:left;
+  min-height:63px;cursor:pointer;
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button:last-child{border-bottom:0}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button b{
+  display:block;color:var(--text);font-size:12.5px;font-weight:760;
+  margin-bottom:4px
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button small{
+  display:block;font-size:11px;color:var(--text-muted);line-height:1.45
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button:hover,
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button.selected{
+  background:var(--surface);border-radius:8px
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button.selected{
+  box-shadow:inset 3px 0 #1461df
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button.selected b{color:#1461df}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels{
+  min-width:0;display:flex;flex-direction:column;gap:14px
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card{
+  margin:0!important;min-width:0;padding:20px!important;
+  border:1px solid var(--border)!important;border-radius:13px!important;
+  box-shadow:var(--card-shadow)!important
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card h3{
+  font-size:16px!important;font-weight:790!important;
+  margin:0 0 16px!important;padding-bottom:13px!important;
+  border-bottom:1px solid var(--border)
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card input,
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card select{
+  width:100%;max-width:100%;min-width:0;box-sizing:border-box
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card .grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:12px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .grid{
+  min-width:0!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .qty button{
+  background:var(--panel);border:1px solid var(--border);
+  color:var(--text);width:29px;height:30px;border-radius:6px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .qty input{
+  min-height:30px!important;height:30px!important;padding:3px!important;
+  text-align:center
+}
+html[data-theme^="horeca_"] #main .horeca-pos-cart table{font-size:12px}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .tot .big{
+  color:var(--text)!important;font-size:21px!important;font-weight:800!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .tot .big span{
+  font-size:16px!important;font-weight:800!important
+}
+html[data-theme^="horeca_"] #main .kds{gap:14px!important}
+html[data-theme^="horeca_"] #main .kcard{
+  background:var(--panel)!important;border:1px solid var(--border)!important;
+  border-radius:13px!important;box-shadow:var(--card-shadow)!important;
+  padding:18px!important
+}
+html[data-theme^="horeca_"] #main .tok-col{
+  border-radius:13px!important;background:var(--panel)!important;
+  border:1px solid var(--border)!important;box-shadow:var(--card-shadow)!important
+}
+html[data-theme^="horeca_"] #main .kpi-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));
+  gap:13px!important;margin:0 0 14px!important
+}
+html[data-theme^="horeca_"] #main .kpi-card{
+  padding:17px!important;min-height:110px!important
+}
+html[data-theme^="horeca_"] #main .kpi-val{
+  color:var(--text);font-size:24px;font-weight:820
+}
+html[data-theme^="horeca_"] #main .m-kpis{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px!important
+}
+html[data-theme^="horeca_"] #main .m-kpi{
+  padding:16px!important;min-height:102px!important
+}
+html[data-theme^="horeca_"] #main .m-kpi>b{
+  font-size:23px!important;color:var(--text)!important;letter-spacing:-.04em
+}
+html[data-theme^="horeca_"] #main .m-kpi>span{
+  font-size:11px;color:var(--text-muted);font-weight:700
+}
+html[data-theme^="horeca_"] #main .den table td,
+html[data-theme^="horeca_"] #main .den table th{padding:10px 11px!important}
+html[data-theme^="horeca_"] #main .bill .card{
+  min-width:0!important
+}
+html[data-theme^="horeca_"] #main .bill input{max-width:100%}
+html[data-theme^="horeca_"] #main .oc-badge{
+  border-radius:7px!important;padding:4px 8px!important;font-size:10px!important
+}
+html[data-theme^="horeca_"] #main .grid .card{
+  margin-bottom:0!important
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card p,
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card small{
+  line-height:1.5
+}
+@media(max-width:1250px){
+  html[data-theme^="horeca_"] #main .ho-v3-shift-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-layout{
+    grid-template-columns:minmax(220px,.72fr) minmax(0,1.4fr)
+  }
+}
+@media(max-width:780px){
+  html[data-theme^="horeca_"] #main .ho-v3-settings-layout{
+    grid-template-columns:minmax(0,1fr)
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-menu{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:4px
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-menu button{
+    border:1px solid var(--border)!important;border-radius:8px!important
+  }
+}
+@media(max-width:560px){
+  html[data-theme^="horeca_"] #main .ho-v3-shift-metrics{
+    grid-template-columns:minmax(0,1fr)
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-menu{
+    grid-template-columns:minmax(0,1fr)
+  }
+}
+/* END HoReCa One V3 Detailed Modules */
+
 </style>
 </head>
 <body>
@@ -7329,6 +7508,7 @@ function setTheme(t, dash){
   toast('Theme updated: ' + ((THEMES[t] && THEMES[t].name) || 'Classic'));
   drawLookCard();
   if(typeof cur !== 'undefined' && cur === 'gateway') scrGateway();
+  else if(typeof cur !== 'undefined' && cur === 'settings') scrSettings();
 }
 
 function previewThemeLive(t){
