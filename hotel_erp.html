@@ -7227,259 +7227,98 @@ function dzOpen(kind){
 /* 1. MINT OS NEUMORPHIC MASTER DASHBOARD (mint_soft, mint_system, forest_mint, mint) */
 /* ================= HORECA ONE: FLAGSHIP ENTERPRISE DASHBOARD ================= */
 function dzHoReCaOne(d){
-  const t = d.t, s = d.s, y = d.y, low = d.low, k = d.k;
-  const curTh = (typeof D !== 'undefined' && D && D.settings && D.settings.theme) || 'horeca_light';
-  const isDark = curTh === 'horeca_dark';
-  const cardBg = isDark ? '#0f172a' : '#ffffff';
-  const cardBorder = isDark ? '#1e293b' : '#e2e8f0';
-  const textMuted = isDark ? '#94a3b8' : '#64748b';
-  const textMain = isDark ? '#f8fafc' : '#0f172a';
-  const activeKots = (typeof D !== 'undefined' && D && D.kots ? D.kots : []).filter(x => x.status !== 'served').length;
-
-  // 7-day sparkline bar chart
-  const wSales = d.week || [];
-  const maxW = Math.max(1, ...wSales.map(x => x[1] || 0));
-  const weekBarsSvg = wSales.map(([day, val]) => {
-    const barH = Math.max(4, Math.round((val / maxW) * 48));
-    const isToday = day === t;
-    const barFill = isToday ? '#f97316' : (isDark ? '#334155' : '#cbd5e1');
-    const dayLabel = day.slice(8);
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1" title="${day}: ${money(val)}">
-      <div style="height:52px;display:flex;align-items:flex-end;width:100%;justify-content:center">
-        <div style="width:14px;height:${barH}px;background:${barFill};border-radius:4px 4px 0 0;transition:all .2s"></div>
-      </div>
-      <span style="font-size:10px;font-weight:${isToday?'800':'600'};color:${isToday?'#f97316':textMuted}">${dayLabel}</span>
-    </div>`;
-  }).join('');
-
-  // Payment Breakdown
-  const totalPay = sum(Object.values(d.pay || {})) || 1;
-  const payModes = Object.entries(d.pay || {}).map(([mode, amt]) => {
-    const pct = Math.round((amt / totalPay) * 100);
-    return `
-      <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:3px">
-          <span>${mode}</span>
-          <span>${money(amt)} <small style="color:${textMuted}">(${pct}%)</small></span>
-        </div>
-        <div style="width:100%;height:6px;background:${isDark?'#1e293b':'#e2e8f0'};border-radius:3px;overflow:hidden">
-          <div style="width:${pct}%;height:100%;background:${mode==='Cash'?'#10b981':mode==='UPI'?'#0284c7':'#f97316'};border-radius:3px"></div>
-        </div>
-      </div>
-    `;
-  }).join('') || `<div style="color:${textMuted};font-size:12px">No payment transactions recorded yet today.</div>`;
-
-  // Running tables chips
-  const runningTableChips = k.length ? k.slice(0, 8).map(([tbl, val]) => {
-    const total = calc(val.cart, val.disc, gstRate()).total;
-    const mins = Math.round((Date.now() - (val.ts || Date.now())) / 60000);
-    return `
-      <div onclick="go('bill');loadKaccha('${tbl}')" style="background:${isDark?'#1e293b':'#f8fafc'};border:1px solid ${cardBorder};border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:all .15s" title="Click to open ${tbl}">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <b style="font-size:13px;color:${textMain}">Table ${tbl}</b>
-          <span style="font-size:10px;font-weight:700;background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:6px">Occupied</span>
-        </div>
-        <div style="font-size:14px;font-weight:800;color:#f97316">${money(total)}</div>
-        <small style="font-size:10px;color:${textMuted}">${val.cart ? val.cart.length : 0} items · ${mins}m seated</small>
-      </div>
-    `;
-  }).join('') : `
-    <div style="text-align:center;padding:24px 16px;background:${isDark?'#1e293b':'#f8fafc'};border-radius:10px;border:1px dashed ${cardBorder};grid-column:span 2">
-      <div style="display:flex;justify-content:center;margin-bottom:8px;color:var(--primary)">${MENU_ICONS.gateway}</div>
-      <div style="font-weight:700;font-size:13px;color:${textMain}">All Tables Currently Available</div>
-      <p style="font-size:12px;color:${textMuted};margin:4px 0 10px">Press New Bill [F1 / B] to seat guests and generate KOT</p>
-      <button class="btn ok sm" onclick="go('bill')" style="font-weight:700">Open Billing Counter [B]</button>
-    </div>
-  `;
-
+  const day=d.t, s=d.s, tables=d.k||[], pay=d.pay||{}, top=d.top||[];
+  const pendingKots=(D.kots||[]).filter(k=>k.status!=='served'&&k.status!=='cancelled').length;
+  const maxTop=Math.max(1,...top.map(t=>+t[1]||0));
+  const shortDay = new Date(day+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+  const stats=[
+    ['Today\'s Sales',money(s.sales),d.dSales===null?'No previous-day comparison':(d.dSales>=0?'+':'')+d.dSales+'% vs yesterday','sales','go("bills")'],
+    ['Orders',s.bills.length,d.dBills===null?'Today\'s completed bills':(d.dBills>=0?'+':'')+d.dBills+'% vs yesterday','bill','go("bills")'],
+    ['Active Tables',tables.length,tables.length?'Orders currently running':'All tables available','table','go("bill")'],
+    ['Pending KOTs',pendingKots,pendingKots?'Kitchen requires attention':'No pending kitchen tickets','kot','go("kitchen")'],
+    ['Average Order',money(d.avg),s.bills.length?'Based on completed bills':'No completed bills yet','cash','go("reports")']
+  ];
+  const by=Object.entries(pay).filter(([,n])=>Number(n)>0);
+  const payTotal=by.reduce((v,[,amt])=>v+Number(amt),0);
+  const palette=['#1a6fe9','#10b981','#f69c39','#995ce5','#64748b'];
+  let totalPct=0;
+  const stops=by.map(([,amt],i)=>{const from=totalPct;totalPct+=Number(amt)/Math.max(payTotal,1)*100;return `${palette[i%palette.length]} ${from.toFixed(3)}% ${totalPct.toFixed(3)}%`;});
+  const recent=[...(s.bills||[])].reverse().slice(0,5);
+  const watchlist=tables.slice(0,4).map(([name,v])=>({name,total:calc(v.cart||[],v.disc||0,gstRate()).total}));
+  const extraStock=(d.low||[]).slice(0,4);
+  const options={h:210,c1:'#69a1ff',c2:'#14b88a',w:17};
   return `
-    <div class="horeca-dashboard" style="display:flex;flex-direction:column;gap:18px">
-      <!-- 1. Hero Command Bar -->
-      <div style="background:${isDark?'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)':'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'};border:1px solid ${cardBorder};border-radius:16px;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;box-shadow:${isDark?'0 4px 20px rgba(0,0,0,0.4)':'0 4px 16px rgba(0,0,0,0.04)'}">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3);padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:800;letter-spacing:0.5px">HORECA ONE · COMMAND CENTER</span>
-            <span style="font-size:12px;color:${textMuted}">● ${d.hotel || 'Setu Pro Property'}</span>
-          </div>
-          <h2 style="font-size:22px;font-weight:800;color:${textMain};margin:0 0 4px">${d.hi}, ${esc(d.name)}!</h2>
-          <p style="font-size:12.5px;color:${textMuted};margin:0">
-            ${new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}
-            <span style="margin:0 6px">•</span>
-            <b>${s.bills.length}</b> Bills Settled
-            <span style="margin:0 6px">•</span>
-            <b style="color:#f97316">${money(s.sales)}</b> Today's Gross Sales
-            ${k.length ? `<span style="margin:0 6px">•</span><b style="color:#ef4444">${k.length} Running Tables</b>` : ''}
-          </p>
-        </div>
-
-        <!-- Quick Action Buttons -->
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <button class="btn ok" onclick="go('bill')" style="background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:13.5px;font-weight:800;box-shadow:0 4px 14px rgba(249,115,22,0.35);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <span>New Bill</span> <kbd style="background:rgba(255,255,255,0.25);color:#fff;border:none;padding:1px 5px;border-radius:4px;font-size:10.5px">F1 / B</kbd>
-          </button>
-          <button class="btn g" onclick="go('kaccha')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span>Tables</span> <span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:10px">${k.length}</span>
-          </button>
-          <button class="btn g" onclick="go('kitchen')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span>Kitchen Tickets</span> <span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:1px 6px;border-radius:10px">${activeKots}</span>
-          </button>
-          <button class="btn g" onclick="go('report')" style="padding:10px 14px;border-radius:10px;font-weight:700">
-            Day Report [F4]
-          </button>
-        </div>
+  <div class="ho-v3-dashboard" aria-label="HoReCa One Dashboard">
+    <header class="ho-v3-page-header">
+      <div><div class="ho-v3-breadcrumb">HoReCa One / Overview</div>
+        <h1>Dashboard</h1><p>Restaurant operations, live orders and business performance</p>
       </div>
-
-      <!-- 2. 6-Card KPI Metrics Grid -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px">
-        <!-- KPI 1: Gross Sales -->
-        <div onclick="dzOpen('sales')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03);position:relative;overflow:hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Today's Gross Sales</span>
-            <span style="color:#f97316;background:rgba(249,115,22,0.12);padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${money(s.sales)}</b>
-          <div style="font-size:11px;font-weight:700;color:${d.dSales === null ? textMuted : (d.dSales >= 0 ? '#10b981' : '#ef4444')}">
-            ${d.dSales === null ? 'No sales yesterday' : `${d.dSales >= 0 ? '▲ +' : '▼ '}${d.dSales}% vs yday`}
-          </div>
-        </div>
-
-        <!-- KPI 2: Total Orders Settled -->
-        <div onclick="go('bills')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Orders Settled</span>
-            <span style="color:#0284c7;background:#e0f2fe;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${s.bills.length}</b>
-          <div style="font-size:11px;color:${textMuted};font-weight:600">AOV: <b>${money(d.avg)}</b></div>
-        </div>
-
-        <!-- KPI 3: Active Running Tables -->
-        <div onclick="go('kaccha')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Running Tables</span>
-            <span style="color:#8b5cf6;background:#ede9fe;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${k.length}</b>
-          <div style="font-size:11px;color:${k.length ? '#f97316' : textMuted};font-weight:600">
-            ${k.length ? money(d.kAmt) + ' unbilled' : 'All tables free'}
-          </div>
-        </div>
-
-        <!-- KPI 4: Pending KOTs -->
-        <div onclick="go('kitchen')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Kitchen Backlog</span>
-            <span style="color:#ef4444;background:#fee2e2;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${activeKots ? '#ef4444' : textMain}">${activeKots} KOTs</b>
-          <div style="font-size:11px;color:${textMuted};font-weight:600">Total tickets: <b>${d.kots}</b></div>
-        </div>
-
-        <!-- KPI 5: Cash in Drawer -->
-        <div onclick="go('cash')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Cash in Drawer</span>
-            <span style="color:#10b981;background:#d1fae5;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${money(s.expected)}</b>
-          <div style="font-size:11px;color:${textMuted};font-weight:600">Spent: ${money(s.expT + s.purT)}</div>
-        </div>
-
-        <!-- KPI 6: Stock Alerts -->
-        <div onclick="go('stock')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Stock Alerts</span>
-            <span style="color:#eab308;background:#fef9c3;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${low.length ? '#ef4444' : textMain}">${low.length} Low</b>
-          <div style="font-size:11px;color:${d.outStock ? '#ef4444' : '#10b981'};font-weight:700">
-            ${d.outStock ? d.outStock + ' Out of stock' : 'Stock level healthy'}
-          </div>
-        </div>
+      <div class="ho-v3-page-actions">
+        <span class="ho-v3-date">${shortDay}</span>
+        <button type="button" class="ho-v3-button" onclick="go('reports')">View Reports</button>
+        <button type="button" class="ho-v3-button ho-v3-button-main" onclick="go('bill')">+ New Bill</button>
       </div>
-
-      <!-- 3. Operations & Visual Analytics Two-Column Layout -->
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start">
-        <!-- LEFT COLUMN: Live Running Tables & 7-Day Revenue Trend -->
-        <div style="display:flex;flex-direction:column;gap:18px">
-          <!-- Live Running Tables Box -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="display:inline-flex;align-items:center;color:var(--primary)">${MENU_ICONS.gateway}</span>
-                <b style="font-size:15px;color:${textMain}">Live Floor & Running Tables</b>
-                <span class="badge" style="font-size:11px;font-weight:800;background:#fee2e2;color:#b91c1c;padding:1px 8px;border-radius:10px">${k.length} Active</span>
-              </div>
-              <button class="btn g sm" onclick="go('kaccha')" style="font-weight:700;font-size:11.5px">View Full Floor Plan →</button>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px">
-              ${runningTableChips}
-            </div>
-          </div>
-
-          <!-- 7-Day Revenue Trend Chart -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="display:inline-flex;align-items:center;color:var(--primary)">${MENU_ICONS.analytics}</span>
-                <b style="font-size:15px;color:${textMain}">7-Day Revenue Trajectory</b>
-              </div>
-              <span style="font-size:12px;color:${textMuted}">Peak Day: <b>${money(maxW)}</b></span>
-            </div>
-            <div style="display:flex;gap:12px;align-items:flex-end;padding:8px 0">
-              ${weekBarsSvg}
-            </div>
-          </div>
+    </header>
+    <section class="ho-v3-kpi-grid" aria-label="Overview metrics">
+      ${stats.map(([name,value,detail,icon,action])=>`
+        <button type="button" class="ho-v3-stat" onclick='${action}' aria-label="${esc(name)} ${esc(String(value))}">
+          <span class="ho-v3-stat-label">${esc(name)}</span>
+          <strong>${value}</strong>
+          <span class="ho-v3-stat-sub">${esc(detail)}</span>
+        </button>`).join('')}
+    </section>
+    <div class="ho-v3-dashboard-primary">
+      <section class="ho-v3-panel ho-v3-chart-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Sales Overview</h2><p>Daily revenue based on settled bills</p></div>
+          <span class="ho-v3-small-tag">Last 7 days</span>
         </div>
-
-        <!-- RIGHT COLUMN: Payment Distribution & Quick Watchlist -->
-        <div style="display:flex;flex-direction:column;gap:18px">
-          <!-- Payment Channels Breakdown -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <b style="font-size:15px;color:${textMain}">Payment Split</b>
-              <button class="btn g sm" onclick="go('bills')" style="font-size:11px">Audit</button>
-            </div>
-            ${payModes}
-          </div>
-
-          <!-- Quick Inventory Alerts Watchlist -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <b style="font-size:15px;color:${textMain}">Critical Stock Watch</b>
-              <button class="btn g sm" onclick="go('stock')" style="font-size:11px">Manage</button>
-            </div>
-            ${low.length ? low.slice(0, 4).map(x => `
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid ${cardBorder};font-size:12.5px">
-                <div>
-                  <b style="color:${textMain}">${esc(x.name)}</b>
-                  <div style="font-size:10.5px;color:${textMuted}">Min: ${x.min || 5} ${x.unit || ''}</div>
-                </div>
-                <span style="font-weight:800;color:${+x.qty <= 0 ? '#ef4444' : '#f59e0b'};background:${+x.qty <= 0 ? '#fee2e2' : '#fef3c7'};padding:2px 8px;border-radius:6px;font-size:11px">
-                  ${+x.qty} ${x.unit || ''}
-                </span>
-              </div>
-            `).join('') : `<div style="color:#10b981;font-size:12px;font-weight:700">All inventory items above threshold.</div>`}
-          </div>
+        <div class="ho-v3-chart-inner">${dzBars((d.week||[]).map(([date,val])=>[date.slice(5),+val||0]),options)}</div>
+      </section>
+      <section class="ho-v3-panel ho-v3-live-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Live Activity</h2><p>Active tables and recent bills</p></div>
+          <button class="ho-v3-mini-link" onclick="go('bill')">View POS</button>
         </div>
-      </div>
+        ${watchlist.length?
+         `<div class="ho-v3-tiny-table"><div class="ho-v3-tiny-head"><span>TABLE</span><span>STATUS</span><span>AMOUNT</span></div>
+          ${watchlist.map(o=>`<button class="ho-v3-tiny-row" onclick="go('bill')"><span>${esc(o.name)}</span><span><i class="ho-v3-status-dot"></i>Running</span><b>${money(o.total)}</b></button>`).join('')}
+          </div>`:
+          recent.length?`<div class="ho-v3-tiny-table"><div class="ho-v3-tiny-head"><span>BILL</span><span>CHANNEL</span><span>AMOUNT</span></div>
+          ${recent.map(b=>`<button class="ho-v3-tiny-row" onclick="go('bills')"><span>#${esc(String(b.no||''))}</span><span>${esc(b.channel||b.table||'Dine-In')}</span><b>${money(b.total)}</b></button>`).join('')}</div>`:
+          `<div class="ho-v3-empty"><b>No orders yet today</b><p>New orders will appear here automatically.</p><button class="ho-v3-button" onclick="go('bill')">Start Billing</button></div>`}
+      </section>
     </div>
-  `;
+    <div class="ho-v3-dashboard-secondary">
+      <section class="ho-v3-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Top Selling Items</h2><p>Quantity sold today</p></div></div>
+        ${top.length?`<div class="ho-v3-top-items">
+          ${top.slice(0,5).map(([name,qty])=>`
+           <div class="ho-v3-top-row"><span title="${esc(name)}">${esc(name)}</span>
+            <span class="ho-v3-progress"><i style="width:${Math.max(2,(+qty||0)/maxTop*100).toFixed(1)}%"></i></span><b>${qty}</b>
+           </div>`).join('')}
+         </div>`:'<div class="ho-v3-empty-compact">No item sales recorded for today.</div>'}
+      </section>
+      <section class="ho-v3-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Payment Methods</h2><p>Collections by payment mode</p></div></div>
+        ${payTotal?`<div class="ho-v3-payment">
+          <div class="ho-v3-donut" style="background:conic-gradient(${stops.join(',')})"><div>${money(payTotal)}</div></div>
+          <div class="ho-v3-pay-legend">${by.map(([label,amt],i)=>`<div><i style="background:${palette[i%palette.length]}"></i><span>${esc(label)}</span><b>${money(amt)}</b></div>`).join('')}</div>
+        </div>`:'<div class="ho-v3-empty-compact">Payment information will appear after a bill is finalized.</div>'}
+      </section>
+      <section class="ho-v3-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Quick Actions</h2><p>Common restaurant tasks</p></div></div>
+        <div class="ho-v3-actions">
+          <button onclick="go('bill')">New Bill</button>
+          <button onclick="go('kitchen')">KOT Screen</button>
+          <button onclick="go('purchase')">Purchase Entry</button>
+          <button onclick="go('reports')">Sales Reports</button>
+          <button onclick="go('wa-reports')">WhatsApp</button>
+          <button onclick="go('settings')">Settings</button>
+        </div>
+        ${extraStock.length?`<div class="ho-v3-stock-alert"><b>${extraStock.length} low-stock item(s)</b><button onclick="go('stock')">View stock</button></div>`:''}
+      </section>
+    </div>
+  </div>`;
 }
-
-/* ================= HORECA ONE: 3-MODE SIDEBAR CONTROLLER ================= */
 function setHoReCaSidebarMode(mode){
   if(!['expanded', 'compact', 'hidden'].includes(mode)) mode = 'expanded';
   if(typeof document !== 'undefined' && document.body && document.body.classList){
