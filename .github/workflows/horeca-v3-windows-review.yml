@@ -1,0 +1,65 @@
+name: HoReCa One V3 Readability Review (no deploy)
+on:
+  push:
+    branches:
+      - fix/horeca-one-readable-modules-v3
+    paths:
+      - hotel_erp.html
+      - app_main.py
+      - setu_security.py
+      - setu_media.py
+      - installer/horeca_v2_preview_hook.py
+      - tests/test_horeca_one_v2.py
+      - .github/workflows/horeca-v3-windows-review.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-preview:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install preview build dependencies
+        run: python -m pip install --upgrade pyinstaller pywebview certifi
+      - name: Check Python sources
+        run: python -m py_compile app_main.py setu_security.py setu_media.py installer/horeca_v2_preview_hook.py
+      - name: Validate real ERP UI JS and layout
+        run: python -m unittest discover -s tests -p test_horeca_one_v2.py -v
+      - name: Build isolated preview EXE
+        shell: cmd
+        run: >
+          python -m PyInstaller --noconfirm --onefile --windowed
+          --name HoReCa-One-V3-Review --icon favicon.ico
+          --runtime-hook installer/horeca_v2_preview_hook.py
+          --add-data "hotel_erp.html;."
+          --add-data "manifest.json;."
+          --add-data "sw.js;."
+          --add-data "icon-192.png;."
+          --add-data "icon-512.png;."
+          --add-data "logo.png;."
+          --add-data "favicon.ico;."
+          --add-data "food;food"
+          app_main.py
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        run: |
+          $hash = (Get-FileHash dist/HoReCa-One-V3-Review.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  HoReCa-One-V3-Review.exe" | Set-Content -Encoding ascii dist/HoReCa-One-V3-Review.sha256.txt
+      - name: Publish isolated private preview prerelease
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "horeca-one-ui-v3-readable-20261102"
+          $notes = "UI V2 OFFLINE DEMO ONLY. Login: Hotel ID DEMOLOCAL, Username owner, Password Preview@2026. Demo local data folder HoReCaOneOfflineDemoV2/Data; port 8162; cloud disabled. DO NOT use real client credentials or data. This is not a production build."
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag dist/HoReCa-One-V3-Review.exe dist/HoReCa-One-V3-Review.sha256.txt --clobber
+          } else {
+            gh release create $tag dist/HoReCa-One-V3-Review.exe dist/HoReCa-One-V3-Review.sha256.txt --target ${{ github.sha }} --title "HoReCa One V3 Readable Modules — Testing Only" --notes $notes --prerelease --latest=false
+          }
