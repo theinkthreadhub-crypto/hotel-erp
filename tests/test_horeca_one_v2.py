@@ -26,7 +26,7 @@ class HoReCaV2UI(unittest.TestCase):
                      'finalizePakkaBill','applyTheme','go'):
             self.assertIn('function ' + name + '(', HTML)
     def test_cache_changed(self):
-        self.assertIn("setu-pos-v70", SW)
+        self.assertIn("setu-pos-v71", SW)
     @unittest.skipUnless(shutil.which('node'), 'node unavailable')
     def test_embedded_scripts_parse(self):
         scripts=re.findall(r'<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>', HTML)
