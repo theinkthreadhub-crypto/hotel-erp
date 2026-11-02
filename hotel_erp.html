@@ -3667,6 +3667,7 @@ save();
 function playOrderChime(){
   try{
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if(ctx.state === 'suspended') ctx.resume();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -16149,6 +16150,9 @@ async function qrPoll(){
         if(fresh.length || calls.length){
           playOrderChime();
           toast(fresh.length ? `New QR order: ${[...new Set(fresh.map(o => 'Table ' + o.tbl))].join(', ')}` : `Table ${calls[0].tbl}: ${QR_CALL[calls[0].kind] || 'needs help'}`);
+          if(fresh.length && (!QRS.auto || !qrAutoDevice())){
+            if(!isModal() || $('#qr-panel')) qrPanel();
+          }
           if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
         }
         if(QRS.auto && qrAutoDevice()){
