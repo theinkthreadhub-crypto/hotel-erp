@@ -5,6 +5,7 @@ on:
       - fix/horeca-one-readable-modules-v3
     paths:
       - hotel_erp.html
+      - sw.js
       - app_main.py
       - setu_security.py
       - setu_media.py
