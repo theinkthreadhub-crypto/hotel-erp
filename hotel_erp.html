@@ -6604,8 +6604,8 @@ function drawLookCard(){
   const el = $('#look-card');
   if(!el) return;
   const cur = D.settings.theme || 'classic', ds = D.settings.dashStyle || 'classic', fx = D.settings.btnEffect || 'tactile', density = D.settings.uiDensity || 'normal';
-  el.innerHTML = `<h3 style="margin-top:0">Appearance — Ultimate 27-Theme Gallery</h3>
-    <p class="muted" style="margin-top:-6px;font-size:13px">Foodpiolet includes 27 production themes. Billing, KOT, and printing are never affected. Original Classic remains default.</p>
+  el.innerHTML = `<h3 style="margin-top:0">Appearance & Design Themes</h3>
+    <p class="muted" style="margin-top:-6px;font-size:13px">Use HoReCa One Light for the approved premium look. Existing customer themes remain available.</p>
     <div class="btns" style="margin-bottom:14px">
       <button class="btn ok" onclick="openThemeModal()">🎨 Open 27-Theme Gallery Studio</button>
       <button class="btn bad sm" onclick="resetThemeDefault()">🔄 Reset to Original Classic</button>
@@ -8073,9 +8073,9 @@ function scrSessions(){
   const allSessions = [...D.sessions].reverse();
 
   main.innerHTML = `
-    <div class="title">
+    <div class="title horeca-shift-title">
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:20px">⏱️</span>
+        <span class="horeca-shift-symbol" aria-hidden="true">S</span>
         <div>
           <b style="font-size:16px">POS Counter Sessions & Cashier Shift Register</b>
           <div class="muted" style="font-size:11.5px">Auditable Shift Control, Drawer Floating Cash & End-of-Day Cash Reconciliation</div>
@@ -8092,7 +8092,7 @@ function scrSessions(){
     </div>
 
     <!-- Active Session Hero Banner -->
-    <div class="card" style="margin-bottom:18px;border-left:5px solid ${active ? 'var(--ok)' : 'var(--border)'}">
+    <div class="card horeca-shift-hero" style="margin-bottom:18px;border-left:5px solid ${active ? 'var(--ok)' : 'var(--border)'}">
       ${active ? `
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
           <div>
@@ -8124,7 +8124,7 @@ function scrSessions(){
     </div>
 
     <!-- Auditable Sessions History Table -->
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card horeca-shift-history" style="padding:0;overflow:hidden">
       <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
         <div>
           <b style="font-size:14px;color:var(--text)">All Counter Sessions & Shift Audit Log ("Check Every Session")</b>
@@ -8205,9 +8205,9 @@ function scrGateway(){
     main.innerHTML = (isManager() ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div style="font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px">
         <span style="width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block"></span>
-        Theme Dashboard: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'Modern'}</span>
+        Design Theme: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'Modern'}</span>
       </div>
-      <button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
+      <button class="btn horeca-activate-theme" onclick="setTheme('horeca_light','modern');go('gateway')">Activate HoReCa One</button> <button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
     </div>` : '') + dashModern();
     return;
   }
@@ -9002,9 +9002,9 @@ function scrBill(){
   const isCurrentTableKaccha = !!D.kaccha[B.table];
 
   main.innerHTML = `
-  <div class="title">
+  <div class="title horeca-pos-title">
     <div style="display:flex;align-items:center;gap:10px">
-      <span>Sales Counter — Restaurant Billing</span>
+      <span>Billing Desk <small class="horeca-pos-kicker">POS / RESTAURANT OPERATIONS</small></span>
       <span class="status-pill" style="font-size:11px">
         ${B.channel === 'Dine-In' ? (isCurrentTableKaccha ? 'Running Order' : 'Dine-In Table') :
           B.channel === 'Takeaway' ? 'Parcel Order' :
@@ -9015,7 +9015,7 @@ function scrBill(){
   </div>
 
   <!-- Channel Selector Tabs (Dine-In, Takeaway, Zomato, Swiggy) -->
-  <div class="channel-bar">
+  <div class="channel-bar horeca-pos-channels">
     <button type="button" class="channel-btn ${B.channel==='Dine-In'?'active':''}" onclick="setBillingChannel('Dine-In')">
       Dine-In (Table)
     </button>
@@ -9103,16 +9103,18 @@ function scrBill(){
     </div>
   ` : ''}
 
-  <div class="bill">
-    <!-- Left Column: Search, Category & Item Grid -->
-    <div>
+  <div class="bill horeca-pos-workspace">
+    <!-- Menu workspace -->
+    <div class="horeca-pos-catalog">
+      <div class="horeca-pos-section-top"><div><span class="horeca-eyebrow">MENU CATALOGUE</span><h3>Choose Items</h3></div><span class="horeca-pos-counter">Click to add</span></div>
       <input id="q" placeholder="Search items, press Enter to add (e.g. paneer, naan, roti)" autocomplete="off">
       <div class="cats">${cats.map((c,i) => `<button class="cat ${i===billCat?'on':''}" onclick="billCat=${i};scrBill()">${esc(c)}</button>`).join('')}</div>
       <div id="items" class="items"></div>
     </div>
 
-    <!-- Right Column: Cart & Billing Details -->
-    <div class="card">
+    <!-- Checkout workspace -->
+    <div class="card horeca-pos-checkout">
+      <div class="horeca-pos-section-top"><div><span class="horeca-eyebrow">CURRENT ORDER</span><h3>Order & Payment</h3></div><span class="horeca-pos-counter">Live cart</span></div>
       ${kacchaEntries.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <b style="font-size:12px;color:#b45309">Running orders:</b>
         ${kacchaEntries.map(([tbl, k]) => `<button class="btn sm ${B.table === tbl ? 'ok' : 'g'}" style="padding:5px 10px" onclick="switchTable('${esc(tbl)}')">${esc(tbl)} · ${money(calc(k.cart, k.disc, gstRate()).total)}</button>`).join('')}
@@ -9135,7 +9137,7 @@ function scrBill(){
       </div>
       <div id="pts"></div>
 
-      <div id="cart" style="margin-top:12px"></div>
+      <div id="cart" class="horeca-pos-cart" style="margin-top:12px"></div>
 
       <div class="grid" style="grid-template-columns:150px 1fr;margin-top:12px">
         <div>
@@ -9151,7 +9153,7 @@ function scrBill(){
         </div>
       </div>
 
-      <div id="tot" class="tot" style="margin-top:12px"></div>
+      <div id="tot" class="tot horeca-pos-total" style="margin-top:12px"></div>
 
       <label style="margin-top:10px">Payment Mode</label>
       <div class="modes">
@@ -17547,7 +17549,8 @@ function scrSettings(){
   const s = D.settings;
   const f = (k, l, t='text') => `<div><label>${l}</label><input id="st_${k}" type="${t}" value="${esc(s[k])}"></div>`;
   main.innerHTML = `
-  <div class="title">Restaurant Settings, Online Aggregators & Backup</div>
+  <div class="title horeca-settings-title"><div><small class="horeca-eyebrow">PROPERTY ADMINISTRATION</small><div>Settings & Integrations</div></div><span class="r">Property, Devices & Access</span></div>
+  <nav class="horeca-settings-jump" aria-label="Settings sections"><button type="button" onclick="document.getElementById('print-card').scrollIntoView({behavior:'smooth'})">Printer Setup</button><button type="button" onclick="document.getElementById('net-card').scrollIntoView({behavior:'smooth'})">Devices</button><button type="button" onclick="document.getElementById('cloud-card').scrollIntoView({behavior:'smooth'})">Cloud Sync</button><button type="button" onclick="document.getElementById('look-card').scrollIntoView({behavior:'smooth'})">Appearance</button><button type="button" onclick="document.getElementById('horeca-property-card').scrollIntoView({behavior:'smooth'})">Property Details</button></nav>
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
@@ -17566,7 +17569,7 @@ function scrSettings(){
     <div class="btns"><button class="btn ok" onclick="changeOwnerPass()">Change Password</button></div>
   </div>
   
-  <div class="card">
+  <div class="card" id="horeca-property-card">
     <h3 style="margin-top:0">Restaurant Details (Printed on Bills)</h3>
     <div style="background:var(--surface);border:1.5px dashed var(--border);border-radius:12px;padding:16px;margin:12px 0;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
       <div style="width:72px;height:72px;border-radius:12px;border:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
