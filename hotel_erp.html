@@ -2666,8 +2666,37 @@ function cleanPays(list){
   return Object.entries(by).map(([mode, amt]) => ({mode, amt}));
 }
 // Money movements that are not income / expense (they only move cash or settle earlier sales/purchases)
-const NON_INCOME_HEADS = ['Customer Wallet Topup','Zomato Settlement','Swiggy Settlement'];
-const NON_EXPENSE_HEADS = ['Supplier Payment'];
+const NON_INCOME_HEADS = [
+  'Customer Wallet Topup',
+  'Zomato Settlement',
+  'Swiggy Settlement',
+  'Customer Settlement',
+  'Credit Settlement',
+  'Staff Advance Recovery',
+  'Owner Capital',
+  'Capital Contribution',
+  'Loan Received',
+  'Borrowing',
+  'Customer Advance',
+  'Gas Deposit Refund',
+  'Bank Transfer',
+  'Cash to Bank',
+  'Contra'
+];
+const NON_EXPENSE_HEADS = [
+  'Supplier Payment',
+  'Staff Advance',
+  'Customer Refund',
+  'Owner Drawings',
+  'Drawings',
+  'Loan Repayment',
+  'Loan Principal',
+  'Gas Deposit (refundable)',
+  'Asset Purchase',
+  'Bank Transfer',
+  'Bank to Cash',
+  'Contra'
+];
 const DEN = [500,200,100,50,20,10,5,2,1];
 
 function seed(){
@@ -5895,11 +5924,21 @@ function calc(items, disc, rate){
 function summary(d){
   const bills = D.bills.filter(b => b.date === d && !b.cancelled), tx = D.txns.filter(t => t.date === d);
   const by = {}; MODES.forEach(m => by[m] = r2(bills.reduce((a, b) => a + paidBy(b, m), 0)));
+  const cns = (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => c.date === d);
+  const cnTotal = r2(sum(cns, 'total'));
+  const cnTaxable = r2(sum(cns, 'taxable'));
+  const cnTax = r2(sum(cns, 'tax'));
+
   const recAll = tx.filter(t => t.type === 'Receipt'), expAll = tx.filter(t => t.type === 'Expense'), pur = tx.filter(t => t.type === 'Purchase');
   const rec = recAll.filter(t => !NON_INCOME_HEADS.includes(t.head)), exp = expAll.filter(t => !NON_EXPENSE_HEADS.includes(t.head));
   const isCash = t => t.mode === 'Cash';
-  const cashIn = by.Cash + sum(recAll.filter(isCash), 'amount');
-  const cashOut = sum(expAll.filter(isCash), 'amount') + sum(pur.filter(isCash), 'amount');
+  const isBank = t => ['UPI', 'Card', 'Bank', 'Netbanking', 'Cheque'].includes(t.mode);
+
+  const cashIn = r2((by.Cash || 0) + sum(recAll.filter(isCash), 'amount'));
+  const cashOut = r2(sum(expAll.filter(isCash), 'amount') + sum(pur.filter(isCash), 'amount'));
+  const bankIn = r2((by.UPI || 0) + (by.Card || 0) + (by.Netbanking || 0) + (by.Cheque || 0) + sum(recAll.filter(isBank), 'amount'));
+  const bankOut = r2(sum(expAll.filter(isBank), 'amount') + sum(pur.filter(isBank), 'amount'));
+
   const items = {};
   bills.forEach(b => b.items.forEach(i => { items[i.name] = (items[i.name] || 0) + i.qty; }));
   const cr = cashRec(d), counted = countTotal(cr);
@@ -5910,13 +5949,29 @@ function summary(d){
   const zomatoSales = sum(bills.filter(b => b.channel === 'Zomato'), 'total');
   const swiggySales = sum(bills.filter(b => b.channel === 'Swiggy'), 'total');
 
+  const grossSub = r2(sum(bills, 'sub'));
+  const disc = r2(sum(bills, 'disc'));
+  const taxableSales = r2(sum(bills, 'taxable'));
+  const tax = r2(sum(bills, 'tax'));
+  const sales = r2(sum(bills, 'total'));
+
+  // True CA-ready accounting metrics
+  const netRevenue = r2(taxableSales - cnTaxable); // Net sales recognized in P&L (excluding GST)
+  const netTax = r2(tax - cnTax); // Output GST liability to government
+  const netSales = r2(sales - cnTotal); // Net collection value after credit notes
+  const creditSales = r2(sum(bills.filter(b => b.mode === 'Credit'), 'total'));
+  const staffAdvT = r2(sum(expAll.filter(t => t.head === 'Staff Advance'), 'amount'));
+  const supPayT = r2(sum(expAll.filter(t => t.head === 'Supplier Payment'), 'amount'));
+  const assetPurT = r2(sum(expAll.filter(t => t.head === 'Asset Purchase' || t.head === 'Gas Deposit (refundable)'), 'amount'));
+
   return {
-    bills, by, sales: sum(bills,'total'), disc: sum(bills,'disc'), tax: sum(bills,'tax'),
+    bills, by, sales, disc, tax, grossSub, taxableSales, cnTotal, cnTaxable, cnTax,
+    netRevenue, netTax, netSales, creditSales,
     rec, exp, pur, recT: sum(rec,'amount'), expT: sum(exp,'amount'), purT: sum(pur,'amount'),
+    staffAdvT, supPayT, assetPurT,
     walletTopT: sum(recAll.filter(t => t.head === 'Customer Wallet Topup'), 'amount'),
     settleT: sum(recAll.filter(t => /Settlement$/.test(t.head || '')), 'amount'),
-    supPayT: sum(expAll.filter(t => t.head === 'Supplier Payment'), 'amount'),
-    cashIn, cashOut, opening: +cr.opening || 0, expected: (+cr.opening || 0) + cashIn - cashOut,
+    cashIn, cashOut, bankIn, bankOut, opening: +cr.opening || 0, expected: (+cr.opening || 0) + cashIn - cashOut,
     counted, countedSaved: !!D.cash[d], top: Object.entries(items).sort((a,b) => b[1] - a[1]),
     cancelled: D.bills.filter(b => b.date === d && b.cancelled).length,
     dineSales, takeawaySales, zomatoSales, swiggySales
@@ -10915,46 +10970,224 @@ function saveAsset(id){
   save(); closeModal(); scrExpense();
 }
 
-/* ================= DAY BOOK ================= */
-let dbFrom = today(), dbTo = today();
+/* ================= DAY BOOK & SEGREGATED CASH / BANK / CREDIT BOOKS ================= */
+let dbFrom = today(), dbTo = today(), dbView = 'all';
 
-// Every voucher (bills + cash book) between two dates, oldest first
-function daybookData(from, to){
-  const inRange = d => d >= from && d <= to, e = [];
-  D.bills.filter(b => inRange(b.date)).forEach(b => e.push({
-    date: b.date, time: b.time || '', type: 'Sales (' + (b.channel || 'Dine-In') + ')',
-    part: `Bill #${b.no}${b.table ? ' · ' + b.table : ''}${b.cust ? ' · ' + b.cust : ''}${b.cancelled ? ' (CANCELLED)' : ''}`,
-    mode: modeText(b), in: b.cancelled ? 0 : b.total, out: 0, x: b.cancelled
-  }));
-  D.txns.filter(t => inRange(t.date)).forEach(t => e.push({
-    date: t.date, time: t.time || '', type: t.type === 'Receipt' ? 'Receipt' : t.type === 'Expense' ? 'Payment' : 'Purchase',
-    part: `${t.head || ''} ${t.desc || ''}${t.party ? ' · ' + t.party : ''}`.trim(), mode: t.mode || '',
-    in: t.type === 'Receipt' ? t.amount : 0, out: t.type === 'Receipt' ? 0 : t.amount
-  }));
-  e.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
-  // Day summaries added up over the range (cash in hand = closing of the last day)
-  const t = {sales: 0, dineSales: 0, takeawaySales: 0, zomatoSales: 0, swiggySales: 0, expT: 0, purT: 0, cashIn: 0, cashOut: 0, tax: 0, disc: 0, bills: 0, cancelled: 0, by: {}};
+// Every voucher (bills, credit notes, cash & bank transactions) between two dates
+function daybookData(from, to, view = dbView){
+  const inRange = d => d >= from && d <= to, allEntries = [];
+
+  // 1. Sales Invoices
+  D.bills.filter(b => inRange(b.date)).forEach(b => {
+    const isCredit = b.mode === 'Credit';
+    const cashPortion = r2(paidBy(b, 'Cash'));
+    const bankPortion = r2(b.total - cashPortion - (isCredit ? b.total : 0));
+    
+    let inAmt = 0;
+    if(!b.cancelled){
+      if(view === 'cash') inAmt = cashPortion;
+      else if(view === 'bank') inAmt = bankPortion;
+      else if(view === 'credit') inAmt = isCredit ? b.total : 0;
+      else inAmt = isCredit ? 0 : b.total; // In General Day Book, credit sales create receivables, not immediate cash collections
+    }
+
+    allEntries.push({
+      date: b.date,
+      time: b.time || '',
+      type: 'Sales (' + (b.channel || 'Dine-In') + ')',
+      vtype: 'Sales',
+      part: `Bill #${b.no}${b.table ? ' · ' + b.table : ''}${b.cust ? ' · ' + b.cust : ''}${isCredit ? ' [CREDIT]' : ''}${b.cancelled ? ' (CANCELLED)' : ''}`,
+      mode: modeText(b),
+      in: inAmt,
+      out: 0,
+      total: b.total,
+      taxable: b.taxable,
+      tax: b.tax,
+      isCredit,
+      cashIn: b.cancelled ? 0 : cashPortion,
+      cashOut: 0,
+      bankIn: b.cancelled ? 0 : bankPortion,
+      bankOut: 0,
+      creditIn: (b.cancelled || !isCredit) ? 0 : b.total,
+      creditOut: 0,
+      x: b.cancelled
+    });
+  });
+
+  // 2. Credit Notes (Sales Returns & Price Adjustments)
+  (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => inRange(c.date)).forEach(c => {
+    const isCashRefund = c.mode === 'Cash';
+    const isBankRefund = ['UPI', 'Card', 'Bank', 'Netbanking'].includes(c.mode);
+    const isCreditAdj = !c.mode || c.mode === 'None' || c.mode === 'Credit';
+
+    let outAmt = 0;
+    if(view === 'cash') outAmt = isCashRefund ? c.total : 0;
+    else if(view === 'bank') outAmt = isBankRefund ? c.total : 0;
+    else if(view === 'credit') outAmt = isCreditAdj ? c.total : 0;
+    else outAmt = (isCashRefund || isBankRefund) ? c.total : 0;
+
+    allEntries.push({
+      date: c.date,
+      time: c.time || '',
+      type: 'Credit Note',
+      vtype: 'Credit Note',
+      part: `CN-${c.no} on Bill #${c.billNo} · ${c.cust || ''} (${c.reason || 'Return'})`,
+      mode: c.mode || 'None',
+      in: 0,
+      out: outAmt,
+      total: c.total,
+      taxable: -c.taxable,
+      tax: -c.tax,
+      isCredit: isCreditAdj,
+      cashIn: 0,
+      cashOut: isCashRefund ? c.total : 0,
+      bankIn: 0,
+      bankOut: isBankRefund ? c.total : 0,
+      creditIn: 0,
+      creditOut: isCreditAdj ? c.total : 0,
+      x: false
+    });
+  });
+
+  // 3. Transactions (Purchases, Payments, Expenses, Receipts, Settlements)
+  D.txns.filter(t => inRange(t.date)).forEach(t => {
+    const isCash = t.mode === 'Cash';
+    const isBank = ['UPI', 'Card', 'Bank', 'Netbanking', 'Cheque'].includes(t.mode);
+    const isCredit = t.mode === 'Credit';
+    const isRec = t.type === 'Receipt';
+    const isSupPay = t.head === 'Supplier Payment';
+    const isStaffAdv = t.head === 'Staff Advance';
+    const isCustSettle = t.head === 'Customer Settlement' || /Settlement$/.test(t.head || '');
+
+    let inAmt = 0, outAmt = 0;
+    if(view === 'cash'){
+      if(isRec && isCash) inAmt = t.amount;
+      if(!isRec && isCash) outAmt = t.amount;
+    } else if(view === 'bank'){
+      if(isRec && isBank) inAmt = t.amount;
+      if(!isRec && isBank) outAmt = t.amount;
+    } else if(view === 'credit'){
+      if(isRec && isCustSettle) outAmt = t.amount; // Customer payment reduces outstanding receivable
+      if(!isRec && isCredit) outAmt = t.amount; // Credit purchase increases payable
+      if(!isRec && isSupPay) inAmt = t.amount; // Supplier payment settles payable
+    } else {
+      // General Day Book
+      if(isRec) inAmt = isCredit ? 0 : t.amount;
+      else outAmt = isCredit ? 0 : t.amount;
+    }
+
+    allEntries.push({
+      date: t.date,
+      time: t.time || '',
+      type: isRec ? (isCustSettle ? 'Customer Receipt' : 'Receipt') : (t.type === 'Expense' ? (isSupPay ? 'Supplier Payment' : (isStaffAdv ? 'Staff Advance' : 'Expense')) : 'Purchase'),
+      vtype: isRec ? 'Receipt' : (t.type === 'Expense' ? 'Expense' : 'Purchase'),
+      part: `${t.head || ''} ${t.desc || ''}${t.party ? ' · ' + t.party : ''}`.trim(),
+      mode: t.mode || '',
+      in: inAmt,
+      out: outAmt,
+      total: t.amount,
+      isCredit,
+      cashIn: (isRec && isCash) ? t.amount : 0,
+      cashOut: (!isRec && isCash) ? t.amount : 0,
+      bankIn: (isRec && isBank) ? t.amount : 0,
+      bankOut: (!isRec && isBank) ? t.amount : 0,
+      creditIn: (isRec && isCustSettle) ? t.amount : 0,
+      creditOut: (!isRec && isCredit) ? t.amount : 0,
+      isSupPay,
+      isStaffAdv,
+      isCustSettle,
+      x: false
+    });
+  });
+
+  allEntries.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+
+  // Filter list based on selected book view
+  let e = allEntries;
+  if(view === 'cash'){
+    e = allEntries.filter(x => (x.cashIn > 0 || x.cashOut > 0) || (x.mode === 'Cash' && !x.x));
+  } else if(view === 'bank'){
+    e = allEntries.filter(x => (x.bankIn > 0 || x.bankOut > 0) || (['UPI', 'Card', 'Bank', 'Netbanking'].includes(x.mode) && !x.x));
+  } else if(view === 'credit'){
+    e = allEntries.filter(x => x.isCredit || x.isSupPay || x.isCustSettle || x.creditIn > 0 || x.creditOut > 0);
+  }
+
+  // Aggregate summary totals over the date range
+  const t = {
+    sales: 0, netRevenue: 0, taxableSales: 0, dineSales: 0, takeawaySales: 0, zomatoSales: 0, swiggySales: 0,
+    expT: 0, purT: 0, cashIn: 0, cashOut: 0, bankIn: 0, bankOut: 0, creditSales: 0,
+    tax: 0, disc: 0, cnTotal: 0, bills: 0, cancelled: 0, by: {}
+  };
   MODES.forEach(m => t.by[m] = 0);
   let days = 0;
   for(let d = from; d <= to && days < 400; d = addDays(d, 1), days++){
     const s = summary(d);
-    ['sales', 'dineSales', 'takeawaySales', 'zomatoSales', 'swiggySales', 'expT', 'purT', 'cashIn', 'cashOut', 'tax', 'disc', 'cancelled'].forEach(k => t[k] += +s[k] || 0);
+    ['sales', 'netRevenue', 'taxableSales', 'dineSales', 'takeawaySales', 'zomatoSales', 'swiggySales', 'expT', 'purT', 'cashIn', 'cashOut', 'bankIn', 'bankOut', 'creditSales', 'tax', 'disc', 'cancelled', 'cnTotal'].forEach(k => t[k] += +(s[k] || 0));
     t.bills += s.bills.length;
-    MODES.forEach(m => t.by[m] += +s.by[m] || 0);
+    MODES.forEach(m => t.by[m] += +(s.by[m] || 0));
   }
   t.expected = summary(to).expected;
-  return {e, t, days};
+  return {e, allEntries, t, days};
 }
 
 function scrDaybook(){
   if(dbTo < dbFrom) dbTo = dbFrom;
-  const {e, t, days} = daybookData(dbFrom, dbTo), many = dbFrom !== dbTo;
+  const {e, t, days} = daybookData(dbFrom, dbTo, dbView), many = dbFrom !== dbTo;
+
+  let kpiCards = [];
+  if(dbView === 'cash'){
+    kpiCards = [
+      ['Cash Bills', t.by.Cash || 0, 'green'],
+      ['Total Cash Inward', t.cashIn, 'green'],
+      ['Total Cash Outward', t.cashOut, 'red'],
+      [many ? 'Cash in Hand (on ' + dmy(dbTo) + ')' : 'Physical Cash in Hand', t.expected, 'ok']
+    ];
+  } else if(dbView === 'bank'){
+    const bankInTotal = (t.by.UPI || 0) + (t.by.Card || 0) + (t.by.Netbanking || 0) + (t.by.Cheque || 0) + (t.bankIn || 0);
+    kpiCards = [
+      ['UPI Collections', t.by.UPI || 0, 'green'],
+      ['Card / POS Swipes', t.by.Card || 0, 'green'],
+      ['Total Bank Inflows', bankInTotal, 'green'],
+      ['Total Bank Disbursements', t.bankOut || 0, 'red'],
+      ['Net Digital Funds Movement', bankInTotal - (t.bankOut || 0), 'ok']
+    ];
+  } else if(dbView === 'credit'){
+    kpiCards = [
+      ['Credit Sales (Receivables)', t.creditSales || 0, 'warn'],
+      ['Customer Collections', t.settleT || 0, 'green'],
+      ['Credit Purchases (Payables)', t.purT || 0, 'red'],
+      ['Supplier Payments Made', t.supPayT || 0, 'ok']
+    ];
+  } else {
+    // General Day Book (All Vouchers)
+    kpiCards = [
+      ['Bills Count', t.bills, '', true],
+      ['Gross Invoice Sales', t.sales, 'green'],
+      ['Net Operating Revenue', t.netRevenue || (t.sales - t.tax), 'green'],
+      ['GST Output Tax', t.tax, ''],
+      ['Operating Expenses', t.expT, 'red'],
+      ['Stock Purchases', t.purT, 'red'],
+      ['Cash Inward', t.cashIn, 'green'],
+      ['Cash Outward', t.cashOut, 'red'],
+      [many ? 'Cash in Hand (on ' + dmy(dbTo) + ')' : 'Cash in Hand (exp.)', t.expected, '']
+    ];
+  }
+
   main.innerHTML = `
   <div class="title">
-    <span>Day Book & Daily Ledger</span>
+    <span>Day Book & Segregated Ledgers</span>
     <span class="r">From <input type="date" value="${dbFrom}" onchange="dbFrom=this.value;scrDaybook()">
       To <input type="date" value="${dbTo}" onchange="dbTo=this.value;scrDaybook()"></span>
   </div>
+
+  <!-- Segmented View Tabs for Cash Book / Bank Book / Credit Book -->
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="cat ${dbView==='all'?'active':''}" onclick="dbView='all';scrDaybook()" style="${dbView==='all'?'background:var(--primary);color:#fff;font-weight:700':''}">📑 General Day Book</button>
+    <button class="cat ${dbView==='cash'?'active':''}" onclick="dbView='cash';scrDaybook()" style="${dbView==='cash'?'background:var(--primary);color:#fff;font-weight:700':''}">💵 Cash Book (Drawer)</button>
+    <button class="cat ${dbView==='bank'?'active':''}" onclick="dbView='bank';scrDaybook()" style="${dbView==='bank'?'background:var(--primary);color:#fff;font-weight:700':''}">🏦 Bank Book (UPI / Card / NEFT)</button>
+    <button class="cat ${dbView==='credit'?'active':''}" onclick="dbView='credit';scrDaybook()" style="${dbView==='credit'?'background:var(--primary);color:#fff;font-weight:700':''}">💳 Credit & Outstandings</button>
+  </div>
+
   <div class="cats" style="margin-bottom:12px">
     <button class="cat" onclick="dbFrom=dbTo=today();scrDaybook()">Today</button>
     <button class="cat" onclick="dbFrom=dbTo=addDays(today(),-1);scrDaybook()">Yesterday</button>
@@ -10962,60 +11195,51 @@ function scrDaybook(){
     <button class="cat" onclick="dbFrom=today().slice(0,8)+'01';dbTo=today();scrDaybook()">This Month</button>
     <button class="cat" onclick="dbTo=addDays(today().slice(0,8)+'01',-1);dbFrom=dbTo.slice(0,8)+'01';scrDaybook()">Last Month</button>
   </div>
+
   <div class="grid" style="margin-bottom:16px">
-    ${[
-      ['Bills', t.bills, '', true],
-      ['Total Sales', t.sales, 'green'],
-      ['Dine-In Sales', t.dineSales, 'green'],
-      ['Takeaway Sales', t.takeawaySales, 'green'],
-      ['Zomato Sales', t.zomatoSales, 'green'],
-      ['Swiggy Sales', t.swiggySales, 'green'],
-      ['GST', t.tax, ''],
-      ['Expenses', t.expT, 'red'],
-      ['Purchases', t.purT, 'red'],
-      ['Cash In', t.cashIn, 'green'],
-      ['Cash Out', t.cashOut, 'red'],
-      [many ? 'Cash in Hand (on ' + dmy(dbTo) + ')' : 'Cash in Hand (exp.)', t.expected, '']
-    ].map(([l, v, c, n]) => `
+    ${kpiCards.map(([l, v, c, n]) => `
       <div class="card" style="margin:0;padding:12px">
         <label>${l}</label>
         <div style="font-size:17px;font-weight:800" class="${c}">${n ? v : money(v)}</div>
       </div>
     `).join('')}
   </div>
+
   <div class="btns" style="margin-bottom:12px">
     <button class="btn g" onclick="printDaybook()">Print</button>
     <button class="btn ok" onclick="daybookPDF()">PDF</button>
     <button class="btn g" onclick="daybookCSV()">Excel</button>
   </div>
+
   <div class="card" style="padding:0;overflow:auto">
     <table>
       <thead>
-        <tr>${many ? '<th>Date</th>' : ''}<th>Time</th><th>Voucher</th><th>Particulars</th><th>Mode</th><th class="n">Inward (₹)</th><th class="n">Outward (₹)</th></tr>
+        <tr>${many ? '<th>Date</th>' : ''}<th>Time</th><th>Voucher Type</th><th>Particulars</th><th>Mode</th><th class="n">Inward (₹)</th><th class="n">Outward (₹)</th></tr>
       </thead>
       <tbody>
-        ${e.map(r => `
+        ${e.length ? e.map(r => `
           <tr style="${r.x ? 'opacity:.5' : ''}">
             ${many ? `<td>${dmy(r.date)}</td>` : ''}
             <td>${esc(r.time)}</td>
-            <td><b>${r.type}</b></td>
+            <td><span class="badge" style="font-size:11px;font-weight:700">${esc(r.type)}</span></td>
             <td>${esc(r.part)}</td>
-            <td>${esc(r.mode)}</td>
-            <td class="n font-bold">${r.in ? r2(r.in).toFixed(2) : ''}</td>
-            <td class="n font-bold">${r.out ? r2(r.out).toFixed(2) : ''}</td>
+            <td><span class="muted">${esc(r.mode)}</span></td>
+            <td class="n font-bold">${r.in ? money(r.in) : '—'}</td>
+            <td class="n font-bold">${r.out ? money(r.out) : '—'}</td>
           </tr>
-        `).join('') || `<tr><td colspan="${many ? 7 : 6}" class="muted" style="text-align:center;padding:20px">No entries ${many ? 'in this date range' : 'on this date'}</td></tr>`}
+        `).join('') : `<tr><td colspan="${many ? 7 : 6}" style="text-align:center;padding:24px;color:var(--text-muted)">No entries in this date range for the selected view.</td></tr>`}
       </tbody>
       <tfoot>
         <tr>
-          <td colspan="${many ? 5 : 4}">Total${many ? ` (${days} days)` : ''}</td>
+          <td colspan="${many ? 5 : 4}"><b>Total ${dbView.toUpperCase()} Movements${many ? ` (${days} days)` : ''}</b></td>
           <td class="n font-bold">${money(sum(e, 'in'))}</td>
           <td class="n font-bold">${money(sum(e, 'out'))}</td>
         </tr>
       </tfoot>
     </table>
   </div>
-  <div class="card"><b>Mode-wise Sales:</b> ${MODES.map(m => `${m}: ${money(t.by[m])}`).join(' &nbsp;·&nbsp; ')}</div>`;
+  <div class="card"><b>Mode-wise Sales:</b> ${MODES.map(m => `${m}: ${money(t.by[m])}`).join(' &nbsp;•&nbsp; ')}</div>
+  `;
 }
 
 function daybookCSV(){
