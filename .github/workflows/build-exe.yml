@@ -5,7 +5,10 @@ name: Build Setu EXE
 
 on:
   push:
-    branches: [ccr-89eaafa4-mxbfj2]
+    branches:
+      - feat/horeca-one-premium-22-modules
+      - feat/horeca-one-v3-reference-accurate
+      - main
     paths:
       - 'app_main.py'
       - 'setu_*.py'
