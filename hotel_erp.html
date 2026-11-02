@@ -3271,6 +3271,37 @@ html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card small{
 }
 /* END HoReCa One V3 Detailed Modules */
 
+
+/* Shared, data-backed KPI cards for Bills, Stock, Supplier screens */
+html[data-theme^="horeca_"] #main .ho-v3-module-stats{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:0 0 16px
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat{
+  display:flex;flex-direction:column;gap:5px;justify-content:center;min-width:0;
+  padding:17px;background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--card-shadow);min-height:108px
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat small{
+  color:var(--text-muted);font-size:11px;font-weight:700
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat strong{
+  color:var(--text);font-size:24px;letter-spacing:-.04em;line-height:1.2;
+  font-weight:830;font-variant-numeric:tabular-nums
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat span{
+  color:#0ca779;font-size:10.5px;line-height:1.35
+}
+@media(max-width:1170px){
+ html[data-theme^="horeca_"] #main .ho-v3-module-stats{
+   grid-template-columns:repeat(2,minmax(0,1fr))
+ }
+}
+@media(max-width:570px){
+ html[data-theme^="horeca_"] #main .ho-v3-module-stats{
+   grid-template-columns:minmax(0,1fr)
+ }
+}
+
 </style>
 </head>
 <body>
@@ -11183,6 +11214,13 @@ function scrBills(){
     bs = bs.filter(b => (b.channel || 'Dine-In') === billFilterChannel);
   }
   bs.sort((a,b) => b.no - a.no);
+  const activeBills = bs.filter(x=>!x.cancelled);
+  const historyKpis = [
+    ['Bills Listed',String(bs.length),'For selected date and channel'],
+    ['Active Bills',String(activeBills.length),'Not cancelled'],
+    ['Total Billed',money(sum(activeBills,'total')),'Sales before credit-note adjustment'],
+    ['Cancelled',String(bs.length-activeBills.length),'Excluded from active sales']
+  ];
 
   main.innerHTML = `
   <div class="title">
@@ -11190,6 +11228,9 @@ function scrBills(){
     <span class="r">Date: <input type="date" value="${listDate}" onchange="listDate=this.value;scrBills()"></span>
   </div>
 
+  <div class="ho-v3-module-stats">
+    ${historyKpis.map(([label,value,detail])=>`<div class="ho-v3-module-stat"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('')}
+  </div>
   <div class="cats" style="margin-bottom:12px">
     <button class="cat ${billFilterChannel==='all'?'on':''}" onclick="billFilterChannel='all';scrBills()">All Channels</button>
     <button class="cat ${billFilterChannel==='Dine-In'?'on':''}" onclick="billFilterChannel='Dine-In';scrBills()">Dine-In</button>
@@ -12251,10 +12292,19 @@ let stockView = {type: '', q: '', inactive: false};
 function scrStock(){
   const low = lowStock(), list = D.stock.filter(s => !s.merged && (stockView.inactive || s.active !== false) && (!stockView.type || (s.type || 'stock') === stockView.type)
     && (!stockView.q || (s.name + ' ' + (s.cat || '')).toLowerCase().includes(stockView.q.toLowerCase())));
+  const stockKpis = [
+    ['Stock Items',String(activeStock().length),'Active stock records'],
+    ['Low Stock Alerts',String(low.length),'Needs review'],
+    ['Out of Stock',String(D.stock.filter(x=>!x.merged&&x.active!==false&&Number(x.qty)<=0).length),'Items without available quantity'],
+    ['Filtered List',String(list.length),'Matching current filters']
+  ];
   main.innerHTML = `
   <div class="title">
     <span>Stock Summary & Inventory</span>
     <span class="r">${activeStock().length} items · Low Stock: <b class="${low.length?'red':'green'}">${low.length}</b></span>
+  </div>
+  <div class="ho-v3-module-stats">
+    ${stockKpis.map(([label,value,detail])=>`<div class="ho-v3-module-stat"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('')}
   </div>
   <div class="btns" style="margin:0 0 10px">
     <button class="btn ok" onclick="editStock()">+ New Item</button>
@@ -14601,8 +14651,17 @@ function suppliers(){
 
 function scrSuppliers(){
   const list = suppliers();
+  const supplierKpis = [
+    ['Suppliers',String(list.length),'In supplier register'],
+    ['Outstanding',money(sum(list,'due')),'Unpaid supplier balances'],
+    ['With Dues',String(list.filter(x=>x.due>0).length),'Suppliers awaiting payment'],
+    ['Total Purchased',money(sum(list,'purchases')),'Recorded supplier purchases']
+  ];
   main.innerHTML = `
   <div class="title"><span>Suppliers & Payables</span><span class="r">Total due: <b class="red">${money(sum(list, 'due'))}</b></span></div>
+  <div class="ho-v3-module-stats">
+    ${supplierKpis.map(([label,value,detail])=>`<div class="ho-v3-module-stat"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('')}
+  </div>
   <div class="btns" style="margin:0 0 10px"><button class="btn ok" onclick="editSupplier()">+ New Supplier</button><button class="btn g" onclick="AN.id='supplier-ledger';go('analytics')">Supplier Ledger Report</button><button class="btn g" onclick="AN.id='supplier-invoices';go('analytics')">Invoice-wise Dues</button></div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
