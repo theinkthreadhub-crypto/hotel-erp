@@ -1,0 +1,37 @@
+name: HoReCa One V3 Actual UI Screenshot Review (offline)
+on:
+  push:
+    branches:
+      - feat/horeca-one-v3-reference-accurate
+    paths:
+      - tests/horeca_v3_visual_review.py
+      - .github/workflows/horeca-v3-screen-review.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  screenshot-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install browser review tools
+        run: |
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+      - name: Capture actual ERP UI from local dummy hotel
+        run: python tests/horeca_v3_visual_review.py
+        env:
+          LOCALAPPDATA: ${{ github.workspace }}/.horeca-v3-test-only
+          SETU_CLOUD_URL: http://127.0.0.1:9876
+      - name: Attach verified screenshots to test-only prerelease
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload horeca-one-reference-v3-review-20261102 HoReCa-One-V3-Actual-Screen-Review.zip --clobber

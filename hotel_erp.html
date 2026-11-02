@@ -2206,6 +2206,1102 @@ html[data-theme^="horeca_"] #main :is(.red,.green){font-weight:750}
 
 /* END HORECA ONE PREMIUM UI */
 
+
+/* ===== HoReCa One Screen-Level Redesign V2: real ERP screens, theme-scoped ===== */
+/* Approved HoReCa One orange/navy tokens and selected navigation state. */
+html[data-theme="horeca_light"]{
+ --primary:#ea580c; --primary-dark:#c2410c; --primary-light:#fff0e4;
+ --border-focus:#f97316;--accent:#f97316;
+}
+html[data-theme="horeca_dark"]{
+ --primary:#fb923c;--primary-dark:#fdba74;--primary-light:#57331f;
+ --border-focus:#fb923c;--accent:#fb923c;
+}
+html[data-theme^="horeca_"] #side .nav-item.active{
+ background:#fa761b!important;color:#ffffff!important;border-color:rgba(255,255,255,.12)!important;
+ box-shadow:0 4px 15px rgba(249,115,22,.24)!important
+}
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){background:#1b365a!important}
+html[data-theme^="horeca_"] #top #sidebtn{color:var(--text)!important}
+
+html[data-theme^="horeca_"] #main{background:var(--bg);padding:22px 24px 35px!important}
+html[data-theme^="horeca_"] #main .horeca-eyebrow{
+  display:block;color:#f97316;font-size:10px;letter-spacing:.125em;
+  font-weight:850;text-transform:uppercase;margin-bottom:5px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title,
+html[data-theme^="horeca_"] #main .horeca-shift-title,
+html[data-theme^="horeca_"] #main .horeca-settings-title{
+  background:#11223d!important;color:#f8fafc!important;border:1px solid #263d60!important;
+  border-radius:16px!important;padding:20px 24px!important;
+  box-shadow:0 10px 26px rgba(12,31,58,.13)!important;
+  min-height:72px;margin-bottom:16px;
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title span,
+html[data-theme^="horeca_"] #main .horeca-settings-title > div,
+html[data-theme^="horeca_"] #main .horeca-shift-title b{color:#fff!important;font-size:19px!important}
+html[data-theme^="horeca_"] #main .horeca-pos-kicker{
+  display:block;font-size:10px;color:#a9bad4;margin-top:6px;
+  letter-spacing:.085em;font-weight:700
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title .r,
+html[data-theme^="horeca_"] #main .horeca-settings-title .r,
+html[data-theme^="horeca_"] #main .horeca-shift-title .r{
+  color:#d4e3f5!important;font-size:12px!important
+}
+html[data-theme^="horeca_"] #main .horeca-settings-title .horeca-eyebrow{font-size:10px!important}
+html[data-theme^="horeca_"] #main .horeca-pos-channels{
+  display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));
+  background:var(--panel);border:1px solid var(--border);
+  padding:5px!important;gap:5px!important;border-radius:13px!important;
+  margin-bottom:16px!important;box-shadow:var(--card-shadow)
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn{
+  min-height:43px;border-radius:9px!important;border:1px solid transparent!important;
+  background:transparent!important;color:var(--text-muted)!important;
+  box-shadow:none!important;font-size:12px;font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn.active{
+  background:#f97316!important;color:#fff!important;
+  box-shadow:0 4px 13px rgba(249,115,22,.18)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn:hover:not(.active){
+  background:var(--surface)!important;color:var(--text)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-workspace{
+  display:grid!important;grid-template-columns:minmax(0,1.3fr) minmax(375px,.85fr)!important;
+  gap:18px!important;align-items:start!important;
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog,
+html[data-theme^="horeca_"] #main .horeca-pos-checkout{
+  min-width:0;background:var(--panel);padding:18px!important;
+  border:1px solid var(--border);border-radius:16px!important;
+  box-shadow:0 5px 18px rgba(26,49,88,.058)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout{
+  position:sticky;top:12px;max-height:calc(100vh - 106px);
+  overflow:auto;scrollbar-width:thin
+}
+html[data-theme^="horeca_"] #main .horeca-pos-section-top{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;border-bottom:1px solid var(--border);
+  padding:1px 0 14px;margin-bottom:14px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-section-top h3{
+  color:var(--text);font-size:19px;letter-spacing:-.035em;
+  margin:0!important;font-weight:800
+}
+html[data-theme^="horeca_"] #main .horeca-pos-counter{
+  border:1px solid var(--border);border-radius:8px;
+  color:var(--text-muted);background:var(--surface);
+  padding:6px 10px;font-size:10px;font-weight:750;white-space:nowrap
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog #q{
+  border:1.5px solid var(--border)!important;border-radius:11px!important;
+  height:45px;background:var(--surface)!important;
+  font-size:13px;padding:10px 14px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog #q:focus{
+  border-color:#f97316!important;box-shadow:0 0 0 3px rgba(249,115,22,.10)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .cats{gap:7px;margin:13px 0 15px}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .cat{
+  border:1px solid var(--border);padding:7px 12px;border-radius:9px!important;
+  background:var(--panel);font-size:11px;color:var(--text-muted);
+  box-shadow:none
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .cat.on{
+  background:#162e50!important;color:#fff!important;border-color:#162e50!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
+  grid-template-columns:repeat(auto-fill,minmax(143px,1fr))!important;
+  gap:11px!important;max-height:calc(100vh - 370px)!important;
+  min-height:260px;overflow-y:auto!important;padding:2px 4px 10px 1px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic{
+  border:1px solid var(--border)!important;border-radius:12px!important;
+  box-shadow:0 2px 6px rgba(16,39,80,.04);
+  transition:transform .14s,border-color .14s,box-shadow .14s
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic:hover{
+  transform:translateY(-1px)!important;border-color:#f97316!important;
+  box-shadow:0 9px 24px rgba(20,43,86,.10)
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic .ph{
+  height:105px!important;border-radius:0!important
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder{
+  height:105px;width:100%;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;gap:5px;
+  background:linear-gradient(145deg,#edf4fd,#f5f8ff);
+  border-bottom:1px solid #e3eaf3
+}
+html[data-theme="horeca_dark"] #main .horeca-item-placeholder{
+  background:linear-gradient(145deg,#203657,#182941);border-color:#2a4261
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder span{
+  display:grid;place-items:center;border:1px solid rgba(69,103,150,.15);
+  color:#315f9c;background:#fff;width:44px;height:44px;border-radius:12px;
+  font-weight:850;font-size:23px;line-height:1
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder small{
+  font-size:10px;color:var(--text-muted);font-weight:650;white-space:nowrap;
+  max-width:95%;text-overflow:ellipsis;overflow:hidden
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic .tx{
+  padding:11px 12px 12px!important;min-height:66px;
+  display:flex;flex-direction:column;justify-content:space-between;gap:8px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic b{
+  font-size:11.5px;line-height:1.32;font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic small{
+  color:#e66d15;font-size:13px;font-weight:850;margin:0
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout > .grid{
+  gap:10px!important;margin-bottom:10px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout label{
+  font-size:11px;color:var(--text-muted);font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout input,
+html[data-theme^="horeca_"] #main .horeca-pos-checkout select{
+  border-radius:9px!important;min-height:37px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-cart{
+  border-radius:11px;min-height:65px;
+  background:var(--surface);border:1px solid var(--border);
+  padding:2px;overflow-x:auto
+}
+html[data-theme^="horeca_"] #main .horeca-pos-cart:empty{padding:16px}
+html[data-theme^="horeca_"] #main .horeca-pos-cart table{
+  border-radius:10px!important;border:none!important;background:transparent!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-total{
+  border:1px solid var(--border);border-radius:12px;background:var(--surface);
+  padding:14px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .modes button{
+  border-radius:9px!important;min-height:40px;padding:9px 7px;
+  font-size:11px;white-space:normal
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .modes button.on{
+  background:#17345b!important;border-color:#17345b!important;color:#fff!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout #btn-finalize-bill{
+  background:#059669!important;border-color:#059669!important;
+  border-radius:10px!important;min-height:48px;
+  box-shadow:0 7px 17px rgba(5,150,105,.13)
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout #btn-finalize-bill:hover{
+  background:#047857!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-workspace + .active-tables-tray{
+  border:1px solid var(--border)!important;background:var(--panel)!important;
+  box-shadow:var(--card-shadow);border-radius:14px!important;
+}
+html[data-theme^="horeca_"] #main .horeca-shift-symbol{
+  display:grid;place-items:center;background:#f97316;color:#fff;
+  width:34px;height:34px;border-radius:10px;font-weight:850;font-size:18px
+}
+html[data-theme^="horeca_"] #main .horeca-shift-hero,
+html[data-theme^="horeca_"] #main .horeca-shift-history{
+  border:1px solid var(--border)!important;border-left:1px solid var(--border)!important;
+  border-radius:15px!important;background:var(--panel);
+  box-shadow:0 5px 18px rgba(26,49,88,.05)!important
+}
+html[data-theme^="horeca_"] #main .horeca-shift-hero{padding:24px!important}
+html[data-theme^="horeca_"] #main .horeca-shift-history{overflow:hidden!important}
+html[data-theme^="horeca_"] #main .horeca-shift-history th{
+  padding:14px 12px!important;text-transform:uppercase;
+  letter-spacing:.04em;font-size:10px!important
+}
+html[data-theme^="horeca_"] #main .horeca-shift-history td{padding:15px 12px!important}
+html[data-theme^="horeca_"] #main .horeca-settings-jump{
+  display:flex;gap:8px;flex-wrap:wrap;
+  background:var(--panel);padding:10px;border:1px solid var(--border);
+  border-radius:13px;margin-bottom:17px;
+  position:sticky;top:0;z-index:5;box-shadow:var(--card-shadow)
+}
+html[data-theme^="horeca_"] #main .horeca-settings-jump button{
+  border:1px solid var(--border);border-radius:9px;
+  background:var(--surface);color:var(--text-muted);
+  padding:10px 15px;font-size:12px;font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-settings-jump button:hover{
+  color:var(--primary);border-color:var(--primary);background:var(--primary-light)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="settings"] #main > .card{
+  padding:22px!important;border:1px solid var(--border)!important;
+  border-left:1px solid var(--border)!important;
+  border-radius:15px!important;margin-bottom:16px!important;
+  scroll-margin-top:82px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="settings"] #main > .card h3{
+  font-size:15px;letter-spacing:-.025em;font-weight:800;
+  padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:16px
+}
+html[data-theme^="horeca_"] .horeca-activate-theme{
+  background:#f97316;color:#fff;border:1px solid #f97316;
+  font-size:11px;min-height:31px;padding:7px 12px;border-radius:9px
+}
+html[data-theme^="horeca_"] .horeca-activate-theme:hover{background:#ea580c}
+@media(max-width:1320px){
+ html[data-theme^="horeca_"] #main .horeca-pos-workspace{
+   grid-template-columns:minmax(0,1.15fr) minmax(345px,1fr)!important
+ }
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
+   grid-template-columns:repeat(auto-fill,minmax(125px,1fr))!important
+ }
+}
+@media(max-width:1020px){
+ html[data-theme^="horeca_"] #main .horeca-pos-workspace{grid-template-columns:minmax(0,1fr)!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-checkout{position:static;max-height:none}
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{max-height:430px!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-channels{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+ html[data-theme^="horeca_"] #main{padding:12px!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-title,
+ html[data-theme^="horeca_"] #main .horeca-shift-title,
+ html[data-theme^="horeca_"] #main .horeca-settings-title{padding:14px!important;flex-wrap:wrap}
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog,
+ html[data-theme^="horeca_"] #main .horeca-pos-checkout{padding:12px!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-checkout > .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ html[data-theme^="horeca_"] #main .horeca-settings-jump{position:static}
+}
+@media(prefers-reduced-motion:reduce){
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic{transition:none!important}
+}
+/* END HoReCa One Screen-Level Redesign V2 */
+
+
+/* ===============================================================
+   HoReCa One V3 — approved reference design implementation
+   Source: 22-module interactive design pack. Scoped to horeca themes.
+   Business workflows, backend identifiers, Classic theme unchanged.
+   =============================================================== */
+html[data-theme="horeca_light"]{
+  --primary:#1461df!important;--primary-dark:#084fb9!important;
+  --primary-light:#e8f1ff!important;--border-focus:#1461df!important;
+  --accent:#f58625!important;--bg:#f3f7fd!important;--panel:#ffffff!important;
+  --surface:#f6f9fe!important;--border:#e0e8f3!important;
+  --text:#172742!important;--text-muted:#657b98!important;
+  --topbar:#ffffff!important;--side-bg:#0c1b30!important;
+  --side-text:#cedcf0!important;--side-muted:#91a9c9!important;
+  --side-border:#23344b!important;--side-active-bg:#1762d6!important;
+  --side-active-text:#ffffff!important;
+  --card-shadow:0 4px 16px rgba(18,49,91,.045)!important;
+  --radius:13px!important;--ok:#10b986;--warn:#f49b2d;
+  color-scheme:light
+}
+html[data-theme="horeca_dark"]{
+  --primary:#6da5ff!important;--primary-dark:#9ec6ff!important;
+  --primary-light:#243b63!important;--border-focus:#74aaff!important;
+  --accent:#f49a41!important;--bg:#101b2c!important;--panel:#1a2b42!important;
+  --surface:#22344d!important;--border:#30455f!important;
+  --text:#f3f7ff!important;--text-muted:#acbdd4!important;
+  --topbar:#15243a!important;--side-bg:#081628!important;
+  --side-text:#d9e4f5!important;--side-muted:#91a9c9!important;
+  --side-border:#263a54!important;--side-active-bg:#1c59bc!important;
+  --side-active-text:#fff!important;
+  --card-shadow:0 6px 20px rgba(0,0,0,.11)!important;
+  --radius:13px!important;color-scheme:dark
+}
+html[data-theme^="horeca_"] body{
+  background:var(--bg)!important;color:var(--text)!important;
+  font-family:Inter,"Segoe UI",Arial,sans-serif!important;
+  font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased
+}
+html[data-theme^="horeca_"] #wrap{background:var(--bg)!important}
+html[data-theme^="horeca_"] #top{
+  background:var(--panel)!important;box-shadow:none!important;
+  border-bottom:1px solid var(--border)!important;
+  min-height:64px!important;padding:8px 20px!important;color:var(--text)!important;
+  gap:10px!important
+}
+html[data-theme^="horeca_"] #topsearch{
+  color:var(--text-muted)!important;background:#f7faff!important;
+  border:1px solid #dce6f4!important;box-shadow:none!important;
+  height:38px!important;min-width:230px;max-width:390px;border-radius:9px!important
+}
+html[data-theme="horeca_dark"] #topsearch{background:var(--surface)!important;border-color:var(--border)!important}
+html[data-theme^="horeca_"] #top .online-pill,
+html[data-theme^="horeca_"] #top .sub-pill,
+html[data-theme^="horeca_"] #top .top-wa-credit-chip,
+html[data-theme^="horeca_"] #top .user-pill{
+  border-radius:8px!important;box-shadow:none!important;font-size:11px!important;
+  min-height:30px!important;white-space:nowrap;font-weight:700
+}
+html[data-theme^="horeca_"] #top .user-pill{border:1px solid var(--border)!important}
+html[data-theme^="horeca_"] #top .brand-sub,
+html[data-theme^="horeca_"] #top .clock{color:var(--text-muted)!important}
+html[data-theme^="horeca_"] #sidebtn{
+  color:var(--text)!important;background:var(--panel)!important;
+  border:1px solid var(--border)!important;border-radius:9px!important;box-shadow:none!important
+}
+html[data-theme^="horeca_"] #side{
+  width:256px!important;min-width:256px!important;
+  background:#0c1b30!important;border-color:#172d49!important;
+  padding:9px 8px!important;gap:0!important;box-shadow:none!important;
+  scrollbar-width:thin;scrollbar-color:#314b69 transparent!important
+}
+html[data-theme^="horeca_"] body.side-expanded #side{width:256px!important;min-width:256px!important}
+html[data-theme^="horeca_"] body.side-compact #side{
+  width:70px!important;min-width:70px!important;padding:8px 5px!important
+}
+html[data-theme^="horeca_"] body.side-hidden #side{display:none!important;width:0!important;min-width:0!important}
+html[data-theme^="horeca_"] #side .horeca-side-brand{
+  display:flex;gap:10px;align-items:center;
+  padding:8px 6px 14px;margin-bottom:9px;min-height:70px;
+  border-bottom:1px solid #22364e!important
+}
+html[data-theme^="horeca_"] #side .horeca-brand-icon{
+  background:#f58520!important;box-shadow:none!important;
+  border-radius:12px!important;color:#fff!important;
+  width:43px!important;height:43px!important;flex:0 0 43px!important
+}
+html[data-theme^="horeca_"] #side .horeca-side-brand b{
+  font-size:19px!important;letter-spacing:-.06em!important;color:#fff!important;
+  font-weight:850;line-height:1.1
+}
+html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#ff9d41!important}
+html[data-theme^="horeca_"] #side .horeca-side-brand small{
+  font-size:9px!important;letter-spacing:.055em;color:#acbfd7!important;margin-top:5px
+}
+html[data-theme^="horeca_"] #side .side-section-header{
+  margin:13px 6px 6px!important;padding:7px 5px!important;
+  font-size:10px!important;color:#86a0bf!important;font-weight:800!important;
+  letter-spacing:.07em!important
+}
+html[data-theme^="horeca_"] #side .nav-item{
+  display:flex!important;align-items:center!important;
+  min-height:40px!important;margin:2px 0!important;
+  color:#c3d3e9!important;border:1px solid transparent!important;
+  border-radius:9px!important;background:transparent!important;
+  padding:10px 10px!important;gap:10px!important;
+  font-size:12px!important;font-weight:550!important;text-align:left!important;
+  box-shadow:none!important;line-height:1.25
+}
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){
+  color:#fff!important;background:#1b3251!important
+}
+html[data-theme^="horeca_"] #side .nav-item.active{
+  background:linear-gradient(90deg,#145bc8,#1a6dea)!important;
+  color:#fff!important;border-color:#2375e7!important;
+  font-weight:750!important;box-shadow:0 3px 11px rgba(0,0,0,.12)!important
+}
+html[data-theme^="horeca_"] #side .nav-item .nav-icon{
+  width:19px!important;flex:0 0 19px!important;color:#aec5df!important;
+}
+html[data-theme^="horeca_"] #side .nav-item.active .nav-icon{color:#fff!important}
+html[data-theme^="horeca_"] #side .nav-item .nav-label{
+  font-size:12px!important;overflow:hidden;text-overflow:ellipsis
+}
+html[data-theme^="horeca_"] #side .nav-kbd{display:none!important}
+html[data-theme^="horeca_"] #side .nav-right{margin-left:auto}
+html[data-theme^="horeca_"] #side .side-footer-toggle{
+  border-radius:9px!important;background:#152a47!important;
+  border:1px solid #2c4668!important;margin-top:14px!important
+}
+html[data-theme^="horeca_"] body.side-compact #side .horeca-side-brand{padding:8px 0 14px}
+html[data-theme^="horeca_"] body.side-compact #side .horeca-brand-icon{
+  flex:0 0 41px!important;width:41px!important;height:41px!important
+}
+html[data-theme^="horeca_"] body.side-compact #side .nav-item{
+  width:46px!important;min-height:44px!important;padding:0!important;margin:4px auto!important
+}
+html[data-theme^="horeca_"] #main{
+  background:var(--bg)!important;padding:20px 23px 36px!important;
+  color:var(--text)!important;min-width:0
+}
+html[data-theme^="horeca_"] body:not([data-horeca-screen="gateway"]) #main::before{
+  content:"HoReCa One / " attr(data-horeca-section);
+  color:#8093ae;font-size:11px;font-weight:600;
+  display:block;letter-spacing:.015em;margin:0 0 4px
+}
+html[data-theme^="horeca_"] #main .title{
+  display:flex;align-items:center;justify-content:space-between;
+  color:var(--text)!important;background:transparent!important;
+  border:0!important;box-shadow:none!important;border-radius:0!important;
+  font-size:23px!important;font-weight:820!important;letter-spacing:-.035em!important;
+  padding:1px 0!important;margin:0 0 17px!important;min-height:45px;
+  gap:12px
+}
+html[data-theme^="horeca_"] #main .title .r{
+  font-size:11px!important;font-weight:600!important;color:var(--text-muted)!important;
+  letter-spacing:0!important
+}
+html[data-theme^="horeca_"] #main .title .r input{
+  max-width:165px!important;font-size:11.5px!important
+}
+html[data-theme^="horeca_"] #main .title .r b{color:var(--text)!important}
+html[data-theme^="horeca_"] #main .horeca-pos-title,
+html[data-theme^="horeca_"] #main .horeca-shift-title,
+html[data-theme^="horeca_"] #main .horeca-settings-title{
+  background:transparent!important;border:0!important;
+  box-shadow:none!important;border-radius:0!important;
+  padding:0!important;min-height:52px!important;
+  color:var(--text)!important;margin-bottom:17px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title span,
+html[data-theme^="horeca_"] #main .horeca-settings-title > div,
+html[data-theme^="horeca_"] #main .horeca-shift-title b{
+  color:var(--text)!important;font-size:22px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-kicker{
+  color:var(--text-muted)!important;font-size:11px!important;
+  font-weight:600!important;letter-spacing:0!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title .r,
+html[data-theme^="horeca_"] #main .horeca-shift-title .r,
+html[data-theme^="horeca_"] #main .horeca-settings-title .r{
+  color:var(--text-muted)!important
+}
+html[data-theme^="horeca_"] #main .horeca-eyebrow{color:var(--text-muted)!important}
+html[data-theme^="horeca_"] #main .card,
+html[data-theme^="horeca_"] #main .m-kpi,
+html[data-theme^="horeca_"] #main .m-panel,
+html[data-theme^="horeca_"] #main .kpi-card,
+html[data-theme^="horeca_"] #main .an-tile,
+html[data-theme^="horeca_"] #main .quick-tile{
+  background:var(--panel)!important;border:1px solid var(--border)!important;
+  border-radius:13px!important;box-shadow:var(--card-shadow)!important;
+  color:var(--text)!important
+}
+html[data-theme^="horeca_"] #main .card{margin-bottom:14px;padding:18px!important;min-width:0}
+html[data-theme^="horeca_"] #main .card h3{
+  font-size:15px!important;font-weight:800!important;letter-spacing:-.025em;
+  color:var(--text)!important
+}
+html[data-theme^="horeca_"] #main .btn,
+html[data-theme^="horeca_"] #main button.btn,
+html[data-theme^="horeca_"] #modal button.btn{
+  border-radius:8px!important;font-weight:720!important;
+  padding:9px 13px!important;min-height:35px;
+  box-shadow:none!important;line-height:1.35;
+  font-family:inherit!important;letter-spacing:0!important
+}
+html[data-theme^="horeca_"] #main .btn.ok,
+html[data-theme^="horeca_"] #main .btn.primary{
+  background:#1461df!important;color:#fff!important;border:1px solid #1461df!important
+}
+html[data-theme^="horeca_"] #main .btn.ok:hover{background:#0d53c8!important}
+html[data-theme^="horeca_"] #main .btn.bad{
+  color:#d84055!important;border:1px solid #fbd3d8!important;background:#fff1f3!important
+}
+html[data-theme^="horeca_"] #main .btn.g{
+  border:1px solid #d9e5f4!important;background:var(--panel)!important;
+  color:#34506f!important
+}
+html[data-theme="horeca_dark"] #main .btn.g{color:var(--text)!important;border-color:var(--border)!important}
+html[data-theme^="horeca_"] #main .btn.g:hover{
+  border-color:#1461df!important;color:#1461df!important
+}
+html[data-theme^="horeca_"] #main .cats{gap:7px!important}
+html[data-theme^="horeca_"] #main .cat{
+  border:1px solid var(--border)!important;background:var(--panel)!important;
+  color:var(--text-muted)!important;border-radius:8px!important;
+  padding:7px 11px!important;box-shadow:none!important;font-size:11px!important;
+  font-weight:650!important
+}
+html[data-theme^="horeca_"] #main .cat.on{
+  color:#fff!important;background:#1461df!important;border-color:#1461df!important
+}
+html[data-theme^="horeca_"] #main input:not([type=checkbox]):not([type=radio]),
+html[data-theme^="horeca_"] #main select,
+html[data-theme^="horeca_"] #main textarea{
+  background:var(--panel)!important;color:var(--text)!important;
+  border:1px solid #d8e3f0!important;border-radius:9px!important;
+  min-height:39px!important;font-size:12.5px!important;padding:9px 11px!important;
+  box-shadow:none!important
+}
+html[data-theme="horeca_dark"] #main input:not([type=checkbox]):not([type=radio]),
+html[data-theme="horeca_dark"] #main select,
+html[data-theme="horeca_dark"] #main textarea{border-color:var(--border)!important}
+html[data-theme^="horeca_"] #main input:focus-visible,
+html[data-theme^="horeca_"] #main select:focus-visible,
+html[data-theme^="horeca_"] #main button:focus-visible{
+  outline:2px solid #76a7f8!important;outline-offset:2px
+}
+html[data-theme^="horeca_"] #main label{
+  color:var(--text-muted)!important;font-size:11px!important;font-weight:700!important;
+  line-height:1.4;margin-bottom:4px
+}
+html[data-theme^="horeca_"] #main table{
+  border-collapse:separate!important;border-spacing:0!important;width:100%;
+  background:var(--panel)!important;border:1px solid var(--border)!important;
+  border-radius:10px!important;overflow:hidden!important;min-width:0
+}
+html[data-theme^="horeca_"] #main th{
+  background:var(--surface)!important;color:#607694!important;
+  font-size:10.5px!important;text-transform:uppercase;letter-spacing:.035em!important;
+  font-weight:800!important;padding:12px!important;line-height:1.4!important;
+  white-space:nowrap;border-bottom:1px solid var(--border)!important
+}
+html[data-theme^="horeca_"] #main td{
+  padding:12px!important;border-color:var(--border)!important;
+  font-size:12px!important;line-height:1.5!important;
+  vertical-align:middle!important;color:var(--text)
+}
+html[data-theme^="horeca_"] #main tbody tr:hover td{background:var(--surface)!important}
+html[data-theme^="horeca_"] #main .grid{gap:12px}
+html[data-theme^="horeca_"] #main .muted{
+  color:var(--text-muted)!important;line-height:1.5!important
+}
+html[data-theme^="horeca_"] #main .status-pill{
+  font-size:10px!important;font-weight:760!important;
+  border-radius:7px!important;padding:5px 8px!important;letter-spacing:0!important
+}
+html[data-theme^="horeca_"] #main .an-tile{
+  padding:14px!important;min-height:75px;line-height:1.45!important
+}
+html[data-theme^="horeca_"] #main .an-grid{gap:12px!important}
+html[data-theme^="horeca_"] #main .horeca-pos-channels{
+  border-radius:12px!important;background:var(--panel)!important;
+  box-shadow:var(--card-shadow)!important;border:1px solid var(--border)!important;
+  padding:5px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn{
+  min-height:42px!important;border-radius:8px!important;
+  background:transparent!important;border-color:transparent!important;
+  color:var(--text-muted)!important;font-size:12px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn.active{
+  background:#1461df!important;color:#fff!important;border-color:#1461df!important;
+  box-shadow:0 3px 9px rgba(20,97,223,.15)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-workspace{
+  grid-template-columns:minmax(0,1.48fr) minmax(390px,1fr)!important;
+  gap:14px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog,
+html[data-theme^="horeca_"] #main .horeca-pos-checkout{
+  background:var(--panel)!important;border:1px solid var(--border)!important;
+  border-radius:14px!important;padding:18px!important;
+  box-shadow:var(--card-shadow)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-section-top h3{
+  font-size:16px!important;font-weight:800!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-section-top{
+  margin-bottom:13px!important;padding-bottom:12px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:12px!important;max-height:calc(100vh - 354px)!important;
+  min-height:350px!important;padding:2px 4px 8px 1px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic{
+  border:1px solid var(--border)!important;
+  border-radius:11px!important;
+  min-height:177px!important;box-shadow:none!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic .ph,
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .horeca-item-placeholder{
+  height:76px!important;border-radius:8px!important;
+  margin:10px 10px 0!important;width:calc(100% - 20px)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic .tx{
+  min-height:73px!important;padding:11px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic b{
+  font-size:12px!important;line-height:1.4!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic small{
+  font-size:13px!important;color:#1461df!important;font-weight:800!important
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder{
+  background:linear-gradient(120deg,#fff1d9,#f0f4f8)!important;border:0!important
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder span{
+  border:1.5px solid #ef961d!important;color:#eb8c16!important;
+  background:#fff9ef!important;width:39px;height:39px;
+  border-radius:12px!important;font-size:19px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout{
+  position:sticky;top:10px;max-height:calc(100vh - 96px);overflow:auto
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .modes button.on{
+  background:#1461df!important;border-color:#1461df!important;color:#fff!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout #btn-finalize-bill{
+  background:#0eb785!important;border-color:#0eb785!important;
+  min-height:47px!important;color:#fff!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout #btn-finalize-bill:hover{
+  background:#03996e!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-total{padding:15px!important;background:var(--surface)!important}
+html[data-theme^="horeca_"] #main .tbl-chip{
+  border:1px solid var(--border)!important;border-radius:9px!important;
+  box-shadow:none!important;background:var(--panel)!important
+}
+html[data-theme^="horeca_"] #main .tbl-chip.active{
+  background:#1461df!important;color:#fff!important;border-color:#1461df!important
+}
+html[data-theme^="horeca_"] #main .horeca-shift-symbol{
+  background:#e7f1ff!important;color:#1461df!important;
+  width:36px;height:36px;border-radius:10px!important
+}
+html[data-theme^="horeca_"] #main .horeca-shift-hero,
+html[data-theme^="horeca_"] #main .horeca-shift-history{
+  border:1px solid var(--border)!important;
+  box-shadow:var(--card-shadow)!important;border-radius:13px!important
+}
+html[data-theme^="horeca_"] #main .horeca-shift-hero{padding:20px!important}
+html[data-theme^="horeca_"] #main .horeca-settings-jump{
+  background:var(--panel)!important;border:1px solid var(--border)!important;
+  border-radius:12px!important;box-shadow:var(--card-shadow)!important;
+  padding:9px!important;gap:8px!important
+}
+html[data-theme^="horeca_"] #main .horeca-settings-jump button{
+  background:var(--surface)!important;color:var(--text)!important;
+  border:1px solid var(--border)!important;border-radius:8px!important;
+  padding:9px 13px!important
+}
+html[data-theme^="horeca_"] #main .horeca-settings-jump button:hover{
+  background:var(--primary-light)!important;color:var(--primary)!important
+}
+html[data-theme^="horeca_"] #main > .card{max-width:100%!important;overflow-x:auto}
+html[data-theme^="horeca_"] #main .btns{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px!important
+}
+html[data-theme^="horeca_"] #main .btns button{white-space:normal}
+html[data-theme^="horeca_"] #main .cat:focus-visible,
+html[data-theme^="horeca_"] #main .nav-item:focus-visible{
+  outline:2px solid var(--primary)!important
+}
+html[data-theme^="horeca_"] .ho-v3-dashboard{
+  display:flex;flex-direction:column;gap:16px;color:var(--text)
+}
+html[data-theme^="horeca_"] .ho-v3-page-header{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  flex-wrap:wrap;gap:15px;margin:0 0 4px
+}
+html[data-theme^="horeca_"] .ho-v3-breadcrumb{
+  font-size:11px;color:#8799b0;font-weight:600;margin:0 0 2px
+}
+html[data-theme^="horeca_"] .ho-v3-page-header h1{
+  font-size:25px;font-weight:850;letter-spacing:-.05em;margin:0;color:var(--text)
+}
+html[data-theme^="horeca_"] .ho-v3-page-header p{
+  font-size:12px;color:var(--text-muted);margin:3px 0 0
+}
+html[data-theme^="horeca_"] .ho-v3-page-actions{
+  display:flex;gap:9px;align-items:center;flex-wrap:wrap
+}
+html[data-theme^="horeca_"] .ho-v3-date,
+html[data-theme^="horeca_"] .ho-v3-button{
+  border:1px solid var(--border);border-radius:9px;background:var(--panel);
+  padding:10px 13px;min-height:38px;display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:740;color:var(--text);
+  box-shadow:none!important;white-space:nowrap
+}
+html[data-theme^="horeca_"] .ho-v3-button-main{
+  background:#1461df!important;color:#fff!important;border-color:#1461df!important
+}
+html[data-theme^="horeca_"] .ho-v3-kpi-grid{
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px
+}
+html[data-theme^="horeca_"] .ho-v3-stat{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:13px;padding:17px 18px;min-height:119px;
+  box-shadow:var(--card-shadow);text-align:left;display:flex;gap:3px;
+  flex-direction:column;justify-content:center;color:var(--text);
+  min-width:0;transition:border-color .13s,box-shadow .13s
+}
+html[data-theme^="horeca_"] .ho-v3-stat:hover{
+  border-color:#93b8ed;box-shadow:0 6px 18px rgba(30,73,133,.08)
+}
+html[data-theme^="horeca_"] .ho-v3-stat-label{
+  color:var(--text-muted);font-weight:700;font-size:12px
+}
+html[data-theme^="horeca_"] .ho-v3-stat strong{
+  font-size:27px;font-weight:850;line-height:1.25;letter-spacing:-.045em;
+  font-variant-numeric:tabular-nums;white-space:nowrap
+}
+html[data-theme^="horeca_"] .ho-v3-stat-sub{
+  font-size:11px;color:#0baf82;line-height:1.4;min-height:15px
+}
+html[data-theme^="horeca_"] .ho-v3-dashboard-primary{
+  display:grid;grid-template-columns:1.58fr 1fr;gap:14px;min-width:0
+}
+html[data-theme^="horeca_"] .ho-v3-dashboard-secondary{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;min-width:0
+}
+html[data-theme^="horeca_"] .ho-v3-panel{
+  background:var(--panel);border:1px solid var(--border);border-radius:13px;
+  box-shadow:var(--card-shadow);padding:17px;min-width:0
+}
+html[data-theme^="horeca_"] .ho-v3-panel-heading{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  margin-bottom:14px;padding-bottom:13px;border-bottom:1px solid var(--border)
+}
+html[data-theme^="horeca_"] .ho-v3-panel-heading h2{
+  font-size:16px;color:var(--text);font-weight:800;margin:0;letter-spacing:-.02em
+}
+html[data-theme^="horeca_"] .ho-v3-panel-heading p{
+  font-size:11px;margin:3px 0 0;color:var(--text-muted)
+}
+html[data-theme^="horeca_"] .ho-v3-small-tag{
+  font-size:11px;font-weight:650;color:var(--text-muted);
+  background:var(--surface);border:1px solid var(--border);border-radius:7px;
+  padding:5px 9px;white-space:nowrap
+}
+html[data-theme^="horeca_"] .ho-v3-chart-inner{
+  width:100%;min-height:237px;display:flex;align-items:center
+}
+html[data-theme^="horeca_"] .ho-v3-chart-inner svg{width:100%;max-height:235px}
+html[data-theme^="horeca_"] .ho-v3-tiny-table{display:flex;flex-direction:column;gap:0}
+html[data-theme^="horeca_"] .ho-v3-tiny-head{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;
+  padding:12px 11px;background:var(--surface);color:var(--text-muted);
+  font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase
+}
+html[data-theme^="horeca_"] .ho-v3-tiny-row{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;
+  background:transparent;color:var(--text);padding:14px 11px;
+  border:0;border-bottom:1px solid var(--border);text-align:left;font-size:12px;
+  cursor:pointer;align-items:center
+}
+html[data-theme^="horeca_"] .ho-v3-tiny-row:hover{background:var(--surface)}
+html[data-theme^="horeca_"] .ho-v3-tiny-row b{text-align:right;font-weight:800}
+html[data-theme^="horeca_"] .ho-v3-status-dot{
+  display:inline-block;width:7px;height:7px;background:#f49b2d;
+  border-radius:50%;margin-right:6px
+}
+html[data-theme^="horeca_"] .ho-v3-mini-link{
+  color:#1461df;background:var(--panel);border:1px solid var(--border);
+  border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700
+}
+html[data-theme^="horeca_"] .ho-v3-top-items{display:grid;gap:16px;padding-top:4px}
+html[data-theme^="horeca_"] .ho-v3-top-row{
+  display:grid;grid-template-columns:minmax(90px,1.15fr) minmax(75px,1.25fr) 30px;
+  align-items:center;gap:11px;min-width:0;font-size:12px
+}
+html[data-theme^="horeca_"] .ho-v3-top-row span:first-child{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+html[data-theme^="horeca_"] .ho-v3-top-row b{text-align:right}
+html[data-theme^="horeca_"] .ho-v3-progress{
+  display:block;background:#e4ebf6;height:7px;border-radius:6px;overflow:hidden
+}
+html[data-theme^="horeca_"] .ho-v3-progress i{
+  display:block;height:100%;background:#2f7bef;border-radius:6px
+}
+html[data-theme^="horeca_"] .ho-v3-payment{display:flex;gap:15px;align-items:center;flex-wrap:wrap}
+html[data-theme^="horeca_"] .ho-v3-donut{
+  width:155px;height:155px;border-radius:50%;display:grid;place-items:center;flex:none
+}
+html[data-theme^="horeca_"] .ho-v3-donut>div{
+  width:100px;height:100px;border-radius:50%;
+  background:var(--panel);color:var(--text);
+  display:grid;place-items:center;font-size:15px;font-weight:850;text-align:center;
+  padding:8px
+}
+html[data-theme^="horeca_"] .ho-v3-pay-legend{
+  display:grid;gap:8px;flex:1;min-width:140px
+}
+html[data-theme^="horeca_"] .ho-v3-pay-legend>div{
+  display:flex;align-items:center;gap:7px;font-size:11px
+}
+html[data-theme^="horeca_"] .ho-v3-pay-legend i{
+  width:8px;height:8px;border-radius:50%;flex:none
+}
+html[data-theme^="horeca_"] .ho-v3-pay-legend span{flex:1}
+html[data-theme^="horeca_"] .ho-v3-pay-legend b{font-variant-numeric:tabular-nums}
+html[data-theme^="horeca_"] .ho-v3-actions{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px
+}
+html[data-theme^="horeca_"] .ho-v3-actions button{
+  background:var(--panel);color:#285279;border:1px solid #d7e4f4;
+  border-radius:8px;font-size:11.5px;font-weight:700;min-height:40px;
+  padding:8px 9px
+}
+html[data-theme^="horeca_"] .ho-v3-actions button:first-child{
+  color:#078a66;background:#e6f9f0;border-color:#c4ebd9
+}
+html[data-theme^="horeca_"] .ho-v3-actions button:hover{
+  border-color:#6da5fa;color:#1461df
+}
+html[data-theme^="horeca_"] .ho-v3-stock-alert{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:12px;padding:9px;border-radius:8px;
+  background:#fff4ec;color:#9b621b;font-size:11px
+}
+html[data-theme^="horeca_"] .ho-v3-stock-alert button{
+  background:none;border:0;color:#1461df;font-weight:750
+}
+html[data-theme^="horeca_"] .ho-v3-empty{
+  text-align:center;color:var(--text-muted);padding:35px 12px;font-size:12px
+}
+html[data-theme^="horeca_"] .ho-v3-empty b{color:var(--text);font-size:13px}
+html[data-theme^="horeca_"] .ho-v3-empty p{margin:5px 0 13px}
+html[data-theme^="horeca_"] .ho-v3-empty-compact{
+  color:var(--text-muted);font-size:12px;padding:32px 8px;text-align:center
+}
+@media(max-width:1480px){
+  html[data-theme^="horeca_"] #side{width:245px!important;min-width:245px!important}
+  html[data-theme^="horeca_"] body.side-expanded #side{width:245px!important;min-width:245px!important}
+  html[data-theme^="horeca_"] .ho-v3-stat{padding:14px}
+  html[data-theme^="horeca_"] .ho-v3-stat strong{font-size:23px}
+  html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
+    grid-template-columns:repeat(3,minmax(0,1fr))!important
+  }
+}
+@media(max-width:1200px){
+  html[data-theme^="horeca_"] #main{padding:15px!important}
+  html[data-theme^="horeca_"] .ho-v3-kpi-grid{
+    grid-template-columns:repeat(3,minmax(0,1fr))
+  }
+  html[data-theme^="horeca_"] .ho-v3-dashboard-secondary{grid-template-columns:1fr 1fr}
+  html[data-theme^="horeca_"] .ho-v3-dashboard-secondary>.ho-v3-panel:last-child{grid-column:span 2}
+  html[data-theme^="horeca_"] #main .horeca-pos-workspace{
+    grid-template-columns:minmax(0,1fr)!important
+  }
+  html[data-theme^="horeca_"] #main .horeca-pos-checkout{
+    position:static!important;max-height:none!important
+  }
+}
+@media(max-width:850px){
+  html[data-theme^="horeca_"] #topsearch{min-width:115px;max-width:250px}
+  html[data-theme^="horeca_"] .ho-v3-dashboard-primary,
+  html[data-theme^="horeca_"] .ho-v3-dashboard-secondary{
+    grid-template-columns:minmax(0,1fr)
+  }
+  html[data-theme^="horeca_"] .ho-v3-dashboard-secondary>.ho-v3-panel:last-child{grid-column:auto}
+  html[data-theme^="horeca_"] .ho-v3-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  html[data-theme^="horeca_"] #main .title{font-size:20px!important}
+}
+@media(max-width:600px){
+  html[data-theme^="horeca_"] #main{padding:11px!important}
+  html[data-theme^="horeca_"] .ho-v3-kpi-grid{grid-template-columns:minmax(0,1fr)}
+  html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important
+  }
+  html[data-theme^="horeca_"] .ho-v3-donut{width:135px;height:135px}
+  html[data-theme^="horeca_"] #main .title{flex-wrap:wrap}
+  html[data-theme^="horeca_"] #main .title .r{width:100%;margin-left:0}
+  html[data-theme^="horeca_"] .ho-v3-page-header{display:block}
+  html[data-theme^="horeca_"] .ho-v3-page-actions{margin-top:12px}
+}
+@media(prefers-reduced-motion:reduce){
+ html[data-theme^="horeca_"] #side,
+ html[data-theme^="horeca_"] button{transition:none!important;animation:none!important}
+}
+/* END HoReCa One V3 Reference Skin */
+
+
+/* HoReCa One V3 detailed module styling */
+html[data-theme^="horeca_"] #main .ho-v3-item-footer{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  gap:9px;flex-wrap:wrap
+}
+html[data-theme^="horeca_"] #main .ho-v3-add-chip{
+  background:#1669e8;color:#fff;border:1px solid #1669e8;
+  border-radius:8px;padding:6px 8px;font-size:10.5px;
+  font-weight:790;white-space:nowrap;line-height:1.2
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-metrics{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;
+  margin-bottom:14px
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat{
+  display:flex;flex-direction:column;align-items:flex-start;gap:4px;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--card-shadow);padding:18px;
+  min-height:112px
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat small{
+  color:var(--text-muted);font-size:11.5px;font-weight:650
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat b{
+  color:var(--text);font-size:25px;font-weight:840;line-height:1.2;
+  font-variant-numeric:tabular-nums;letter-spacing:-.04em
+}
+html[data-theme^="horeca_"] #main .ho-v3-shift-stat span{
+  color:#09a47a;font-size:11px;line-height:1.35
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-layout{
+  display:grid;grid-template-columns:minmax(255px,.82fr) minmax(0,1.55fr);
+  gap:17px;align-items:start
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu{
+  background:var(--panel);border:1px solid var(--border);border-radius:13px;
+  box-shadow:var(--card-shadow);padding:8px 16px;display:flex;
+  flex-direction:column;min-width:0
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button{
+  background:transparent;border:0;border-bottom:1px solid var(--border);
+  border-radius:0;color:var(--text);padding:15px 12px;text-align:left;
+  min-height:63px;cursor:pointer;
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button:last-child{border-bottom:0}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button b{
+  display:block;color:var(--text);font-size:12.5px;font-weight:760;
+  margin-bottom:4px
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button small{
+  display:block;font-size:11px;color:var(--text-muted);line-height:1.45
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button:hover,
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button.selected{
+  background:var(--surface);border-radius:8px
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button.selected{
+  box-shadow:inset 3px 0 #1461df
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-menu button.selected b{color:#1461df}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels{
+  min-width:0;display:flex;flex-direction:column;gap:14px
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card{
+  margin:0!important;min-width:0;padding:20px!important;
+  border:1px solid var(--border)!important;border-radius:13px!important;
+  box-shadow:var(--card-shadow)!important
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card h3{
+  font-size:16px!important;font-weight:790!important;
+  margin:0 0 16px!important;padding-bottom:13px!important;
+  border-bottom:1px solid var(--border)
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card input,
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card select{
+  width:100%;max-width:100%;min-width:0;box-sizing:border-box
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card .grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+  gap:12px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .grid{
+  min-width:0!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .qty button{
+  background:var(--panel);border:1px solid var(--border);
+  color:var(--text);width:29px;height:30px;border-radius:6px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .qty input{
+  min-height:30px!important;height:30px!important;padding:3px!important;
+  text-align:center
+}
+html[data-theme^="horeca_"] #main .horeca-pos-cart table{font-size:12px}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .tot .big{
+  color:var(--text)!important;font-size:21px!important;font-weight:800!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .tot .big span{
+  font-size:16px!important;font-weight:800!important
+}
+html[data-theme^="horeca_"] #main .kds{gap:14px!important}
+html[data-theme^="horeca_"] #main .kcard{
+  background:var(--panel)!important;border:1px solid var(--border)!important;
+  border-radius:13px!important;box-shadow:var(--card-shadow)!important;
+  padding:18px!important
+}
+html[data-theme^="horeca_"] #main .tok-col{
+  border-radius:13px!important;background:var(--panel)!important;
+  border:1px solid var(--border)!important;box-shadow:var(--card-shadow)!important
+}
+html[data-theme^="horeca_"] #main .kpi-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));
+  gap:13px!important;margin:0 0 14px!important
+}
+html[data-theme^="horeca_"] #main .kpi-card{
+  padding:17px!important;min-height:110px!important
+}
+html[data-theme^="horeca_"] #main .kpi-val{
+  color:var(--text);font-size:24px;font-weight:820
+}
+html[data-theme^="horeca_"] #main .m-kpis{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px!important
+}
+html[data-theme^="horeca_"] #main .m-kpi{
+  padding:16px!important;min-height:102px!important
+}
+html[data-theme^="horeca_"] #main .m-kpi>b{
+  font-size:23px!important;color:var(--text)!important;letter-spacing:-.04em
+}
+html[data-theme^="horeca_"] #main .m-kpi>span{
+  font-size:11px;color:var(--text-muted);font-weight:700
+}
+html[data-theme^="horeca_"] #main .den table td,
+html[data-theme^="horeca_"] #main .den table th{padding:10px 11px!important}
+html[data-theme^="horeca_"] #main .bill .card{
+  min-width:0!important
+}
+html[data-theme^="horeca_"] #main .bill input{max-width:100%}
+html[data-theme^="horeca_"] #main .oc-badge{
+  border-radius:7px!important;padding:4px 8px!important;font-size:10px!important
+}
+html[data-theme^="horeca_"] #main .grid .card{
+  margin-bottom:0!important
+}
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card p,
+html[data-theme^="horeca_"] #main .ho-v3-settings-panels>.card small{
+  line-height:1.5
+}
+@media(max-width:1250px){
+  html[data-theme^="horeca_"] #main .ho-v3-shift-metrics{
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-layout{
+    grid-template-columns:minmax(220px,.72fr) minmax(0,1.4fr)
+  }
+}
+@media(max-width:780px){
+  html[data-theme^="horeca_"] #main .ho-v3-settings-layout{
+    grid-template-columns:minmax(0,1fr)
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-menu{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:4px
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-menu button{
+    border:1px solid var(--border)!important;border-radius:8px!important
+  }
+}
+@media(max-width:560px){
+  html[data-theme^="horeca_"] #main .ho-v3-shift-metrics{
+    grid-template-columns:minmax(0,1fr)
+  }
+  html[data-theme^="horeca_"] #main .ho-v3-settings-menu{
+    grid-template-columns:minmax(0,1fr)
+  }
+}
+/* END HoReCa One V3 Detailed Modules */
+
+
+/* Shared, data-backed KPI cards for Bills, Stock, Supplier screens */
+html[data-theme^="horeca_"] #main .ho-v3-module-stats{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:0 0 16px
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat{
+  display:flex;flex-direction:column;gap:5px;justify-content:center;min-width:0;
+  padding:17px;background:var(--panel);border:1px solid var(--border);
+  border-radius:12px;box-shadow:var(--card-shadow);min-height:108px
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat small{
+  color:var(--text-muted);font-size:11px;font-weight:700
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat strong{
+  color:var(--text);font-size:24px;letter-spacing:-.04em;line-height:1.2;
+  font-weight:830;font-variant-numeric:tabular-nums
+}
+html[data-theme^="horeca_"] #main .ho-v3-module-stat span{
+  color:#0ca779;font-size:10.5px;line-height:1.35
+}
+@media(max-width:1170px){
+ html[data-theme^="horeca_"] #main .ho-v3-module-stats{
+   grid-template-columns:repeat(2,minmax(0,1fr))
+ }
+}
+@media(max-width:570px){
+ html[data-theme^="horeca_"] #main .ho-v3-module-stats{
+   grid-template-columns:minmax(0,1fr)
+ }
+}
+
 </style>
 </head>
 <body>
@@ -5751,6 +6847,7 @@ function go(s, approved){
   if(s !== 'kitchen' && s !== 'tokens') document.body.classList.remove('kitchen-mode');
   closeModal();
   const m = MENU.find(x => x[2] === s);
+  main.dataset.horecaSection = m ? m[3] : 'Overview';
   $('#scrname').innerHTML = `<span class="dot"></span>${m ? m[1] : 'Gateway of Restaurant'}`;
   $('#hname').textContent = D.settings.name;
   main.scrollTop = 0;
@@ -5816,7 +6913,7 @@ function drawSide(){
   const can = m => screenOn(m[2]) && (m[2] === 'guide' || !allowed.length || isManager() || allowed.includes(m[2]));
   let html = `
     <div class="horeca-side-brand" aria-label="HoReCa One — Hotel Restaurant Café">
-      <div class="horeca-brand-icon" aria-hidden="true">H1</div>
+      <div class="horeca-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 20V8l7-5 7 5v12M2 20h20M9 20v-6h6v6M9 10h.01M15 10h.01"/></svg></div>
       <div><b>HoReCa <span>One</span></b><small>Hotel · Restaurant · Café</small></div>
     </div>
     <button class="nav-item ${cur==='gateway'?'active':''}" onclick="go('gateway')" title="Gateway Command Center (Esc)">
@@ -6497,6 +7594,7 @@ function setTheme(t, dash){
   toast('Theme updated: ' + ((THEMES[t] && THEMES[t].name) || 'Classic'));
   drawLookCard();
   if(typeof cur !== 'undefined' && cur === 'gateway') scrGateway();
+  else if(typeof cur !== 'undefined' && cur === 'settings') scrSettings();
 }
 
 function previewThemeLive(t){
@@ -6659,11 +7757,11 @@ function drawLookCard(){
   const el = $('#look-card');
   if(!el) return;
   const cur = D.settings.theme || 'classic', ds = D.settings.dashStyle || 'classic', fx = D.settings.btnEffect || 'tactile', density = D.settings.uiDensity || 'normal';
-  el.innerHTML = `<h3 style="margin-top:0">Appearance — Ultimate 27-Theme Gallery</h3>
-    <p class="muted" style="margin-top:-6px;font-size:13px">Foodpiolet includes 27 production themes. Billing, KOT, and printing are never affected. Original Classic remains default.</p>
+  el.innerHTML = `<h3 style="margin-top:0">Appearance & Design Themes</h3>
+    <p class="muted" style="margin-top:-6px;font-size:13px">Use HoReCa One Light for the approved premium look. Existing customer themes remain available.</p>
     <div class="btns" style="margin-bottom:14px">
-      <button class="btn ok" onclick="openThemeModal()">🎨 Open 27-Theme Gallery Studio</button>
-      <button class="btn bad sm" onclick="resetThemeDefault()">🔄 Reset to Original Classic</button>
+      <button class="btn ok" onclick="openThemeModal()">Open Theme Gallery</button>
+      <button class="btn bad sm" onclick="resetThemeDefault()">Reset to Classic</button>
     </div>
     <div class="theme-pick" style="max-height:280px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
       ${Object.entries(THEMES).map(([k, x]) => `
@@ -7013,259 +8111,98 @@ function dzOpen(kind){
 /* 1. MINT OS NEUMORPHIC MASTER DASHBOARD (mint_soft, mint_system, forest_mint, mint) */
 /* ================= HORECA ONE: FLAGSHIP ENTERPRISE DASHBOARD ================= */
 function dzHoReCaOne(d){
-  const t = d.t, s = d.s, y = d.y, low = d.low, k = d.k;
-  const curTh = (typeof D !== 'undefined' && D && D.settings && D.settings.theme) || 'horeca_light';
-  const isDark = curTh === 'horeca_dark';
-  const cardBg = isDark ? '#0f172a' : '#ffffff';
-  const cardBorder = isDark ? '#1e293b' : '#e2e8f0';
-  const textMuted = isDark ? '#94a3b8' : '#64748b';
-  const textMain = isDark ? '#f8fafc' : '#0f172a';
-  const activeKots = (typeof D !== 'undefined' && D && D.kots ? D.kots : []).filter(x => x.status !== 'served').length;
-
-  // 7-day sparkline bar chart
-  const wSales = d.week || [];
-  const maxW = Math.max(1, ...wSales.map(x => x[1] || 0));
-  const weekBarsSvg = wSales.map(([day, val]) => {
-    const barH = Math.max(4, Math.round((val / maxW) * 48));
-    const isToday = day === t;
-    const barFill = isToday ? '#f97316' : (isDark ? '#334155' : '#cbd5e1');
-    const dayLabel = day.slice(8);
-    return `<div style="display:flex;flex-direction:column;align-items:center;gap:4px;flex:1" title="${day}: ${money(val)}">
-      <div style="height:52px;display:flex;align-items:flex-end;width:100%;justify-content:center">
-        <div style="width:14px;height:${barH}px;background:${barFill};border-radius:4px 4px 0 0;transition:all .2s"></div>
-      </div>
-      <span style="font-size:10px;font-weight:${isToday?'800':'600'};color:${isToday?'#f97316':textMuted}">${dayLabel}</span>
-    </div>`;
-  }).join('');
-
-  // Payment Breakdown
-  const totalPay = sum(Object.values(d.pay || {})) || 1;
-  const payModes = Object.entries(d.pay || {}).map(([mode, amt]) => {
-    const pct = Math.round((amt / totalPay) * 100);
-    return `
-      <div style="margin-bottom:10px">
-        <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:3px">
-          <span>${mode}</span>
-          <span>${money(amt)} <small style="color:${textMuted}">(${pct}%)</small></span>
-        </div>
-        <div style="width:100%;height:6px;background:${isDark?'#1e293b':'#e2e8f0'};border-radius:3px;overflow:hidden">
-          <div style="width:${pct}%;height:100%;background:${mode==='Cash'?'#10b981':mode==='UPI'?'#0284c7':'#f97316'};border-radius:3px"></div>
-        </div>
-      </div>
-    `;
-  }).join('') || `<div style="color:${textMuted};font-size:12px">No payment transactions recorded yet today.</div>`;
-
-  // Running tables chips
-  const runningTableChips = k.length ? k.slice(0, 8).map(([tbl, val]) => {
-    const total = calc(val.cart, val.disc, gstRate()).total;
-    const mins = Math.round((Date.now() - (val.ts || Date.now())) / 60000);
-    return `
-      <div onclick="go('bill');loadKaccha('${tbl}')" style="background:${isDark?'#1e293b':'#f8fafc'};border:1px solid ${cardBorder};border-radius:10px;padding:10px 12px;cursor:pointer;display:flex;flex-direction:column;gap:3px;transition:all .15s" title="Click to open ${tbl}">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <b style="font-size:13px;color:${textMain}">Table ${tbl}</b>
-          <span style="font-size:10px;font-weight:700;background:#fee2e2;color:#b91c1c;padding:1px 6px;border-radius:6px">Occupied</span>
-        </div>
-        <div style="font-size:14px;font-weight:800;color:#f97316">${money(total)}</div>
-        <small style="font-size:10px;color:${textMuted}">${val.cart ? val.cart.length : 0} items · ${mins}m seated</small>
-      </div>
-    `;
-  }).join('') : `
-    <div style="text-align:center;padding:24px 16px;background:${isDark?'#1e293b':'#f8fafc'};border-radius:10px;border:1px dashed ${cardBorder};grid-column:span 2">
-      <div style="display:flex;justify-content:center;margin-bottom:8px;color:var(--primary)">${MENU_ICONS.gateway}</div>
-      <div style="font-weight:700;font-size:13px;color:${textMain}">All Tables Currently Available</div>
-      <p style="font-size:12px;color:${textMuted};margin:4px 0 10px">Press New Bill [F1 / B] to seat guests and generate KOT</p>
-      <button class="btn ok sm" onclick="go('bill')" style="font-weight:700">Open Billing Counter [B]</button>
-    </div>
-  `;
-
+  const day=d.t, s=d.s, tables=d.k||[], pay=d.pay||{}, top=d.top||[];
+  const pendingKots=(D.kots||[]).filter(k=>k.status!=='served'&&k.status!=='cancelled').length;
+  const maxTop=Math.max(1,...top.map(t=>+t[1]||0));
+  const shortDay = new Date(day+'T12:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});
+  const stats=[
+    ['Today\'s Sales',money(s.sales),d.dSales===null?'No previous-day comparison':(d.dSales>=0?'+':'')+d.dSales+'% vs yesterday','sales','go("bills")'],
+    ['Orders',s.bills.length,d.dBills===null?'Today\'s completed bills':(d.dBills>=0?'+':'')+d.dBills+'% vs yesterday','bill','go("bills")'],
+    ['Active Tables',tables.length,tables.length?'Orders currently running':'All tables available','table','go("bill")'],
+    ['Pending KOTs',pendingKots,pendingKots?'Kitchen requires attention':'No pending kitchen tickets','kot','go("kitchen")'],
+    ['Average Order',money(d.avg),s.bills.length?'Based on completed bills':'No completed bills yet','cash','go("reports")']
+  ];
+  const by=Object.entries(pay).filter(([,n])=>Number(n)>0);
+  const payTotal=by.reduce((v,[,amt])=>v+Number(amt),0);
+  const palette=['#1a6fe9','#10b981','#f69c39','#995ce5','#64748b'];
+  let totalPct=0;
+  const stops=by.map(([,amt],i)=>{const from=totalPct;totalPct+=Number(amt)/Math.max(payTotal,1)*100;return `${palette[i%palette.length]} ${from.toFixed(3)}% ${totalPct.toFixed(3)}%`;});
+  const recent=[...(s.bills||[])].reverse().slice(0,5);
+  const watchlist=tables.slice(0,4).map(([name,v])=>({name,total:calc(v.cart||[],v.disc||0,gstRate()).total}));
+  const extraStock=(d.low||[]).slice(0,4);
+  const options={h:210,c1:'#69a1ff',c2:'#14b88a',w:17};
   return `
-    <div class="horeca-dashboard" style="display:flex;flex-direction:column;gap:18px">
-      <!-- 1. Hero Command Bar -->
-      <div style="background:${isDark?'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)':'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'};border:1px solid ${cardBorder};border-radius:16px;padding:18px 22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;box-shadow:${isDark?'0 4px 20px rgba(0,0,0,0.4)':'0 4px 16px rgba(0,0,0,0.04)'}">
-        <div>
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            <span style="background:rgba(249,115,22,0.15);color:#f97316;border:1px solid rgba(249,115,22,0.3);padding:2px 8px;border-radius:6px;font-size:10.5px;font-weight:800;letter-spacing:0.5px">HORECA ONE · COMMAND CENTER</span>
-            <span style="font-size:12px;color:${textMuted}">● ${d.hotel || 'Setu Pro Property'}</span>
-          </div>
-          <h2 style="font-size:22px;font-weight:800;color:${textMain};margin:0 0 4px">${d.hi}, ${esc(d.name)}!</h2>
-          <p style="font-size:12.5px;color:${textMuted};margin:0">
-            ${new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'})}
-            <span style="margin:0 6px">•</span>
-            <b>${s.bills.length}</b> Bills Settled
-            <span style="margin:0 6px">•</span>
-            <b style="color:#f97316">${money(s.sales)}</b> Today's Gross Sales
-            ${k.length ? `<span style="margin:0 6px">•</span><b style="color:#ef4444">${k.length} Running Tables</b>` : ''}
-          </p>
-        </div>
-
-        <!-- Quick Action Buttons -->
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <button class="btn ok" onclick="go('bill')" style="background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);color:#fff;border:none;padding:10px 18px;border-radius:10px;font-size:13.5px;font-weight:800;box-shadow:0 4px 14px rgba(249,115,22,0.35);cursor:pointer;display:inline-flex;align-items:center;gap:6px">
-            <span>New Bill</span> <kbd style="background:rgba(255,255,255,0.25);color:#fff;border:none;padding:1px 5px;border-radius:4px;font-size:10.5px">F1 / B</kbd>
-          </button>
-          <button class="btn g" onclick="go('kaccha')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span>Tables</span> <span class="badge" style="background:#e0f2fe;color:#0369a1;font-size:10px;padding:1px 6px;border-radius:10px">${k.length}</span>
-          </button>
-          <button class="btn g" onclick="go('kitchen')" style="padding:10px 14px;border-radius:10px;font-weight:700;display:inline-flex;align-items:center;gap:6px">
-            <span>Kitchen Tickets</span> <span class="badge" style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:1px 6px;border-radius:10px">${activeKots}</span>
-          </button>
-          <button class="btn g" onclick="go('report')" style="padding:10px 14px;border-radius:10px;font-weight:700">
-            Day Report [F4]
-          </button>
-        </div>
+  <div class="ho-v3-dashboard" aria-label="HoReCa One Dashboard">
+    <header class="ho-v3-page-header">
+      <div><div class="ho-v3-breadcrumb">HoReCa One / Overview</div>
+        <h1>Dashboard</h1><p>Restaurant operations, live orders and business performance</p>
       </div>
-
-      <!-- 2. 6-Card KPI Metrics Grid -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:14px">
-        <!-- KPI 1: Gross Sales -->
-        <div onclick="dzOpen('sales')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03);position:relative;overflow:hidden">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Today's Gross Sales</span>
-            <span style="color:#f97316;background:rgba(249,115,22,0.12);padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${money(s.sales)}</b>
-          <div style="font-size:11px;font-weight:700;color:${d.dSales === null ? textMuted : (d.dSales >= 0 ? '#10b981' : '#ef4444')}">
-            ${d.dSales === null ? 'No sales yesterday' : `${d.dSales >= 0 ? '▲ +' : '▼ '}${d.dSales}% vs yday`}
-          </div>
-        </div>
-
-        <!-- KPI 2: Total Orders Settled -->
-        <div onclick="go('bills')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Orders Settled</span>
-            <span style="color:#0284c7;background:#e0f2fe;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${s.bills.length}</b>
-          <div style="font-size:11px;color:${textMuted};font-weight:600">AOV: <b>${money(d.avg)}</b></div>
-        </div>
-
-        <!-- KPI 3: Active Running Tables -->
-        <div onclick="go('kaccha')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Running Tables</span>
-            <span style="color:#8b5cf6;background:#ede9fe;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${k.length}</b>
-          <div style="font-size:11px;color:${k.length ? '#f97316' : textMuted};font-weight:600">
-            ${k.length ? money(d.kAmt) + ' unbilled' : 'All tables free'}
-          </div>
-        </div>
-
-        <!-- KPI 4: Pending KOTs -->
-        <div onclick="go('kitchen')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Kitchen Backlog</span>
-            <span style="color:#ef4444;background:#fee2e2;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${activeKots ? '#ef4444' : textMain}">${activeKots} KOTs</b>
-          <div style="font-size:11px;color:${textMuted};font-weight:600">Total tickets: <b>${d.kots}</b></div>
-        </div>
-
-        <!-- KPI 5: Cash in Drawer -->
-        <div onclick="go('cash')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Cash in Drawer</span>
-            <span style="color:#10b981;background:#d1fae5;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${textMain}">${money(s.expected)}</b>
-          <div style="font-size:11px;color:${textMuted};font-weight:600">Spent: ${money(s.expT + s.purT)}</div>
-        </div>
-
-        <!-- KPI 6: Stock Alerts -->
-        <div onclick="go('stock')" style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:16px;cursor:pointer;display:flex;flex-direction:column;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;color:${textMuted}">Stock Alerts</span>
-            <span style="color:#eab308;background:#fef9c3;padding:4px;border-radius:8px;display:flex">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </span>
-          </div>
-          <b style="font-size:22px;font-weight:800;color:${low.length ? '#ef4444' : textMain}">${low.length} Low</b>
-          <div style="font-size:11px;color:${d.outStock ? '#ef4444' : '#10b981'};font-weight:700">
-            ${d.outStock ? d.outStock + ' Out of stock' : 'Stock level healthy'}
-          </div>
-        </div>
+      <div class="ho-v3-page-actions">
+        <span class="ho-v3-date">${shortDay}</span>
+        <button type="button" class="ho-v3-button" onclick="go('reports')">View Reports</button>
+        <button type="button" class="ho-v3-button ho-v3-button-main" onclick="go('bill')">+ New Bill</button>
       </div>
-
-      <!-- 3. Operations & Visual Analytics Two-Column Layout -->
-      <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px;align-items:start">
-        <!-- LEFT COLUMN: Live Running Tables & 7-Day Revenue Trend -->
-        <div style="display:flex;flex-direction:column;gap:18px">
-          <!-- Live Running Tables Box -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="display:inline-flex;align-items:center;color:var(--primary)">${MENU_ICONS.gateway}</span>
-                <b style="font-size:15px;color:${textMain}">Live Floor & Running Tables</b>
-                <span class="badge" style="font-size:11px;font-weight:800;background:#fee2e2;color:#b91c1c;padding:1px 8px;border-radius:10px">${k.length} Active</span>
-              </div>
-              <button class="btn g sm" onclick="go('kaccha')" style="font-weight:700;font-size:11.5px">View Full Floor Plan →</button>
-            </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(140px, 1fr));gap:10px">
-              ${runningTableChips}
-            </div>
-          </div>
-
-          <!-- 7-Day Revenue Trend Chart -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <div style="display:flex;align-items:center;gap:8px">
-                <span style="display:inline-flex;align-items:center;color:var(--primary)">${MENU_ICONS.analytics}</span>
-                <b style="font-size:15px;color:${textMain}">7-Day Revenue Trajectory</b>
-              </div>
-              <span style="font-size:12px;color:${textMuted}">Peak Day: <b>${money(maxW)}</b></span>
-            </div>
-            <div style="display:flex;gap:12px;align-items:flex-end;padding:8px 0">
-              ${weekBarsSvg}
-            </div>
-          </div>
+    </header>
+    <section class="ho-v3-kpi-grid" aria-label="Overview metrics">
+      ${stats.map(([name,value,detail,icon,action])=>`
+        <button type="button" class="ho-v3-stat" onclick='${action}' aria-label="${esc(name)} ${esc(String(value))}">
+          <span class="ho-v3-stat-label">${esc(name)}</span>
+          <strong>${value}</strong>
+          <span class="ho-v3-stat-sub">${esc(detail)}</span>
+        </button>`).join('')}
+    </section>
+    <div class="ho-v3-dashboard-primary">
+      <section class="ho-v3-panel ho-v3-chart-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Sales Overview</h2><p>Daily revenue based on settled bills</p></div>
+          <span class="ho-v3-small-tag">Last 7 days</span>
         </div>
-
-        <!-- RIGHT COLUMN: Payment Distribution & Quick Watchlist -->
-        <div style="display:flex;flex-direction:column;gap:18px">
-          <!-- Payment Channels Breakdown -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
-              <b style="font-size:15px;color:${textMain}">Payment Split</b>
-              <button class="btn g sm" onclick="go('bills')" style="font-size:11px">Audit</button>
-            </div>
-            ${payModes}
-          </div>
-
-          <!-- Quick Inventory Alerts Watchlist -->
-          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;padding:18px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-              <b style="font-size:15px;color:${textMain}">Critical Stock Watch</b>
-              <button class="btn g sm" onclick="go('stock')" style="font-size:11px">Manage</button>
-            </div>
-            ${low.length ? low.slice(0, 4).map(x => `
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid ${cardBorder};font-size:12.5px">
-                <div>
-                  <b style="color:${textMain}">${esc(x.name)}</b>
-                  <div style="font-size:10.5px;color:${textMuted}">Min: ${x.min || 5} ${x.unit || ''}</div>
-                </div>
-                <span style="font-weight:800;color:${+x.qty <= 0 ? '#ef4444' : '#f59e0b'};background:${+x.qty <= 0 ? '#fee2e2' : '#fef3c7'};padding:2px 8px;border-radius:6px;font-size:11px">
-                  ${+x.qty} ${x.unit || ''}
-                </span>
-              </div>
-            `).join('') : `<div style="color:#10b981;font-size:12px;font-weight:700">All inventory items above threshold.</div>`}
-          </div>
+        <div class="ho-v3-chart-inner">${dzBars((d.week||[]).map(([date,val])=>[date.slice(5),+val||0]),options)}</div>
+      </section>
+      <section class="ho-v3-panel ho-v3-live-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Live Activity</h2><p>Active tables and recent bills</p></div>
+          <button class="ho-v3-mini-link" onclick="go('bill')">View POS</button>
         </div>
-      </div>
+        ${watchlist.length?
+         `<div class="ho-v3-tiny-table"><div class="ho-v3-tiny-head"><span>TABLE</span><span>STATUS</span><span>AMOUNT</span></div>
+          ${watchlist.map(o=>`<button class="ho-v3-tiny-row" onclick="go('bill')"><span>${esc(o.name)}</span><span><i class="ho-v3-status-dot"></i>Running</span><b>${money(o.total)}</b></button>`).join('')}
+          </div>`:
+          recent.length?`<div class="ho-v3-tiny-table"><div class="ho-v3-tiny-head"><span>BILL</span><span>CHANNEL</span><span>AMOUNT</span></div>
+          ${recent.map(b=>`<button class="ho-v3-tiny-row" onclick="go('bills')"><span>#${esc(String(b.no||''))}</span><span>${esc(b.channel||b.table||'Dine-In')}</span><b>${money(b.total)}</b></button>`).join('')}</div>`:
+          `<div class="ho-v3-empty"><b>No orders yet today</b><p>New orders will appear here automatically.</p><button class="ho-v3-button" onclick="go('bill')">Start Billing</button></div>`}
+      </section>
     </div>
-  `;
+    <div class="ho-v3-dashboard-secondary">
+      <section class="ho-v3-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Top Selling Items</h2><p>Quantity sold today</p></div></div>
+        ${top.length?`<div class="ho-v3-top-items">
+          ${top.slice(0,5).map(([name,qty])=>`
+           <div class="ho-v3-top-row"><span title="${esc(name)}">${esc(name)}</span>
+            <span class="ho-v3-progress"><i style="width:${Math.max(2,(+qty||0)/maxTop*100).toFixed(1)}%"></i></span><b>${qty}</b>
+           </div>`).join('')}
+         </div>`:'<div class="ho-v3-empty-compact">No item sales recorded for today.</div>'}
+      </section>
+      <section class="ho-v3-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Payment Methods</h2><p>Collections by payment mode</p></div></div>
+        ${payTotal?`<div class="ho-v3-payment">
+          <div class="ho-v3-donut" style="background:conic-gradient(${stops.join(',')})"><div>${money(payTotal)}</div></div>
+          <div class="ho-v3-pay-legend">${by.map(([label,amt],i)=>`<div><i style="background:${palette[i%palette.length]}"></i><span>${esc(label)}</span><b>${money(amt)}</b></div>`).join('')}</div>
+        </div>`:'<div class="ho-v3-empty-compact">Payment information will appear after a bill is finalized.</div>'}
+      </section>
+      <section class="ho-v3-panel">
+        <div class="ho-v3-panel-heading"><div><h2>Quick Actions</h2><p>Common restaurant tasks</p></div></div>
+        <div class="ho-v3-actions">
+          <button onclick="go('bill')">New Bill</button>
+          <button onclick="go('kitchen')">KOT Screen</button>
+          <button onclick="go('purchase')">Purchase Entry</button>
+          <button onclick="go('reports')">Sales Reports</button>
+          <button onclick="go('wa-reports')">WhatsApp</button>
+          <button onclick="go('settings')">Settings</button>
+        </div>
+        ${extraStock.length?`<div class="ho-v3-stock-alert"><b>${extraStock.length} low-stock item(s)</b><button onclick="go('stock')">View stock</button></div>`:''}
+      </section>
+    </div>
+  </div>`;
 }
-
-/* ================= HORECA ONE: 3-MODE SIDEBAR CONTROLLER ================= */
 function setHoReCaSidebarMode(mode){
   if(!['expanded', 'compact', 'hidden'].includes(mode)) mode = 'expanded';
   if(typeof document !== 'undefined' && document.body && document.body.classList){
@@ -8126,11 +9063,20 @@ function scrSessions(){
   if(!D.sessions) D.sessions = [];
   const active = getActiveSession();
   const allSessions = [...D.sessions].reverse();
+  const shiftCash = summary(today());
+  const activeStats = active ? computeSessionStats(active) : null;
+  const lastClosed = allSessions.find(x=>x.status === 'closed');
+  const shiftKpis = [
+    ['Current Session',active ? '#' + active.sessionNo : 'None',active ? 'Open / running':'No session started'],
+    ['Cash Collected Today',money(shiftCash.by.Cash || 0),'Cash payments today'],
+    ['Expected Drawer',activeStats ? money(activeStats.expectedCash) : '—',active ? 'Including opening float':'Open a session to track'],
+    ['Last Cash Difference',lastClosed ? money(lastClosed.variance || 0) : '—',lastClosed ? 'Last closed shift':'No closed shifts yet']
+  ];
 
   main.innerHTML = `
-    <div class="title">
+    <div class="title horeca-shift-title">
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:20px">⏱️</span>
+        <span class="horeca-shift-symbol" aria-hidden="true">S</span>
         <div>
           <b style="font-size:16px">POS Counter Sessions & Cashier Shift Register</b>
           <div class="muted" style="font-size:11.5px">Auditable Shift Control, Drawer Floating Cash & End-of-Day Cash Reconciliation</div>
@@ -8138,16 +9084,19 @@ function scrSessions(){
       </div>
       <div class="r">
         ${active ? `
-          <button class="btn sm g" onclick="viewSessionModal('${active.id}')">📄 Mid-Shift X-Report</button>
-          <button class="btn sm bad" onclick="closeSessionModal('${active.id}')" style="font-weight:800">🔒 End Shift / Close Session</button>
+          <button class="btn sm g" onclick="viewSessionModal('${active.id}')">Mid-Shift X-Report</button>
+          <button class="btn sm bad" onclick="closeSessionModal('${active.id}')" style="font-weight:800">End Shift / Close Session</button>
         ` : `
-          <button class="btn sm ok" onclick="openSessionModal()" style="font-weight:800">⚡ Open New Counter Session</button>
+          <button class="btn sm ok" onclick="openSessionModal()" style="font-weight:800">Open New Session</button>
         `}
       </div>
     </div>
 
+    <div class="ho-v3-shift-metrics">
+      ${shiftKpis.map(([label,amount,detail])=>`<div class="ho-v3-shift-stat"><small>${esc(label)}</small><b>${amount}</b><span>${esc(detail)}</span></div>`).join('')}
+    </div>
     <!-- Active Session Hero Banner -->
-    <div class="card" style="margin-bottom:18px;border-left:5px solid ${active ? 'var(--ok)' : 'var(--border)'}">
+    <div class="card horeca-shift-hero" style="margin-bottom:18px;border-left:5px solid ${active ? 'var(--ok)' : 'var(--border)'}">
       ${active ? `
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
           <div>
@@ -8173,13 +9122,13 @@ function scrSessions(){
             <h4 style="margin:0 0 4px;font-size:15px;color:var(--text)">No Register Session Currently Active</h4>
             <div class="muted" style="font-size:12.5px">Start a counter session to track floating drawer cash, shift sales, and prevent cash leakages.</div>
           </div>
-          <button class="btn ok" onclick="openSessionModal()" style="font-weight:800">⚡ Open New Shift Session</button>
+          <button class="btn ok" onclick="openSessionModal()" style="font-weight:800">Open New Shift</button>
         </div>
       `}
     </div>
 
     <!-- Auditable Sessions History Table -->
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card horeca-shift-history" style="padding:0;overflow:hidden">
       <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
         <div>
           <b style="font-size:14px;color:var(--text)">All Counter Sessions & Shift Audit Log ("Check Every Session")</b>
@@ -8260,9 +9209,9 @@ function scrGateway(){
     main.innerHTML = (isManager() ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div style="font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px">
         <span style="width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block"></span>
-        Theme Dashboard: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'Modern'}</span>
+        Design Theme: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'Modern'}</span>
       </div>
-      <button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
+      <button class="btn horeca-activate-theme" onclick="setTheme('horeca_light','modern');go('gateway')">Activate HoReCa One</button> <button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
     </div>` : '') + dashModern();
     return;
   }
@@ -9057,9 +10006,9 @@ function scrBill(){
   const isCurrentTableKaccha = !!D.kaccha[B.table];
 
   main.innerHTML = `
-  <div class="title">
+  <div class="title horeca-pos-title">
     <div style="display:flex;align-items:center;gap:10px">
-      <span>Sales Counter — Restaurant Billing</span>
+      <span>Billing Desk <small class="horeca-pos-kicker">POS / RESTAURANT OPERATIONS</small></span>
       <span class="status-pill" style="font-size:11px">
         ${B.channel === 'Dine-In' ? (isCurrentTableKaccha ? 'Running Order' : 'Dine-In Table') :
           B.channel === 'Takeaway' ? 'Parcel Order' :
@@ -9070,7 +10019,7 @@ function scrBill(){
   </div>
 
   <!-- Channel Selector Tabs (Dine-In, Takeaway, Zomato, Swiggy) -->
-  <div class="channel-bar">
+  <div class="channel-bar horeca-pos-channels">
     <button type="button" class="channel-btn ${B.channel==='Dine-In'?'active':''}" onclick="setBillingChannel('Dine-In')">
       Dine-In (Table)
     </button>
@@ -9158,16 +10107,18 @@ function scrBill(){
     </div>
   ` : ''}
 
-  <div class="bill">
-    <!-- Left Column: Search, Category & Item Grid -->
-    <div>
+  <div class="bill horeca-pos-workspace">
+    <!-- Menu workspace -->
+    <div class="horeca-pos-catalog">
+      <div class="horeca-pos-section-top"><div><span class="horeca-eyebrow">MENU CATALOGUE</span><h3>Choose Items</h3></div><span class="horeca-pos-counter">Click to add</span></div>
       <input id="q" placeholder="Search items, press Enter to add (e.g. paneer, naan, roti)" autocomplete="off">
       <div class="cats">${cats.map((c,i) => `<button class="cat ${i===billCat?'on':''}" onclick="billCat=${i};scrBill()">${esc(c)}</button>`).join('')}</div>
       <div id="items" class="items"></div>
     </div>
 
-    <!-- Right Column: Cart & Billing Details -->
-    <div class="card">
+    <!-- Checkout workspace -->
+    <div class="card horeca-pos-checkout">
+      <div class="horeca-pos-section-top"><div><span class="horeca-eyebrow">CURRENT ORDER</span><h3>Order & Payment</h3></div><span class="horeca-pos-counter">Live cart</span></div>
       ${kacchaEntries.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
         <b style="font-size:12px;color:#b45309">Running orders:</b>
         ${kacchaEntries.map(([tbl, k]) => `<button class="btn sm ${B.table === tbl ? 'ok' : 'g'}" style="padding:5px 10px" onclick="switchTable('${esc(tbl)}')">${esc(tbl)} · ${money(calc(k.cart, k.disc, gstRate()).total)}</button>`).join('')}
@@ -9190,7 +10141,7 @@ function scrBill(){
       </div>
       <div id="pts"></div>
 
-      <div id="cart" style="margin-top:12px"></div>
+      <div id="cart" class="horeca-pos-cart" style="margin-top:12px"></div>
 
       <div class="grid" style="grid-template-columns:150px 1fr;margin-top:12px">
         <div>
@@ -9206,7 +10157,7 @@ function scrBill(){
         </div>
       </div>
 
-      <div id="tot" class="tot" style="margin-top:12px"></div>
+      <div id="tot" class="tot horeca-pos-total" style="margin-top:12px"></div>
 
       <label style="margin-top:10px">Payment Mode</label>
       <div class="modes">
@@ -9386,7 +10337,7 @@ function filtered(){
 }
 
 function drawItems(){
-  const f = filtered(), q = (($('#q')?.value) || '').trim(), pc = posCards(), box = $('#items');
+  const f = filtered(), q = (($('#q')?.value) || '').trim(), premium = ['horeca_light','horeca_dark'].includes(D.settings.theme), pc = premium && posCards() === 'off' ? 'standard' : posCards(), box = $('#items');
   box.className = 'items' + (pc === 'off' ? '' : ' pc-' + pc);
   // Pictures are thumbnails, lazy-loaded: adding an item never waits for one
   box.innerHTML = f.map((m,i) => pc === 'off' ? `
@@ -9394,7 +10345,7 @@ function drawItems(){
       <b>${esc(m.name)}</b>
       <small>${rs(m.price)}</small>
     </button>
-  ` : `<button class="item pic ${q && i===0 ? 'first' : ''}" onclick="addItem('${m.id}')">${dishImg(m, pc === 'large', 'ph', pc === 'compact' ? 52 : 160)}<span class="tx"><b>${m.veg === true ? '<i class="vg"></i>' : m.veg === false ? '<i class="vg nv"></i>' : ''}${esc(m.name)}</b><small>${rs(m.price)}</small></span></button>`
+  ` : `<button class="item pic ${q && i===0 ? 'first' : ''}" onclick="addItem('${m.id}')">${dishImg(m, pc === 'large', 'ph', pc === 'compact' ? 52 : 160)}<span class="tx"><b>${m.veg === true ? '<i class="vg"></i>' : m.veg === false ? '<i class="vg nv"></i>' : ''}${esc(m.name)}</b><span class="ho-v3-item-footer"><small>${rs(m.price)}</small>${premium ? '<span class="ho-v3-add-chip">+ Add</span>' : ''}</span></span></button>`
   ).join('') || '<p class="muted">No items found. Add dishes under Menu Items (M).</p>';
   if(pc !== 'off') mediaHydrate(box);
 }
@@ -10318,6 +11269,13 @@ function scrBills(){
     bs = bs.filter(b => (b.channel || 'Dine-In') === billFilterChannel);
   }
   bs.sort((a,b) => b.no - a.no);
+  const activeBills = bs.filter(x=>!x.cancelled);
+  const historyKpis = [
+    ['Bills Listed',String(bs.length),'For selected date and channel'],
+    ['Active Bills',String(activeBills.length),'Not cancelled'],
+    ['Total Billed',money(sum(activeBills,'total')),'Sales before credit-note adjustment'],
+    ['Cancelled',String(bs.length-activeBills.length),'Excluded from active sales']
+  ];
 
   main.innerHTML = `
   <div class="title">
@@ -10325,6 +11283,9 @@ function scrBills(){
     <span class="r">Date: <input type="date" value="${listDate}" onchange="listDate=this.value;scrBills()"></span>
   </div>
 
+  <div class="ho-v3-module-stats">
+    ${historyKpis.map(([label,value,detail])=>`<div class="ho-v3-module-stat"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('')}
+  </div>
   <div class="cats" style="margin-bottom:12px">
     <button class="cat ${billFilterChannel==='all'?'on':''}" onclick="billFilterChannel='all';scrBills()">All Channels</button>
     <button class="cat ${billFilterChannel==='Dine-In'?'on':''}" onclick="billFilterChannel='Dine-In';scrBills()">Dine-In</button>
@@ -11555,10 +12516,19 @@ let stockView = {type: '', q: '', inactive: false};
 function scrStock(){
   const low = lowStock(), list = D.stock.filter(s => !s.merged && (stockView.inactive || s.active !== false) && (!stockView.type || (s.type || 'stock') === stockView.type)
     && (!stockView.q || (s.name + ' ' + (s.cat || '')).toLowerCase().includes(stockView.q.toLowerCase())));
+  const stockKpis = [
+    ['Stock Items',String(activeStock().length),'Active stock records'],
+    ['Low Stock Alerts',String(low.length),'Needs review'],
+    ['Out of Stock',String(D.stock.filter(x=>!x.merged&&x.active!==false&&Number(x.qty)<=0).length),'Items without available quantity'],
+    ['Filtered List',String(list.length),'Matching current filters']
+  ];
   main.innerHTML = `
   <div class="title">
     <span>Stock Summary & Inventory</span>
     <span class="r">${activeStock().length} items · Low Stock: <b class="${low.length?'red':'green'}">${low.length}</b></span>
+  </div>
+  <div class="ho-v3-module-stats">
+    ${stockKpis.map(([label,value,detail])=>`<div class="ho-v3-module-stat"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('')}
   </div>
   <div class="btns" style="margin:0 0 10px">
     <button class="btn ok" onclick="editStock()">+ New Item</button>
@@ -12148,6 +13118,10 @@ function dishPic(m, big){
 }
 function dishImg(m, big, cls, size){
   const p = dishPic(m, big), wait = p.kind === 'custom' && !p.url;
+  if (cls === 'ph' && D && D.settings && (D.settings.theme === 'horeca_light' || D.settings.theme === 'horeca_dark') && p.kind !== 'custom' && p.kind !== 'link') {
+    // Exact vendor photo unavailable; avoid using the same generic dish image for different menu items.
+    return '<div class="horeca-item-placeholder"><span>' + esc(String(m.name || 'M').charAt(0).toUpperCase()) + '</span><small>' + esc(m.cat || 'Menu') + '</small></div>';
+  }
   return `<img class="${cls || 'dish-img'}" src="${esc(p.url || 'food/thumb/cat-generic.webp')}"${wait ? ` data-media="${p.src}${big ? '' : '.t'}"` : ''} alt="" loading="${cls === 'dish-prev' ? 'eager' : 'lazy'}" decoding="async"${size ? ` width="${size}" height="${size}"` : ''} onerror="dishImgFail(this)">`;
 }
 function dishImgFail(el){
@@ -13901,8 +14875,17 @@ function suppliers(){
 
 function scrSuppliers(){
   const list = suppliers();
+  const supplierKpis = [
+    ['Suppliers',String(list.length),'In supplier register'],
+    ['Outstanding',money(sum(list,'due')),'Unpaid supplier balances'],
+    ['With Dues',String(list.filter(x=>x.due>0).length),'Suppliers awaiting payment'],
+    ['Total Purchased',money(sum(list,'purchases')),'Recorded supplier purchases']
+  ];
   main.innerHTML = `
   <div class="title"><span>Suppliers & Payables</span><span class="r">Total due: <b class="red">${money(sum(list, 'due'))}</b></span></div>
+  <div class="ho-v3-module-stats">
+    ${supplierKpis.map(([label,value,detail])=>`<div class="ho-v3-module-stat"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('')}
+  </div>
   <div class="btns" style="margin:0 0 10px"><button class="btn ok" onclick="editSupplier()">+ New Supplier</button><button class="btn g" onclick="AN.id='supplier-ledger';go('analytics')">Supplier Ledger Report</button><button class="btn g" onclick="AN.id='supplier-invoices';go('analytics')">Invoice-wise Dues</button></div>
   <div class="card" style="padding:0;overflow:auto">
     <table>
@@ -17792,11 +18775,81 @@ async function supReply(id, resolve){
 }
 
 /* ================= SETTINGS & SECURITY ================= */
+function hoV3SettingsLayout(){
+  const mainEl=document.getElementById('main');
+  if(!mainEl || !['horeca_light','horeca_dark'].includes(D.settings.theme))return;
+  const oldNav=mainEl.querySelector('.horeca-settings-jump');
+  if(!oldNav || mainEl.querySelector('.ho-v3-settings-layout'))return;
+  const cards=[...mainEl.children].filter(x=>x.classList&&x.classList.contains('card'));
+  if(!cards.length)return;
+  const titles=[
+    ['profile','Business Profile','Hotel name, billing identity and contacts'],
+    ['appearance','Appearance & Themes','Colors, layout and readability'],
+    ['security','Users & Security','Password and access settings'],
+    ['printers','Printer Configuration','Bill, KOT and paper options'],
+    ['devices','Devices & LAN','Captain app and connected devices'],
+    ['cloud','Cloud Sync','Sync status and data access'],
+    ['integrations','Integrations','WhatsApp and online channels'],
+    ['backup','Backup & Updates','Backups, recovery and updates'],
+    ['other','Other Settings','Remaining property preferences']
+  ];
+  const grid=document.createElement('div');
+  grid.className='ho-v3-settings-layout';
+  const left=document.createElement('nav');
+  left.className='ho-v3-settings-menu';
+  left.setAttribute('aria-label','Settings modules');
+  const right=document.createElement('section');
+  right.className='ho-v3-settings-panels';
+  titles.forEach(([key,title,desc])=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.dataset.hoSettings=key;
+    const b=document.createElement('b');b.textContent=title;
+    const hint=document.createElement('small');hint.textContent=desc;
+    button.append(b,hint);
+    button.onclick=()=>hoV3SelectSettings(key);
+    left.append(button);
+  });
+  oldNav.style.display='none';
+  oldNav.parentNode.insertBefore(grid,oldNav.nextSibling);
+  grid.append(left,right);
+  cards.forEach(card=>{
+    const id=card.id||'',h=card.querySelector('h3')?.textContent.toLowerCase()||'';
+    let key='other';
+    if(id==='horeca-property-card'||h.includes('restaurant details'))key='profile';
+    else if(id==='look-card'||h.includes('appearance'))key='appearance';
+    else if(h.includes('password')||h.includes('pin')||h.includes('security'))key='security';
+    else if(id==='print-card'||h.includes('printer'))key='printers';
+    else if(id==='net-card'||h.includes('tablet')||h.includes('phone /'))key='devices';
+    else if(id==='cloud-card'||h.includes('sync'))key='cloud';
+    else if(id==='wa-card'||h.includes('zomato')||h.includes('swiggy')||h.includes('whatsapp'))key='integrations';
+    else if(id==='update-card'||id==='ab-card'||h.includes('backup')||h.includes('update'))key='backup';
+    card.dataset.hoSettingsPane=key;
+    if(card.style.display==='none')card.dataset.hoOriginalHidden='true';
+    right.append(card);
+  });
+  hoV3SelectSettings(window.hoV3SettingsTab||'profile');
+}
+function hoV3SelectSettings(tab){
+  const mainEl=document.getElementById('main');
+  if(!mainEl)return;
+  window.hoV3SettingsTab=tab;
+  mainEl.querySelectorAll('[data-ho-settings]').forEach(x=>{
+    const selected=x.dataset.hoSettings===tab;
+    x.classList.toggle('selected',selected);
+    x.setAttribute('aria-current',selected?'page':'false');
+  });
+  mainEl.querySelectorAll('[data-ho-settings-pane]').forEach(x=>{
+    if(x.dataset.hoOriginalHidden==='true'&&x.style.display==='none')return;
+    x.style.display=x.dataset.hoSettingsPane===tab?'':'none';
+  });
+}
 function scrSettings(){
   const s = D.settings;
   const f = (k, l, t='text') => `<div><label>${l}</label><input id="st_${k}" type="${t}" value="${esc(s[k])}"></div>`;
   main.innerHTML = `
-  <div class="title">Restaurant Settings, Online Aggregators & Backup</div>
+  <div class="title horeca-settings-title"><div><small class="horeca-eyebrow">PROPERTY ADMINISTRATION</small><div>Settings & Integrations</div></div><span class="r">Property, Devices & Access</span></div>
+  <nav class="horeca-settings-jump" aria-label="Settings sections"><button type="button" onclick="document.getElementById('print-card').scrollIntoView({behavior:'smooth'})">Printer Setup</button><button type="button" onclick="document.getElementById('net-card').scrollIntoView({behavior:'smooth'})">Devices</button><button type="button" onclick="document.getElementById('cloud-card').scrollIntoView({behavior:'smooth'})">Cloud Sync</button><button type="button" onclick="document.getElementById('look-card').scrollIntoView({behavior:'smooth'})">Appearance</button><button type="button" onclick="document.getElementById('horeca-property-card').scrollIntoView({behavior:'smooth'})">Property Details</button></nav>
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
@@ -17815,7 +18868,7 @@ function scrSettings(){
     <div class="btns"><button class="btn ok" onclick="changeOwnerPass()">Change Password</button></div>
   </div>
   
-  <div class="card">
+  <div class="card" id="horeca-property-card">
     <h3 style="margin-top:0">Restaurant Details (Printed on Bills)</h3>
     <div style="background:var(--surface);border:1.5px dashed var(--border);border-radius:12px;padding:16px;margin:12px 0;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
       <div style="width:72px;height:72px;border-radius:12px;border:1px solid var(--border);background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none;box-shadow:0 2px 8px rgba(0,0,0,0.05)">
@@ -18117,6 +19170,7 @@ function scrSettings(){
   drawAutoBackup();
   drawWaCard();
   drawLookCard();
+  hoV3SettingsLayout();
 }
 
 async function drawPrintCard(){
