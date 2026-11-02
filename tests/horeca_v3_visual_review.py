@@ -59,7 +59,20 @@ try:
         page.goto(URL,wait_until='domcontentloaded',timeout=45000)
         page.wait_for_timeout(1500)
         page.screenshot(path=str(shots/'00_initial_login.png'),full_page=True)
-        page.evaluate("showLoginView('existing')")
+        login_state=page.evaluate("""() => ({
+          visible:getComputedStyle(document.querySelector('#login-screen')).display!=='none',
+          registration:document.querySelector('#mode-onboard-existing')?.offsetParent!==null,
+          role:document.querySelector('#gate1_hotel_id')?.value||''
+        })""")
+        print('Initial login state:',login_state)
+        # This isolated browser review needs a visible form even if local auto-login
+        # already hid the login overlay; production login logic is untouched.
+        page.evaluate("""() => {
+          document.querySelector('#login-screen').style.display='flex';
+          showLoginView('existing');
+          switchOnboardingMode('existing');
+        }""")
+        page.wait_for_timeout(400)
         page.locator('#exist_hotel_id').fill('DEMOLOCAL')
         page.locator('#exist_username').fill('owner')
         page.locator('#exist_password').fill('Preview@2026')
