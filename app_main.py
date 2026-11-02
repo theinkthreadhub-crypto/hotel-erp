@@ -1728,15 +1728,21 @@ class CloudSync:
     def _tick(self):
         code, text = self._request('GET', '/api/version')
         if code == 404:
-            # The vendor deleted this hotel on the cloud: forget the link, join again (unless blocked)
-            self.store.log(f"Hotel Setu Cloud: hotel {self.cfg.get('hotel')} not found on the cloud, joining again")
-            self.cfg = {'enabled': True}
-            _write_json(self.cfg_path, self.cfg)
-            self.state = {}
-            _write_json(self.state_path, self.state)
-            self.auto = {'state': '', 'code': '', 'at': 0}
-            self.relink_at = time.time()   # join again soon, not after the usual 30 minutes
-            raise OSError('Hotel not found on the cloud, reconnecting')
+            # Do NOT wipe self.cfg immediately! Transient 404s from edge/worker must not erase cloud link!
+            consec = getattr(self, '_consec_404', 0) + 1
+            self._consec_404 = consec
+            if consec >= 30:  # Only after 30 consecutive failures across hours consider unlinking
+                self.store.log(f"Hotel Setu Cloud: hotel {self.cfg.get('hotel')} not found on cloud after {consec} checks, resetting link")
+                self.cfg = {'enabled': True}
+                _write_json(self.cfg_path, self.cfg)
+                self.state = {}
+                _write_json(self.state_path, self.state)
+                self.auto = {'state': '', 'code': '', 'at': 0}
+                self.relink_at = time.time()
+                self._consec_404 = 0
+                raise OSError('Hotel not found on the cloud, reset link')
+            raise OSError(f'Cloud HTTP 404 (check #{consec}), keeping connection settings and retrying...')
+        self._consec_404 = 0
         if code != 200:
             raise OSError('Invalid Cloud Sync Key' if code == 401 else f'Cloud HTTP {code}')
         cv = json.loads(text)['version']
