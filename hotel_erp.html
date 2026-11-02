@@ -3302,6 +3302,674 @@ html[data-theme^="horeca_"] #main .ho-v3-module-stat span{
  }
 }
 
+
+
+/* ================= HORECA ONE: PREMIUM ENTERPRISE REFINEMENT & READABILITY ================= */
+:root {
+  --font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --text-primary: #0f172a;
+  --text-body: #1e293b;
+  --text-muted: #475569;
+  --text-subtle: #64748b;
+  --brand-green: #059669;
+  --brand-green-light: #10b981;
+  --brand-green-tint: #ecfdf5;
+  --border-clean: #cbd5e1;
+  --border-subtle: #e2e8f0;
+  --bg-neutral: #f8fafc;
+  --card-surface: #ffffff;
+}
+
+body, html {
+  font-family: var(--font-family) !important;
+  color: var(--text-body) !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* High Contrast & Clean Lettering across all modules */
+h1, h2, h3, h4, .title, .title span:first-child {
+  color: var(--text-primary) !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.02em;
+}
+
+p, span, div, td, label {
+  color: var(--text-body);
+}
+
+.muted, small.muted {
+  color: var(--text-muted) !important;
+  font-size: 12px;
+}
+
+/* Tabular Numerals for financial, operational & temporal precision */
+.n, .font-bold, table td.n, .ho-v3-stat strong, .ho-v3-shift-stat b, .kds-timer-badge, .kds-qty {
+  font-variant-numeric: tabular-nums !important;
+}
+
+/* High-Contrast Tables */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--card-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+th {
+  background: #f8fafc !important;
+  color: #334155 !important;
+  font-weight: 750 !important;
+  font-size: 11.5px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.04em !important;
+  padding: 12px 14px !important;
+  border-bottom: 2px solid var(--border-clean) !important;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+td {
+  padding: 12px 14px !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  color: var(--text-body) !important;
+  font-size: 13.5px !important;
+  vertical-align: middle;
+}
+
+tr:last-child td {
+  border-bottom: none !important;
+}
+
+tr:hover td {
+  background: #f8fafc !important;
+}
+
+/* Form Inputs & Readability */
+input, select, textarea {
+  border: 1.5px solid var(--border-clean) !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  color: var(--text-primary) !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  padding: 9px 12px !important;
+  min-height: 40px !important;
+  box-sizing: border-box !important;
+  transition: border-color .15s, box-shadow .15s !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--brand-green-light) !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18) !important;
+  outline: none !important;
+}
+
+label {
+  display: block;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  margin-bottom: 5px !important;
+  letter-spacing: 0.01em;
+}
+
+/* Button System: Green Brand Accent & Clear Hierarchy */
+.btn {
+  font-weight: 650 !important;
+  border-radius: 9px !important;
+  padding: 9px 16px !important;
+  font-size: 13.5px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  transition: all .16s ease !important;
+}
+
+.btn.ok, .btn-primary, .btn-login-gradient {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid #047857 !important;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.28) !important;
+}
+
+.btn.ok:hover, .btn-primary:hover, .btn-login-gradient:hover {
+  background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.38) !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn.g {
+  background: #ffffff !important;
+  border: 1.5px solid var(--border-clean) !important;
+  color: #334155 !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
+}
+
+.btn.g:hover {
+  background: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
+.btn.bad {
+  background: #fee2e2 !important;
+  border: 1.5px solid #fca5a5 !important;
+  color: #991b1b !important;
+  font-weight: 700 !important;
+}
+
+.btn.bad:hover {
+  background: #fecaca !important;
+  border-color: #f87171 !important;
+}
+
+/* Tabs & Segmented Navigation Controls */
+.cats {
+  display: flex !important;
+  background: #f1f5f9 !important;
+  padding: 3px !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border-subtle) !important;
+  gap: 3px !important;
+  width: fit-content !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  margin: 10px 0 16px !important;
+}
+
+.cat {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 8px !important;
+  padding: 7px 14px !important;
+  font-size: 12.5px !important;
+  font-weight: 650 !important;
+  color: #475569 !important;
+  cursor: pointer !important;
+  transition: all .15s ease !important;
+  white-space: nowrap !important;
+}
+
+.cat:hover {
+  color: #0f172a !important;
+}
+
+.cat.on {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06) !important;
+  font-weight: 750 !important;
+}
+
+/* Status System Badges */
+.tag, .status-pill, .status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 11.5px !important;
+  font-weight: 750 !important;
+  padding: 3px 8px !important;
+  border-radius: 6px !important;
+  letter-spacing: 0.02em !important;
+  line-height: 1.2 !important;
+}
+
+.tag.ok, .status-ready, .status-active, .status-paid {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+  border: 1px solid #86efac !important;
+}
+
+.tag.warn, .status-cooking, .status-inprep {
+  background: #ffedd5 !important;
+  color: #9a3412 !important;
+  border: 1px solid #fed7aa !important;
+}
+
+.status-new, .tag.pending {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+  border: 1px solid #fde68a !important;
+}
+
+.tag.bad, .status-late, .status-unpaid, .status-cancelled {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  border: 1px solid #fca5a5 !important;
+}
+
+.status-served, .tag.inactive {
+  background: #f1f5f9 !important;
+  color: #334155 !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+/* ================= KITCHEN DISPLAY SYSTEM (KDS) ENHANCEMENTS ================= */
+.kds-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.kds-kpi-bar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.kds-kpi-card {
+  background: #ffffff;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+}
+
+.kds-kpi-card small {
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kds-kpi-card b {
+  font-size: 24px;
+  font-weight: 850;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.kds-kpi-card span {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.kds-kanban-board {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(280px, 1fr));
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 12px;
+  align-items: start;
+}
+
+.kds-kanban-col {
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 240px);
+  min-height: 480px;
+}
+
+.kds-col-header {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 2px solid var(--border-subtle);
+  background: #ffffff;
+  border-radius: 14px 14px 0 0;
+}
+
+.kds-col-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 750;
+  color: #0f172a;
+}
+
+.kds-col-count {
+  background: #f1f5f9;
+  color: #334155;
+  padding: 2px 8px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.kds-col-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* Redesigned Structured Ticket Card */
+.kds-ticket-card {
+  background: #ffffff;
+  border: 1.5px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: transform .14s, box-shadow .14s, border-color .14s;
+}
+
+.kds-ticket-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.kds-ticket-card.urgency-new {
+  border-left: 4px solid #f59e0b;
+}
+
+.kds-ticket-card.urgency-cooking {
+  border-left: 4px solid #0284c7;
+}
+
+.kds-ticket-card.urgency-ready {
+  border-left: 4px solid #10b981;
+}
+
+.kds-ticket-card.urgency-late {
+  border-left: 4px solid #ef4444;
+  background: #fffafa;
+}
+
+.kds-ticket-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 8px;
+}
+
+.kds-table-badge {
+  background: #0f172a;
+  color: #ffffff;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: 0.02em;
+}
+
+.kds-kot-num {
+  font-size: 12.5px;
+  font-weight: 750;
+  color: #475569;
+}
+
+.kds-timer-badge {
+  font-size: 11.5px;
+  font-weight: 750;
+  padding: 3px 8px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kds-timer-badge.green {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.kds-timer-badge.amber {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.kds-timer-badge.red {
+  background: #fee2e2;
+  color: #991b1b;
+  animation: pulseLate 2s infinite;
+}
+
+@keyframes pulseLate {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+.kds-items-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kds-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.kds-qty-pill {
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 850;
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  border: 1px solid #cbd5e1;
+  flex-shrink: 0;
+}
+
+.kds-item-name {
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.kds-note-box {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.kds-actions-bar {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+/* ================= SPLIT SCREEN LOGIN REFINEMENT ================= */
+.login-split-wrapper {
+  display: grid;
+  grid-template-columns: minmax(360px, 1.15fr) minmax(420px, 1fr);
+  width: 100%;
+  max-width: 1020px;
+  min-height: 600px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 0 30px 60px -12px rgba(15, 23, 42, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.4);
+  overflow: hidden;
+}
+
+.login-split-hero {
+  background: linear-gradient(145deg, #0b172c 0%, #0f172a 60%, #132238 100%);
+  padding: 44px 38px;
+  color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-split-hero::before {
+  content: '';
+  position: absolute;
+  top: -80px;
+  right: -80px;
+  width: 240px;
+  height: 240px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.18), transparent 70%);
+  pointer-events: none;
+}
+
+.login-hero-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.login-hero-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 900;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+
+.login-hero-brand b {
+  font-size: 20px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  display: block;
+}
+
+.login-hero-brand span {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.login-hero-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 16px;
+  margin: 14px 0 24px;
+}
+
+.login-hero-main h2 {
+  font-size: 26px;
+  font-weight: 850;
+  line-height: 1.25;
+  color: #ffffff !important;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.login-hero-main p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #cbd5e1;
+  margin: 0 0 10px;
+}
+
+.login-feature-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #e2e8f0;
+}
+
+.login-feature-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.login-hero-footer {
+  font-size: 12px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 18px;
+}
+
+
+.login-split-form-panel .login-card {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 440px !important;
+  margin: 0 auto !important;
+}
+
+.login-split-form-panel .login-card input {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.login-split-form-panel {
+  padding: 38px 36px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow-y: auto;
+}
+
+@media(max-width: 960px) {
+  .login-split-wrapper {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+  }
+  .login-split-hero {
+    display: none;
+  }
+  .login-split-form-panel {
+    padding: 28px 24px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -3309,7 +3977,49 @@ html[data-theme^="horeca_"] #main .ho-v3-module-stat span{
 <!-- Login Overlay Screen -->
 <!-- Login & Sign-Up Overlay Screen -->
 <div id="login-screen">
-  <!-- VIEW A: First Time Install - Sign Up / Registration -->
+  <div class="login-split-wrapper">
+    <!-- LEFT SIDE: Strong Branded Hero Panel -->
+    <div class="login-split-hero">
+      <div>
+        <div class="login-hero-header">
+          <div class="login-hero-logo">H1</div>
+          <div class="login-hero-brand">
+            <b>HoReCa One</b>
+            <span>Hotel • Restaurant • Café · Powered by Setu Pro</span>
+          </div>
+        </div>
+        <div class="login-hero-main">
+          <h2>Enterprise Restaurant POS & Management</h2>
+          <p>Calm, fast & reliable operations engineered for high-turnover dining, bars, cafés and luxury hospitality.</p>
+          <div class="login-feature-list">
+            <div class="login-feature-item">
+              <span class="login-feature-icon">⚡</span>
+              <div><b>High-Speed POS Counter</b> — Split-second KOT routing & offline LAN resilience</div>
+            </div>
+            <div class="login-feature-item">
+              <span class="login-feature-icon">📱</span>
+              <div><b>Permanent Table QR Ordering</b> — Contactless digital menu with 100% private tenant isolation</div>
+            </div>
+            <div class="login-feature-item">
+              <span class="login-feature-icon">📊</span>
+              <div><b>CA-Ready Day Book</b> — Segregated Cash, Bank & Credit ledgers with live GST reconciliation</div>
+            </div>
+            <div class="login-feature-item">
+              <span class="login-feature-icon">🔔</span>
+              <div><b>4-Stage Kitchen Display</b> — Live operational tickets with real-time audio chimes</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="login-hero-footer">
+        <span>🛡️ Powered by Setu Pro</span>
+        <span>256-Bit Cryptographic Security</span>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDE: Clean Authentication Form Panel -->
+    <div class="login-split-form-panel">
+      <!-- VIEW A: First Time Install - Sign Up / Registration -->
   <!-- VIEW 0: Frosted Glass Login (Inspired by Image 4) -->
   <div class="login-card login-glass-card" id="login-view-welcome" style="display:block;max-width:460px;width:100%">
     <div style="text-align:center;margin-bottom:18px">
@@ -3564,7 +4274,11 @@ html[data-theme^="horeca_"] #main .ho-v3-module-stat span{
       <div class="app-ver" style="margin-top:2px"></div>
     </div>
   </div>
+    </div>
+  </div>
 </div>
+
+
 
 <!-- Strict Full-Screen Lock Overlay Screen (When 30-Day License is Expired) -->
 <div id="lock-screen">
@@ -13604,57 +14318,207 @@ async function bulkImportMappingCsv(file){
 }
 
 /* ================= KITCHEN DISPLAY (KOT SCREEN) ================= */
+let kdsStageFilter = 'all';
+let kdsViewType = 'kanban'; // 'kanban' or 'grid'
+
+function setKdsFilter(f){
+  kdsStageFilter = f;
+  scrKitchen();
+}
+
+function setKdsView(v){
+  kdsViewType = v;
+  scrKitchen();
+}
+
 function scrKitchen(){
   clearInterval(kdsTimer);
-  const ks = pendingKots().sort((a,b) => a.at - b.at), late = +D.settings.kotLate || 20;
-  const served = (D.kots || []).filter(k => k.date === today() && k.status === 'served').length;
+  const allKs = pendingKots().sort((a,b) => a.at - b.at), late = +D.settings.kotLate || 20;
+  const servedCount = (D.kots || []).filter(k => k.date === today() && k.status === 'served').length;
   const kmode = document.body.classList.contains('kitchen-mode');
-  const tag = ch => ch === 'Zomato' ? '<span class="tag zomato">Zomato</span>' : ch === 'Swiggy' ? '<span class="tag swiggy">Swiggy</span>' :
-    ch === 'Takeaway' ? '<span class="tag">Parcel</span>' : '<span class="tag">Dine-In</span>';
+  
+  // Categorize by stage
+  const newKs = allKs.filter(k => !k.status || k.status === 'new' || k.status === 'pending');
+  const inPrepKs = allKs.filter(k => k.status === 'accepted' || k.status === 'inprep');
+  const cookingKs = allKs.filter(k => k.status === 'cooking');
+  const readyKs = allKs.filter(k => k.status === 'ready');
+  const lateCount = allKs.filter(k => Math.max(0, Math.floor((Date.now() - k.at) / 60000)) >= late && k.status !== 'ready').length;
+
+  const filteredKs = kdsStageFilter === 'new' ? newKs :
+                     kdsStageFilter === 'inprep' ? inPrepKs :
+                     kdsStageFilter === 'cooking' ? cookingKs :
+                     kdsStageFilter === 'ready' ? readyKs : allKs;
+
+  const channelTag = k => {
+    if(k.channel === 'Zomato') return '<span class="tag zomato">Zomato</span>';
+    if(k.channel === 'Swiggy') return '<span class="tag swiggy">Swiggy</span>';
+    if(k.channel === 'Takeaway') return '<span class="tag" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a">Parcel</span>';
+    if(k.src === 'qr') return '<span class="tag ok">📱 QR Order</span>';
+    return '<span class="tag" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1">Dine-In</span>';
+  };
+
+  const renderCard = k => {
+    const m = Math.max(0, Math.floor((Date.now() - k.at) / 60000));
+    const isLate = m >= late && k.status !== 'ready';
+    const urgencyClass = k.status === 'ready' ? 'urgency-ready' :
+                         k.status === 'cooking' ? 'urgency-cooking' :
+                         isLate ? 'urgency-late' : 'urgency-new';
+    const timerClass = k.status === 'ready' ? 'green' : isLate ? 'red' : m >= 10 ? 'amber' : 'green';
+    const timerLabel = isLate ? `🔥 ${m}m LATE` : `⏱️ ${m}m`;
+
+    return `
+      <div class="kds-ticket-card ${urgencyClass}">
+        <div class="kds-ticket-head">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="kds-table-badge">${esc(k.table || 'Counter')}</span>
+            <span class="kds-kot-num">#KOT-${esc(k.no)}</span>
+          </div>
+          <span class="kds-timer-badge ${timerClass}">${timerLabel}</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#475569">
+          <div style="display:flex;gap:5px;align-items:center">${channelTag(k)}</div>
+          <span style="font-weight:600">${k.time || ''}</span>
+        </div>
+        <ul class="kds-items-list">
+          ${(k.items || []).map(i => `
+            <li class="kds-item-row">
+              <span class="kds-qty-pill">${i.qty}×</span>
+              <span class="kds-item-name">${esc(i.name)}</span>
+            </li>
+          `).join('')}
+        </ul>
+        ${k.note ? `<div class="kds-note-box"><b>Special Note:</b> ${esc(k.note)}</div>` : ''}
+        <div class="kds-actions-bar">
+          ${(!k.status || k.status === 'new' || k.status === 'pending') ? `
+            <button class="btn ok" style="flex:1;padding:8px 10px;font-size:12.5px" onclick="kotSet('${k.id}','cooking')">🔥 Start Cooking</button>
+            <button class="btn ok" style="padding:8px 10px;font-size:12.5px;background:#0284c7!important;border-color:#0369a1!important" onclick="kotSet('${k.id}','ready')">✓ Ready</button>
+          ` : k.status === 'cooking' ? `
+            <button class="btn ok" style="flex:1;padding:8px 10px;font-size:12.5px" onclick="kotSet('${k.id}','ready')">✓ Food Ready</button>
+            <button class="btn g sm" style="padding:8px 10px;font-size:12.5px" onclick="kotSet('${k.id}','served')">🍽️ Served</button>
+          ` : `
+            <button class="btn ok" style="flex:1;padding:8px 10px;font-size:12.5px" onclick="kotSet('${k.id}','served')">🍽️ Mark Served</button>
+          `}
+          <button class="btn g sm" style="padding:8px 10px" onclick="printKotTicket('${k.id}')" title="Reprint Kitchen KOT Slip">🖨️</button>
+        </div>
+      </div>
+    `;
+  };
 
   main.innerHTML = `
-  <div class="title">
-    <span>Kitchen Display — Live KOT Screen</span>
-    <span class="r">
-      Pending: <b>${ks.length}</b> · Served today: <b>${served}</b>
-      <button class="btn g sm" onclick="toggleKitchenMode()">${kmode ? 'Exit Kitchen Mode' : 'Full Screen Kitchen Mode'}</button>
+  <div class="title" style="margin-bottom:12px">
+    <span>Kitchen Display — Live Operational Queue</span>
+    <span class="r" style="display:flex;align-items:center;gap:10px">
+      <button class="btn ${kdsViewType === 'kanban' ? 'ok' : 'g'} sm" onclick="setKdsView('kanban')">📋 4-Stage Kanban</button>
+      <button class="btn ${kdsViewType === 'grid' ? 'ok' : 'g'} sm" onclick="setKdsView('grid')">🔲 Grid View</button>
+      <button class="btn g sm" onclick="toggleKitchenMode()">${kmode ? 'Exit Full Screen' : '🖥️ Full Screen'}</button>
     </span>
   </div>
-  ${ks.length ? `
-    <div class="kds">
-      ${ks.map(k => {
-        const m = Math.max(0, Math.floor((Date.now() - k.at) / 60000));
-        const cls = k.status === 'ready' ? 'ready' : m >= late ? 'late' : 'new';
-        return `
-        <div class="kcard ${cls}">
-          <h4><span>KOT #${esc(k.no)} · ${esc(k.table)}</span><span class="${cls === 'late' ? 'red' : 'muted'}">${m} min</span></h4>
-          <div>${tag(k.channel)}${k.src === 'qr' ? ' <span class="tag" style="background:#ffedd5;color:#9a3412">QR order</span>' : ''} <span class="muted" style="font-size:12px">${k.time}</span></div>
-          <ul>${k.items.map(i => `<li>${i.qty} × ${esc(i.name)}</li>`).join('')}</ul>
-          ${k.note ? `<div class="red" style="font-size:13px;margin-bottom:8px">Note: ${esc(k.note)}</div>` : ''}
-          <div style="display:flex;gap:6px">
-            ${k.status === 'ready'
-              ? `<button class="btn ok" style="flex:1;padding:11px" onclick="kotSet('${k.id}','served')">Served</button>`
-              : `<button class="btn ok" style="flex:1;padding:11px" onclick="kotSet('${k.id}','ready')">Food Ready</button>`}
-            <button class="btn g sm" onclick="printKotTicket('${k.id}')">Print</button>
-          </div>
-        </div>`;
-      }).join('')}
+
+  <!-- Operational KPI Metric Cards -->
+  <div class="kds-kpi-bar" style="margin-bottom:14px">
+    <div class="kds-kpi-card" style="border-left:4px solid #0284c7">
+      <small>Active in Queue</small>
+      <b>${allKs.length}</b>
+      <span style="color:#0284c7">${allKs.length ? 'Kitchen busy' : 'Queue clear'}</span>
     </div>
-    <div class="btns">
-      <button class="btn g" onclick="if(confirm('Mark all KOTs as served?')){pendingKots().forEach(k=>k.status='served');save();scrKitchen();}">Mark All Served</button>
+    <div class="kds-kpi-card" style="border-left:4px solid #f59e0b">
+      <small>New / Pending</small>
+      <b style="color:#b45309">${newKs.length + inPrepKs.length}</b>
+      <span style="color:#b45309">Waiting on stove</span>
+    </div>
+    <div class="kds-kpi-card" style="border-left:4px solid #6366f1">
+      <small>Cooking Now</small>
+      <b style="color:#4f46e5">${cookingKs.length}</b>
+      <span style="color:#4f46e5">Currently in prep</span>
+    </div>
+    <div class="kds-kpi-card" style="border-left:4px solid #10b981">
+      <small>Ready for Pickup</small>
+      <b style="color:#059669">${readyKs.length}</b>
+      <span style="color:#059669">Waiting for waiter</span>
+    </div>
+    <div class="kds-kpi-card" style="border-left:4px solid #ef4444">
+      <small>Overdue (> ${late}m)</small>
+      <b style="color:#dc2626">${lateCount}</b>
+      <span style="color:${lateCount ? '#dc2626' : '#64748b'}">${lateCount ? 'Needs urgent attention' : 'All within SLA'}</span>
+    </div>
+  </div>
+
+  <!-- Filter Navigation Tabs (For Grid View or Quick Filtering) -->
+  <div class="cats" style="margin-bottom:16px">
+    <button class="cat ${kdsStageFilter === 'all' ? 'on' : ''}" onclick="setKdsFilter('all')">All Tickets (${allKs.length})</button>
+    <button class="cat ${kdsStageFilter === 'new' ? 'on' : ''}" onclick="setKdsFilter('new')">🟡 New (${newKs.length})</button>
+    <button class="cat ${kdsStageFilter === 'cooking' ? 'on' : ''}" onclick="setKdsFilter('cooking')">🔥 Cooking (${cookingKs.length})</button>
+    <button class="cat ${kdsStageFilter === 'ready' ? 'on' : ''}" onclick="setKdsFilter('ready')">🟢 Ready (${readyKs.length})</button>
+  </div>
+
+  ${!allKs.length ? `
+    <div class="card" style="text-align:center;padding:56px 20px;border:1.5px dashed var(--border-clean);border-radius:14px">
+      <div style="width:64px;height:64px;border-radius:16px;background:#f0fdf4;color:#16a34a;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:14px">✓</div>
+      <h3 style="margin:0 0 6px;font-size:18px;color:#0f172a">All Kitchen Orders Cleared!</h3>
+      <p class="muted" style="margin:0;font-size:13.5px">Incoming table KOTs, parcel orders, and online delivery tickets appear here automatically with audible chimes.</p>
+    </div>
+  ` : kdsViewType === 'kanban' ? `
+    <!-- 4-Stage Operational Kanban Board -->
+    <div class="kds-kanban-board">
+      <div class="kds-kanban-col">
+        <div class="kds-col-header">
+          <span class="kds-col-title"><span>🟡</span> New Orders</span>
+          <span class="kds-col-count">${newKs.length}</span>
+        </div>
+        <div class="kds-col-body">
+          ${newKs.map(renderCard).join('') || '<p class="muted" style="text-align:center;padding:24px">No incoming orders</p>'}
+        </div>
+      </div>
+
+      <div class="kds-kanban-col">
+        <div class="kds-col-header">
+          <span class="kds-col-title"><span>🔵</span> In Preparation</span>
+          <span class="kds-col-count">${inPrepKs.length}</span>
+        </div>
+        <div class="kds-col-body">
+          ${inPrepKs.map(renderCard).join('') || '<p class="muted" style="text-align:center;padding:24px">No orders in prep</p>'}
+        </div>
+      </div>
+
+      <div class="kds-kanban-col">
+        <div class="kds-col-header">
+          <span class="kds-col-title"><span>🔥</span> Cooking / Stove</span>
+          <span class="kds-col-count">${cookingKs.length}</span>
+        </div>
+        <div class="kds-col-body">
+          ${cookingKs.map(renderCard).join('') || '<p class="muted" style="text-align:center;padding:24px">Stove is clear</p>'}
+        </div>
+      </div>
+
+      <div class="kds-kanban-col">
+        <div class="kds-col-header">
+          <span class="kds-col-title"><span>🟢</span> Ready for Pickup</span>
+          <span class="kds-col-count">${readyKs.length}</span>
+        </div>
+        <div class="kds-col-body">
+          ${readyKs.map(renderCard).join('') || '<p class="muted" style="text-align:center;padding:24px">No food waiting</p>'}
+        </div>
+      </div>
     </div>
   ` : `
-    <div class="card" style="text-align:center;padding:40px">
-      <h3 style="margin:0 0 6px">No pending KOTs</h3>
-      <p class="muted" style="margin:0">KOTs appear here instantly when a table order is saved, a bill is finalized or a Zomato / Swiggy order is accepted.</p>
+    <!-- Standard Grid View -->
+    <div class="kds" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px">
+      ${filteredKs.map(renderCard).join('')}
     </div>
   `}
-  <p class="muted">Orange = New · Red = over ${late} min · Green = Ready. The screen refreshes every 15 seconds.
-  Keep this screen open in "Full Screen Kitchen Mode" on the kitchen tablet or second monitor.</p>`;
+
+  <div class="btns" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+    <div class="muted" style="font-size:12.5px">
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#f59e0b;margin-right:4px"></span> New · 
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#0284c7;margin-right:4px"></span> Cooking · 
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;margin-right:4px"></span> Ready · 
+      <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:4px"></span> Overdue > ${late} min · Auto-refreshes every 15s
+    </div>
+    ${allKs.length ? `<button class="btn g" onclick="if(confirm('Mark all KOTs as served?')){pendingKots().forEach(k=>k.status='served');save();scrKitchen();}">Mark All Served</button>` : ''}
+  </div>`;
 
   kdsTimer = setInterval(() => {
-    if(cur !== 'kitchen' || isModal()) return;
-    // Browser mode only: pick up KOTs saved from another window (LAN mode syncs by itself)
+    if(cur !== 'kitchen' || (typeof isModal === 'function' && isModal())) return;
     if(!SRV.on){
       try{
         const fresh = JSON.parse(localStorage.getItem(KEY));
@@ -13676,7 +14540,8 @@ function kotSet(id, status){
   k.status = status;
   k[status + 'At'] = Date.now();
   save();
-  toast(status === 'ready' ? `KOT #${k.no} Ready` : `KOT #${k.no} Served`);
+  const label = status === 'cooking' ? 'Cooking Started' : status === 'ready' ? 'Food Ready' : status === 'served' ? 'Served' : 'Updated';
+  toast(`KOT #${k.no} ${label}`);
   scrKitchen();
 }
 
