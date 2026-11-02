@@ -55,11 +55,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $tag = "horeca-one-ui-v2-preview-20261102"
-          $notes = "UI V2 REVIEW ONLY. Reworked Billing/POS, Cashier Shifts, Settings and theme opt-in; other modules retain their functions. Local test data: HoReCaOneUIDemo/Data on port 8162, cloud disabled. Not customer-ready. Only fake data."
+          $tag = "horeca-one-ui-v2-demo-20261102"
+          $notes = "UI V2 OFFLINE DEMO ONLY. Login: Hotel ID DEMOLOCAL, Username owner, Password Preview@2026. Demo local data folder HoReCaOneUIDemo/Data; port 8162; cloud disabled. DO NOT use real client credentials or data. This is not a production build."
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag dist/HoReCa-One-UI-V2-Preview.exe dist/HoReCa-One-UI-V2-Preview.sha256.txt --clobber
           } else {
-            gh release create $tag dist/HoReCa-One-UI-V2-Preview.exe dist/HoReCa-One-UI-V2-Preview.sha256.txt --target ${{ github.sha }} --title "HoReCa One UI V2 Preview — Testing Only" --notes $notes --prerelease --latest=false
+            gh release create $tag dist/HoReCa-One-UI-V2-Preview.exe dist/HoReCa-One-UI-V2-Preview.sha256.txt --target ${{ github.sha }} --title "HoReCa One V2 Offline Demo — Testing Only" --notes $notes --prerelease --latest=false
           }
