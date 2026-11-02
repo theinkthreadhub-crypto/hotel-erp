@@ -7494,8 +7494,8 @@ function drawLookCard(){
   el.innerHTML = `<h3 style="margin-top:0">Appearance & Design Themes</h3>
     <p class="muted" style="margin-top:-6px;font-size:13px">Use HoReCa One Light for the approved premium look. Existing customer themes remain available.</p>
     <div class="btns" style="margin-bottom:14px">
-      <button class="btn ok" onclick="openThemeModal()">🎨 Open 27-Theme Gallery Studio</button>
-      <button class="btn bad sm" onclick="resetThemeDefault()">🔄 Reset to Original Classic</button>
+      <button class="btn ok" onclick="openThemeModal()">Open Theme Gallery</button>
+      <button class="btn bad sm" onclick="resetThemeDefault()">Reset to Classic</button>
     </div>
     <div class="theme-pick" style="max-height:280px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">
       ${Object.entries(THEMES).map(([k, x]) => `
@@ -8797,6 +8797,15 @@ function scrSessions(){
   if(!D.sessions) D.sessions = [];
   const active = getActiveSession();
   const allSessions = [...D.sessions].reverse();
+  const shiftCash = summary(today());
+  const activeStats = active ? computeSessionStats(active) : null;
+  const lastClosed = allSessions.find(x=>x.status === 'closed');
+  const shiftKpis = [
+    ['Current Session',active ? '#' + active.sessionNo : 'None',active ? 'Open / running':'No session started'],
+    ['Cash Collected Today',money(shiftCash.by.Cash || 0),'Cash payments today'],
+    ['Expected Drawer',activeStats ? money(activeStats.expectedCash) : '—',active ? 'Including opening float':'Open a session to track'],
+    ['Last Cash Difference',lastClosed ? money(lastClosed.variance || 0) : '—',lastClosed ? 'Last closed shift':'No closed shifts yet']
+  ];
 
   main.innerHTML = `
     <div class="title horeca-shift-title">
@@ -8809,14 +8818,17 @@ function scrSessions(){
       </div>
       <div class="r">
         ${active ? `
-          <button class="btn sm g" onclick="viewSessionModal('${active.id}')">📄 Mid-Shift X-Report</button>
-          <button class="btn sm bad" onclick="closeSessionModal('${active.id}')" style="font-weight:800">🔒 End Shift / Close Session</button>
+          <button class="btn sm g" onclick="viewSessionModal('${active.id}')">Mid-Shift X-Report</button>
+          <button class="btn sm bad" onclick="closeSessionModal('${active.id}')" style="font-weight:800">End Shift / Close Session</button>
         ` : `
-          <button class="btn sm ok" onclick="openSessionModal()" style="font-weight:800">⚡ Open New Counter Session</button>
+          <button class="btn sm ok" onclick="openSessionModal()" style="font-weight:800">Open New Session</button>
         `}
       </div>
     </div>
 
+    <div class="ho-v3-shift-metrics">
+      ${shiftKpis.map(([label,amount,detail])=>`<div class="ho-v3-shift-stat"><small>${esc(label)}</small><b>${amount}</b><span>${esc(detail)}</span></div>`).join('')}
+    </div>
     <!-- Active Session Hero Banner -->
     <div class="card horeca-shift-hero" style="margin-bottom:18px;border-left:5px solid ${active ? 'var(--ok)' : 'var(--border)'}">
       ${active ? `
@@ -8844,7 +8856,7 @@ function scrSessions(){
             <h4 style="margin:0 0 4px;font-size:15px;color:var(--text)">No Register Session Currently Active</h4>
             <div class="muted" style="font-size:12.5px">Start a counter session to track floating drawer cash, shift sales, and prevent cash leakages.</div>
           </div>
-          <button class="btn ok" onclick="openSessionModal()" style="font-weight:800">⚡ Open New Shift Session</button>
+          <button class="btn ok" onclick="openSessionModal()" style="font-weight:800">Open New Shift</button>
         </div>
       `}
     </div>
@@ -10059,7 +10071,7 @@ function filtered(){
 }
 
 function drawItems(){
-  const f = filtered(), q = (($('#q')?.value) || '').trim(), pc = posCards(), box = $('#items');
+  const f = filtered(), q = (($('#q')?.value) || '').trim(), premium = ['horeca_light','horeca_dark'].includes(D.settings.theme), pc = premium && posCards() === 'off' ? 'standard' : posCards(), box = $('#items');
   box.className = 'items' + (pc === 'off' ? '' : ' pc-' + pc);
   // Pictures are thumbnails, lazy-loaded: adding an item never waits for one
   box.innerHTML = f.map((m,i) => pc === 'off' ? `
@@ -10067,7 +10079,7 @@ function drawItems(){
       <b>${esc(m.name)}</b>
       <small>${rs(m.price)}</small>
     </button>
-  ` : `<button class="item pic ${q && i===0 ? 'first' : ''}" onclick="addItem('${m.id}')">${dishImg(m, pc === 'large', 'ph', pc === 'compact' ? 52 : 160)}<span class="tx"><b>${m.veg === true ? '<i class="vg"></i>' : m.veg === false ? '<i class="vg nv"></i>' : ''}${esc(m.name)}</b><small>${rs(m.price)}</small></span></button>`
+  ` : `<button class="item pic ${q && i===0 ? 'first' : ''}" onclick="addItem('${m.id}')">${dishImg(m, pc === 'large', 'ph', pc === 'compact' ? 52 : 160)}<span class="tx"><b>${m.veg === true ? '<i class="vg"></i>' : m.veg === false ? '<i class="vg nv"></i>' : ''}${esc(m.name)}</b><span class="ho-v3-item-footer"><small>${rs(m.price)}</small>${premium ? '<span class="ho-v3-add-chip">+ Add</span>' : ''}</span></span></button>`
   ).join('') || '<p class="muted">No items found. Add dishes under Menu Items (M).</p>';
   if(pc !== 'off') mediaHydrate(box);
 }
@@ -18275,6 +18287,75 @@ async function supReply(id, resolve){
 }
 
 /* ================= SETTINGS & SECURITY ================= */
+function hoV3SettingsLayout(){
+  const mainEl=document.getElementById('main');
+  if(!mainEl || !['horeca_light','horeca_dark'].includes(D.settings.theme))return;
+  const oldNav=mainEl.querySelector('.horeca-settings-jump');
+  if(!oldNav || mainEl.querySelector('.ho-v3-settings-layout'))return;
+  const cards=[...mainEl.children].filter(x=>x.classList&&x.classList.contains('card'));
+  if(!cards.length)return;
+  const titles=[
+    ['profile','Business Profile','Hotel name, billing identity and contacts'],
+    ['appearance','Appearance & Themes','Colors, layout and readability'],
+    ['security','Users & Security','Password and access settings'],
+    ['printers','Printer Configuration','Bill, KOT and paper options'],
+    ['devices','Devices & LAN','Captain app and connected devices'],
+    ['cloud','Cloud Sync','Sync status and data access'],
+    ['integrations','Integrations','WhatsApp and online channels'],
+    ['backup','Backup & Updates','Backups, recovery and updates'],
+    ['other','Other Settings','Remaining property preferences']
+  ];
+  const grid=document.createElement('div');
+  grid.className='ho-v3-settings-layout';
+  const left=document.createElement('nav');
+  left.className='ho-v3-settings-menu';
+  left.setAttribute('aria-label','Settings modules');
+  const right=document.createElement('section');
+  right.className='ho-v3-settings-panels';
+  titles.forEach(([key,title,desc])=>{
+    const button=document.createElement('button');
+    button.type='button';
+    button.dataset.hoSettings=key;
+    const b=document.createElement('b');b.textContent=title;
+    const hint=document.createElement('small');hint.textContent=desc;
+    button.append(b,hint);
+    button.onclick=()=>hoV3SelectSettings(key);
+    left.append(button);
+  });
+  oldNav.style.display='none';
+  oldNav.parentNode.insertBefore(grid,oldNav.nextSibling);
+  grid.append(left,right);
+  cards.forEach(card=>{
+    const id=card.id||'',h=card.querySelector('h3')?.textContent.toLowerCase()||'';
+    let key='other';
+    if(id==='horeca-property-card'||h.includes('restaurant details'))key='profile';
+    else if(id==='look-card'||h.includes('appearance'))key='appearance';
+    else if(h.includes('password')||h.includes('pin')||h.includes('security'))key='security';
+    else if(id==='print-card'||h.includes('printer'))key='printers';
+    else if(id==='net-card'||h.includes('tablet')||h.includes('phone /'))key='devices';
+    else if(id==='cloud-card'||h.includes('sync'))key='cloud';
+    else if(id==='wa-card'||h.includes('zomato')||h.includes('swiggy')||h.includes('whatsapp'))key='integrations';
+    else if(id==='update-card'||id==='ab-card'||h.includes('backup')||h.includes('update'))key='backup';
+    card.dataset.hoSettingsPane=key;
+    if(card.style.display==='none')card.dataset.hoOriginalHidden='true';
+    right.append(card);
+  });
+  hoV3SelectSettings(window.hoV3SettingsTab||'profile');
+}
+function hoV3SelectSettings(tab){
+  const mainEl=document.getElementById('main');
+  if(!mainEl)return;
+  window.hoV3SettingsTab=tab;
+  mainEl.querySelectorAll('[data-ho-settings]').forEach(x=>{
+    const selected=x.dataset.hoSettings===tab;
+    x.classList.toggle('selected',selected);
+    x.setAttribute('aria-current',selected?'page':'false');
+  });
+  mainEl.querySelectorAll('[data-ho-settings-pane]').forEach(x=>{
+    if(x.dataset.hoOriginalHidden==='true'&&x.style.display==='none')return;
+    x.style.display=x.dataset.hoSettingsPane===tab?'':'none';
+  });
+}
 function scrSettings(){
   const s = D.settings;
   const f = (k, l, t='text') => `<div><label>${l}</label><input id="st_${k}" type="${t}" value="${esc(s[k])}"></div>`;
@@ -18601,6 +18682,7 @@ function scrSettings(){
   drawAutoBackup();
   drawWaCard();
   drawLookCard();
+  hoV3SettingsLayout();
 }
 
 async function drawPrintCard(){
