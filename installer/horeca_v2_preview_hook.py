@@ -9,7 +9,7 @@ import json
 import time
 
 _local = os.environ.get('LOCALAPPDATA', os.path.expanduser('~'))
-_preview_dir = os.path.join(_local, 'HoReCaOneUIDemo', 'Data')
+_preview_dir = os.path.join(_local, 'HoReCaOneOfflineDemoV2', 'Data')
 if '--data' not in sys.argv:
     sys.argv.extend(['--data', _preview_dir])
 if '--port' not in sys.argv:
