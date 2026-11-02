@@ -29,7 +29,7 @@ jobs:
       - name: Check Python sources
         run: python -m py_compile app_main.py setu_security.py setu_media.py installer/horeca_v3_preview_hook.py
       - name: Validate UI V3 reference screens, routes and JS
-        run: python -m unittest discover -s tests -p test_horeca_one_v2.py -v
+        run: python -m unittest discover -s tests -p test_horeca_one_v3.py -v
       - name: Build isolated preview EXE
         shell: cmd
         run: >
