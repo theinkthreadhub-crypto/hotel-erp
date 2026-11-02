@@ -40,12 +40,10 @@ test('TC-WA01: HTML header defines #top-wa-container with #top-wa-btn and #top-w
   assert(html.includes('id="top-wa-credit-chip"'), 'Header must contain #top-wa-credit-chip');
 });
 
-test('TC-WA02: WhatsApp disconnected icon renders red circle with diagonal cut / slash (🚫)', () => {
-  assert(html.includes('wa-cut-svg'), 'Must define SVG class wa-cut-svg for the cut/slash overlay');
-  assert(html.includes('stroke="#ef4444"'), 'Cut overlay must use bold red stroke');
-  assert(html.includes('circle cx="12" cy="12" r="9.5"'), 'Cut overlay must have red circle ring');
-  assert(html.includes('line x1="5.28" y1="5.28" x2="18.72" y2="18.72"'), 'Cut overlay must have 45-degree diagonal slash');
-  assert(html.includes('WA Not Connected (कट)'), 'Must indicate disconnected / cut status to user');
+test('TC-WA02: WhatsApp icon renders official logo: Green (#25D366) when connected, Red (#ef4444) when disconnected', () => {
+  assert(html.includes('fill="#ef4444"'), 'Disconnected status must render Red icon (#ef4444)');
+  assert(html.includes('fill="#25D366"'), 'Connected status must render Green icon (#25D366)');
+  assert(html.includes('id="top-wa-btn"'), 'Header must include #top-wa-btn');
 });
 
 test('TC-WA03: CSS defines connected and disconnected styling with pulse indicators', () => {
