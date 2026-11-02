@@ -14,6 +14,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT=Path(__file__).resolve().parents[1]
 os.chdir(ROOT)
+sys.path.insert(0,str(ROOT))
 runpy.run_path(str(ROOT/'installer'/'horeca_v3_preview_hook.py'))
 idx=sys.argv.index('--data')
 DATA_DIR=Path(sys.argv[idx+1])
