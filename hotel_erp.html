@@ -7259,25 +7259,62 @@ function ptsBalAt(b){
 
 function customers(){
   const m = {};
-  D.bills.filter(b => !b.cancelled && normPh(b.phone).length === 10 && !isAggregator(b.channel))
-    .sort((a,b) => (a.date + a.time).localeCompare(b.date + b.time))
-    .forEach(b => {
-      const p = normPh(b.phone);
-      const c = m[p] || (m[p] = {phone: p, name: '', visits: 0, spend: 0, first: b.date, last: b.date, pts: 0, fav: {}});
-      if(b.cust) c.name = b.cust;
-      c.visits++;
-      c.spend += b.total;
-      c.last = b.date;
-      c.pts += (+b.ptsEarned || 0) - (+b.ptsUsed || 0);
-      b.items.forEach(i => c.fav[i.name] = (c.fav[i.name] || 0) + i.qty);
-    });
-  // Customers who only topped up their wallet so far
-  D.txns.filter(t => t.type === 'Receipt' && t.head === 'Customer Wallet Topup' && normPh(t.phone).length === 10).forEach(t => {
-    const p = normPh(t.phone);
-    if(!m[p]) m[p] = {phone: p, name: t.party || '', visits: 0, spend: 0, first: t.date, last: t.date, pts: 0, fav: {}};
+  const walletSpends = new Map();
+  const bills = D.bills || [];
+  for(let i = 0; i < bills.length; i++){
+    const b = bills[i];
+    if(!b || b.cancelled) continue;
+    const rawPh = b.phone;
+    if(!rawPh) continue;
+    const p = normPh(rawPh);
+    if(p.length !== 10) continue;
+    if(b.mode === 'Wallet'){
+      walletSpends.set(p, (walletSpends.get(p) || 0) + (+b.total || 0));
+    }
+    if(isAggregator(b.channel)) continue;
+    const c = m[p] || (m[p] = {phone: p, name: '', visits: 0, spend: 0, first: b.date, last: b.date, pts: 0, fav: {}});
+    if(b.cust) c.name = b.cust;
+    c.visits++;
+    c.spend += (+b.total || 0);
+    c.last = b.date;
+    c.pts += (+b.ptsEarned || 0) - (+b.ptsUsed || 0);
+    const items = b.items || [];
+    for(let j = 0; j < items.length; j++){
+      const it = items[j];
+      if(it && it.name) c.fav[it.name] = (c.fav[it.name] || 0) + (+it.qty || 1);
+    }
+  }
+
+  const walletTopups = new Map();
+  const txns = D.txns || [];
+  for(let i = 0; i < txns.length; i++){
+    const t = txns[i];
+    if(t && t.type === 'Receipt' && t.head === 'Customer Wallet Topup' && t.phone){
+      const p = normPh(t.phone);
+      if(p.length === 10){
+        walletTopups.set(p, (walletTopups.get(p) || 0) + (+t.amount || 0));
+        if(!m[p]) m[p] = {phone: p, name: t.party || '', visits: 0, spend: 0, first: t.date, last: t.date, pts: 0, fav: {}};
+      }
+    }
+  }
+
+  (D.custList || []).forEach(x => {
+    const p = normPh(x.phone);
+    if(p.length !== 10) return;
+    if(!m[p]) m[p] = {phone: p, name: x.name || '', visits: 0, spend: 0, first: '', last: '', pts: 0, fav: {}};
+    else if(!m[p].name) m[p].name = x.name || '';
+    if(x.bday) m[p].bday = x.bday;
   });
-  (D.custList || []).forEach(x => { const p = normPh(x.phone); if(p.length !== 10) return; if(!m[p]) m[p] = {phone: p, name: x.name || '', visits: 0, spend: 0, first: '', last: '', pts: 0, fav: {}}; else if(!m[p].name) m[p].name = x.name || ''; if(x.bday) m[p].bday = x.bday; });
-  return Object.values(m).map(c => ({...c, spend: r2(c.spend), wallet: walletBal(c.phone), fav: Object.entries(c.fav).sort((a,b) => b[1] - a[1])[0]?.[0] || ''}));
+
+  return Object.values(m).map(c => {
+    const wBal = r2((walletTopups.get(c.phone) || 0) - (walletSpends.get(c.phone) || 0));
+    let topFav = '';
+    let maxQty = 0;
+    for(const [k, q] of Object.entries(c.fav)){
+      if(q > maxQty){ maxQty = q; topFav = k; }
+    }
+    return {...c, spend: r2(c.spend), wallet: wBal, fav: topFav};
+  });
 }
 
 function walletTopup(phone){
@@ -8079,11 +8116,25 @@ function ocrPick(){
 }
 // Smaller JPEG (max 1600 px) so the upload is quick and inside the AI limits
 const ocrShrink = file => new Promise((res, rej) => {
+  if(!file) return rej(new Error('No file selected'));
+  if(file.size > 15 * 1024 * 1024) return rej(new Error('Bill photo is too large (max 15MB). Please take a photo below 15MB or compress it.'));
   const img = new Image(), url = URL.createObjectURL(file);
-  img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
-    c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    URL.revokeObjectURL(url); res(c.toDataURL('image/jpeg', 0.82).split(',')[1]); };
-  img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('This file is not a photo')); };
+  img.onload = () => {
+    try {
+      const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      const ctx = c.getContext('2d');
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      const b64 = c.toDataURL('image/jpeg', 0.82).split(',')[1];
+      c.width = 0; c.height = 0; // release canvas RAM/GPU memory
+      res(b64);
+    } catch(err) {
+      URL.revokeObjectURL(url);
+      rej(err);
+    }
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('This file is not a valid photo')); };
   img.src = url;
 });
 async function ocrRead(file){
@@ -8565,7 +8616,9 @@ const mIco = k => `<span class="m-ico"><svg viewBox="0 0 24 24" fill="none" stro
 function dzData(){
   const t = today(), s = summary(t), y = summary(addDays(t, -1)), low = lowStock(), k = Object.entries(D.kaccha || {});
   const pct = (a, b) => b ? Math.round((a - b) / b * 100) : null;
-  const days = n => { const o = []; for(let i = n - 1; i >= 0; i--){ const d = addDays(t, -i); o.push([d, sum(D.bills.filter(b => !b.cancelled && b.date === d), 'total')]); } return o; };
+  const billsByDateMap = new Map();
+  (D.bills || []).forEach(b => { if(!b.cancelled && b.date) billsByDateMap.set(b.date, (billsByDateMap.get(b.date) || 0) + (+b.total || 0)); });
+  const days = n => { const o = []; for(let i = n - 1; i >= 0; i--){ const d = addDays(t, -i); o.push([d, billsByDateMap.get(d) || 0]); } return o; };
   const months = []; for(let i = 5; i >= 0; i--){ const d = new Date(t.slice(0, 7) + '-01T00:00'); d.setMonth(d.getMonth() - i); months.push(d.getFullYear() + '-' + pad(d.getMonth() + 1)); }
   const mSales = m => sum(D.bills.filter(b => !b.cancelled && b.date.startsWith(m)), 'total');
   const mCost = m => sum(D.txns.filter(x => x.date.startsWith(m) && (x.type === 'Purchase' || (x.type === 'Expense' && !NON_EXPENSE_HEADS.includes(x.head)))), 'amount');
@@ -11511,7 +11564,16 @@ function stockRecalc(s = D){
   if(!s || !Array.isArray(s.stock)) return;
   if(!Array.isArray(s.moves)) s.moves = [];
   const tot = {};
-  stockMoves(s).forEach(m => { tot[m.sid] = (tot[m.sid] || 0) + m.qty; });
+  (s.moves || []).forEach(m => { const sid = sidOf(m.sid, s); tot[sid] = (tot[sid] || 0) + (+m.qty || 0); });
+  (s.txns || []).forEach(t => { if(t.type === 'Purchase' && t.mv && t.sid && +t.qty){ const sid = sidOf(t.sid, s); tot[sid] = (tot[sid] || 0) + (+t.qty || 0); } });
+  (s.bills || []).forEach(b => {
+    if(!b.mv) return;
+    (b.used || []).forEach(u => {
+      const sid = sidOf(u.sid, s);
+      tot[sid] = (tot[sid] || 0) - (+u.qty || 0);
+      if(b.cancelled) tot[sid] = (tot[sid] || 0) + (+u.qty || 0);
+    });
+  });
   const opened = new Set(s.moves.filter(m => m.type === 'open').map(m => m.sid));
   s.stock.forEach(x => {
     if(x.merged) return;
@@ -12013,7 +12075,8 @@ function billText(b){
 }
 
 /* ================= BILL LIST WITH CHANNEL FILTERS ================= */
-let listDate = today(), billFilterChannel = 'all';
+let listDate = today(), billFilterChannel = 'all', billPage = 1;
+const BILLS_PER_PAGE = 50;
 
 function scrBills(){
   let bs = D.bills.filter(b => b.date === listDate);
@@ -12029,21 +12092,26 @@ function scrBills(){
     ['Cancelled',String(bs.length-activeBills.length),'Excluded from active sales']
   ];
 
+  const totalPages = Math.max(1, Math.ceil(bs.length / BILLS_PER_PAGE));
+  if(billPage > totalPages) billPage = totalPages;
+  if(billPage < 1) billPage = 1;
+  const pagedBills = bs.slice((billPage - 1) * BILLS_PER_PAGE, billPage * BILLS_PER_PAGE);
+
   main.innerHTML = `
   <div class="title">
     <span>Bill List / History</span>
-    <span class="r">Date: <input type="date" value="${listDate}" onchange="listDate=this.value;scrBills()"></span>
+    <span class="r">Date: <input type="date" value="${listDate}" onchange="listDate=this.value;billPage=1;scrBills()"></span>
   </div>
 
   <div class="ho-v3-module-stats">
     ${historyKpis.map(([label,value,detail])=>`<div class="ho-v3-module-stat"><small>${label}</small><strong>${value}</strong><span>${detail}</span></div>`).join('')}
   </div>
   <div class="cats" style="margin-bottom:12px">
-    <button class="cat ${billFilterChannel==='all'?'on':''}" onclick="billFilterChannel='all';scrBills()">All Channels</button>
-    <button class="cat ${billFilterChannel==='Dine-In'?'on':''}" onclick="billFilterChannel='Dine-In';scrBills()">Dine-In</button>
-    <button class="cat ${billFilterChannel==='Takeaway'?'on':''}" onclick="billFilterChannel='Takeaway';scrBills()">Takeaway</button>
-    <button class="cat ${billFilterChannel==='Zomato'?'on':''}" onclick="billFilterChannel='Zomato';scrBills()">Zomato</button>
-    <button class="cat ${billFilterChannel==='Swiggy'?'on':''}" onclick="billFilterChannel='Swiggy';scrBills()">Swiggy</button>
+    <button class="cat ${billFilterChannel==='all'?'on':''}" onclick="billFilterChannel='all';billPage=1;scrBills()">All Channels</button>
+    <button class="cat ${billFilterChannel==='Dine-In'?'on':''}" onclick="billFilterChannel='Dine-In';billPage=1;scrBills()">Dine-In</button>
+    <button class="cat ${billFilterChannel==='Takeaway'?'on':''}" onclick="billFilterChannel='Takeaway';billPage=1;scrBills()">Takeaway</button>
+    <button class="cat ${billFilterChannel==='Zomato'?'on':''}" onclick="billFilterChannel='Zomato';billPage=1;scrBills()">Zomato</button>
+    <button class="cat ${billFilterChannel==='Swiggy'?'on':''}" onclick="billFilterChannel='Swiggy';billPage=1;scrBills()">Swiggy</button>
   </div>
 
   <div class="btns" style="margin:0 0 12px">
@@ -12056,7 +12124,7 @@ function scrBills(){
         <tr><th>Bill</th><th>Channel</th><th>Time</th><th>Table / Ref</th><th>Customer</th><th>Items</th><th>Mode</th><th class="n">Total</th><th>Actions</th></tr>
       </thead>
       <tbody>
-        ${bs.map(b => `
+        ${pagedBills.map(b => `
           <tr style="${b.cancelled ? 'opacity:.5;text-decoration:line-through' : ''}">
             <td><b>#${b.no}</b></td>
             <td>
@@ -12088,6 +12156,15 @@ function scrBills(){
         </tr>
       </tfoot>
     </table>
+    ${bs.length > BILLS_PER_PAGE ? `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12.5px;color:#64748b">
+      <span>Showing <b>${(billPage - 1) * BILLS_PER_PAGE + 1}–${Math.min(billPage * BILLS_PER_PAGE, bs.length)}</b> of <b>${bs.length}</b> bills</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn sm g" ${billPage <= 1 ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="billPage--;scrBills()">◀ Prev</button>
+        <span style="font-weight:700;color:#0f172a">Page ${billPage} of ${totalPages}</span>
+        <button class="btn sm g" ${billPage >= totalPages ? 'disabled style="opacity:.5;cursor:not-allowed"' : ''} onclick="billPage++;scrBills()">Next ▶</button>
+      </div>
+    </div>` : ''}
   </div>`;
 }
 
@@ -17718,16 +17795,19 @@ async function xlsxRows(buf){
   const target = rel ? rel.getAttribute('Target').replace(/^\/?(xl\/)?/, '') : 'worksheets/sheet1.xml';
   const strs = tags(xml(await read('xl/sharedStrings.xml')), 'si').map(si => tags(si, 't').map(t => t.textContent).join(''));
   const rows = [];
-  tags(xml(await read('xl/' + target)), 'row').forEach(r => {
+  const rowElements = tags(xml(await read('xl/' + target)), 'row');
+  for(let i = 0; i < rowElements.length && rows.length < 25000; i++){
+    const r = rowElements[i];
     const out = [];
     tags(r, 'c').forEach(c => {
       const ref = (c.getAttribute('r') || '').replace(/\d+/g, ''), col = ref ? ref.split('').reduce((a, ch) => a * 26 + ch.charCodeAt(0) - 64, 0) - 1 : out.length;
       const t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0];
       out[col] = t === 's' ? strs[+(v && v.textContent)] ?? '' : t === 'inlineStr' ? tags(c, 't').map(x => x.textContent).join('') : v ? v.textContent : '';
     });
-    rows[(+r.getAttribute('r') || rows.length + 1) - 1] = Array.from(out, x => x ?? '');
-  });
-  return Array.from(rows, x => x || []).filter(r => r.some(x => String(x).trim()));
+    const cleaned = Array.from(out, x => x ?? '');
+    if(cleaned.some(x => String(x).trim())) rows.push(cleaned);
+  }
+  return rows;
 }
 // Excel keeps typed dates as day numbers (46113 = 01-04-2026)
 const xlDay = n => new Date(Date.UTC(1899, 11, 30) + Math.round(+n) * 864e5).toISOString().slice(0, 10);
@@ -17736,6 +17816,10 @@ const rowsCsv = rows => rows.map(r => r.map(v => '"' + String(v ?? '').replace(/
 // Read a chosen file (CSV / text / .xlsx) into a textarea, then run the preview
 function readImportFile(f, box, after){
   if(!f) return;
+  if(f.size > 25 * 1024 * 1024){
+    toast('File is too large (>25MB). Please upload a smaller file.');
+    return;
+  }
   const r = new FileReader();
   if(/\.xlsx$/i.test(f.name)){
     r.onload = async () => { try{ $(box).value = rowsCsv(await xlsxRows(r.result)); after(); }catch(e){ toast(e.message); } };
