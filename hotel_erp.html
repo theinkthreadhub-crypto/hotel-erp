@@ -2206,6 +2206,259 @@ html[data-theme^="horeca_"] #main :is(.red,.green){font-weight:750}
 
 /* END HORECA ONE PREMIUM UI */
 
+
+/* ===== HoReCa One Screen-Level Redesign V2: real ERP screens, theme-scoped ===== */
+html[data-theme^="horeca_"] #main{background:var(--bg);padding:22px 24px 35px!important}
+html[data-theme^="horeca_"] #main .horeca-eyebrow{
+  display:block;color:#f97316;font-size:10px;letter-spacing:.125em;
+  font-weight:850;text-transform:uppercase;margin-bottom:5px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title,
+html[data-theme^="horeca_"] #main .horeca-shift-title,
+html[data-theme^="horeca_"] #main .horeca-settings-title{
+  background:#11223d!important;color:#f8fafc!important;border:1px solid #263d60!important;
+  border-radius:16px!important;padding:20px 24px!important;
+  box-shadow:0 10px 26px rgba(12,31,58,.13)!important;
+  min-height:72px;margin-bottom:16px;
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title span,
+html[data-theme^="horeca_"] #main .horeca-settings-title > div,
+html[data-theme^="horeca_"] #main .horeca-shift-title b{color:#fff!important;font-size:19px!important}
+html[data-theme^="horeca_"] #main .horeca-pos-kicker{
+  display:block;font-size:10px;color:#a9bad4;margin-top:6px;
+  letter-spacing:.085em;font-weight:700
+}
+html[data-theme^="horeca_"] #main .horeca-pos-title .r,
+html[data-theme^="horeca_"] #main .horeca-settings-title .r,
+html[data-theme^="horeca_"] #main .horeca-shift-title .r{
+  color:#d4e3f5!important;font-size:12px!important
+}
+html[data-theme^="horeca_"] #main .horeca-settings-title .horeca-eyebrow{font-size:10px!important}
+html[data-theme^="horeca_"] #main .horeca-pos-channels{
+  display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr));
+  background:var(--panel);border:1px solid var(--border);
+  padding:5px!important;gap:5px!important;border-radius:13px!important;
+  margin-bottom:16px!important;box-shadow:var(--card-shadow)
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn{
+  min-height:43px;border-radius:9px!important;border:1px solid transparent!important;
+  background:transparent!important;color:var(--text-muted)!important;
+  box-shadow:none!important;font-size:12px;font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn.active{
+  background:#f97316!important;color:#fff!important;
+  box-shadow:0 4px 13px rgba(249,115,22,.18)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-channels .channel-btn:hover:not(.active){
+  background:var(--surface)!important;color:var(--text)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-workspace{
+  display:grid!important;grid-template-columns:minmax(0,1.3fr) minmax(375px,.85fr)!important;
+  gap:18px!important;align-items:start!important;
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog,
+html[data-theme^="horeca_"] #main .horeca-pos-checkout{
+  min-width:0;background:var(--panel);padding:18px!important;
+  border:1px solid var(--border);border-radius:16px!important;
+  box-shadow:0 5px 18px rgba(26,49,88,.058)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout{
+  position:sticky;top:12px;max-height:calc(100vh - 106px);
+  overflow:auto;scrollbar-width:thin
+}
+html[data-theme^="horeca_"] #main .horeca-pos-section-top{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;border-bottom:1px solid var(--border);
+  padding:1px 0 14px;margin-bottom:14px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-section-top h3{
+  color:var(--text);font-size:19px;letter-spacing:-.035em;
+  margin:0!important;font-weight:800
+}
+html[data-theme^="horeca_"] #main .horeca-pos-counter{
+  border:1px solid var(--border);border-radius:8px;
+  color:var(--text-muted);background:var(--surface);
+  padding:6px 10px;font-size:10px;font-weight:750;white-space:nowrap
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog #q{
+  border:1.5px solid var(--border)!important;border-radius:11px!important;
+  height:45px;background:var(--surface)!important;
+  font-size:13px;padding:10px 14px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog #q:focus{
+  border-color:#f97316!important;box-shadow:0 0 0 3px rgba(249,115,22,.10)!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .cats{gap:7px;margin:13px 0 15px}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .cat{
+  border:1px solid var(--border);padding:7px 12px;border-radius:9px!important;
+  background:var(--panel);font-size:11px;color:var(--text-muted);
+  box-shadow:none
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .cat.on{
+  background:#162e50!important;color:#fff!important;border-color:#162e50!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
+  grid-template-columns:repeat(auto-fill,minmax(143px,1fr))!important;
+  gap:11px!important;max-height:calc(100vh - 370px)!important;
+  min-height:260px;overflow-y:auto!important;padding:2px 4px 10px 1px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic{
+  border:1px solid var(--border)!important;border-radius:12px!important;
+  box-shadow:0 2px 6px rgba(16,39,80,.04);
+  transition:transform .14s,border-color .14s,box-shadow .14s
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic:hover{
+  transform:translateY(-1px)!important;border-color:#f97316!important;
+  box-shadow:0 9px 24px rgba(20,43,86,.10)
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic .ph{
+  height:105px!important;border-radius:0!important
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder{
+  height:105px;width:100%;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;gap:5px;
+  background:linear-gradient(145deg,#edf4fd,#f5f8ff);
+  border-bottom:1px solid #e3eaf3
+}
+html[data-theme="horeca_dark"] #main .horeca-item-placeholder{
+  background:linear-gradient(145deg,#203657,#182941);border-color:#2a4261
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder span{
+  display:grid;place-items:center;border:1px solid rgba(69,103,150,.15);
+  color:#315f9c;background:#fff;width:44px;height:44px;border-radius:12px;
+  font-weight:850;font-size:23px;line-height:1
+}
+html[data-theme^="horeca_"] #main .horeca-item-placeholder small{
+  font-size:10px;color:var(--text-muted);font-weight:650;white-space:nowrap;
+  max-width:95%;text-overflow:ellipsis;overflow:hidden
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic .tx{
+  padding:11px 12px 12px!important;min-height:66px;
+  display:flex;flex-direction:column;justify-content:space-between;gap:8px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic b{
+  font-size:11.5px;line-height:1.32;font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic small{
+  color:#e66d15;font-size:13px;font-weight:850;margin:0
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout > .grid{
+  gap:10px!important;margin-bottom:10px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout label{
+  font-size:11px;color:var(--text-muted);font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout input,
+html[data-theme^="horeca_"] #main .horeca-pos-checkout select{
+  border-radius:9px!important;min-height:37px
+}
+html[data-theme^="horeca_"] #main .horeca-pos-cart{
+  border-radius:11px;min-height:65px;
+  background:var(--surface);border:1px solid var(--border);
+  padding:2px;overflow-x:auto
+}
+html[data-theme^="horeca_"] #main .horeca-pos-cart:empty{padding:16px}
+html[data-theme^="horeca_"] #main .horeca-pos-cart table{
+  border-radius:10px!important;border:none!important;background:transparent!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-total{
+  border:1px solid var(--border);border-radius:12px;background:var(--surface);
+  padding:14px!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .modes button{
+  border-radius:9px!important;min-height:40px;padding:9px 7px;
+  font-size:11px;white-space:normal
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout .modes button.on{
+  background:#17345b!important;border-color:#17345b!important;color:#fff!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout #btn-finalize-bill{
+  background:#059669!important;border-color:#059669!important;
+  border-radius:10px!important;min-height:48px;
+  box-shadow:0 7px 17px rgba(5,150,105,.13)
+}
+html[data-theme^="horeca_"] #main .horeca-pos-checkout #btn-finalize-bill:hover{
+  background:#047857!important
+}
+html[data-theme^="horeca_"] #main .horeca-pos-workspace + .active-tables-tray{
+  border:1px solid var(--border)!important;background:var(--panel)!important;
+  box-shadow:var(--card-shadow);border-radius:14px!important;
+}
+html[data-theme^="horeca_"] #main .horeca-shift-symbol{
+  display:grid;place-items:center;background:#f97316;color:#fff;
+  width:34px;height:34px;border-radius:10px;font-weight:850;font-size:18px
+}
+html[data-theme^="horeca_"] #main .horeca-shift-hero,
+html[data-theme^="horeca_"] #main .horeca-shift-history{
+  border:1px solid var(--border)!important;border-left:1px solid var(--border)!important;
+  border-radius:15px!important;background:var(--panel);
+  box-shadow:0 5px 18px rgba(26,49,88,.05)!important
+}
+html[data-theme^="horeca_"] #main .horeca-shift-hero{padding:24px!important}
+html[data-theme^="horeca_"] #main .horeca-shift-history{overflow:hidden!important}
+html[data-theme^="horeca_"] #main .horeca-shift-history th{
+  padding:14px 12px!important;text-transform:uppercase;
+  letter-spacing:.04em;font-size:10px!important
+}
+html[data-theme^="horeca_"] #main .horeca-shift-history td{padding:15px 12px!important}
+html[data-theme^="horeca_"] #main .horeca-settings-jump{
+  display:flex;gap:8px;flex-wrap:wrap;
+  background:var(--panel);padding:10px;border:1px solid var(--border);
+  border-radius:13px;margin-bottom:17px;
+  position:sticky;top:0;z-index:5;box-shadow:var(--card-shadow)
+}
+html[data-theme^="horeca_"] #main .horeca-settings-jump button{
+  border:1px solid var(--border);border-radius:9px;
+  background:var(--surface);color:var(--text-muted);
+  padding:10px 15px;font-size:12px;font-weight:750
+}
+html[data-theme^="horeca_"] #main .horeca-settings-jump button:hover{
+  color:var(--primary);border-color:var(--primary);background:var(--primary-light)
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="settings"] #main > .card{
+  padding:22px!important;border:1px solid var(--border)!important;
+  border-left:1px solid var(--border)!important;
+  border-radius:15px!important;margin-bottom:16px!important;
+  scroll-margin-top:82px
+}
+html[data-theme^="horeca_"] body[data-horeca-screen="settings"] #main > .card h3{
+  font-size:15px;letter-spacing:-.025em;font-weight:800;
+  padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:16px
+}
+html[data-theme^="horeca_"] .horeca-activate-theme{
+  background:#f97316;color:#fff;border:1px solid #f97316;
+  font-size:11px;min-height:31px;padding:7px 12px;border-radius:9px
+}
+html[data-theme^="horeca_"] .horeca-activate-theme:hover{background:#ea580c}
+@media(max-width:1320px){
+ html[data-theme^="horeca_"] #main .horeca-pos-workspace{
+   grid-template-columns:minmax(0,1.15fr) minmax(345px,1fr)!important
+ }
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
+   grid-template-columns:repeat(auto-fill,minmax(125px,1fr))!important
+ }
+}
+@media(max-width:1020px){
+ html[data-theme^="horeca_"] #main .horeca-pos-workspace{grid-template-columns:minmax(0,1fr)!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-checkout{position:static;max-height:none}
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{max-height:430px!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-channels{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+ html[data-theme^="horeca_"] #main{padding:12px!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-title,
+ html[data-theme^="horeca_"] #main .horeca-shift-title,
+ html[data-theme^="horeca_"] #main .horeca-settings-title{padding:14px!important;flex-wrap:wrap}
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog,
+ html[data-theme^="horeca_"] #main .horeca-pos-checkout{padding:12px!important}
+ html[data-theme^="horeca_"] #main .horeca-pos-checkout > .grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ html[data-theme^="horeca_"] #main .horeca-settings-jump{position:static}
+}
+@media(prefers-reduced-motion:reduce){
+ html[data-theme^="horeca_"] #main .horeca-pos-catalog .item.pic{transition:none!important}
+}
+/* END HoReCa One Screen-Level Redesign V2 */
+
 </style>
 </head>
 <body>
@@ -5787,7 +6040,7 @@ function drawSide(){
   const can = m => screenOn(m[2]) && (m[2] === 'guide' || !allowed.length || isManager() || allowed.includes(m[2]));
   let html = `
     <div class="horeca-side-brand" aria-label="HoReCa One — Hotel Restaurant Café">
-      <div class="horeca-brand-icon" aria-hidden="true">H1</div>
+      <div class="horeca-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 20V8l7-5 7 5v12M2 20h20M9 20v-6h6v6M9 10h.01M15 10h.01"/></svg></div>
       <div><b>HoReCa <span>One</span></b><small>Hotel · Restaurant · Café</small></div>
     </div>
     <button class="nav-item ${cur==='gateway'?'active':''}" onclick="go('gateway')" title="Gateway Command Center (Esc)">
@@ -11926,6 +12179,10 @@ function dishPic(m, big){
 }
 function dishImg(m, big, cls, size){
   const p = dishPic(m, big), wait = p.kind === 'custom' && !p.url;
+  if (cls === 'ph' && D && D.settings && (D.settings.theme === 'horeca_light' || D.settings.theme === 'horeca_dark') && p.kind !== 'custom' && p.kind !== 'link') {
+    // Exact vendor photo unavailable; avoid using the same generic dish image for different menu items.
+    return '<div class="horeca-item-placeholder"><span>' + esc(String(m.name || 'M').charAt(0).toUpperCase()) + '</span><small>' + esc(m.cat || 'Menu') + '</small></div>';
+  }
   return `<img class="${cls || 'dish-img'}" src="${esc(p.url || 'food/thumb/cat-generic.webp')}"${wait ? ` data-media="${p.src}${big ? '' : '.t'}"` : ''} alt="" loading="${cls === 'dish-prev' ? 'eager' : 'lazy'}" decoding="async"${size ? ` width="${size}" height="${size}"` : ''} onerror="dishImgFail(this)">`;
 }
 function dishImgFail(el){
