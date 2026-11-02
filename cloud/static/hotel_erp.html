@@ -5168,10 +5168,16 @@ async function srvPush(){
 }
 
 async function srvPoll(){
-  if(!SRV.on || SRV.busy || SRV.dirty) return;
+  if(!SRV.on || SRV.busy || SRV.dirty || !activeUser || !SRV.token) return;
   try{
     const r = await srvFetch('/api/version');
-    if(r.status === 401){ showConnectScreen(); return; }
+    if(r.status === 401){
+      if(activeUser){
+        activeUser = null;
+        showConnectScreen('Your session has expired. Please sign in again.');
+      }
+      return;
+    }
     const j = await r.json();
     SRV.blocked = !!j.blocked;
     srvStatus(true);
@@ -5251,7 +5257,15 @@ async function applyCloudKeys(){
 // Phones / tablets connect once with a PIN: on the restaurant WiFi (main counter PC), or over
 // the internet to Setu Cloud, where a Hotel Code picks the hotel and new hotels can sign up.
 function showConnectScreen(msg, view){
-  $('#login-screen').style.display = 'none';
+  const existingEl = $('#connect-screen');
+  if(existingEl && existingEl.style.display !== 'none' && !view && !msg){
+    // If the user is currently on the signup form or typing, do not clobber their form!
+    if($('#signup-form') || (document.activeElement && ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))){
+      return;
+    }
+  }
+  const loginScr = $('#login-screen');
+  if(loginScr) loginScr.style.display = 'none';
   let el = $('#connect-screen');
   if(!el){
     el = document.createElement('div');
@@ -21623,7 +21637,7 @@ async function autoPrinterSetup(){
     if(SRV.saas && !SRV.hostLocked) SRV.hotel = lsGet(HOTEL_KEY) || '';
     supportFromLink();
     if(!(await srvInitData())) return;   // connect screen is showing
-    srvStartPolling();
+    if(activeUser && SRV.token) srvStartPolling();
     applyCloudKeys();
   }
   startUI();
@@ -21760,19 +21774,19 @@ async function handleUnifiedLogin(e){
         actErr.style.display = 'block';
       }
       setTimeout(() => $('#new_activation_key')?.focus(), 150);
-      if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+      if(btn){ btn.disabled = false; btn.textContent = 'Login to HoReCa One'; }
       return;
     }
 
     if(res.status === 402 || j.error === 'EXPIRED'){
-      showErr(j.message || 'Your Foodpiolet subscription has expired. Please contact support or renew.');
-      if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+      showErr(j.message || 'Your HoReCa One subscription has expired. Please contact support or renew.');
+      if(btn){ btn.disabled = false; btn.textContent = 'Login to HoReCa One'; }
       return;
     }
 
     if(!res.ok || !j.ok){
       showErr(j.error || ('Login failed (HTTP ' + res.status + '). Please check your credentials.'));
-      if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+      if(btn){ btn.disabled = false; btn.textContent = 'Login to HoReCa One'; }
       return;
     }
 
@@ -21814,6 +21828,7 @@ async function handleUnifiedLogin(e){
 
     showOk('Welcome, ' + activeUser.name + '! Opening dashboard...');
     toast('Logged in successfully!');
+    if(SRV.on) srvStartPolling();
     setTimeout(() => {
       finishLogin();
     }, 500);
@@ -21821,7 +21836,7 @@ async function handleUnifiedLogin(e){
   } catch(err) {
     showErr('Connection error: ' + (err.message || err));
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = 'Login to Foodpiolet'; }
+    if(btn){ btn.disabled = false; btn.textContent = 'Login to HoReCa One'; }
   }
 }
 

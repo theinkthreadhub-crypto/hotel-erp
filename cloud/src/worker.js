@@ -66,7 +66,13 @@ const TEMPLATES = {
   cloudkitchen: { label: 'Cloud Kitchen', tier: 'premium', billing: { paper: '80', showTable: false, showCustomer: true, fields: [] }, overrides: { online: true } }
 };
 
-const HEADERS = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' };
+const HEADERS = {
+  'Content-Type': 'application/json; charset=utf-8',
+  'Cache-Control': 'no-store',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Setu-Token, X-Setu-Hotel, X-Setu-Launch, X-Setu-Elev'
+};
 const json = (code, obj) => new Response(JSON.stringify(obj), { status: code, headers: HEADERS });
 const rawJson = (code, text) => new Response(text, { status: code, headers: HEADERS });
 const enc = s => new TextEncoder().encode(s);
@@ -2919,6 +2925,17 @@ async function installerDownload(request, env, url){
 
 export default {
   async fetch(request, env){
+        if(request.method === "OPTIONS"){
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type, X-Setu-Token, X-Setu-Hotel, X-Setu-Launch, X-Setu-Elev",
+          "Access-Control-Max-Age": "86400"
+        }
+      });
+    }
     const url = new URL(request.url), path = url.pathname;
     if(!path.startsWith('/api/')){
       if(path === '/' || path === '/index.html') return Response.redirect(url.origin + '/hotel_erp.html', 302);
