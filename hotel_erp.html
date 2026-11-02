@@ -5141,7 +5141,6 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
   }
   if(getWaCredits() <= 0){
     toast('⚠️ WhatsApp balance is 0. Cannot send bill. Please contact vendor for recharge.');
-    openWaModal(true);
     _waInFlight[billId] = false;
     updateWaButtons(billId);
     return;
@@ -16197,7 +16196,15 @@ async function qrDecide(id, action, auto){
     toast(e.status === 409 ? `This order was already ${(e.data && e.data.status) || 'handled'}${e.data && e.data.by ? ' by ' + e.data.by : ''}` : 'QR order: ' + e.message);
   }finally{
     QR_BUSY.delete(id);
-    if(!auto) qrPoll();
+    if(!auto){
+      const remainingOrders = (QRS && QRS.orders || []).filter(o => o.status === 'pending' && o.id !== id);
+      const remainingCalls = (QRS && QRS.calls || []);
+      const remainingStuck = qrStuck().filter(o => o.id !== id);
+      if(!remainingOrders.length && !remainingCalls.length && !remainingStuck.length && typeof isModal === 'function' && isModal() && document.getElementById('qr-panel')){
+        closeModal();
+      }
+      qrPoll();
+    }
   }
 }
 // Add an accepted guest order to its table: same steps as captainSend(), the screen's own bill is kept as it was
@@ -16230,10 +16237,24 @@ async function qrApply(o, by){
   if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
   return true;
 }
-const qrDoneCall = async id => { try{ await qrApi('call', {id, by: (activeUser && activeUser.name) || 'Staff'}); }catch(e){ toast(e.message); } qrPoll(); };
+const qrDoneCall = async id => {
+  try{
+    await qrApi('call', {id, by: (activeUser && activeUser.name) || 'Staff'});
+  }catch(e){ toast(e.message); }
+  const remainingOrders = (QRS && QRS.orders || []).filter(o => o.status === 'pending');
+  const remainingCalls = (QRS && QRS.calls || []).filter(c => c.id !== id);
+  if(!remainingOrders.length && !remainingCalls.length && typeof isModal === 'function' && isModal() && document.getElementById('qr-panel')){
+    closeModal();
+  }
+  qrPoll();
+};
 function qrPanel(refresh){
   if(refresh && !$('#qr-panel')) return;
   const ord = QRS && QRS.orders || [], pend = ord.filter(o => o.status === 'pending'), stuck = qrStuck(), calls = QRS && QRS.calls || [];
+  if(refresh && !pend.length && !stuck.length && !calls.length){
+    if(typeof isModal === 'function' && isModal() && document.getElementById('qr-panel')) closeModal();
+    return;
+  }
   const tm = ms => new Date(ms).toLocaleTimeString('en-IN', {hour: '2-digit', minute: '2-digit'});
   const card = (o, btns) => `<div class="card" style="margin:0 0 8px;padding:10px 12px"><div style="display:flex;justify-content:space-between"><b>Table ${esc(o.tbl)}</b><span class="muted">${tm(o.at)}</span></div>
     <div>${o.items.map(i => `${i.qty} × ${esc(i.name)}`).join(', ')} · <b>${money(sum(o.items, i => i.qty * i.price))}</b></div>
@@ -18990,10 +19011,7 @@ async function waSend(phone, text){
 // After a bill: send the receipt to the customer's WhatsApp (only when a mobile number was entered)
 async function waAutoSend(b){
   if(!D.settings.waAuto || !SRV.on || SRV.cloud || normPh(b.phone).length !== 10 || isAggregator(b.channel)) return;
-  if(getWaCredits() <= 0){
-    toast(`Bill #${b.no}: WhatsApp not sent — Balance is 0. Please recharge.`);
-    return;
-  }
+  if(getWaCredits() <= 0) return;
   const r = await waSend(b.phone, billText(b));
   b.wa = r.ok ? 'sent' : 'failed';
   trackWaMessage({
@@ -19009,7 +19027,7 @@ async function waAutoSend(b){
     note: 'Baileys auto-send after billing: ' + (r.ok ? 'Submitted' : r.error),
     staff: activeUser ? activeUser.name : 'System'
   });
-  if(!r.ok){ logError('WhatsApp receipt: ' + r.error, 'Bill #' + b.no); toast(`Bill #${b.no}: WhatsApp not sent — ${r.error}`); }
+  if(!r.ok){ logError('WhatsApp receipt: ' + r.error, 'Bill #' + b.no); }
   save();
 }
 async function drawWaCard(){
