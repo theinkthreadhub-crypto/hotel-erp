@@ -2208,6 +2208,22 @@ html[data-theme^="horeca_"] #main :is(.red,.green){font-weight:750}
 
 
 /* ===== HoReCa One Screen-Level Redesign V2: real ERP screens, theme-scoped ===== */
+/* Approved HoReCa One orange/navy tokens and selected navigation state. */
+html[data-theme="horeca_light"]{
+ --primary:#ea580c; --primary-dark:#c2410c; --primary-light:#fff0e4;
+ --border-focus:#f97316;--accent:#f97316;
+}
+html[data-theme="horeca_dark"]{
+ --primary:#fb923c;--primary-dark:#fdba74;--primary-light:#57331f;
+ --border-focus:#fb923c;--accent:#fb923c;
+}
+html[data-theme^="horeca_"] #side .nav-item.active{
+ background:#fa761b!important;color:#ffffff!important;border-color:rgba(255,255,255,.12)!important;
+ box-shadow:0 4px 15px rgba(249,115,22,.24)!important
+}
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){background:#1b365a!important}
+html[data-theme^="horeca_"] #top #sidebtn{color:var(--text)!important}
+
 html[data-theme^="horeca_"] #main{background:var(--bg);padding:22px 24px 35px!important}
 html[data-theme^="horeca_"] #main .horeca-eyebrow{
   display:block;color:#f97316;font-size:10px;letter-spacing:.125em;
