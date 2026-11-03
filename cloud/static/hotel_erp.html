@@ -6491,7 +6491,7 @@ async function handleGate1Submit(e){
   }
 
   try {
-    const cloudUrl = (typeof location !== 'undefined' && location.protocol && location.protocol.startsWith('http')) ? '' : 'https://setu-cloud.theinkthreadhub.workers.dev';
+    const cloudUrl = (typeof location !== 'undefined' && location.hostname && location.hostname.endsWith('workers.dev')) ? '' : 'https://setu-cloud.theinkthreadhub.workers.dev';
     const endpoint = cloudUrl + '/api/hotel/login';
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -22135,6 +22135,14 @@ function updateHeaderLogo(){
   if(hsub && D && D.settings) hsub.textContent = D.settings.outlet || D.settings.name || 'Hotel POS';
 }
 
+function getAuthEndpoint(path){
+  if(SRV && SRV.on && SRV.local) return path;
+  if(typeof location !== 'undefined' && location.hostname && location.hostname.endsWith('workers.dev')){
+    return path;
+  }
+  return 'https://setu-cloud.theinkthreadhub.workers.dev' + path;
+}
+
 // Unified SaaS Login, Activation & Onboarding Functions
 async function handleUnifiedLogin(e){
   if(e) e.preventDefault();
@@ -22168,14 +22176,7 @@ async function handleUnifiedLogin(e){
   }
 
   try {
-    function getAuthEndpoint(path){
-  if(SRV && SRV.on && SRV.local) return path;
-  if(typeof location !== 'undefined' && location.protocol && location.protocol.startsWith('http')){
-    return path;
-  }
-  return 'https://setu-cloud.theinkthreadhub.workers.dev' + path;
-}
-  const endpoint = getAuthEndpoint('/api/hotel/login');
+    const endpoint = getAuthEndpoint('/api/hotel/login');
     const headers = { 'Content-Type': 'application/json', 'X-Setu-Hotel': hotel };
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -22243,7 +22244,7 @@ async function handleUnifiedLogin(e){
     // Fetch cloud db for this hotel
     if(j.token){
       try {
-        const cloudUrl = (typeof location !== 'undefined' && location.protocol && location.protocol.startsWith('http')) ? '' : 'https://setu-cloud.theinkthreadhub.workers.dev';
+        const cloudUrl = (typeof location !== 'undefined' && location.hostname && location.hostname.endsWith('workers.dev')) ? '' : 'https://setu-cloud.theinkthreadhub.workers.dev';
         const dbRes = await fetch(cloudUrl + '/api/db', {
           headers: { 'X-Setu-Token': j.token, 'X-Setu-Hotel': hotel }
         });

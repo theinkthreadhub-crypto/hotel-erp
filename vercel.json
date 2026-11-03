@@ -2,6 +2,7 @@
   "version": 2,
   "cleanUrls": true,
   "rewrites": [
+    { "source": "/api/:path*", "destination": "https://setu-cloud.theinkthreadhub.workers.dev/api/:path*" },
     { "source": "/", "destination": "/hotel_erp.html" },
     { "source": "/hotel", "destination": "/hotel_erp.html" },
     { "source": "/pos", "destination": "/hotel_erp.html" },

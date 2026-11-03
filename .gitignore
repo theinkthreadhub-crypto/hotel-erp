@@ -36,3 +36,7 @@ food/thumb/[0-9]*.webp
 whatsapp/setu-whatsapp.log
 
 .vercel
+
+Setu-POS-Setup.zip
+Setu-POS-Setup/
+inspect_ui.cjs
