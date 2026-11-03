@@ -8873,178 +8873,10 @@ function ocrApply(b){
 // billing, KOT or printing. Saved in D.settings, so every device of the hotel shows the same.
 const THEMES = {
   horeca_light: {
-    name: 'HoReCa One Light',
-    cat: 'HoReCa One',
-    desc: 'Signature enterprise layout: Dark navy sidebar, crisp paper canvas, and vibrant orange branding.',
-    sw: ['#0f172a', '#f97316', '#f8fafc', '#ffffff']
-  },
-  horeca_dark: {
-    name: 'HoReCa One Dark',
-    cat: 'HoReCa One',
-    desc: 'Midnight graphite canvas with luminous orange telemetry accents for dark-room POS counters.',
-    sw: ['#0b1120', '#f97316', '#0f172a', '#1e293b']
-  },
-  classic: {
-    name: 'Original Classic',
-    cat: 'Classic',
-    desc: 'Rock-solid default interface with slate header and emerald accents.',
-    sw: ['#0f172a', '#0284c7', '#f8fafc', '#ffffff']
-  },
-  mint_soft: {
-    name: 'Mint Soft UI',
-    cat: 'Mint & Nature',
-    desc: 'Gentle neumorphism with forest green, mint accents, and warm ivory paper canvas.',
-    sw: ['#175c49', '#a6d9c4', '#f7f6f0', '#ffffff']
-  },
-  mint_system: {
-    name: 'Mint System',
-    cat: 'Mint & Nature',
-    desc: 'Crisp botanical emerald, sage containers, high-contrast typography.',
-    sw: ['#004333', '#376756', '#ddf4ec', '#f7f6f0']
-  },
-  forest_mint: {
-    name: 'Forest Mint',
-    cat: 'Mint & Nature',
-    desc: 'Deep evergreen botanical tones with radiant leaf mint highlights.',
-    sw: ['#144534', '#4ade80', '#f2f7f4', '#ffffff']
-  },
-  soft_widget: {
-    name: 'Soft Widget UI',
-    cat: 'Modern & Clean',
-    desc: 'Soft raised analytics widgets, smooth rounded cards, and diffuse blue depth.',
-    sw: ['#0284c7', '#38bdf8', '#f0f4f8', '#ffffff']
-  },
-  minimal: {
-    name: 'Organized Minimal',
-    cat: 'Modern & Clean',
-    desc: 'Clean grouped interface, ultra-fine hairline dividers, distraction-free speed.',
-    sw: ['#111827', '#4b5563', '#f9fafb', '#ffffff']
-  },
-  clay3d: {
-    name: 'Clay 3D',
-    cat: 'Tactile 3D',
-    desc: 'Tactile pillowy buttons, extruded clay depth, and high-feedback controls.',
-    sw: ['#3b82f6', '#93c5fd', '#e0e7ff', '#ffffff']
-  },
-  midnight_pro: {
-    name: 'Midnight Pro',
-    cat: 'Dark & Luxury',
-    desc: 'High-tech dark cyan terminal with ultra-deep navy background.',
-    sw: ['#06b6d4', '#0ea5e9', '#070b14', '#0e1626']
-  },
-  midnight: {
-    name: 'Midnight Glow',
-    cat: 'Dark & Luxury',
-    desc: 'Deep OLED black with luminous neon mint and cyan telemetry highlights.',
-    sw: ['#090a0f', '#10b981', '#12151e', '#f8fafc']
-  },
-  royal_gold: {
-    name: 'Royal Gold',
-    cat: 'Dark & Luxury',
-    desc: 'Luxury black marble with warm champagne and brushed gold finishes.',
-    sw: ['#0a0a0c', '#c9a84c', '#e6c66d', '#ffffff']
-  },
-  pure_white: {
-    name: 'Pure White',
-    cat: 'Modern & Clean',
-    desc: 'Monochrome airy white canvas, ultra-high contrast, and minimal wireframes.',
-    sw: ['#18181b', '#71717a', '#ffffff', '#ffffff']
-  },
-  clean_flat: {
-    name: 'Clean Flat UI',
-    cat: 'Modern & Clean',
-    desc: 'Professional flat design, border-focused cards, and vibrant royal blue accents.',
-    sw: ['#2563eb', '#64748b', '#f8fafc', '#ffffff']
-  },
-  frost: {
-    name: 'Frost Glass',
-    cat: 'Glassmorphism',
-    desc: 'Frosted glassmorphism, 16px backdrop blur, and ice-blue crystalline accents.',
-    sw: ['#3c7d97', '#8a7cc4', '#c9d4dd', 'rgba(255,255,255,0.65)']
-  },
-  terracotta: {
-    name: 'Terracotta',
-    cat: 'Warm Earthy',
-    desc: 'Warm earthy clay, baked brick rust, and organic sandstone tones.',
-    sw: ['#c2593f', '#e08b68', '#fbf5f2', '#ffffff']
-  },
-  ocean: {
-    name: 'Ocean Blue',
-    cat: 'Classic',
-    desc: 'Corporate deep navy, maritime cyan, and warm coral accents.',
-    sw: ['#1f4f62', '#2a6a82', '#dcecf4', '#e39b62']
-  },
-  violet_pulse: {
-    name: 'Violet Pulse',
-    cat: 'Vibrant',
-    desc: 'Futuristic lavender and electric violet gradient glows on crisp canvas.',
-    sw: ['#7c3aed', '#c084fc', '#fcfaff', '#ffffff']
-  },
-  sunset: {
-    name: 'Sunset Orange',
-    cat: 'Vibrant',
-    desc: 'Vibrant amber and fiery sunset orange for energetic dining and fast food.',
-    sw: ['#ea580c', '#f59e0b', '#fff7ed', '#ffffff']
-  },
-  rose_quartz: {
-    name: 'Rose Quartz',
-    cat: 'Pastels & Cafe',
-    desc: 'Elegant blush rose, gentle berry accents, and warm pastry-shop ambience.',
-    sw: ['#db2777', '#f472b6', '#fff1f2', '#ffffff']
-  },
-  cyber: {
-    name: 'Cyber Neon',
-    cat: 'Futuristic',
-    desc: 'Futuristic synthwave with neon cyan and electric magenta glows on black.',
-    sw: ['#00f0ff', '#ff007f', '#050811', '#0b101f']
-  },
-  graphite: {
-    name: 'Graphite',
-    cat: 'Dark & Luxury',
-    desc: 'Matte charcoal, anodized silver text, and distraction-free dark surfaces.',
-    sw: ['#94a3b8', '#e2e8f0', '#181a1f', '#22252c']
-  },
-  nordic_snow: {
-    name: 'Nordic Snow',
-    cat: 'Modern & Clean',
-    desc: 'Scandinavian minimal with cool birch grey, ice white, and airy breathing room.',
-    sw: ['#334155', '#94a3b8', '#f8fafc', '#ffffff']
-  },
-  emerald_luxe: {
-    name: 'Emerald Luxe',
-    cat: 'Dark & Luxury',
-    desc: 'Imperial jewel-toned emerald on dark jade velvet background.',
-    sw: ['#047857', '#34d399', '#022c22', '#064e3b']
-  },
-  coffee_house: {
-    name: 'Coffee House',
-    cat: 'Warm Earthy',
-    desc: 'Rich roasted espresso brown, warm caramel, and creamy beige canvas.',
-    sw: ['#78350f', '#d97706', '#fdf8f4', '#ffffff']
-  },
-  retro_pop: {
-    name: 'Retro Pop',
-    cat: 'Vibrant',
-    desc: 'Playful diner retro palette with cherry red, mustard yellow, and bold contrast.',
-    sw: ['#e11d48', '#fbbf24', '#fffbeb', '#ffffff']
-  },
-  pastel_dream: {
-    name: 'Pastel Dream',
-    cat: 'Pastels & Cafe',
-    desc: 'Soft periwinkle, frosted lavender, and dreamy calming pastel gradients.',
-    sw: ['#8b5cf6', '#38bdf8', '#f5f3ff', '#ffffff']
-  },
-  classic_blue: {
-    name: 'Classic Blue',
-    cat: 'Classic',
-    desc: 'Traditional high-reliability enterprise SaaS blue trusted by large chains.',
-    sw: ['#1d4ed8', '#3b82f6', '#f1f5f9', '#ffffff']
-  },
-  frosted_crystal: {
-    name: 'Frosted Crystal',
-    cat: 'Glassmorphism',
-    desc: 'Multi-layer crystal glass, prismatic refraction, and subtle ethereal illumination.',
-    sw: ['#0284c7', '#a855f7', '#e0f2fe', 'rgba(255,255,255,0.72)']
+    name: 'HoReCa One Official Theme',
+    cat: 'Official Brand',
+    desc: 'Signature enterprise layout: Dark navy sidebar, crisp paper canvas, high-contrast dark text, and Signature Orange (#FF9707) branding.',
+    sw: ['#0f172a', '#FF9707', '#f8fafc', '#ffffff']
   }
 };
 
@@ -9070,23 +8902,24 @@ const UI_DENSITIES = {
 };
 
 function applyTheme(){
-  let t = (typeof D !== 'undefined' && D && D.settings && D.settings.theme && THEMES[D.settings.theme]) ? D.settings.theme : 'horeca_light';
-  if(!t || t === 'classic'){
-    t = 'horeca_light';
-    if(typeof D !== 'undefined' && D && D.settings){
-      D.settings.theme = 'horeca_light';
-      D.settings.dashStyle = 'modern';
-    }
+  if(typeof D !== 'undefined' && D && D.settings){
+    D.settings.theme = 'horeca_light';
+    D.settings.dashStyle = 'modern';
   }
-  document.documentElement.setAttribute('data-theme', t);
-
-  const fx = (typeof D !== 'undefined' && D && D.settings && FX_STYLES[D.settings.btnEffect]) ? D.settings.btnEffect : 'tactile';
-  document.documentElement.setAttribute('data-fx', fx);
-
-  const density = (typeof D !== 'undefined' && D && D.settings && D.settings.uiDensity) ? D.settings.uiDensity : 'normal';
-  document.documentElement.setAttribute('data-density', density);
+  document.documentElement.setAttribute('data-theme', 'horeca_light');
+  document.documentElement.setAttribute('data-fx', 'flat');
+  document.documentElement.setAttribute('data-density', 'normal');
 }
 
+function setTheme(t, dash){
+  if(typeof D !== 'undefined' && D && D.settings){
+    D.settings.theme = 'horeca_light';
+    D.settings.dashStyle = 'modern';
+    save();
+  }
+  applyTheme();
+  return;
+}
 function setTheme(t, dash){
   if(t){
     D.settings.theme = t;
@@ -9152,6 +8985,142 @@ function filterThemeGallery(cat){
   openThemeModal();
 }
 
+function openThemeModal(){
+  const cur = D.settings.theme || 'classic';
+  const fx = D.settings.btnEffect || 'tactile';
+  const ds = D.settings.dashStyle || 'classic';
+  const density = D.settings.uiDensity || 'normal';
+
+  const categories = ['All (27)', 'Mint & Nature', 'Modern & Clean', 'Dark & Luxury', 'Glassmorphism', 'Vibrant', 'Warm Earthy', 'Pastels & Cafe', 'Classic'];
+
+  const filteredThemes = Object.entries(THEMES).filter(([k, x]) => {
+    if(THEME_FILTER === 'all' || THEME_FILTER === 'All (27)') return true;
+    return x.cat.toLowerCase() === THEME_FILTER.toLowerCase();
+  });
+
+  const content = `
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px">
+        <div>
+          <h4 style="margin:0;font-size:16px;color:var(--text);font-weight:800">27-Theme Master Gallery</h4>
+          <p class="muted" style="margin:2px 0 0;font-size:12.5px">Select from 27 hand-crafted restaurant themes. Billing, KOT, and accounting remain 100% untouched.</p>
+        </div>
+        <button class="btn bad sm" onclick="resetThemeDefault();openThemeModal()" style="font-weight:700">🔄 Restore Default (Classic)</button>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:14px">
+        ${categories.map(c => {
+          const catKey = c.split(' ')[0].toLowerCase();
+          const isActive = (THEME_FILTER === 'all' && c.startsWith('All')) || THEME_FILTER.toLowerCase() === c.toLowerCase();
+          return `<button type="button" onclick="filterThemeGallery('${c}')" style="padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;border:1px solid var(--border);cursor:pointer;white-space:nowrap;transition:all .15s;${isActive ? 'background:var(--primary);color:#fff;border-color:var(--primary)' : 'background:var(--surface);color:var(--text)'}">${c}</button>`;
+        }).join('')}
+      </div>
+
+      <!-- 27 Themes Grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;max-height:55vh;overflow-y:auto;padding:4px">
+        ${filteredThemes.map(([k, x]) => {
+          const isCurrent = cur === k;
+          return `
+            <div style="background:var(--panel);border:2px solid ${isCurrent ? 'var(--primary)' : 'var(--border)'};border-radius:14px;padding:12px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:var(--card-shadow);transition:all .15s;position:relative">
+              ${isCurrent ? '<div style="position:absolute;top:8px;right:8px;background:var(--primary);color:#fff;font-size:10px;font-weight:800;padding:2px 8px;border-radius:12px">ACTIVE</div>' : ''}
+              <div>
+                <!-- Mockup Preview Box -->
+                <div style="height:76px;border-radius:10px;background:${x.sw[2]};border:1px solid rgba(0,0,0,0.08);margin-bottom:10px;padding:6px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
+                  <div style="display:flex;justify-content:space-between;align-items:center;background:${x.sw[0]};padding:4px 8px;border-radius:6px;color:#fff;font-size:9px;font-weight:700">
+                    <span>${x.name.slice(0, 16)}</span>
+                    <span style="display:flex;gap:3px">
+                      ${x.sw.map(col => `<i style="width:8px;height:8px;border-radius:50%;background:${col};display:inline-block"></i>`).join('')}
+                    </span>
+                  </div>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <div style="width:24px;height:32px;background:${x.sw[1]};border-radius:4px;opacity:0.8"></div>
+                    <div style="flex:1;height:32px;background:${x.sw[3]};border-radius:4px;border:1px solid rgba(0,0,0,0.05);padding:3px;display:flex;flex-direction:column;justify-content:center">
+                      <div style="width:60%;height:4px;background:${x.sw[0]};border-radius:2px;margin-bottom:3px"></div>
+                      <div style="width:40%;height:3px;background:${x.sw[1]};border-radius:2px"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px">
+                  <b style="font-size:13px;color:var(--text)">${x.name}</b>
+                  <small style="font-size:10.5px;color:var(--text-muted);font-weight:600">${x.cat}</small>
+                </div>
+                <p style="margin:0 0 10px;font-size:11.5px;color:var(--text-muted);line-height:1.4">${x.desc}</p>
+              </div>
+
+              <div style="display:flex;gap:6px;margin-top:6px">
+                <button type="button" class="btn sm g" style="flex:1;padding:6px 0;font-size:11px" onclick="previewThemeLive('${k}')">👁️ Preview</button>
+                <button type="button" class="btn sm ${isCurrent ? 'ok' : ''}" style="flex:1.3;padding:6px 0;font-size:11px;font-weight:700" onclick="setTheme('${k}');openThemeModal()">${isCurrent ? 'Applied' : 'Apply Theme'}</button>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <!-- Advanced Customization Expandable Section -->
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px">
+          <div>
+            <label style="font-size:12.5px;font-weight:700;display:block;margin-bottom:6px">Button & Interaction Styles (12 Types)</label>
+            <select id="sel_btn_fx" onchange="setBtnEffect(this.value);openThemeModal()" style="width:100%;padding:8px 10px;font-size:12.5px;border-radius:8px">
+              ${Object.entries(FX_STYLES).map(([k, l]) => `<option value="${k}" ${fx === k ? 'selected' : ''}>${l}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12.5px;font-weight:700;display:block;margin-bottom:6px">UI Scale & Touch Density</label>
+            <select id="sel_ui_density" onchange="setUiDensity(this.value);openThemeModal()" style="width:100%;padding:8px 10px;font-size:12.5px;border-radius:8px">
+              ${Object.entries(UI_DENSITIES).map(([k, v]) => `<option value="${k}" ${density === k ? 'selected' : ''}>${v.name}</option>`).join('')}
+            </select>
+          </div>
+          <div>
+            <label style="font-size:12.5px;font-weight:700;display:block;margin-bottom:6px">Dashboard Mode</label>
+            <div style="display:flex;gap:6px">
+              <button class="btn sm ${ds === 'classic' ? 'ok' : 'g'}" style="flex:1;font-size:11.5px" onclick="setTheme(null,'classic');openThemeModal()">Classic</button>
+              <button class="btn sm ${ds === 'modern' ? 'ok' : 'g'}" style="flex:1;font-size:11.5px" onclick="setTheme(null,'modern');openThemeModal()">Modern Visual</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;border-top:1px solid var(--border);padding-top:10px">
+      <button class="btn ok" onclick="closeModal()">Close Gallery</button>
+    </div>
+  `;
+  modal('🎨 27-Theme Master Gallery & Appearance Studio', content);
+}
+
+function drawLookCard(){
+  const el = $('#look-card');
+  if(!el) return;
+  el.innerHTML = `
+    <h3 style="margin-top:0;font-size:17px;font-weight:800;color:#08080E">Appearance & Design Theme</h3>
+    <p style="font-size:13px;color:#1e293b;line-height:1.5;margin-bottom:16px">
+      HoReCa One Enterprise POS uses a single, unified high-contrast theme engineered for maximum legibility on counter displays and accounting ledgers.
+    </p>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px;background:#f8fafc;border:1.5px solid #475569;border-radius:12px;flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:44px;height:44px;border-radius:10px;border:1.5px solid #FF9707;box-shadow:0 3px 10px rgba(255,151,7,0.3)">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <b style="font-size:15px;color:#08080E">HoReCa One Official Theme</b>
+            <span class="status-pill ok" style="font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:10px">ACTIVE &amp; LOCKED</span>
+          </div>
+          <div style="font-size:12px;color:#1e293b;font-weight:600;margin-top:3px">
+            Brand Identity: Signature Orange (<span style="color:#FF9707;font-weight:800">#FF9707</span>) · High-Contrast Midnight Black Text · Grid Ledger Borders
+          </div>
+        </div>
+      </div>
+      <div>
+        <button class="btn ok sm" onclick="applyTheme();toast('Theme refreshed.')" style="font-weight:800;padding:8px 16px">Active Standard</button>
+      </div>
+    </div>
+  `;
+}
+
+function openThemeModal(){
+  toast('HoReCa One Official Theme is permanently active.');
+}
 function openThemeModal(){
   const cur = D.settings.theme || 'classic';
   const fx = D.settings.btnEffect || 'tactile';
@@ -10709,14 +10678,7 @@ function scrSessions(){
 
 function scrGateway(){
   if(SRV.on && !SRV.cloud && Date.now() - (waStatus.at || 0) > 60000){ waStatus.at = Date.now(); waStatus(); }
-  const curTheme = (typeof D !== 'undefined' && D && D.settings && D.settings.theme && THEMES[D.settings.theme]) ? D.settings.theme : 'horeca_light';
-  main.innerHTML = (isManager() ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-    <div style="font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px">
-      <span style="width:8px;height:8px;border-radius:50%;background:#FF9707;display:inline-block"></span>
-      Design Theme: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'HoReCa One Light'}</span>
-    </div>
-    <button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
-  </div>` : '') + dashModern();
+  main.innerHTML = dashModern();
 }
 
 /* ================= DASHBOARD SETUP (owner chooses what the Gateway shows) ================= */
@@ -17187,7 +17149,7 @@ function renderWaDirectScanner(){
 
         ${waPairingMode === 'qr' ? `
           <!-- TAB 1: QR CODE SCANNER -->
-          <div style="display:flex;gap:30px;flex-wrap:wrap;align-items:center;background:var(--bg);border:1.5px solid var(--border);border-radius:18px;padding:24px">
+          <div style="display:flex;gap:30px;flex-wrap:wrap;align-items:center;background:#ffffff;border:1.5px solid #475569;border-radius:18px;padding:24px">
             <div>
               ${isQrReady ? `
                 <div class="wa-scan-frame">
@@ -17199,14 +17161,30 @@ function renderWaDirectScanner(){
                   <img src="${w.qr}" alt="WhatsApp QR Code" style="width:230px;height:230px;display:block;border-radius:10px">
                 </div>
               ` : isStarting ? `
-                <div class="wa-scan-frame" style="flex-direction:column;gap:12px;text-align:center;color:var(--text-muted)">
+                <div class="wa-scan-frame" style="flex-direction:column;gap:12px;text-align:center;color:#08080E">
                   <div class="spinner" style="width:40px;height:40px;border-width:3px;border-color:#10b981;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite"></div>
-                  <span style="font-size:12.5px;font-weight:600">Connecting Baileys Socket...<br>Generating QR Code...</span>
+                  <span style="font-size:12.5px;font-weight:700">Connecting Baileys Socket...<br>Generating QR Code...</span>
+                </div>
+              ` : SRV.cloud ? `
+                <div class="wa-scan-frame" style="flex-direction:column;gap:12px;text-align:center;padding:18px;max-width:280px;border:2px dashed #3b82f6;border-radius:14px;background:#f8fafc">
+                  <span style="font-size:36px">🌐</span>
+                  <div style="font-size:14px;font-weight:800;color:#08080E">Online Cloud Mode Active</div>
+                  <div style="font-size:12px;color:#1e293b;line-height:1.4">
+                    WhatsApp Web QR (Baileys) ke liye <b>Counter PC App</b> chahiye. Cloud website se direct WhatsApp bhejne ke liye <b>Gupshup API</b> use karein.
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:6px;width:100%;margin-top:6px">
+                    <button class="btn ok sm" onclick="go('settings')" style="font-weight:800;font-size:12px;padding:8px 12px">
+                      ⚡ Setup Cloud WhatsApp (No PC)
+                    </button>
+                    <a class="btn g sm" href="/download/Setu-POS-Setup.exe" style="text-decoration:none;font-weight:800;font-size:12px;padding:8px 12px;text-align:center">
+                      📥 Download PC App for QR
+                    </a>
+                  </div>
                 </div>
               ` : `
                 <div class="wa-scan-frame" style="flex-direction:column;gap:14px;text-align:center;padding:20px">
                   <span style="font-size:36px">📱</span>
-                  <div style="font-size:13px;font-weight:600;color:var(--text)">WhatsApp Gateway is Standing By</div>
+                  <div style="font-size:13px;font-weight:700;color:#08080E">WhatsApp Gateway is Standing By</div>
                   <button class="btn ok sm" onclick="startWaGateway()" style="font-weight:800;padding:8px 16px">
                     ⚡ Start Gateway &amp; Get QR
                   </button>
