@@ -1393,7 +1393,7 @@ html[data-density="spacious"] .btn {
 #side .side-section-header {
   font-size: 10px !important;
   font-weight: 800 !important;
-  color: #64748b !important;
+  color: var(--side-muted, #94a3b8) !important;
   text-transform: uppercase !important;
   letter-spacing: 0.9px !important;
   padding: 10px 10px 4px !important;
@@ -1421,7 +1421,7 @@ html[data-density="spacious"] .btn {
   border-radius: 8px !important;
   font-size: 12.5px !important;
   font-weight: 500 !important;
-  color: var(--text) !important;
+  color: var(--side-text, #f1f5f9) !important;
   gap: 10px !important;
   transition: all 0.15s ease !important;
   position: relative !important;
@@ -1454,7 +1454,7 @@ html[data-density="spacious"] .btn {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  color: #64748b !important;
+  color: var(--side-muted, #94a3b8) !important;
   flex-shrink: 0 !important;
   width: 18px !important;
   height: 18px !important;
@@ -1773,13 +1773,13 @@ html[data-theme^="horeca_"] #side .horeca-side-brand{
 html[data-theme^="horeca_"] #side .horeca-brand-icon{
   display:grid;place-items:center;flex:0 0 35px;
   width:35px;height:35px;border-radius:11px;
-  background:#f97316;color:#fff;font-weight:800;font-size:15px;
-  box-shadow:0 5px 12px rgba(249,115,22,.21);
+  background:linear-gradient(135deg, #059669 0%, #10b981 100%);color:#fff;font-weight:800;font-size:15px;
+  box-shadow:0 4px 12px rgba(16,185,129,0.35);
 }
 html[data-theme^="horeca_"] #side .horeca-side-brand b{
   font-size:15px;white-space:nowrap;letter-spacing:-.045em;
 }
-html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#fb923c}
+html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#34d399}
 html[data-theme^="horeca_"] #side .horeca-side-brand small{
   display:block;margin-top:3px;font-size:9px;letter-spacing:.07em;color:#9fb0cc;
   text-transform:uppercase;white-space:nowrap;
@@ -2218,10 +2218,10 @@ html[data-theme="horeca_dark"]{
  --border-focus:#fb923c;--accent:#fb923c;
 }
 html[data-theme^="horeca_"] #side .nav-item.active{
- background:#fa761b!important;color:#ffffff!important;border-color:rgba(255,255,255,.12)!important;
- box-shadow:0 4px 15px rgba(249,115,22,.24)!important
+ background:linear-gradient(135deg, #059669 0%, #10b981 100%)!important;color:#ffffff!important;border-color:rgba(255,255,255,.22)!important;
+ box-shadow:0 4px 15px rgba(16,185,129,.35)!important
 }
-html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){background:#1b365a!important}
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){background:rgba(255,255,255,0.09)!important}
 html[data-theme^="horeca_"] #top #sidebtn{color:var(--text)!important}
 
 html[data-theme^="horeca_"] #main{background:var(--bg);padding:22px 24px 35px!important}
@@ -2442,10 +2442,10 @@ html[data-theme^="horeca_"] body[data-horeca-screen="settings"] #main > .card h3
   padding-bottom:12px;border-bottom:1px solid var(--border);margin-bottom:16px
 }
 html[data-theme^="horeca_"] .horeca-activate-theme{
-  background:#f97316;color:#fff;border:1px solid #f97316;
-  font-size:11px;min-height:31px;padding:7px 12px;border-radius:9px
+  background:linear-gradient(135deg, #059669 0%, #10b981 100%)!important;color:#fff!important;border:1px solid #059669!important;
+  font-size:11px;min-height:31px;padding:7px 12px;border-radius:9px;box-shadow:0 2px 8px rgba(16,185,129,0.3)
 }
-html[data-theme^="horeca_"] .horeca-activate-theme:hover{background:#ea580c}
+html[data-theme^="horeca_"] .horeca-activate-theme:hover{background:#047857!important}
 @media(max-width:1320px){
  html[data-theme^="horeca_"] #main .horeca-pos-workspace{
    grid-template-columns:minmax(0,1.15fr) minmax(345px,1fr)!important
@@ -2488,7 +2488,7 @@ html[data-theme="horeca_light"]{
   --surface:#f6f9fe!important;--border:#e0e8f3!important;
   --text:#172742!important;--text-muted:#657b98!important;
   --topbar:#ffffff!important;--side-bg:#0c1b30!important;
-  --side-text:#cedcf0!important;--side-muted:#91a9c9!important;
+  --side-text:#f1f5f9!important;--side-muted:#94a3b8!important;
   --side-border:#23344b!important;--side-active-bg:#1762d6!important;
   --side-active-text:#ffffff!important;
   --card-shadow:0 4px 16px rgba(18,49,91,.045)!important;
@@ -2502,7 +2502,7 @@ html[data-theme="horeca_dark"]{
   --surface:#22344d!important;--border:#30455f!important;
   --text:#f3f7ff!important;--text-muted:#acbdd4!important;
   --topbar:#15243a!important;--side-bg:#081628!important;
-  --side-text:#d9e4f5!important;--side-muted:#91a9c9!important;
+  --side-text:#f1f5f9!important;--side-muted:#94a3b8!important;
   --side-border:#263a54!important;--side-active-bg:#1c59bc!important;
   --side-active-text:#fff!important;
   --card-shadow:0 6px 20px rgba(0,0,0,.11)!important;
@@ -2557,7 +2557,8 @@ html[data-theme^="horeca_"] #side .horeca-side-brand{
   border-bottom:1px solid #22364e!important
 }
 html[data-theme^="horeca_"] #side .horeca-brand-icon{
-  background:#f58520!important;box-shadow:none!important;
+  background:linear-gradient(135deg, #059669 0%, #10b981 100%)!important;
+  box-shadow:0 4px 14px rgba(16,185,129,0.35)!important;
   border-radius:12px!important;color:#fff!important;
   width:43px!important;height:43px!important;flex:0 0 43px!important
 }
@@ -2565,39 +2566,47 @@ html[data-theme^="horeca_"] #side .horeca-side-brand b{
   font-size:19px!important;letter-spacing:-.06em!important;color:#fff!important;
   font-weight:850;line-height:1.1
 }
-html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#ff9d41!important}
+html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#34d399!important}
 html[data-theme^="horeca_"] #side .horeca-side-brand small{
-  font-size:9px!important;letter-spacing:.055em;color:#acbfd7!important;margin-top:5px
+  font-size:9px!important;letter-spacing:.055em;color:#94a3b8!important;margin-top:5px
 }
 html[data-theme^="horeca_"] #side .side-section-header{
   margin:13px 6px 6px!important;padding:7px 5px!important;
-  font-size:10px!important;color:#86a0bf!important;font-weight:800!important;
-  letter-spacing:.07em!important
+  font-size:11px!important;color:#94a3b8!important;font-weight:750!important;
+  letter-spacing:.08em!important;text-transform:uppercase!important
 }
 html[data-theme^="horeca_"] #side .nav-item{
   display:flex!important;align-items:center!important;
   min-height:40px!important;margin:2px 0!important;
-  color:#c3d3e9!important;border:1px solid transparent!important;
+  color:#f1f5f9!important;border:1px solid transparent!important;
   border-radius:9px!important;background:transparent!important;
-  padding:10px 10px!important;gap:10px!important;
-  font-size:12px!important;font-weight:550!important;text-align:left!important;
+  padding:9px 10px!important;gap:10px!important;
+  font-size:12.5px!important;font-weight:600!important;text-align:left!important;
   box-shadow:none!important;line-height:1.25
 }
-html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){
-  color:#fff!important;background:#1b3251!important
-}
-html[data-theme^="horeca_"] #side .nav-item.active{
-  background:linear-gradient(90deg,#145bc8,#1a6dea)!important;
-  color:#fff!important;border-color:#2375e7!important;
-  font-weight:750!important;box-shadow:0 3px 11px rgba(0,0,0,.12)!important
+html[data-theme^="horeca_"] #side .nav-item .nav-label{
+  color:#f1f5f9!important;font-size:12.5px!important;font-weight:600!important;
+  overflow:hidden;text-overflow:ellipsis
 }
 html[data-theme^="horeca_"] #side .nav-item .nav-icon{
-  width:19px!important;flex:0 0 19px!important;color:#aec5df!important;
+  width:19px!important;flex:0 0 19px!important;color:#94a3b8!important;
 }
-html[data-theme^="horeca_"] #side .nav-item.active .nav-icon{color:#fff!important}
-html[data-theme^="horeca_"] #side .nav-item .nav-label{
-  font-size:12px!important;overflow:hidden;text-overflow:ellipsis
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){
+  color:#ffffff!important;background:rgba(255,255,255,0.09)!important
 }
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active) .nav-label{
+  color:#ffffff!important
+}
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active) .nav-icon{
+  color:#34d399!important
+}
+html[data-theme^="horeca_"] #side .nav-item.active{
+  background:linear-gradient(135deg, #059669 0%, #10b981 100%)!important;
+  color:#ffffff!important;border:1px solid rgba(255,255,255,0.22)!important;
+  font-weight:750!important;box-shadow:0 4px 14px rgba(16,185,129,0.35)!important
+}
+html[data-theme^="horeca_"] #side .nav-item.active .nav-icon,
+html[data-theme^="horeca_"] #side .nav-item.active .nav-label{color:#ffffff!important}
 html[data-theme^="horeca_"] #side .nav-kbd{display:none!important}
 html[data-theme^="horeca_"] #side .nav-right{margin-left:auto}
 html[data-theme^="horeca_"] #side .side-footer-toggle{
@@ -2899,7 +2908,8 @@ html[data-theme^="horeca_"] .ho-v3-button{
   box-shadow:none!important;white-space:nowrap
 }
 html[data-theme^="horeca_"] .ho-v3-button-main{
-  background:#1461df!important;color:#fff!important;border-color:#1461df!important
+  background:linear-gradient(135deg, #059669 0%, #10b981 100%)!important;color:#fff!important;border-color:#059669!important;
+  box-shadow:0 2px 8px rgba(16,185,129,0.28)!important
 }
 html[data-theme^="horeca_"] .ho-v3-kpi-grid{
   display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px
@@ -4377,11 +4387,11 @@ label {
 <header id="top">
   <button id="sidebtn" onclick="toggleHoReCaSidebar()" title="Toggle Sidebar (Expanded / Compact / Full Screen)">☰</button>
   <div class="brand-wrap" onclick="go('gateway')" title="HoReCa One — Hotel • Restaurant • Café (Powered by Setu Pro)">
-    <div class="horeca-logo-pill" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(249,115,22,0.35);color:#fff;font-weight:900;font-size:15px;letter-spacing:-0.5px">H1</div>
+    <div class="horeca-logo-pill" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg, #059669 0%, #10b981 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(16,185,129,0.35);color:#fff;font-weight:900;font-size:15px;letter-spacing:-0.5px">H1</div>
     <div style="display:flex;flex-direction:column;line-height:1.15">
       <div style="display:flex;align-items:center;gap:6px">
         <b id="hname" style="font-weight:800;letter-spacing:-0.2px">HoReCa One</b>
-        <span class="horeca-sub-badge" style="font-size:9px;font-weight:800;background:rgba(249,115,22,0.2);color:#fb923c;border:1px solid rgba(249,115,22,0.35);padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:0.4px">Setu Pro</span>
+        <span class="horeca-sub-badge" style="font-size:9px;font-weight:800;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:0.4px">Setu Pro</span>
       </div>
       <span class="brand-sub" id="hsub" style="font-size:10px;font-weight:600;color:#94a3b8">Hotel • Restaurant • Café</span>
     </div>
@@ -10083,7 +10093,7 @@ function scrGateway(){
         <span style="width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block"></span>
         Design Theme: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'Modern'}</span>
       </div>
-      <button class="btn horeca-activate-theme" onclick="setTheme('horeca_light','modern');go('gateway')">Activate HoReCa One</button> <button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
+      ${!curTheme.startsWith('horeca_') ? `<button class="btn horeca-activate-theme" onclick="setTheme('horeca_light','modern');go('gateway')">Activate HoReCa One</button> ` : ''}<button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
     </div>` : '') + dashModern();
     return;
   }
