@@ -65,10 +65,10 @@ html[data-theme="horeca_light"] {
   --bg: #f8fafc;
   --panel: #ffffff;
   --surface: #f1f5f9;
-  --border: #e2e8f0;
+  --border: #64748b;
   --border-focus: #fb923c;
-  --text: #0f172a;
-  --text-muted: #64748b;
+  --text: #08080E;
+  --text-muted: #1e293b;
   --ok: #10b981;
   --ok-light: #d1fae5;
   --bad: #ef4444;
@@ -4312,23 +4312,169 @@ html[data-theme^="horeca_"] #side .nav-item.active {
   color: #ffffff !important;
 }
 
-/* Day Book & Ledger Report Table Styling */
-body[data-horeca-screen="daybook"] #main table,
+/* ==========================================================================
+   GLOBAL HIGH-CONTRAST ERP GRID TABLES, DARK BORDERS & READABILITY
+   ========================================================================== */
+
+/* Universal High Contrast Table Grid with Column Separators & Row Borders */
+table,
+.card table,
+.ent-table-card table,
+.table-wrap table,
 #main table {
+  width: 100% !important;
   border-collapse: collapse !important;
+  border: 1.5px solid #475569 !important;
+  background: #ffffff !important;
+  color: #08080E !important;
 }
 
+table thead tr th,
+.card table thead tr th,
+.ent-table-card th,
+.table-wrap th,
+#main table thead tr th,
 body[data-horeca-screen="daybook"] #main table thead tr th {
   background: #f1f5f9 !important;
-  color: #0f172a !important;
+  color: #08080E !important;
   font-weight: 800 !important;
   font-size: 11.5px !important;
-  border-bottom: 2px solid #cbd5e1 !important;
+  letter-spacing: 0.04em !important;
+  padding: 10px 14px !important;
+  border: 1px solid #64748b !important; /* Visible column lines in header */
+  border-bottom: 2px solid #334155 !important;
+  text-transform: uppercase !important;
 }
 
+table tbody tr td,
+.card table tbody tr td,
+.ent-table-card td,
+.table-wrap td,
+#main table tbody tr td,
 body[data-horeca-screen="daybook"] #main table tbody tr td {
-  color: #0f172a !important;
-  border-bottom: 1px solid #e2e8f0 !important;
+  color: #08080E !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  padding: 9px 12px !important;
+  border: 1px solid #cbd5e1 !important; /* Visible column and row lines in all data cells */
+}
+
+table tbody tr:nth-child(even),
+#main table tbody tr:nth-child(even) {
+  background: #f8fafc !important;
+}
+
+table tbody tr:hover,
+#main table tbody tr:hover {
+  background: #f1f5f9 !important;
+}
+
+table tfoot tr td,
+.card table tfoot tr td,
+.ent-table-card tfoot td,
+#main table tfoot tr td {
+  background: #f1f5f9 !important;
+  color: #08080E !important;
+  font-weight: 800 !important;
+  border: 1px solid #64748b !important;
+  border-top: 2px solid #334155 !important;
+}
+
+/* Universal Dark Borders on All Buttons Across Application */
+.btn,
+button:not(#side button):not(#sidebtn):not(.horeca-nav-item):not(.sub-item) {
+  border: 1.5px solid #334155 !important;
+  color: #08080E !important;
+  font-weight: 750 !important;
+}
+
+.btn:hover,
+button:not(#side button):not(#sidebtn):not(.horeca-nav-item):not(.sub-item):hover {
+  border-color: #08080E !important;
+}
+
+.btn.ok, .btn-primary, .btn-login-gradient {
+  background: linear-gradient(135deg, #FF9707 0%, #ea580c 100%) !important;
+  border: 1.5px solid #c2410c !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.btn.g {
+  background: #ffffff !important;
+  border: 1.5px solid #334155 !important;
+  color: #08080E !important;
+  font-weight: 750 !important;
+}
+
+.cat {
+  border: 1.5px solid #475569 !important;
+  color: #08080E !important;
+  font-weight: 750 !important;
+  background: #ffffff !important;
+  border-radius: 8px !important;
+  padding: 7px 14px !important;
+}
+
+.cat.active, .cat[style*="background:var(--primary)"] {
+  border: 1.5px solid #c2410c !important;
+  color: #ffffff !important;
+  background: var(--primary) !important;
+}
+
+/* Universal Dark High Contrast Text */
+#main,
+#main p,
+#main div,
+#main label,
+#main b,
+#main strong,
+.card,
+.card b,
+.card span {
+  color: #08080E;
+}
+
+#main .text-muted,
+#main [style*="color:var(--text-muted)"],
+#main [style*="color: var(--text-muted)"],
+.muted {
+  color: #1e293b !important;
+  font-weight: 600;
+}
+
+/* Dedicated Top Navigation Back Button */
+.top-back-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 5px 14px !important;
+  margin: 0 10px !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  color: #08080E !important;
+  background: #ffffff !important;
+  border: 1.5px solid #1e293b !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  transition: all 0.15s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.top-back-btn:hover {
+  background: #f1f5f9 !important;
+  border-color: #08080E !important;
+  transform: translateX(-1px) !important;
+}
+
+/* Clear Dark Outlines on Cards & Panels */
+.card,
+.ent-card,
+.m-hero,
+.m-kpi,
+.panel {
+  border: 1.5px solid #94a3b8 !important;
 }
 
 </style>
@@ -4705,6 +4851,9 @@ body[data-horeca-screen="daybook"] #main table tbody tr td {
     </div>
   </div>
 
+  <button id="top-back-btn" class="top-back-btn" onclick="goBackOrDashboard()" title="Go Back to Previous Screen / Dashboard (Backspace / Alt+Left)">
+    <span style="font-size:15px;font-weight:900">←</span> Back
+  </button>
   <span class="scr" id="scrname"><span class="dot"></span>Gateway</span>
 
   <div style="flex:1"></div>
@@ -8105,7 +8254,37 @@ const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens', 'guide'];
 // Current staff member's ticked screens (looked up fresh so Staff edits apply at once)
 const userPerms = () => { const st = activeUser && activeUser.staffId && (D.staff || []).find(x => x.id === activeUser.staffId); return (st && st.perms) || []; };
 
-function go(s, approved){
+let _screenHistory = [];
+
+function goBackOrDashboard(){
+  if(_screenHistory.length > 0){
+    const prev = _screenHistory.pop();
+    if(prev && prev !== cur){
+      go(prev, true, true);
+      return;
+    }
+  }
+  if(cur !== 'gateway'){
+    go('gateway', true, true);
+  } else {
+    toast('You are on the main Gateway Dashboard.');
+  }
+}
+
+// Global keyboard shortcut: Alt+Left or Escape (outside modals) to go back
+window.addEventListener('keydown', (e) => {
+  if((e.altKey && e.key === 'ArrowLeft') || (e.key === 'Escape' && cur !== 'gateway' && !document.querySelector('.modal-backdrop, .modal, #login-screen:not([style*="display: none"])'))){
+    goBackOrDashboard();
+  }
+});
+
+function go(s, approved, isBack){
+  if(!isBack && cur && cur !== s){
+    if(_screenHistory.length >= 30) _screenHistory.shift();
+    if(!_screenHistory.length || _screenHistory[_screenHistory.length - 1] !== cur){
+      _screenHistory.push(cur);
+    }
+  }
   document.body.dataset.horecaScreen = s;
   applyTheme(); try{ initHoReCaSidebar(); }catch(e){}
   if(!activeUser && !checkAuth()) return;
@@ -8137,6 +8316,18 @@ function go(s, approved){
   main.dataset.horecaSection = m ? m[3] : 'Overview';
   $('#scrname').innerHTML = `<span class="dot"></span>${m ? m[1] : 'Gateway of Restaurant'}`;
   $('#hname').textContent = D.settings.name;
+  const bBtn = $('#top-back-btn');
+  if(bBtn){
+    if(s === 'gateway'){
+      bBtn.innerHTML = '<span style="font-size:15px;font-weight:900">←</span> Back';
+      bBtn.title = _screenHistory.length ? 'Back to previous screen' : 'Gateway Dashboard';
+      bBtn.style.display = _screenHistory.length ? 'inline-flex' : 'none';
+    } else {
+      bBtn.innerHTML = '<span style="font-size:15px;font-weight:900">←</span> Back to Dashboard';
+      bBtn.title = 'Back to Gateway Dashboard (Alt + Left)';
+      bBtn.style.display = 'inline-flex';
+    }
+  }
   main.scrollTop = 0;
   document.body.classList.remove('side-open');
   drawSide();
@@ -13196,12 +13387,15 @@ function renderDaybookFilterScreen(){
   main.innerHTML = `
   <div style="max-width:680px;margin:24px auto;padding:0 16px">
     <div class="card" style="padding:28px 32px;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.07);border:1px solid var(--border)">
-      <div style="border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between">
-        <div>
-          <h2 style="margin:0 0 4px;font-size:20px;font-weight:800;color:var(--text)">Day Book & Ledger Filter</h2>
-          <p style="margin:0;font-size:12px;color:var(--text-muted)">Select dates, voucher type and parameters to generate the day book ledger</p>
+      <div style="border-bottom:1.5px solid #64748b;padding-bottom:16px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="btn sm" onclick="goBackOrDashboard()" style="padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E">← Back to Dashboard</button>
+          <div>
+            <h2 style="margin:0 0 4px;font-size:20px;font-weight:800;color:#08080E">Day Book & Ledger Filter</h2>
+            <p style="margin:0;font-size:12px;color:#1e293b;font-weight:600">Select dates, voucher type and parameters to generate the day book ledger</p>
+          </div>
         </div>
-        <button class="btn sm" onclick="dbSubmitted=true;scrDaybook()" style="font-weight:700">Quick View Today &rarr;</button>
+        <button class="btn sm" onclick="dbSubmitted=true;scrDaybook()" style="font-weight:800;border:1.5px solid #334155">Quick View Today &rarr;</button>
       </div>
 
       <form onsubmit="event.preventDefault();submitDaybookFilter();" style="display:flex;flex-direction:column;gap:18px">
@@ -13256,9 +13450,10 @@ function renderDaybookFilterScreen(){
 
         <div style="display:grid;grid-template-columns:140px 1fr;gap:16px;margin-top:10px">
           <div></div>
-          <div style="display:flex;gap:10px">
-            <button type="submit" class="btn ok" style="padding:10px 28px;font-size:14px;font-weight:800;border-radius:8px;background:#1e293b;color:#fff">Submit</button>
-            <button type="button" class="btn" onclick="dbFrom=dbTo=today();dbFilterType='all';dbSubmitted=true;scrDaybook()" style="padding:10px 18px;font-size:13px;font-weight:700">Today's Quick Book</button>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <button type="submit" class="btn ok" style="padding:10px 28px;font-size:14px;font-weight:800;border-radius:8px;background:#1e293b;color:#fff;border:1.5px solid #08080E">Submit</button>
+            <button type="button" class="btn" onclick="dbFrom=dbTo=today();dbFilterType='all';dbSubmitted=true;scrDaybook()" style="padding:10px 18px;font-size:13px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Today's Quick Book</button>
+            <button type="button" class="btn" onclick="goBackOrDashboard()" style="padding:10px 18px;font-size:13px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#f8fafc">← Back to Dashboard</button>
           </div>
         </div>
       </form>
@@ -13340,18 +13535,17 @@ function renderDaybookReportScreen(){
 
   main.innerHTML = `
   <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <button class="btn sm" onclick="printDaybook()" style="padding:6px 16px;font-weight:700">Print</button>
-      <button class="btn ok sm" onclick="daybookPDF()" style="padding:6px 16px;font-weight:700;background:#2563eb;color:#fff">PDF</button>
-      <button class="btn g sm" onclick="daybookCSV()" style="padding:6px 16px;font-weight:700">Excel</button>
-      <button class="btn sm" onclick="dbSubmitted=false;scrDaybook()" style="padding:6px 14px;font-weight:700;border:1px solid var(--border);margin-left:8px">
-        🔍 Change Filter / New Search
-      </button>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <button class="btn sm" onclick="goBackOrDashboard()" style="padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E">← Back to Dashboard</button>
+      <button class="btn sm" onclick="dbSubmitted=false;scrDaybook()" style="padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E">🔍 Change Filter / New Search</button>
+      <button class="btn sm" onclick="printDaybook()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Print</button>
+      <button class="btn ok sm" onclick="daybookPDF()" style="padding:6px 16px;font-weight:800;background:#2563eb;color:#fff;border:1.5px solid #1d4ed8">PDF</button>
+      <button class="btn g sm" onclick="daybookCSV()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Excel</button>
     </div>
-    <div style="font-size:12.5px;font-weight:700;color:var(--text-muted)">
-      <span>Period: <b style="color:var(--text)">${dmy(dbFrom)}</b> to <b style="color:var(--text)">${dmy(dbTo)}</b></span>
+    <div style="font-size:13px;font-weight:800;color:#08080E">
+      <span>Period: <b style="color:#08080E">${dmy(dbFrom)}</b> to <b style="color:#08080E">${dmy(dbTo)}</b></span>
       <span style="margin:0 6px">•</span>
-      <span style="color:#FF9707">${filterNames[dbFilterType] || 'Filtered'}</span>
+      <span style="color:#ea580c;font-weight:800">${filterNames[dbFilterType] || 'Filtered'}</span>
     </div>
   </div>
 
@@ -22643,18 +22837,27 @@ function hoFilterGuide(value){
 function scrHoGuide(){
  const a=HO_HELP[hoSelectedGuide];
  if(!a){
-  main.innerHTML="<div class='title'>User Guide & Training <span class='r'>"+Object.keys(HO_HELP).length+" topics</span></div>"+
-   "<div class='card'><h2>Learn HoReCa One</h2><p class='muted'>Searchable offline instructions for existing modules. Use test data when practicing.</p>"+
-   "<input type='search' class='ho-guide-search' maxlength='100' placeholder='Search billing, KOT, printer, GST...' oninput='hoFilterGuide(this.value)' aria-label='Search guide'></div>"+
-   "<div id='ho-guide-results' class='ho-learning-grid'>"+Object.keys(HO_HELP).map(hoCard).join("")+"</div>";
+  main.innerHTML="<div style='margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px'>"+
+    "<button class='btn sm' onclick='goBackOrDashboard()' style='padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E'>← Back to Dashboard</button>"+
+    "<div class='title' style='margin:0'>User Guide & Training <span class='r'>"+Object.keys(HO_HELP).length+" topics</span></div>"+
+    "</div>"+
+    "<div class='card' style='border:1.5px solid #94a3b8'><h2>Learn HoReCa One</h2><p class='muted'>Searchable offline instructions for existing modules. Use test data when practicing.</p>"+
+    "<input type='search' class='ho-guide-search' maxlength='100' placeholder='Search billing, KOT, printer, GST...' oninput='hoFilterGuide(this.value)' aria-label='Search guide'></div>"+
+    "<div id='ho-guide-results' class='ho-learning-grid'>"+Object.keys(HO_HELP).map(hoCard).join("")+"</div>";
   return;
  }
- main.innerHTML="<div class='title'>User Guide / "+esc(a[0])+" <span class='r'><button class='btn g sm' onclick='hoSelectedGuide=\"\";go(\"guide\")'>All Topics</button></span></div>"+
-  "<article class='ho-learning-article'><h2>"+esc(a[0])+"</h2><ol>"+a.slice(1).map(step=>"<li>"+esc(step)+"</li>").join("")+"</ol>"+
-  "<div class='ho-learning-note'><b>Important:</b> "+esc(HO_HELP_WARN[hoSelectedGuide]||"Actions and availability depend on your role, enabled plan and configured integrations.")+"</div>"+
-  "<div class='ho-learning-actions'><button class='btn' onclick='go(\""+hoSelectedGuide+"\")'>Open Module</button>"+
-  "<button class='btn g' onclick='hoBeginLesson(\""+hoSelectedGuide+"\")'>Show Me How</button>"+
-  "<button class='btn g' onclick='go(\"ai\")'>Ask Setu AI</button></div></article>";
+ main.innerHTML="<div style='margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px'>"+
+   "<div style='display:flex;gap:8px'>"+
+     "<button class='btn sm' onclick='goBackOrDashboard()' style='padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E'>← Back to Dashboard</button>"+
+     "<button class='btn sm g' onclick='hoSelectedGuide=\"\";go(\"guide\")' style='padding:6px 14px;font-weight:800;border:1.5px solid #334155'>All Topics</button>"+
+   "</div>"+
+   "<div class='title' style='margin:0'>User Guide / "+esc(a[0])+"</div>"+
+   "</div>"+
+   "<article class='ho-learning-article' style='border:1.5px solid #94a3b8'><h2>"+esc(a[0])+"</h2><ol>"+a.slice(1).map(step=>"<li>"+esc(step)+"</li>").join("")+"</ol>"+
+   "<div class='ho-learning-note'><b>Important:</b> "+esc(HO_HELP_WARN[hoSelectedGuide]||"Actions and availability depend on your role, enabled plan and configured integrations.")+"</div>"+
+   "<div class='ho-learning-actions'><button class='btn' onclick='go(\""+hoSelectedGuide+"\")' style='border:1.5px solid #334155;font-weight:800'>Open Module</button>"+
+   "<button class='btn g' onclick='hoBeginLesson(\""+hoSelectedGuide+"\")' style='border:1.5px solid #334155;font-weight:800'>Show Me How</button>"+
+   "<button class='btn g' onclick='go(\"ai\")' style='border:1.5px solid #334155;font-weight:800'>Ask Setu AI</button></div></article>";
 }
 function hoEndLesson(){const e=document.getElementById("ho-lesson-panel");if(e)e.remove();hoLesson=null;}
 function hoBeginLesson(id){if(!HO_HELP[id])return;go(id);if(cur!==id)return;hoLesson={id,step:0};hoRenderLesson();}
@@ -22662,11 +22865,19 @@ function hoMoveLesson(n){if(!hoLesson)return;hoLesson.step=Math.max(0,Math.min(2
 function hoRenderLesson(){
  if(!hoLesson)return;
  const a=HO_HELP[hoLesson.id],i=hoLesson.step;
- let p=document.getElementById("ho-lesson-panel");if(!p){p=document.createElement("div");p.id="ho-lesson-panel";p.setAttribute("role","dialog");p.setAttribute("aria-label","Guided learning");document.body.appendChild(p);}
- p.innerHTML="<div class='muted' style='font-size:11px'>SAFE TRAINING • STEP "+(i+1)+" OF 3</div><h3>"+esc(a[0])+"</h3>"+
- "<div>"+esc(a[i+1])+"</div><div class='lesson-buttons'><button onclick='hoEndLesson()'>Exit</button>"+
- "<button onclick='hoMoveLesson(-1)' "+(i===0?"disabled":"")+">Previous</button>"+
- "<button class='next' onclick='"+(i===2?"hoEndLesson()":"hoMoveLesson(1)")+"'>"+(i===2?"Finish":"Next")+"</button></div>";
+ let p=document.getElementById("ho-lesson-panel");
+ if(!p){
+   p=document.createElement("div");
+   p.id="ho-lesson-panel";
+   p.setAttribute("role","dialog");
+   p.setAttribute("aria-label","Guided learning");
+   document.body.appendChild(p);
+ }
+ p.innerHTML="<div class='muted' style='font-size:11px;font-weight:800;color:#08080E'>SAFE TRAINING • STEP "+(i+1)+" OF 3</div><h3 style='color:#08080E'>"+esc(a[0])+"</h3>"+
+ "<div>"+esc(a[i+1])+"</div><div class='lesson-buttons' style='margin-top:12px;display:flex;gap:8px'>"+
+ "<button onclick='hoEndLesson();goBackOrDashboard()' style='border:1.5px solid #334155;font-weight:800;padding:6px 12px;border-radius:6px;background:#f8fafc;color:#08080E'>← Back / Exit</button>"+
+ "<button onclick='hoMoveLesson(-1)' "+(i===0?"disabled":"")+" style='border:1.5px solid #334155;font-weight:800;padding:6px 12px;border-radius:6px;background:#fff;color:#08080E'>Previous</button>"+
+ "<button class='next' onclick='"+(i===2?"hoEndLesson();goBackOrDashboard()":"hoMoveLesson(1)")+"' style='border:1.5px solid #c2410c;font-weight:800;padding:6px 12px;border-radius:6px;background:var(--primary);color:#fff'>"+(i===2?"Finish & Back":"Next")+"</button></div>";
 }
 function hoGuideAnswer(q){
  q=String(q||"").toLowerCase();
