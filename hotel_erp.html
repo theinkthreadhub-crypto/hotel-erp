@@ -684,8 +684,8 @@ select option{
   transition: all .16s ease !important;
 }
 .login-field input:focus{
-  border-color: #0284c7 !important;
-  box-shadow: 0 0 0 3px rgba(2,132,199,0.16) !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.18) !important;
 }
 .btn-login-gradient{
   background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
@@ -3935,33 +3935,47 @@ label {
 .login-feature-item {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
   font-size: 13px;
-  color: #e2e8f0;
+  color: #e2e8f0 !important;
+}
+
+.login-feature-item div {
+  color: #cbd5e1 !important;
+  line-height: 1.45;
+}
+
+.login-feature-item b {
+  color: #ffffff !important;
+  font-weight: 750;
 }
 
 .login-feature-icon {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 6px;
-  background: rgba(16, 185, 129, 0.18);
+  background: rgba(16, 185, 129, 0.22);
   color: #34d399;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   flex-shrink: 0;
   margin-top: 1px;
 }
 
 .login-hero-footer {
   font-size: 12px;
-  color: #64748b;
+  color: #94a3b8 !important;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
   padding-top: 18px;
+}
+
+.login-hero-footer span {
+  color: #94a3b8 !important;
 }
 
 
@@ -4059,9 +4073,9 @@ label {
   <!-- VIEW 0: Frosted Glass Login (Inspired by Image 4) -->
   <div class="login-card login-glass-card" id="login-view-welcome" style="display:block;max-width:460px;width:100%">
     <div style="text-align:center;margin-bottom:18px">
-      <div style="width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg, #f97316 0%, #ea580c 100%);box-shadow:0 6px 20px rgba(249,115,22,0.3);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:24px;border:1px solid rgba(255,255,255,0.4)">H1</div>
+      <div style="width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg, #059669 0%, #10b981 100%);box-shadow:0 6px 20px rgba(16,185,129,0.3);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:24px;border:1px solid rgba(255,255,255,0.4)">H1</div>
       <div style="font-size:14px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:1px">HoReCa One</div>
-      <div style="font-size:11px;color:#f97316;font-weight:700">Hotel • Restaurant • Café · Powered by Setu Pro</div>
+      <div style="font-size:11px;color:#059669;font-weight:700">Hotel • Restaurant • Café · Powered by Setu Pro</div>
     </div>
 
     <!-- Onboarding Mode Switcher Tabs: Option B (Existing) & Option A (New) -->
@@ -4098,9 +4112,9 @@ label {
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;font-size:12.5px">
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:#475569">
-            <input type="checkbox" id="exist_remember" checked style="width:16px;height:16px;accent-color:#0284c7"> Remember Hotel ID
+            <input type="checkbox" id="exist_remember" checked style="width:16px;height:16px;accent-color:#10b981"> Remember Hotel ID
           </label>
-          <a href="javascript:void(0)" onclick="forgotPass()" style="color:#0284c7;font-weight:700;text-decoration:none">Forgot Password?</a>
+          <a href="javascript:void(0)" onclick="forgotPass()" style="color:#059669;font-weight:700;text-decoration:none">Forgot Password?</a>
         </div>
 
         <div id="exist_pull_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:8px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
@@ -4112,13 +4126,13 @@ label {
       </form>
 
       <div style="margin-top:14px;text-align:center;font-size:12px;display:flex;justify-content:center;gap:16px">
-        <a href="javascript:void(0)" onclick="showLoginView('gate2')" style="color:#0284c7;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px">Staff Quick PIN Login →</a>
+        <a href="javascript:void(0)" onclick="showLoginView('gate2')" style="color:#059669;text-decoration:none;font-weight:700;display:inline-flex;align-items:center;gap:4px">Staff Quick PIN Login →</a>
         <span style="color:#cbd5e1">•</span>
         <a href="javascript:void(0)" onclick="openBackupJsonChooser()" style="color:#64748b;text-decoration:none;display:inline-flex;align-items:center;gap:4px">Restore Backup</a>
       </div>
 
       <div style="margin-top:16px;text-align:center;font-size:12.5px;color:#64748b">
-        New property? <a href="javascript:void(0)" onclick="switchOnboardingMode('new')" style="color:#0284c7;font-weight:800;text-decoration:none">Register New Hotel</a>
+        New property? <a href="javascript:void(0)" onclick="switchOnboardingMode('new')" style="color:#059669;font-weight:800;text-decoration:none">Register New Hotel</a>
       </div>
     </div>
 
@@ -4209,7 +4223,7 @@ label {
       </div>
 
       <div style="margin-top:14px;text-align:center;font-size:12.5px;color:#64748b">
-        Already registered? <a href="javascript:void(0)" onclick="switchOnboardingMode('existing')" style="color:#0284c7;font-weight:800;text-decoration:none">Back to Login</a>
+        Already registered? <a href="javascript:void(0)" onclick="switchOnboardingMode('existing')" style="color:#059669;font-weight:800;text-decoration:none">Back to Login</a>
       </div>
     </div>
 
