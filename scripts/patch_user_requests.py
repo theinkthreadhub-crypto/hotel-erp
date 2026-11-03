@@ -560,3 +560,4 @@ else:
 # Save updated hotel_erp.html
 html_path.write_text(c, encoding="utf-8")
 print(f"Done! New file length: {len(c)}")
+
