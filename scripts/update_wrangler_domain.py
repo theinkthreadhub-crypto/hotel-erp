@@ -14,3 +14,4 @@ text = text.replace(old_text, new_text)
 
 p.write_text(text, encoding="utf-8")
 print("wrangler.toml updated successfully!")
+

@@ -27,3 +27,4 @@ keep_vars = true''', route_block)
 
 p.write_text(text, encoding="utf-8")
 print("Placed routes at root level in wrangler.toml")
+

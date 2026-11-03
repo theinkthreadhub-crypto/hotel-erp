@@ -15,3 +15,4 @@ routes = [
 text = text.replace(old_routes, new_routes)
 p.write_text(text, encoding="utf-8")
 print("Updated to zone_name = setupro.in and workers_dev = true")
+
