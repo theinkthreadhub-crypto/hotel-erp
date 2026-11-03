@@ -267,3 +267,4 @@ content = re.sub(
 
 html_path.write_text(content, encoding="utf-8")
 print(f"Done! New length: {len(content)}")
+

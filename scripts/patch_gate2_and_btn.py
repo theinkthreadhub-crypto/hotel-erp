@@ -59,3 +59,4 @@ print('Patched Gate 2 header count:', count)
 
 html_path.write_text(content, encoding='utf-8')
 print('Updated hotel_erp.html successfully!')
+

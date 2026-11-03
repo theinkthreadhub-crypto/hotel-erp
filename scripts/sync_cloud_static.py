@@ -28,3 +28,4 @@ for target in targets:
             print(f"Synced {fname} -> {target.relative_to(root)}")
 
 print("All files synced successfully!")
+

@@ -215,3 +215,4 @@ content = content.replace(
 
 fs.writeFileSync(targetPath, content, 'utf8');
 console.log('Successfully saved patched hotel_erp.html! New length:', content.length);
+

@@ -13,6 +13,49 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
+/* Base HoReCa One Sidebar Brand Header */
+#side .horeca-side-brand {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  min-height: 58px !important;
+  padding: 10px 10px 14px !important;
+  margin: 0 0 8px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12) !important;
+  color: #f8fafc !important;
+  flex-shrink: 0 !important;
+}
+#side .horeca-side-brand img {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  box-shadow: 0 3px 10px rgba(255, 151, 7, 0.3) !important;
+  flex: 0 0 38px !important;
+  border: 1px solid rgba(255, 151, 7, 0.3) !important;
+  object-fit: cover !important;
+}
+#side .horeca-side-brand b {
+  display: block !important;
+  font-size: 16px !important;
+  white-space: nowrap !important;
+  letter-spacing: -0.03em !important;
+  line-height: 1.15 !important;
+  color: #ffffff !important;
+}
+#side .horeca-side-brand b span {
+  color: #FF9707 !important;
+}
+#side .horeca-side-brand small {
+  display: block !important;
+  margin-top: 3px !important;
+  font-size: 8.5px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.08em !important;
+  color: #94a3b8 !important;
+  text-transform: uppercase !important;
+  white-space: nowrap !important;
+}
+
 /* ================= HORECA ONE: THEME VARIABLES & 3-MODE SIDEBAR ================= */
 html[data-theme="horeca_light"] {
   --primary: #f97316;
@@ -4400,10 +4443,10 @@ label {
     <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:36px;height:36px;border-radius:10px;box-shadow:0 3px 10px rgba(255,151,7,0.3);flex-shrink:0;border:1px solid rgba(255,151,7,0.25)">
     <div style="display:flex;flex-direction:column;line-height:1.15">
       <div style="display:flex;align-items:center;gap:6px">
-        <b id="hname" style="font-weight:900;letter-spacing:-0.3px;color:#fff">HoReCa <span style="color:#FF9707">One</span></b>
+        <b style="font-weight:900;letter-spacing:-0.3px;color:#fff">HoReCa <span style="color:#FF9707">One</span></b>
         <span class="horeca-sub-badge" style="font-size:9px;font-weight:800;background:rgba(255,151,7,0.18);color:#FF9707;border:1px solid rgba(255,151,7,0.4);padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px">ERP</span>
       </div>
-      <span class="brand-sub" id="hsub" style="font-size:10px;font-weight:600;color:#94a3b8">Hotel • Restaurant • Café</span>
+      <span class="brand-sub" id="hsub" style="font-size:10px;font-weight:600;color:#94a3b8"><span id="hname">Hotel • Restaurant • Café</span></span>
     </div>
   </div>
   <button class="ho-guide-header" onclick="go('guide')" title="User Guide and Training" aria-label="Open User Guide">Help</button>
@@ -4711,6 +4754,8 @@ const extraHTML = b => Object.entries(b.extra || {}).map(([k, v]) => `<div>${esc
 
 function ensureGrowth(s){
   s.settings = { ...GROWTH_DEFAULTS, ...s.settings };
+  if(!s.settings.theme || s.settings.theme === 'classic') s.settings.theme = 'horeca_light';
+  if(!s.settings.dashStyle || s.settings.dashStyle === 'classic') s.settings.dashStyle = 'modern';
   if(!Array.isArray(s.kots)) s.kots = [];
   if(!Array.isArray(s.staff)) s.staff = [];
   if(!s.att || typeof s.att !== 'object') s.att = {};
@@ -8568,9 +8613,15 @@ const UI_DENSITIES = {
 };
 
 function applyTheme(){
-  const t = (typeof D !== 'undefined' && D && D.settings && THEMES[D.settings.theme]) ? D.settings.theme : 'classic';
-  if(t === 'classic') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.setAttribute('data-theme', t);
+  let t = (typeof D !== 'undefined' && D && D.settings && D.settings.theme && THEMES[D.settings.theme]) ? D.settings.theme : 'horeca_light';
+  if(!t || t === 'classic'){
+    t = 'horeca_light';
+    if(typeof D !== 'undefined' && D && D.settings){
+      D.settings.theme = 'horeca_light';
+      D.settings.dashStyle = 'modern';
+    }
+  }
+  document.documentElement.setAttribute('data-theme', t);
 
   const fx = (typeof D !== 'undefined' && D && D.settings && FX_STYLES[D.settings.btnEffect]) ? D.settings.btnEffect : 'tactile';
   document.documentElement.setAttribute('data-fx', fx);
@@ -9703,7 +9754,7 @@ const DZ_LAYOUTS = {
   graphite: dzPastelLuxe,
   ocean: dzPastelLuxe,
   classic_blue: dzPastelLuxe,
-  classic: dzPastelLuxe
+  classic: dzHoReCaOne
 };
 
 function dashModern(){
@@ -10201,275 +10252,14 @@ function scrSessions(){
 
 function scrGateway(){
   if(SRV.on && !SRV.cloud && Date.now() - (waStatus.at || 0) > 60000){ waStatus.at = Date.now(); waStatus(); }
-  const curTheme = (typeof D !== 'undefined' && D && D.settings && D.settings.theme) || 'classic';
-  const isExplicitClassic = curTheme === 'classic' && D.settings.dashStyle === 'classic';
-  if(!isExplicitClassic){
-    main.innerHTML = (isManager() ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-      <div style="font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px">
-        <span style="width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block"></span>
-        Design Theme: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'Modern'}</span>
-      </div>
-      ${!curTheme.startsWith('horeca_') ? `<button class="btn horeca-activate-theme" onclick="setTheme('horeca_light','modern');go('gateway')">Activate HoReCa One</button> ` : ''}<button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
-    </div>` : '') + dashModern();
-    return;
-  }
-  const s = summary(today());
-  const low = lowStock();
-  const userName = activeUser ? activeUser.name : 'Manager';
-  const recentBills = [...D.bills.filter(b => b.date === today())].reverse().slice(0, 5);
-  const netMargin = s.sales + s.recT - s.expT - s.purT;
-  
-  const subInfo = getSubscriptionInfo();
-  const kacchaEntries = Object.entries(D.kaccha || {});
-  const totalKacchaAmt = sum(kacchaEntries, ([_, k]) => calc(k.cart, k.disc, gstRate()).total);
-  const pendingOnline = (D.onlineOrders || []).filter(o => o.status === 'new').length;
-  const on = dashOn;
-  const tiles = dashTiles();
-  const kpis = ['kpiSales', 'kpiTables', 'kpiOnline', 'kpiCash', 'kpiMargin'].filter(on);
-  const leftOn = on('channels') || on('top'), rightOn = on('recent') || on('waReport'), anyCol = leftOn || rightOn;
-  const shown = ['welcome', 'license', 'alerts', 'launchpad', 'charts', 'channels', 'top', 'recent', 'waReport'].some(on) || kpis.length;
-
-  main.innerHTML = `
-    ${isManager() ? `<div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn g sm" onclick="dashSetup()">Customize Dashboard</button></div>` : ''}
-    ${shown ? '' : `<div class="card" style="text-align:center;padding:30px"><b>The dashboard is empty</b><p class="muted">${isManager() ? 'Use "Customize Dashboard" to choose what to show.' : 'Ask your manager to customize the dashboard.'}</p></div>`}
-    <!-- Top Welcome Banner -->
-    ${on('welcome') ? `<div class="dash-welcome">
-      <div>
-        <h2>Welcome, ${esc(userName)}</h2>
-        <p>Your Setu POS is ready. Dine-in tables, takeaway and Zomato / Swiggy orders are all live.</p>
-      </div>
-      <div class="welcome-right">
-        <button class="btn zomato" onclick="go('online')">Zomato Orders</button>
-        <button class="btn swiggy" onclick="go('online')">Swiggy Orders</button>
-        <button class="btn ok" onclick="go('bill')">New Bill [B]</button>
-      </div>
-    </div>` : ''}
-
-    <!-- Aghanya Devanya Subscription Status Card -->
-    ${on('license') ? `<div class="card" style="border:1.5px solid #bae6fd;background:linear-gradient(90deg,#f0f9ff 0%,#e0f2fe 100%);display:flex;justify-content:space-between;align-items:center;padding:12px 18px;margin-bottom:18px;border-radius:12px">
-      <div style="display:flex;align-items:center;gap:12px">
-        <img src="favicon.ico" alt="AD" style="width:38px;height:38px;border-radius:8px;border:1px solid #bae6fd;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,0.1);display:block">
-        <div>
-          <b style="color:#0369a1;font-size:14px">Powered by Aghanya Devanya Enterprises</b>
-          <div style="font-size:12px;color:#0284c7">
-            Plan: <b>${esc(subInfo.planName)}</b> · Valid Until: <b>${dmy(subInfo.validUntil)}</b> 
-            <span class="sub-pill ${subInfo.status==='active'?'ok':(subInfo.status==='expiring'?'warn':'bad')}" style="display:inline-flex;padding:2px 8px;font-size:10px;margin-left:6px">
-              ${subInfo.status==='active'?'Active':(subInfo.status==='expiring'?'Expiring Soon':'Expired')} (${subInfo.daysLeft} Days Left)
-            </span>
-          </div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn zomato sm" style="background:#0284c7" onclick="openSubscriptionModal()">Renew License</button>
-        ${!isDesktopApp() ? `<button class="btn g sm" onclick="triggerPWAInstall()">Install PC App</button>` : ''}
-      </div>
-    </div>` : ''}
-
-    <!-- 5 Key Performance Indicators (KPIs) -->
-    ${kpis.length ? `<div class="kpi-grid">
-      ${on('kpiSales') ? `<div class="kpi-card dz-tap" onclick="dzOpen('sales')" title="Tap for details">
-        <div class="kpi-header">
-          <span class="kpi-title">Total Sales (Today)</span>
-          <span class="kpi-badge blue">SALES</span>
-        </div>
-        <div class="kpi-val">${money(s.sales)}</div>
-        <div class="kpi-sub">
-          <span class="green font-bold">${s.bills.length} Bills Settled</span>
-        </div>
-      </div>` : ''}
-
-      ${on('kpiTables') ? `<div class="kpi-card dz-tap" onclick="dzOpen('tables')" title="Tap for details">
-        <div class="kpi-header">
-          <span class="kpi-title">Active Dine-In Tables</span>
-          <span class="kpi-badge amber">TABLES</span>
-        </div>
-        <div class="kpi-val" style="color:#b45309">${money(totalKacchaAmt)}</div>
-        <div class="kpi-sub">
-          <span><b>${kacchaEntries.length}</b> tables with running orders</span>
-        </div>
-      </div>` : ''}
-
-      ${on('kpiOnline') ? `<div class="kpi-card dz-tap" onclick="dzOpen('ch:Online')" title="Tap for details">
-        <div class="kpi-header">
-          <span class="kpi-title">Online Orders (Zom/Swig)</span>
-          <span class="kpi-badge zomato">ONLINE</span>
-        </div>
-        <div class="kpi-val" style="color:var(--zomato)">${money(s.zomatoSales + s.swiggySales)}</div>
-        <div class="kpi-sub">
-          <span>Zomato: ${money(s.zomatoSales)} · Swiggy: ${money(s.swiggySales)}</span>
-        </div>
-      </div>` : ''}
-
-      ${on('kpiCash') ? `<div class="kpi-card dz-tap" onclick="dzOpen('cash')" title="Tap for details">
-        <div class="kpi-header">
-          <span class="kpi-title">Cash In Hand (Exp.)</span>
-          <span class="kpi-badge green">CASH</span>
-        </div>
-        <div class="kpi-val green">${money(s.expected)}</div>
-        <div class="kpi-sub">
-          <span>In: ${rs(s.cashIn)} · Out: ${rs(s.cashOut)}</span>
-        </div>
-      </div>` : ''}
-
-      ${on('kpiMargin') ? `<div class="kpi-card dz-tap" onclick="dzOpen('margin')" title="Tap for details">
-        <div class="kpi-header">
-          <span class="kpi-title">Net Daily Margin</span>
-          <span class="kpi-badge ${netMargin >= 0 ? 'green' : 'red'}">MARGIN</span>
-        </div>
-        <div class="kpi-val ${netMargin >= 0 ? 'green' : 'red'}">${money(netMargin)}</div>
-        <div class="kpi-sub">
-          <span>Low Stock: <b class="${low.length ? 'red' : 'green'}">${low.length} items</b></span>
-        </div>
-      </div>` : ''}
-    </div>` : ''}
-
-    <!-- Live Online Orders Banner if new orders arrived -->
-    ${on('alerts') && pendingOnline ? `
-      <div class="card" style="border-left:5px solid var(--zomato);background:#fff1f2;display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <b style="font-size:16px;color:var(--zomato)">${pendingOnline} new online orders received</b>
-          <p style="margin:2px 0 0;font-size:13px;color:#9f1239">Zomato / Swiggy orders are waiting. Accept them and send the KOT to the kitchen.</p>
-        </div>
-        <button class="btn zomato" style="padding:10px 18px" onclick="go('online')">Open Online Orders Desk</button>
-      </div>
-    ` : ''}
-
-    ${on('alerts') && isManager() && auditSummary(today()).rows.length ? `
-      <div class="card" style="border-left:5px solid var(--bad);background:#fff5f5;display:flex;justify-content:space-between;align-items:center">
-        <div>
-          <b style="color:var(--bad)">${auditSummary(today()).rows.length} audit alerts today</b>
-          <p style="margin:2px 0 0;font-size:13px">${Object.entries(auditSummary(today()).by).map(([k, v]) => `${esc(k)}: ${v.n}`).join(' · ')}</p>
-        </div>
-        <button class="btn bad" onclick="audType='alerts';go('audit')">View Audit Log</button>
-      </div>` : ''}
-
-    ${on('alerts') && isManager() && +today().slice(8) <= 10 && D.bills.some(b => b.date.startsWith(prevMonth(today().slice(0, 7)))) && !(D.monthlySent || {})[prevMonth(today().slice(0, 7))] ? `
-      <div class="card" style="border-left:5px solid #16a34a;background:#f0fdf4;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <div>
-          <b style="color:#15803d">The ${monthLabel(prevMonth(today().slice(0, 7)))} monthly report has not been sent to your CA / lawyer</b>
-          <p style="margin:2px 0 0;font-size:13px">Send the complete monthly summary on WhatsApp in one click.</p>
-        </div>
-        <button class="btn wa" onclick="mrMonth=prevMonth(today().slice(0,7));go('monthly')">Send Monthly Report</button>
-      </div>` : ''}
-
-    ${on('charts') ? dashCharts() : ''}
-    <!-- Quick Action Launchpad Tiles -->
-    ${on('launchpad') && tiles.length ? `<div class="section-title">
-      <span>Quick Action Launchpad</span>
-      <span class="muted" style="font-weight:400;font-size:12px">(Press highlighted letter on keyboard)</span>
+  const curTheme = (typeof D !== 'undefined' && D && D.settings && D.settings.theme && THEMES[D.settings.theme]) ? D.settings.theme : 'horeca_light';
+  main.innerHTML = (isManager() ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <div style="font-size:12.5px;font-weight:700;color:var(--text-muted);display:flex;align-items:center;gap:6px">
+      <span style="width:8px;height:8px;border-radius:50%;background:#FF9707;display:inline-block"></span>
+      Design Theme: <span style="color:var(--primary);font-weight:800">${(THEMES[curTheme] && THEMES[curTheme].name) || 'HoReCa One Light'}</span>
     </div>
-    ${MENU_GROUPS.map(g => [g, tiles.filter(m => m[3] === g)]).filter(([, l]) => l.length).map(([g, l]) => `<div class="muted" style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;margin:12px 0 6px">${g}</div><div class="quick-grid">
-      ${l.map(m => `
-        <div class="quick-tile" onclick="go('${m[2]}')">
-          <div class="tile-key-badge">${m[0]}</div>
-          <div class="tile-info">
-            <div class="tile-name">
-              <span>${esc(m[1].split('(')[0].split('/')[0].trim())}</span>
-            </div>
-            <div class="tile-desc">${esc(m[1])}</div>
-          </div>
-        </div>
-      `).join('')}
-    </div>`).join('')}` : ''}
-
-    <!-- Dashboard 2-Column Overview -->
-    ${anyCol ? `<div class="${leftOn && rightOn ? 'dash-columns' : ''}">
-      <!-- Left Column: Channel & Payment Breakdown -->
-      <div>
-        ${on('channels') ? `<div class="card">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <b style="font-size:14px">Channel-wise Sales Breakdown</b>
-            <span class="muted" style="font-size:12px">${dmy(today())}</span>
-          </div>
-
-          <div style="margin-top:6px">
-            <div class="breakdown-row">
-              <span>Dine-In (Table Sales)</span>
-              <b>${money(s.dineSales)}</b>
-            </div>
-            <div class="breakdown-row">
-              <span>Takeaway / Parcel</span>
-              <b>${money(s.takeawaySales)}</b>
-            </div>
-            <div class="breakdown-row">
-              <span style="color:var(--zomato);font-weight:700">Zomato Orders</span>
-              <b style="color:var(--zomato)">${money(s.zomatoSales)}</b>
-            </div>
-            <div class="breakdown-row">
-              <span style="color:var(--swiggy);font-weight:700">Swiggy Orders</span>
-              <b style="color:var(--swiggy)">${money(s.swiggySales)}</b>
-            </div>
-          </div>
-        </div>` : ''}
-
-        <!-- Top Selling Items Leaderboard -->
-        ${on('top') ? `<div class="card">
-          <b style="font-size:14px;display:block;margin-bottom:12px">Top Selling Dishes (Today)</b>
-          ${s.top.length ? `
-            ${s.top.slice(0, 5).map(([name, qty], idx) => `
-              <div class="breakdown-row">
-                <span><b>#${idx+1}</b> &nbsp;${esc(name)}</span>
-                <span class="green font-bold">${qty} plates</span>
-              </div>
-            `).join('')}
-          ` : '<p class="muted" style="text-align:center;padding:12px">No orders yet today</p>'}
-        </div>` : ''}
-      </div>
-
-      <!-- Right Column: Recent Bills & WhatsApp Report -->
-      <div>
-        ${on('recent') ? `<div class="card" style="padding:0;overflow:hidden">
-          <div style="padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-            <b style="font-size:14px">Recent Bills (Today)</b>
-            <button class="btn sm g" onclick="go('bills')">View All</button>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Bill</th>
-                <th>Type</th>
-                <th>Time</th>
-                <th class="n">Total</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${recentBills.map(b => `
-                <tr style="${b.cancelled ? 'opacity:.45;text-decoration:line-through' : ''}">
-                  <td><b>#${b.no}</b></td>
-                  <td>
-                    ${b.channel === 'Zomato' ? '<span class="oc-badge zomato">Zomato</span>' : 
-                      b.channel === 'Swiggy' ? '<span class="oc-badge swiggy">Swiggy</span>' :
-                      b.channel === 'Takeaway' ? '<span class="status-pill" style="font-size:10px;padding:1px 6px">Parcel</span>' :
-                      `<span class="status-pill" style="font-size:10px;padding:1px 6px">${esc(b.table||'Dine-In')}</span>`}
-                  </td>
-                  <td>${b.time}</td>
-                  <td class="n font-bold">${money(b.total)}</td>
-                  <td>
-                    <button class="btn sm g" onclick="printBill('${b.id}','bill')" title="Print">Print</button>
-                    ${b.phone ? waSendButtonHTML(b.id, true) : `<button class="btn sm wa" onclick="waOwner(billText(getBill('${b.id}')))" title="WhatsApp">WhatsApp</button>`}
-                  </td>
-                </tr>
-              `).join('') || '<tr><td colspan="5" class="muted" style="text-align:center;padding:18px">No bills yet today</td></tr>'}
-            </tbody>
-          </table>
-        </div>` : ''}
-
-        <!-- WhatsApp Daily Close Report Card -->
-        ${on('waReport') ? `<div class="card" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border-color:#bbf7d0">
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
-            <div>
-              <b style="color:#166534;font-size:14px">Send Daily Summary Report to Owner</b>
-              <div style="font-size:12px;color:#15803d">Share dine-in, takeaway and Zomato / Swiggy totals on WhatsApp</div>
-            </div>
-          </div>
-          <button class="btn wa" style="width:100%;padding:10px" onclick="go('report')">
-            Open WhatsApp Report [W]
-          </button>
-        </div>` : ''}
-      </div>
-    </div>` : ''}
-  `;
+    <button class="btn g sm" onclick="openThemeModal()" style="font-weight:700">Appearance & Themes</button>
+  </div>` : '') + dashModern();
 }
 
 /* ================= DASHBOARD SETUP (owner chooses what the Gateway shows) ================= */
@@ -18493,8 +18283,8 @@ function webBanner(){
   if(!isWebOfCounter() || !activeUser){ if(w) w.remove(); return; }
   if(!w){ w = document.createElement('div'); w.id = 'web-banner'; document.body.prepend(w); }
   const used = (D.bills || []).filter(b => b.web && b.date === today()).length;
-  w.style.cssText = 'background:#1d4ed8;color:#fff;padding:7px 16px;font-size:13px;text-align:center';
-  w.innerHTML = `Website mode: ${used}/${+D.saas.webMax} emergency bills today. For full Setu (printing, offline, all modules) <a href="/download/Setu-POS-Setup.exe" style="color:#fff;font-weight:700;text-decoration:underline">Install for PC</a>`;
+  w.style.cssText = 'background:#08080E;border-bottom:1px solid rgba(255,151,7,0.3);color:#F8F7F2;padding:7px 16px;font-size:12.5px;text-align:center';
+  w.innerHTML = `HoReCa One Cloud Mode: ${used}/${+D.saas.webMax} emergency cloud bills used today. For high-speed offline LAN counter & thermal printing, <a href="/download/Setu-POS-Setup.exe" style="color:#FF9707;font-weight:800;text-decoration:underline">Install PC App</a>`;
 }
 setInterval(() => { try{ webBanner(); }catch(e){} }, 15000);
 

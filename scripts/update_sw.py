@@ -9,3 +9,4 @@ sw = sw.replace(
 )
 sw_path.write_text(sw, encoding="utf-8")
 print("Updated sw.js to setu-pos-v79")
+
