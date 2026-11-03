@@ -1,0 +1,12 @@
+.git
+.github
+cloud
+installer
+scripts
+tests
+*.bat
+*.spec
+*.py
+*.cjs
+*.zip
+Setu-POS-Setup*
