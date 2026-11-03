@@ -5071,11 +5071,35 @@ async function srvLoad(text){
 
 // Returns true when D holds the server copy and the app can start
 async function srvInitData(){
-  if(SRV.saas && !SRV.hotel){ showConnectScreen(); return false; }
+  if(SRV.saas && !SRV.hotel){
+    if(!activeUser){
+      $('#login-screen').style.display = 'flex';
+      showLoginView('welcome');
+      return false;
+    }
+    showConnectScreen();
+    return false;
+  }
   let r;
   try{ r = await srvFetch('/api/db'); }catch(e){ srvStatus(false); return false; }
-  if(r.status === 401){ showConnectScreen(); return false; }
-  if(r.status === 404){ showConnectScreen('Hotel Code not found. Please check and try again.'); return false; }
+  if(r.status === 401){
+    if(!activeUser){
+      $('#login-screen').style.display = 'flex';
+      showLoginView('welcome');
+      return false;
+    }
+    showConnectScreen();
+    return false;
+  }
+  if(r.status === 404){
+    if(!activeUser){
+      $('#login-screen').style.display = 'flex';
+      showLoginView('welcome');
+      return false;
+    }
+    showConnectScreen('Hotel Code not found. Please check and try again.');
+    return false;
+  }
   const j = await srvLoad(await r.text());
   if(j.version === 0 || !j.data){
     if(!SRV.local && !SRV.signup){
@@ -5257,6 +5281,11 @@ async function applyCloudKeys(){
 // Phones / tablets connect once with a PIN: on the restaurant WiFi (main counter PC), or over
 // the internet to Setu Cloud, where a Hotel Code picks the hotel and new hotels can sign up.
 function showConnectScreen(msg, view){
+  if(SRV.saas && !view && !msg && !activeUser){
+    $('#login-screen').style.display = 'flex';
+    showLoginView('welcome');
+    return;
+  }
   const existingEl = $('#connect-screen');
   if(existingEl && existingEl.style.display !== 'none' && !view && !msg){
     // If the user is currently typing in an input on the connect form, do not clobber it
@@ -5812,37 +5841,25 @@ function setLoginRole(role){
 }
 
 function checkAuth(){
-  const gate1 = getGate1Session();
-  
-  // If first-time install (not registered yet), show Welcome (New User vs Existing User)
-  if(!D.auth || !D.auth.isRegistered){
-    $('#login-screen').style.display = 'flex';
-    showLoginView('welcome');
-    return false;
-  }
-
-  // If Gate-1 session missing, prompt Gate-1 Hotel Access
-  if(!gate1 || !gate1.hotelId){
-    $('#login-screen').style.display = 'flex';
-    showLoginView('gate1');
-    return false;
-  }
-
-  // Gate-1 passed; check Gate-2 (activeUser session)
+  // 1. Check if user is already logged in (saved activeUser session)
   try{
     const saved = JSON.parse(sessionStorage.getItem(AUTH_KEY) || localStorage.getItem(AUTH_KEY));
     if(saved && saved.name && (SRV.token || saved.role)){
       activeUser = saved;
       updateUserUI();
       $('#login-screen').style.display = 'none';
+      const conn = $('#connect-screen');
+      if(conn) conn.style.display = 'none';
       checkExpiryLock();
       return true;
     }
   }catch(e){}
 
-  // Gate-1 active, but staff not logged in -> show Gate-2
+  // 2. Unauthenticated: ALWAYS show the unified Onboarding screen (Existing Hotel Login / + New Hotel Setup)
   $('#login-screen').style.display = 'flex';
-  showLoginView('gate2');
+  const conn = $('#connect-screen');
+  if(conn) conn.style.display = 'none';
+  showLoginView('welcome');
   return false;
 }
 
