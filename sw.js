@@ -1,5 +1,5 @@
 // Setu - Restaurant & Hotel POS - Service Worker
-const CACHE_NAME = 'setu-pos-v78';
+const CACHE_NAME = 'setu-pos-v79';
 // Smart Food Visuals pictures never change under the same name: kept across app updates
 const FOOD_CACHE = 'setu-food-v1';
 const ASSETS = [
@@ -9,6 +9,10 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './favicon.ico',
+  './horeca-icon-dark.png',
+  './horeca-logo-full.png',
+  './horeca-icon-trans.png',
+  './horeca-logo-dark.png',
   './food/food-match.js'
 ];
 

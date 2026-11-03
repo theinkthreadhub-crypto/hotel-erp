@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HoReCa One — Hotel • Restaurant • Café</title>
+<title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title>
 <meta name="theme-color" content="#0284c7">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -688,20 +688,20 @@ select option{
   box-shadow: 0 0 0 3px rgba(16,185,129,0.18) !important;
 }
 .btn-login-gradient{
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  background: linear-gradient(135deg, #FF9707 0%, #ea580c 100%) !important;
   color: #fff !important;
-  border: none !important;
+  border: 1px solid rgba(255,151,7,0.4) !important;
   border-radius: 12px !important;
   padding: 14px 20px !important;
   font-size: 15px !important;
   font-weight: 800 !important;
   cursor: pointer !important;
-  box-shadow: 0 6px 20px rgba(16,185,129,0.35) !important;
+  box-shadow: 0 4px 14px rgba(255,151,7,0.35) !important;
   transition: all .16s ease !important;
 }
 .btn-login-gradient:hover{
   transform: translateY(-2px) !important;
-  box-shadow: 0 10px 25px rgba(16,185,129,0.45) !important;
+  box-shadow: 0 8px 24px rgba(255,151,7,0.45) !important;
 }
 
 .login-card{background:var(--panel);border-radius:18px;width:100%;max-width:440px;padding:34px 32px;box-shadow:0 25px 50px -12px rgba(0,0,0,0.45);text-align:center;position:relative}
@@ -1779,7 +1779,7 @@ html[data-theme^="horeca_"] #side .horeca-brand-icon{
 html[data-theme^="horeca_"] #side .horeca-side-brand b{
   font-size:15px;white-space:nowrap;letter-spacing:-.045em;
 }
-html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#34d399}
+html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#FF9707!important}
 html[data-theme^="horeca_"] #side .horeca-side-brand small{
   display:block;margin-top:3px;font-size:9px;letter-spacing:.07em;color:#9fb0cc;
   text-transform:uppercase;white-space:nowrap;
@@ -1805,9 +1805,10 @@ html[data-theme^="horeca_"] #side .nav-item:hover{
   background:#182b48!important;color:#fff!important
 }
 html[data-theme^="horeca_"] #side .nav-item.active{
-  background:#1457c7!important;color:#fff!important;
-  border-color:rgba(147,197,253,.21)!important;
-  box-shadow:0 3px 12px rgba(9,62,175,.20);
+  background:linear-gradient(135deg, #FF9707 0%, #ea580c 100%)!important;
+  color:#fff!important;
+  border-color:rgba(255,151,7,.3)!important;
+  box-shadow:0 4px 14px rgba(255,151,7,.35);
 }
 html[data-theme^="horeca_"] #side .nav-item.active .nav-icon{color:#fff}
 html[data-theme^="horeca_"] #side .nav-kbd{
@@ -2566,7 +2567,7 @@ html[data-theme^="horeca_"] #side .horeca-side-brand b{
   font-size:19px!important;letter-spacing:-.06em!important;color:#fff!important;
   font-weight:850;line-height:1.1
 }
-html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#34d399!important}
+html[data-theme^="horeca_"] #side .horeca-side-brand b span{color:#FF9707!important}
 html[data-theme^="horeca_"] #side .horeca-side-brand small{
   font-size:9px!important;letter-spacing:.055em;color:#94a3b8!important;margin-top:5px
 }
@@ -2597,13 +2598,11 @@ html[data-theme^="horeca_"] #side .nav-item:hover:not(.active){
 html[data-theme^="horeca_"] #side .nav-item:hover:not(.active) .nav-label{
   color:#ffffff!important
 }
-html[data-theme^="horeca_"] #side .nav-item:hover:not(.active) .nav-icon{
-  color:#34d399!important
-}
+html[data-theme^="horeca_"] #side .nav-item:hover:not(.active) .nav-icon{color:#FF9707!important}
 html[data-theme^="horeca_"] #side .nav-item.active{
-  background:linear-gradient(135deg, #059669 0%, #10b981 100%)!important;
-  color:#ffffff!important;border:1px solid rgba(255,255,255,0.22)!important;
-  font-weight:750!important;box-shadow:0 4px 14px rgba(16,185,129,0.35)!important
+  background:linear-gradient(135deg, #FF9707 0%, #ea580c 100%)!important;
+  color:#ffffff!important;border:1px solid rgba(255,151,7,0.35)!important;
+  font-weight:750!important;box-shadow:0 4px 14px rgba(255,151,7,0.35)!important
 }
 html[data-theme^="horeca_"] #side .nav-item.active .nav-icon,
 html[data-theme^="horeca_"] #side .nav-item.active .nav-label{color:#ffffff!important}
@@ -3478,14 +3477,20 @@ label {
   transition: all .16s ease !important;
 }
 
-.btn.ok, .btn-primary, .btn-login-gradient {
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
-  color: #ffffff !important;
-  border: 1px solid #047857 !important;
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.28) !important;
+.btn.ok, .btn-primary, .btn-login-gradient{
+  background: linear-gradient(135deg, #FF9707 0%, #ea580c 100%) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,151,7,0.4) !important;
+  border-radius: 12px !important;
+  padding: 14px 20px !important;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 14px rgba(255,151,7,0.35) !important;
+  transition: all .16s ease !important;
 }
 
-.btn.ok:hover, .btn-primary:hover, .btn-login-gradient:hover {
+.btn.ok:hover, .btn-primary:hover {
   background: linear-gradient(135deg, #047857 0%, #059669 100%) !important;
   box-shadow: 0 4px 12px rgba(16, 185, 129, 0.38) !important;
   transform: translateY(-1px) !important;
@@ -4042,12 +4047,13 @@ label {
     <div class="login-split-hero">
       <div>
         <div class="login-hero-header">
-          <div class="login-hero-logo">H1</div>
+          <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:54px;height:54px;border-radius:14px;box-shadow:0 6px 18px rgba(255,151,7,0.3);border:1px solid rgba(255,151,7,0.35);flex-shrink:0">
           <div class="login-hero-brand">
-            <b>HoReCa One</b>
-            <span>Hotel • Restaurant • Café · Powered by Setu Pro</span>
+            <div style="font-size:24px;font-weight:900;letter-spacing:-0.5px;color:#fff;line-height:1.1">HoReCa <span style="color:#FF9707">One</span></div>
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:0.08em;color:#b8b9be;text-transform:uppercase;margin-top:3px">HOTEL • RESTAURANT • CAFE — ERP SOFTWARE</div>
           </div>
         </div>
+        <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:6px;background:rgba(255,151,7,0.12);border:1px solid rgba(255,151,7,0.3);color:#FF9707;font-size:10px;font-weight:800;letter-spacing:0.08em;margin-top:10px">ONE PLATFORM. EVERY HOSPITALITY OPERATION.</div>
         <div class="login-hero-main">
           <h2>Enterprise Restaurant POS & Management</h2>
           <p>Calm, fast & reliable operations engineered for high-turnover dining, bars, cafés and luxury hospitality.</p>
@@ -4083,9 +4089,9 @@ label {
   <!-- VIEW 0: Frosted Glass Login (Inspired by Image 4) -->
   <div class="login-card login-glass-card" id="login-view-welcome" style="display:block;max-width:460px;width:100%">
     <div style="text-align:center;margin-bottom:18px">
-      <div style="width:58px;height:58px;border-radius:14px;background:linear-gradient(135deg, #059669 0%, #10b981 100%);box-shadow:0 6px 20px rgba(16,185,129,0.3);margin:0 auto 8px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:900;font-size:24px;border:1px solid rgba(255,255,255,0.4)">H1</div>
-      <div style="font-size:14px;font-weight:900;color:#0f172a;text-transform:uppercase;letter-spacing:1px">HoReCa One</div>
-      <div style="font-size:11px;color:#059669;font-weight:700">Hotel • Restaurant • Café · Powered by Setu Pro</div>
+      <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:64px;height:64px;border-radius:16px;box-shadow:0 8px 24px rgba(255,151,7,0.35);margin:0 auto 10px;display:block;border:1px solid rgba(255,151,7,0.4)">
+      <div style="font-size:22px;font-weight:900;color:#08080E;letter-spacing:-0.5px;line-height:1.1">HoReCa <span style="color:#FF9707">One</span></div>
+      <div style="font-size:11px;color:#64748b;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;margin-top:3px">HOTEL • RESTAURANT • CAFE — ERP SOFTWARE</div>
     </div>
 
     <!-- Onboarding Mode Switcher Tabs: Option B (Existing) & Option A (New) -->
@@ -4249,9 +4255,9 @@ label {
 
   <!-- GATE-1: Hotel Access (Hotel ID + Password) -->
   <div class="login-card" id="login-view-gate1" style="display:none;max-width:440px">
-    <img src="icon-192.png" alt="Aghanya Devanya Enterprises" style="width:68px;height:68px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.12);margin:0 auto 12px;display:block;border:1px solid #e2e8f0;background:#fff">
-    <div style="font-size:11px;font-weight:800;color:#0284c7;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">Aghanya Devanya Enterprises</div>
-    <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Gate 1 · Hotel Access</h2>
+    <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:64px;height:64px;border-radius:16px;box-shadow:0 8px 24px rgba(255,151,7,0.35);margin:0 auto 10px;display:block;border:1px solid rgba(255,151,7,0.4)">
+    <div style="font-size:20px;font-weight:900;color:#08080E;letter-spacing:-0.4px">HoReCa <span style="color:#FF9707">One</span></div>
+    <div style="font-size:11px;font-weight:800;color:#ea7e00;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px">GATE 1 · HOTEL MASTER ACCESS</div>
     <p class="subtitle" style="margin-bottom:18px">Enter Hotel ID and Master Password to open this property</p>
 
     <div id="gate1-sub-box" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between">
@@ -4271,7 +4277,7 @@ label {
       </div>
 
       <div id="gate1_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none"></div>
-      <button class="btn ok" style="width:100%;padding:12px;font-size:14px;border-radius:8px;font-weight:700" type="submit">Verify Hotel Access →</button>
+      <button class="btn btn-login-gradient" style="width:100%;padding:12px;font-size:14px;border-radius:10px;font-weight:800" type="submit">Verify Hotel Access →</button>
     </form>
 
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
@@ -4288,14 +4294,13 @@ label {
   <!-- GATE-2: Staff Member Access (PIN / Password Entry) -->
   <div class="login-card" id="login-view-gate2" style="display:none;max-width:440px">
     <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:12px">
-      <img id="gate2-hotel-logo" src="icon-192.png" alt="Hotel Logo" style="width:48px;height:48px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border:1px solid #e2e8f0;background:#fff">
+      <img id="gate2-hotel-logo" src="horeca-icon-dark.png" alt="HoReCa One" style="width:48px;height:48px;border-radius:12px;box-shadow:0 4px 12px rgba(255,151,7,0.3);border:1px solid rgba(255,151,7,0.35)">
       <div style="text-align:left">
-        <h2 id="gate2-hotel-name" style="font-size:18px;margin:0;color:#0f172a">Restaurant POS</h2>
-        <span class="status-pill" style="font-size:10px;padding:1px 6px;background:#e0f2fe;color:#0369a1;font-weight:700">Hotel ID: <b id="gate2-hotel-id">SETU001</b></span>
+        <h2 id="gate2-hotel-name" style="font-size:18px;margin:0;color:#08080E;font-weight:900">HoReCa One</h2>
+        <span class="status-pill" style="font-size:10px;padding:2px 8px;background:rgba(255,151,7,0.15);color:#ea7e00;border:1px solid rgba(255,151,7,0.35);font-weight:800;border-radius:6px">Hotel ID: <b id="gate2-hotel-id">SETU001</b></span>
       </div>
     </div>
-    
-    <div style="font-size:11px;font-weight:700;color:#0284c7;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:4px">Gate 2 · Staff Access</div>
+    <div style="font-size:11px;font-weight:800;color:#ea7e00;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:4px">GATE 2 · STAFF ACCESS</div>
     <p class="subtitle" style="margin-bottom:14px">Enter your Staff PIN to access the billing counter</p>
 
     <!-- License Status Banner -->
@@ -4316,7 +4321,7 @@ label {
       </div>
 
       <div id="gate2_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none">Incorrect Staff PIN. Please try again.</div>
-      <button class="btn ok" style="width:100%;padding:12px;font-size:14px;border-radius:8px;font-weight:700" type="submit">Sign In to POS Counter</button>
+      <button class="btn btn-login-gradient" style="width:100%;padding:12px;font-size:14px;border-radius:10px;font-weight:800" type="submit">Sign In to POS Counter</button>
     </form>
 
     <div style="margin-top:14px;text-align:center;font-size:12px">
@@ -4348,7 +4353,7 @@ label {
 <!-- Strict Full-Screen Lock Overlay Screen (When 30-Day License is Expired) -->
 <div id="lock-screen">
   <div class="login-card" style="max-width:480px;border:1.5px solid rgba(239,68,68,0.4);box-shadow:0 25px 60px -10px rgba(239,68,68,0.3)">
-    <img src="icon-192.png" alt="Aghanya Devanya Enterprises" style="width:72px;height:72px;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,0.2);margin:0 auto 12px;display:block;border:1px solid #e2e8f0;background:#fff">
+    <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:68px;height:68px;border-radius:16px;box-shadow:0 8px 24px rgba(255,151,7,0.35);margin:0 auto 12px;display:block;border:1px solid rgba(255,151,7,0.4)">
     
     <div class="lic-badge">
       <span class="dot"></span>
@@ -4379,7 +4384,7 @@ label {
         <input id="lock_input_key" required placeholder="SETU-XXXXXXXX-... (paste the full key)" class="key-input" style="padding:11px 14px;font-size:15px">
       </div>
       <div id="lock_err" style="color:var(--bad);background:#fee2e2;border:1px solid #fca5a5;padding:8px 12px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px;display:none">Invalid or expired key. Please enter a valid key.</div>
-      <button class="btn ok" style="width:100%;padding:12px;font-size:14px;font-weight:700;border-radius:8px" type="submit">Verify Key & Unlock Software</button>
+      <button class="btn btn-login-gradient" style="width:100%;padding:12px;font-size:14px;font-weight:800;border-radius:10px" type="submit">Verify Key & Unlock Software</button>
     </form>
 
     <div style="margin-top:16px;font-size:11px;color:#94a3b8">
@@ -4392,11 +4397,11 @@ label {
 <header id="top">
   <button id="sidebtn" onclick="toggleHoReCaSidebar()" title="Toggle Sidebar (Expanded / Compact / Full Screen)">☰</button>
   <div class="brand-wrap" onclick="go('gateway')" title="HoReCa One — Hotel • Restaurant • Café (Powered by Setu Pro)">
-    <div class="horeca-logo-pill" style="width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg, #059669 0%, #10b981 100%);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(16,185,129,0.35);color:#fff;font-weight:900;font-size:15px;letter-spacing:-0.5px">H1</div>
+    <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:36px;height:36px;border-radius:10px;box-shadow:0 3px 10px rgba(255,151,7,0.3);flex-shrink:0;border:1px solid rgba(255,151,7,0.25)">
     <div style="display:flex;flex-direction:column;line-height:1.15">
       <div style="display:flex;align-items:center;gap:6px">
-        <b id="hname" style="font-weight:800;letter-spacing:-0.2px">HoReCa One</b>
-        <span class="horeca-sub-badge" style="font-size:9px;font-weight:800;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.35);padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:0.4px">Setu Pro</span>
+        <b id="hname" style="font-weight:900;letter-spacing:-0.3px;color:#fff">HoReCa <span style="color:#FF9707">One</span></b>
+        <span class="horeca-sub-badge" style="font-size:9px;font-weight:800;background:rgba(255,151,7,0.18);color:#FF9707;border:1px solid rgba(255,151,7,0.4);padding:1px 5px;border-radius:4px;text-transform:uppercase;letter-spacing:0.5px">ERP</span>
       </div>
       <span class="brand-sub" id="hsub" style="font-size:10px;font-weight:600;color:#94a3b8">Hotel • Restaurant • Café</span>
     </div>
@@ -5332,8 +5337,9 @@ function showConnectScreen(msg, view){
     document.body.appendChild(el);
   }
   const note = msg ? `<div style="background:#fef3c7;border:1px solid #fde68a;color:#92400e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:12px">${esc(msg)}</div>` : '';
-  const head = (title, sub) => `<img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px;margin:0 auto 10px;display:block;border:1px solid #e2e8f0;background:#fff">
-      <h2>${title}</h2><p class="subtitle">${sub}</p>${note}`;
+  const head = (title, sub) => `<img src="horeca-icon-dark.png" alt="HoReCa One" style="width:64px;height:64px;border-radius:16px;box-shadow:0 8px 24px rgba(255,151,7,0.35);margin:0 auto 10px;display:block;border:1px solid rgba(255,151,7,0.4)">
+      <div style="font-size:22px;font-weight:900;color:#08080E;letter-spacing:-0.5px;margin-bottom:2px">HoReCa <span style="color:#FF9707">One</span></div>
+      <h2 style="font-size:16px;font-weight:800;color:#475569;margin:0 0 4px">${title}</h2><p class="subtitle" style="font-size:12.5px;color:#64748b;margin:0 0 14px">${sub}</p>${note}`;
   const foot = '<div style="margin-top:14px;font-size:11px;color:#64748b">Powered by <strong>Aghanya Devanya Enterprises</strong></div>';
   const errBox = '<div id="connect_err" style="color:var(--bad);font-size:12px;font-weight:600;margin-bottom:10px;display:none"></div>';
   const fail = t => { const e = $('#connect_err'); e.textContent = t; e.style.display = 'block'; };
@@ -5401,7 +5407,7 @@ function showConnectScreen(msg, view){
   }
 
   el.innerHTML = `<div class="login-card">
-      ${head(SRV.hostLocked ? esc(SRV.hotelName || 'Setu') : SRV.saas ? 'Hotel Setu Cloud — Login' : 'Setu — Device Connect', SRV.cloud ? 'This phone / tablet will connect to Hotel Setu Cloud over the internet' : 'This phone / tablet will connect to the Main Counter PC (restaurant Wi-Fi)')}
+      ${head(SRV.hostLocked ? esc(SRV.hotelName || 'HoReCa One') : SRV.saas ? 'HoReCa One Cloud — Login' : 'HoReCa One — Device Connect', SRV.cloud ? 'This phone / tablet will connect to Hotel Setu Cloud over the internet' : 'This phone / tablet will connect to the Main Counter PC (restaurant Wi-Fi)')}
       <form id="connect-form" style="text-align:left">
         ${SRV.saas && !SRV.hostLocked ? `<div class="login-field"><label>Hotel Code</label><input id="connect_hotel" required placeholder="e.g. SHARM482" value="${esc(SRV.hotel || lsGet(HOTEL_KEY) || '')}" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase"></div>` : ''}
         <div class="login-field">
@@ -5409,7 +5415,7 @@ function showConnectScreen(msg, view){
           <input id="connect_pin" type="password" required placeholder="PIN" autocomplete="off">
         </div>
         ${errBox}
-        <button class="btn ok" style="width:100%;padding:12px;font-size:14px" type="submit">${SRV.saas ? 'Login' : 'Connect'}</button>
+        <button class="btn btn-login-gradient" style="width:100%;padding:12px;font-size:14px;border-radius:10px;font-weight:800" type="submit">${SRV.saas ? 'Login to HoReCa One' : 'Connect'}</button>
       </form>
       ${SRV.saas && !SRV.hostLocked && SRV.signupOpen ? '<p style="font-size:13px;margin:12px 0 0">New hotel? <a href="#" id="to-signup"><b>Sign Up (with Master Key)</b></a></p>' : ''}
       ${foot}
@@ -7889,8 +7895,8 @@ function drawSide(){
   const can = m => screenOn(m[2]) && (m[2] === 'guide' || !allowed.length || isManager() || allowed.includes(m[2]));
   let html = `
     <div class="horeca-side-brand" aria-label="HoReCa One — Hotel Restaurant Café">
-      <div class="horeca-brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9"><path d="M5 20V8l7-5 7 5v12M2 20h20M9 20v-6h6v6M9 10h.01M15 10h.01"/></svg></div>
-      <div><b>HoReCa <span>One</span></b><small>Hotel · Restaurant · Café</small></div>
+      <img src="horeca-icon-dark.png" alt="HoReCa One" style="width:38px;height:38px;border-radius:10px;box-shadow:0 3px 10px rgba(255,151,7,0.3);flex:0 0 38px;border:1px solid rgba(255,151,7,0.3)">
+      <div><b>HoReCa <span style="color:#FF9707">One</span></b><small style="color:#94a3b8">HOTEL • RESTAURANT • CAFE</small></div>
     </div>
     <button class="nav-item ${cur==='gateway'?'active':''}" onclick="go('gateway')" title="Gateway Command Center (Esc)">
       <span class="nav-icon">${MENU_ICONS.gateway}</span>
@@ -8859,14 +8865,14 @@ function dzBars(rows, {h = 190, c1 = 'var(--primary)', c2 = 'var(--border)', col
     ${[0, .5, 1].map(f => `<line x1="28" x2="${W}" y1="${y(mx * f)}" y2="${y(mx * f)}" stroke="currentColor" stroke-opacity=".1"/><text x="0" y="${y(mx * f) + 3}" font-size="9" fill="currentColor" opacity=".55">${shortMoney(mx * f)}</text>`).join('')}
     ${rows.map((r, i) => { const x = 30 + i * step + step / 2, two = r.length > 2;
       return `${two ? `<rect x="${x + 1}" y="${y(r[2])}" width="${w}" height="${Math.max(2, H - 22 - y(r[2]))}" rx="${w / 2}" fill="${c2}"/>` : ''}
-      <rect x="${two ? x - w - 1 : x - w / 2}" y="${y(r[1])}" width="${w}" height="${Math.max(2, H - 22 - y(r[1]))}" rx="${w / 2}" fill="${colors ? colors[i % colors.length] : c1}"><title>${esc(r[0])}: ${money(r[1])}</title></rect>
+      <rect x="${two ? x - w - 1 : x - w / 2}" y="${y(r[1])}" width="${w}" height="${Math.max(2, H - 22 - y(r[1]))}" rx="${w / 2}" fill="${colors ? colors[i % colors.length] : c1}"><title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title></rect>
       ${tip && i === mi && r[1] ? `<rect x="${x - 30}" y="${y(r[1]) - 28}" width="60" height="20" rx="10" fill="${c1}"/><text x="${x}" y="${y(r[1]) - 14}" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">${shortMoney(r[1])}</text>` : ''}
       <text x="${x}" y="${H - 6}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">${esc(r[0])}</text>`; }).join('')}</svg>`;
 }
 function dzDonut(parts, {size = 150, hole = .62, center = ''} = {}){
   const tot = parts.reduce((a, p) => a + p[1], 0), R = 29 * (1 + hole), SW = 58 * (1 - hole), C = 2 * Math.PI * R;
   let off = 0;
-  const arcs = tot ? parts.filter(p => p[1] > 0).map(p => { const l = p[1] / tot * C, el = `<circle r="${R}" cx="60" cy="60" fill="none" stroke="${p[2]}" stroke-width="${SW}" stroke-dasharray="${l} ${C - l}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"><title>${esc(p[0])}: ${money(p[1])}</title></circle>`; off += l; return el; }).join('')
+  const arcs = tot ? parts.filter(p => p[1] > 0).map(p => { const l = p[1] / tot * C, el = `<circle r="${R}" cx="60" cy="60" fill="none" stroke="${p[2]}" stroke-width="${SW}" stroke-dasharray="${l} ${C - l}" stroke-dashoffset="${-off}" transform="rotate(-90 60 60)"><title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title></circle>`; off += l; return el; }).join('')
     : `<circle r="${R}" cx="60" cy="60" fill="none" stroke="currentColor" stroke-opacity=".12" stroke-width="${SW}"/>`;
   return `<div class="dz-donut"><svg viewBox="0 0 120 120" width="${size}" height="${size}">${arcs}<text x="60" y="64" text-anchor="middle" font-size="13" font-weight="800" fill="currentColor">${center}</text></svg>
     <div>${parts.map(p => `<div class="dz-leg"><i style="background:${p[2]}"></i><span>${esc(p[0])}</span><b>${tot ? Math.round(p[1] / tot * 100) : 0}%</b></div>`).join('')}</div></div>`;
@@ -9747,8 +9753,8 @@ function svgBars(data, h = 170, two){
   const y = v => h - 22 - (v / max) * (h - 34);
   const grid = [0, .5, 1].map(f => `<line x1="${P}" x2="${W}" y1="${y(max * f)}" y2="${y(max * f)}" stroke="${CH.grid}"/><text x="${P - 4}" y="${y(max * f) + 4}" font-size="10" text-anchor="end" fill="${CH.text}">${shortMoney(max * f)}</text>`).join('');
   const bars = data.map((d, i) => { const x = P + 3 + i * bw, w = two ? (bw - 6) / 2 : bw - 6;
-    return `<rect x="${x}" y="${y(d[1])}" width="${Math.max(1, w)}" height="${h - 22 - y(d[1])}" rx="2" fill="${CH.bar}"><title>${esc(d[0])}: ${money(d[1])}</title></rect>`
-      + (two ? `<rect x="${x + w + 2}" y="${y(d[2])}" width="${Math.max(1, w)}" height="${h - 22 - y(d[2])}" rx="2" fill="${CH.bar2}"><title>${esc(d[0])}: ${money(d[2])}</title></rect>` : '')
+    return `<rect x="${x}" y="${y(d[1])}" width="${Math.max(1, w)}" height="${h - 22 - y(d[1])}" rx="2" fill="${CH.bar}"><title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title></rect>`
+      + (two ? `<rect x="${x + w + 2}" y="${y(d[2])}" width="${Math.max(1, w)}" height="${h - 22 - y(d[2])}" rx="2" fill="${CH.bar2}"><title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title></rect>` : '')
       + ((data.length <= 16 || i % Math.ceil(data.length / 12) === 0) ? `<text x="${x + (bw - 6) / 2}" y="${h - 6}" font-size="10" text-anchor="middle" fill="${CH.text}">${esc(d[0])}</text>` : ''); }).join('');
   return `<svg viewBox="0 0 ${W} ${h}" style="width:100%;height:auto;display:block" role="img">${grid}${bars}</svg>`;
 }
@@ -15266,7 +15272,7 @@ function dlMenuPage(){
     menu: D.menu.map(m => ({n: m.name, c: m.cat || 'General', p: +m.price}))
   }).replace(/</g, '\\u003c');
   const html = ['<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">',
-'<title>Menu</title><style>',
+'<title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title><style>',
 '*{box-sizing:border-box}body{margin:0;font:15px/1.4 system-ui,Segoe UI,Arial,sans-serif;background:#f8fafc;color:#0f172a;padding-bottom:90px}',
 'header{background:#0f172a;color:#fff;padding:16px;text-align:center}header h1{margin:0;font-size:22px}header p{margin:4px 0 0;opacity:.8;font-size:13px}',
 '.tb{display:inline-block;background:#38bdf8;color:#0f172a;font-weight:700;border-radius:12px;padding:2px 12px;margin-top:8px}',
