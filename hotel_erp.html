@@ -6759,18 +6759,41 @@ async function handleSignUpSubmit(e){
 }
 
 function finishLogin(){
-  sessionStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
-  localStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
-  audit('Login', `${activeUser.name} (${activeUser.access || activeUser.role})`);
-  save();
-  updateUserUI();
-  $('#login-screen').style.display = 'none';
-  toast('Welcome, ' + activeUser.name + '!');
+  try {
+    sessionStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
+    localStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
+  } catch(e){}
 
-  if(checkExpiryLock()){
-    return;
+  try {
+    audit('Login', `${activeUser.name} (${activeUser.access || activeUser.role})`);
+  } catch(e){}
+
+  try {
+    save();
+  } catch(e){}
+
+  try {
+    updateUserUI();
+  } catch(e){}
+
+  try {
+    const loginScreen = $('#login-screen');
+    if(loginScreen) loginScreen.style.display = 'none';
+  } catch(e){}
+
+  toast('Welcome, ' + (activeUser ? activeUser.name : 'User') + '!');
+
+  try {
+    if(checkExpiryLock()){
+      return;
+    }
+  } catch(e){}
+
+  try {
+    go(activeUser && activeUser.access === 'captain' ? 'captain' : 'gateway');
+  } catch(e){
+    console.error('Error opening gateway:', e);
   }
-  go(activeUser.access === 'captain' ? 'captain' : 'gateway');
 }
 
 function logoutStaff(){
@@ -6808,10 +6831,11 @@ function logout(){
 }
 
 function updateUserUI(){
-  if(activeUser){
-    $('#top_user_name').textContent = activeUser.name;
-    $('#top_user_role').textContent = activeUser.role === 'admin' ? 'Manager' : 'Cashier';
-  }
+  if(!activeUser) return;
+  const nameEl = $('#top_user_name') || $('#uname');
+  if(nameEl) nameEl.textContent = activeUser.name;
+  const roleEl = $('#top_user_role') || $('#urole');
+  if(roleEl) roleEl.textContent = (activeUser.role === 'admin' || activeUser.access === 'admin') ? 'Manager' : (activeUser.role || 'Staff');
 }
 
 /* ================= STRICT 30-DAY EXPIRY & LOCK MANAGEMENT ================= */
