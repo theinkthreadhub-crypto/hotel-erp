@@ -6442,6 +6442,17 @@ function getSubscriptionInfo(){
 
   const validUntil = D.subscription.validUntil;
   if(!validUntil){
+    if(D.subscription.cloud && (D.subscription.status === 'active' || D.subscription.status === 'lifetime')){
+      D.subscription.validUntil = new Date(Date.now() + 365*86400000).toISOString().slice(0, 10);
+      return {
+        ...D.subscription,
+        daysLeft: 365,
+        isExpired: false,
+        isExpiring: false,
+        isLifetime: false,
+        status: 'active'
+      };
+    }
     return {
       ...D.subscription,
       daysLeft: 0,
@@ -6551,6 +6562,17 @@ function fillInstallIds(){
 }
 
 function checkExpiryLock(){
+  // If active cloud subscription on Cloudflare SaaS, ensure lock screen is hidden and active
+  if(D.subscription && D.subscription.cloud && (D.subscription.status === 'active' || D.subscription.status === 'lifetime')){
+    const validUntil = D.subscription.validUntil;
+    if(!validUntil || validUntil < new Date().toISOString().slice(0, 10)){
+      D.subscription.validUntil = new Date(Date.now() + 365*86400000).toISOString().slice(0, 10);
+      save();
+    }
+    hideLockScreen();
+    updateSubscriptionUI();
+    return false;
+  }
   const s = getSubscriptionInfo();
   const lockEl = $('#lock-screen');
   updateSubscriptionUI();
@@ -21853,9 +21875,23 @@ async function handleUnifiedLogin(e){
 
     if(!D.subscription) D.subscription = {};
     D.subscription.status = 'active';
-    if(j.paidUntil) D.subscription.validUntil = new Date(j.paidUntil).toISOString();
-
+    D.subscription.cloud = true;
+    if(j.lifetime){
+      D.subscription.isLifetime = true;
+      D.subscription.validUntil = '2099-12-31';
+      D.subscription.planName = 'Lifetime Enterprise License';
+    } else if(j.paidUntil){
+      const d = new Date(j.paidUntil);
+      D.subscription.validUntil = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : new Date(Date.now() + 365*86400000).toISOString().slice(0, 10);
+      D.subscription.planName = 'HoReCa One Cloud License';
+    } else {
+      D.subscription.validUntil = new Date(Date.now() + 365*86400000).toISOString().slice(0, 10);
+      D.subscription.planName = 'HoReCa One Cloud License';
+    }
+    delete D.subscription.lastSeen;
+    delete D.subscription.clockTampered;
     save();
+    hideLockScreen();
 
     activeUser = {
       name: j.owner || j.name || username,

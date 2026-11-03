@@ -872,8 +872,9 @@ export class SetuHotel extends DurableObject {
     // Hotel without a counter PC (made in Super Admin, used on phones): its licence is the cloud period, set only
     // here (the cloud's clock decides; phones never write it)
     if(a.plan !== 'counter'){
-      const sub = { validUntil: a.lifetime ? '2099-12-31' : istDay(a.paidUntil || 0), isLifetime: !!a.lifetime, cloud: true,
-        planName: a.lifetime ? 'Lifetime (Hotel Setu Cloud)' : 'Hotel Setu Cloud', status: a.lifetime ? 'lifetime' : 'active' };
+      const paidTs = (a.paidUntil && a.paidUntil > Date.now()) ? a.paidUntil : (a.status === 'active' ? (Date.now() + 365 * DAY) : a.paidUntil);
+      const sub = { validUntil: a.lifetime ? '2099-12-31' : istDay(paidTs || (Date.now() + 30 * DAY)), isLifetime: !!a.lifetime, cloud: true,
+        planName: a.lifetime ? 'Lifetime (HoReCa One Cloud)' : 'HoReCa One Cloud', status: a.lifetime ? 'lifetime' : 'active' };
       Object.keys(sub).forEach(k => { if(d.subscription[k] !== sub[k]){ d.subscription[k] = sub[k]; changed = true; } });
       if('lastSeen' in d.subscription){ delete d.subscription.lastSeen; changed = true; }
     }
@@ -1676,6 +1677,9 @@ export class SetuHotel extends DurableObject {
       }
 
       const token = this.newToken('admin', this.account.owner || b.username || 'Admin');
+      const paidUntil = (this.account.paidUntil && this.account.paidUntil > Date.now())
+        ? this.account.paidUntil
+        : (this.account.status === 'active' ? (Date.now() + 365 * DAY) : (this.account.paidUntil || (Date.now() + 30 * DAY)));
       return json(200, {
         ok: true,
         token,
@@ -1685,6 +1689,8 @@ export class SetuHotel extends DurableObject {
         owner: this.account.owner,
         phone: this.account.phone,
         status: this.account.status,
+        paidUntil,
+        lifetime: !!this.account.lifetime,
         syncKey: this.account.syncKey,
         saas: saasView(this.account)
       });
