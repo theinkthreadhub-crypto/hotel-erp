@@ -155,3 +155,4 @@ print(f"Patched webBanner (count: {count})")
 
 html_path.write_text(content, encoding="utf-8")
 print(f"Done! New file length: {len(content)}")
+

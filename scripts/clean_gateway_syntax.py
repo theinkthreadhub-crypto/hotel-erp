@@ -35,3 +35,4 @@ scr_gateway_clean = """function scrGateway(){
 new_lines = lines[:start_idx] + [scr_gateway_clean] + lines[end_idx:]
 html_path.write_text("".join(new_lines), encoding="utf-8")
 print(f"Cleaned scrGateway! New total lines: {len(new_lines)}")
+

@@ -3,8 +3,11 @@
 name = "setu-cloud"
 main = "src/worker.js"
 compatibility_date = "2025-09-01"
-# Like Library ERP: settings added in the Cloudflare dashboard survive a deploy from GitHub
 keep_vars = true
+
+workers_dev = true
+# routes = [ { pattern = "hotel.setupro.in/*", zone_name = "setupro.in" } ]
+
 
 # App files + vendor admin page. "npm run assets" copies an allow-list into ./public.
 [assets]
@@ -31,10 +34,10 @@ PLANS = """{
 #   (add the route below as well). APP_HOST: the main app address, e.g. "app.setupro.in".
 # SAAS_CNAME_TARGET: where a hotel's own domain must point (Cloudflare for SaaS fallback origin),
 #   e.g. "customers.setupro.in". Custom domains also need secrets CF_API_TOKEN + CF_ZONE_ID.
-BASE_DOMAIN = ""
-APP_HOST = ""
+BASE_DOMAIN = "setupro.in"
+APP_HOST = "hotel.setupro.in"
 SAAS_CNAME_TARGET = ""
-# routes = [ { pattern = "app.setupro.in", custom_domain = true }, { pattern = "*.setupro.in/*", zone_name = "setupro.in" } ]
+
 
 # Secrets (npm run secret <NAME>): LICENSE_PRIVATE_KEY (npm run license-key), ADMIN_KEY,
 # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, RAZORPAY_WEBHOOK_SECRET, CF_API_TOKEN, CF_ZONE_ID
