@@ -35,3 +35,4 @@ food/thumb/[0-9]*.jpg
 food/thumb/[0-9]*.webp
 whatsapp/setu-whatsapp.log
 
+.vercel

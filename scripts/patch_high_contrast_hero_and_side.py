@@ -122,3 +122,4 @@ if '</style>' in c:
 
 p.write_text(c, encoding="utf-8")
 print(f"Patched successfully! Length: {len(c)}")
+
