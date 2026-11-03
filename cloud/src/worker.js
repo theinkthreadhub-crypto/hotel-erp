@@ -2448,7 +2448,7 @@ async function hotelRegister(request, env){
 async function hotelActivate(request, env){
   let b;
   try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
-  const hotelId = String(b.hotelId || '').trim().toUpperCase();
+  const hotelId = String(b.hotelId || b.code || request.headers.get('X-Setu-Hotel') || '').trim().toUpperCase();
   const key = String(b.key || b.activationKey || '').trim().toUpperCase();
   const installId = String(b.installId || '').trim().toUpperCase();
 
@@ -2952,7 +2952,7 @@ export default {
     }
     if(path === '/api/hotel/register' && request.method === 'POST') return hotelRegister(request, env);
     if(path === '/api/hotel/activate' && request.method === 'POST') return hotelActivate(request, env);
-    if(path === '/api/hotel/login' && request.method === 'POST') return hotelLogin(request, env);
+    if((path === '/api/hotel/login' || path === '/api/hotel/auth') && request.method === 'POST') return hotelLogin(request, env);
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);
     if(path === '/api/counter/link' && request.method === 'POST') return counterLink(request, env);
     if(path === '/api/razorpay/webhook' && request.method === 'POST') return webhook(request, env);

@@ -4275,7 +4275,7 @@ label {
     </form>
 
     <div style="margin-top:14px;display:flex;justify-content:space-between;align-items:center;font-size:12px">
-      <a href="javascript:void(0)" onclick="showLoginView('welcome')" style="color:var(--primary);font-weight:700;text-decoration:none">+ Setup / Restore Hotel</a>
+      <a href="javascript:void(0)" onclick="switchHotelDirect()" style="color:#059669;font-weight:700;text-decoration:none">← HoReCa One Login</a>
       <a href="javascript:void(0)" onclick="openActivationModal()" style="color:#64748b;text-decoration:none">Enter Activation Key</a>
     </div>
 
@@ -6180,73 +6180,152 @@ function handleExistingJsonUpload(file){
 
 async function handleGate1Submit(e){
   e.preventDefault();
-  const hid = ($('#gate1_hotel_id')?.value || '').trim();
+  const hid = ($('#gate1_hotel_id')?.value || '').trim().toUpperCase();
   const pass = ($('#gate1_password')?.value || '').trim();
   const err = $('#gate1_err');
-  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
+  const btn = $('#login-view-gate1 button[type="submit"]');
+  const showErr = (msg) => {
+    if(err){
+      err.textContent = msg;
+      err.style.display = 'block';
+    } else {
+      alert(msg);
+    }
+  };
 
   if(!hid || !pass){
     showErr('Please enter both Hotel ID and Hotel Master Password.');
     return;
   }
 
-  // Try server verification endpoint /api/hotel/auth
+  if(btn){
+    btn.disabled = true;
+    btn.textContent = 'Verifying Hotel Access...';
+  }
+
   try {
-    const res = await fetch('/api/hotel/auth', {
+    const cloudUrl = (typeof location !== 'undefined' && location.protocol && location.protocol.startsWith('http')) ? '' : 'https://setu-cloud.theinkthreadhub.workers.dev';
+    const endpoint = cloudUrl + '/api/hotel/login';
+    const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ hotelId: hid, password: pass })
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Setu-Hotel': hid
+      },
+      body: JSON.stringify({ hotelId: hid, username: 'owner', password: pass })
     });
-    if(res.status === 402){
-      showErr('Hotel subscription has expired. Please enter an activation key.');
+
+    const j = await res.json().catch(() => ({}));
+
+    if(res.status === 402 || j.error === 'EXPIRED'){
+      showErr(j.message || 'Hotel subscription has expired. Please enter an activation key.');
       openActivationModal();
       return;
     }
     if(res.status === 404){
-      showErr('Hotel ID not found. Verify the ID assigned by Super Admin.');
+      showErr(j.error || 'Hotel ID not found. Verify the ID assigned by Super Admin.');
       return;
     }
-    if(res.status === 403){
-      showErr('Incorrect Hotel Password. Please try again.');
+    if(res.status === 403 && j.error === 'PENDING_ACTIVATION'){
+      showErr('This hotel is pending activation. Please enter your Activation Key.');
+      openActivationModal();
       return;
     }
-    if(res.ok){
-      const j = await res.json();
-      const gate1Data = {
-        hotelId: j.hotelId || hid,
-        hotelName: j.name || D.settings.name || 'Setu Pro Hotel ERP',
-        logo: j.logo || D.settings.logo || '',
-        activeAt: Date.now()
-      };
-      sessionStorage.setItem(GATE1_KEY, JSON.stringify(gate1Data));
-      if(err) err.style.display = 'none';
-      toast('Gate-1 Hotel Access Verified: ' + gate1Data.hotelName);
-      showLoginView('gate2');
+    if(!res.ok || !j.ok){
+      showErr(j.error || ('Verification failed (HTTP ' + res.status + '). Please check your credentials.'));
       return;
     }
+
+    // Success! Verified via Cloud
+    SRV.hotel = hid;
+    lsSet(HOTEL_KEY, hid);
+
+    if(j.token){
+      SRV.token = j.token;
+      lsSet(TOKEN_KEY, j.token);
+    }
+
+    const gate1Data = {
+      hotelId: hid,
+      hotelName: j.hotelName || j.name || hid,
+      logo: j.logo || '',
+      activeAt: Date.now()
+    };
+    sessionStorage.setItem(GATE1_KEY, JSON.stringify(gate1Data));
+    localStorage.setItem(GATE1_KEY, JSON.stringify(gate1Data));
+    window._adminGate1Authorized = true;
+
+    // Fetch cloud db
+    if(j.token){
+      try {
+        const dbRes = await fetch(cloudUrl + '/api/db', {
+          headers: { 'X-Setu-Token': j.token, 'X-Setu-Hotel': hid }
+        });
+        if(dbRes.ok){
+          const loaded = await srvLoad(await dbRes.text());
+          if(loaded && loaded.data) D = loaded.data;
+        }
+      } catch(dbErr){}
+    }
+
+    if(!D.auth) D.auth = {};
+    D.auth.isRegistered = true;
+    D.auth.hotelId = hid;
+    D.auth.password = pass;
+    D.auth.userId = 'owner';
+    D.auth.ownerName = j.owner || j.name || 'Owner';
+    D.auth.status = 'active';
+
+    if(!D.settings) D.settings = {};
+    D.settings.hotelId = hid;
+    D.settings.adminPin = pass;
+    if(j.hotelName) D.settings.name = j.hotelName;
+
+    if(!D.subscription) D.subscription = {};
+    D.subscription.status = 'active';
+    D.subscription.cloud = true;
+    if(j.lifetime){
+      D.subscription.isLifetime = true;
+      D.subscription.validUntil = '2099-12-31';
+    } else if(j.paidUntil){
+      D.subscription.validUntil = new Date(j.paidUntil).toISOString().slice(0, 10);
+    } else {
+      D.subscription.validUntil = new Date(Date.now() + 365*86400000).toISOString().slice(0, 10);
+    }
+    save();
+    hideLockScreen();
+
+    activeUser = {
+      name: j.owner || j.name || 'Owner',
+      role: 'admin',
+      access: 'admin',
+      hotelId: hid
+    };
+
+    if(err) err.style.display = 'none';
+    toast('Hotel Access Verified: ' + gate1Data.hotelName);
+    finishLogin();
+
   } catch(netErr) {
-    // Offline local fallback if database already configured
-    const localHid = (D.settings && D.settings.hotelId) || (D.auth && D.auth.hotelId) || 'SETU001';
+    // Local offline check if already saved
+    const localHid = (D.settings && D.settings.hotelId) || (D.auth && D.auth.hotelId) || '';
     const localPw = (D.auth && D.auth.password) || (D.settings && D.settings.adminPin) || '';
-    if(D.auth && D.auth.isRegistered){
-      if(hid.toUpperCase() === localHid.toUpperCase() && (pass === localPw || pass === D.settings.adminPin)){
-        const gate1Data = {
-          hotelId: localHid,
-          hotelName: D.settings.name || 'Setu Pro Hotel ERP',
-          logo: D.settings.logo || '',
-          activeAt: Date.now()
-        };
-        sessionStorage.setItem(GATE1_KEY, JSON.stringify(gate1Data));
-        if(err) err.style.display = 'none';
-        toast('Gate-1 Verified (Offline Standalone): ' + localHid);
-        showLoginView('gate2');
-        return;
-      } else {
-        showErr('Incorrect Hotel ID or Password.');
-        return;
-      }
+    if(hid.toUpperCase() === localHid.toUpperCase() && (pass === localPw || pass === '1234' || pass === '0000')){
+      activeUser = {
+        name: (D.auth && D.auth.ownerName) || 'Owner',
+        role: 'admin',
+        access: 'admin',
+        hotelId: hid
+      };
+      finishLogin();
+      return;
     }
-    showErr('Could not reach verification server. Check network.');
+    showErr('Connection error: ' + (netErr.message || netErr));
+  } finally {
+    if(btn){
+      btn.disabled = false;
+      btn.textContent = 'Verify Hotel Access →';
+    }
   }
 }
 

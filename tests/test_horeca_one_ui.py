@@ -99,7 +99,7 @@ class HoReCaOneStaticChecks(unittest.TestCase):
         self.assertIn("HoReCa One", manifest["name"])
         self.assertIn("HoReCa One", manifest["short_name"])
         sw = (ROOT / "sw.js").read_text(encoding="utf-8")
-        self.assertTrue("setu-pos-v69" in sw or "setu-pos-v70" in sw or "setu-pos-v71" in sw or "setu-pos-v72" in sw or "setu-pos-v73" in sw or "setu-pos-v74" in sw or "setu-pos-v75" in sw or "setu-pos-v76" in sw or "setu-pos-v77" in sw, "Cache name must follow versioning")
+        self.assertTrue("setu-pos-v69" in sw or "setu-pos-v70" in sw or "setu-pos-v71" in sw or "setu-pos-v72" in sw or "setu-pos-v73" in sw or "setu-pos-v74" in sw or "setu-pos-v75" in sw or "setu-pos-v76" in sw or "setu-pos-v77" in sw or "setu-pos-v78" in sw, "Cache name must follow versioning")
         self.assertIn("hotel_erp.html", sw)
 
     @unittest.skipUnless(shutil.which("node"), "Node.js unavailable")
