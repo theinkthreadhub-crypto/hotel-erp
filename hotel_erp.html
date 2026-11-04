@@ -11341,14 +11341,40 @@ function scrBill(){
   const isCurrentTableKaccha = !!D.kaccha[B.table];
 
   main.innerHTML = `
-  <div class="title horeca-pos-title">
-    <div style="display:flex;align-items:center;gap:10px">
+  <div class="title horeca-pos-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span>Billing Desk <small class="horeca-pos-kicker">POS / RESTAURANT OPERATIONS</small></span>
-      <span class="status-pill" style="font-size:11px">
-        ${B.channel === 'Dine-In' ? (isCurrentTableKaccha ? 'Running Order' : 'Dine-In Table') :
-          B.channel === 'Takeaway' ? 'Parcel Order' :
-          B.channel === 'Zomato' ? 'Zomato Direct Punch' : 'Swiggy Direct Punch'}
-      </span>
+      
+      <!-- Dine-In Table No Selector right next to Dine-In -->
+      ${B.channel === 'Dine-In' ? `
+        <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);padding:3px 10px;border-radius:9px">
+          <span style="font-size:11px;font-weight:750;color:#94a3b8;text-transform:uppercase;letter-spacing:.5px">🍽️ Dine-In</span>
+          <span style="font-size:12px;font-weight:700;color:#cbd5e1">Table No:</span>
+          <select id="pos_top_table_select" onchange="switchTable(this.value)" style="background:#0f172a;color:#38bdf8;border:1px solid #38bdf8;border-radius:6px;padding:3px 8px;font-size:12.5px;font-weight:800;cursor:pointer">
+            ${tables.map(tbl => {
+              const k = D.kaccha[tbl];
+              const kt = k ? calc(k.cart, k.disc, gstRate()) : null;
+              const qrInfo = tableQrOrder(tbl);
+              const isQr = qrInfo && (qrInfo.status === 'pending' || qrInfo.status === 'active' || qrInfo.status === 'accepted');
+              return `<option value="${esc(tbl)}" ${B.table === tbl ? 'selected' : ''}>${esc(tbl)}${k ? ' · Running (' + money(kt.total) + ')' : isQr ? ' · QR Order' : ' · Free'}</option>`;
+            }).join('')}
+          </select>
+          ${isCurrentTableKaccha ? `
+            <span style="font-size:11px;background:#fef3c7;color:#b45309;padding:2px 7px;border-radius:5px;font-weight:800">
+              Running Order
+            </span>
+          ` : `
+            <span style="font-size:11px;background:#d1fae5;color:#065f46;padding:2px 7px;border-radius:5px;font-weight:800">
+              Free Table
+            </span>
+          `}
+        </div>
+      ` : `
+        <span class="status-pill" style="font-size:11px">
+          ${B.channel === 'Takeaway' ? '🥡 Parcel Order' :
+            B.channel === 'Zomato' ? '🔴 Zomato Direct Punch' : '🟠 Swiggy Direct Punch'}
+        </span>
+      `}
     </div>
     <span class="r">Next Bill No: <b>#${D.seq.bill+1}</b> · ${dmy(today())}</span>
   </div>
@@ -11357,7 +11383,20 @@ function scrBill(){
   <div class="bill horeca-pos-workspace">
     <!-- Menu workspace -->
     <div class="horeca-pos-catalog">
-      <div class="horeca-pos-section-top"><div><span class="horeca-eyebrow">MENU CATALOGUE</span><h3>Choose Items</h3></div><span class="horeca-pos-counter">Click to add</span></div>
+      <div class="horeca-pos-section-top">
+        <div>
+          <span class="horeca-eyebrow">MENU CATALOGUE</span>
+          <h3 style="display:flex;align-items:center;gap:8px">
+            <span>Choose Items</span>
+            ${B.channel === 'Dine-In' ? `
+              <span style="font-size:12px;font-weight:800;background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;padding:2px 8px;border-radius:6px">
+                Table: ${esc(B.table)}
+              </span>
+            ` : ''}
+          </h3>
+        </div>
+        <span class="horeca-pos-counter">Click to add</span>
+      </div>
       <input id="q" placeholder="Search items, press Enter to add (e.g. paneer, naan, roti)" autocomplete="off">
       <div class="cats">${cats.map((c,i) => `<button class="cat ${i===billCat?'on':''}" onclick="billCat=${i};scrBill()">${esc(c)}</button>`).join('')}</div>
       <div id="items" class="items"></div>
@@ -11369,7 +11408,7 @@ function scrBill(){
       <!-- 4 Channel Selector Tabs (Dine-In, Takeaway, Zomato, Swiggy) -->
       <div class="channel-bar horeca-pos-channels" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px;padding:4px;border-radius:10px;background:var(--surface);border:1px solid var(--border)">
         <button type="button" class="channel-btn ${B.channel==='Dine-In'?'active':''}" style="min-height:36px;padding:6px 2px;font-size:11.5px;font-weight:750;border-radius:7px;cursor:pointer;border:1px solid transparent" onclick="setBillingChannel('Dine-In')">
-          Dine-In
+          Dine-In ${B.channel==='Dine-In' ? `(${esc(B.table)})` : ''}
         </button>
         <button type="button" class="channel-btn ${B.channel==='Takeaway'?'active':''}" style="min-height:36px;padding:6px 2px;font-size:11.5px;font-weight:750;border-radius:7px;cursor:pointer;border:1px solid transparent" onclick="setBillingChannel('Takeaway')">
           Parcel
