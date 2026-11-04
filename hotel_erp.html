@@ -65,10 +65,10 @@ html[data-theme="horeca_light"] {
   --bg: #f8fafc;
   --panel: #ffffff;
   --surface: #f1f5f9;
-  --border: #64748b;
+  --border: #cbd5e1;
   --border-focus: #fb923c;
-  --text: #08080E;
-  --text-muted: #1e293b;
+  --text: #0f172a;
+  --text-muted: #475569;
   --ok: #10b981;
   --ok-light: #d1fae5;
   --bad: #ef4444;
@@ -2355,7 +2355,7 @@ html[data-theme^="horeca_"] #main .horeca-pos-catalog .cat{
   box-shadow:none
 }
 html[data-theme^="horeca_"] #main .horeca-pos-catalog .cat.on{
-  background:#162e50!important;color:#fff!important;border-color:#162e50!important
+  background:#FF9707!important;color:#ffffff!important;border-color:#d97706!important;font-weight:800!important
 }
 html[data-theme^="horeca_"] #main .horeca-pos-catalog .items{
   grid-template-columns:repeat(auto-fill,minmax(143px,1fr))!important;
@@ -4079,13 +4079,18 @@ label {
 }
 
 
-/* Compact Sidebar Mode (Matching Vertical Stack Icon + Centered Label) */
+/* Compact Sidebar Mode (Robust Vertical Stack Icon + Full Centered Label with Zero Cut-off) */
+html[data-theme^="horeca_"] body.side-compact #side,
 body.side-compact #side {
-  width: 76px !important;
-  min-width: 76px !important;
+  width: 86px !important;
+  min-width: 86px !important;
+  max-width: 86px !important;
   padding: 8px 4px !important;
   align-items: center !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .horeca-side-brand,
 body.side-compact #side .horeca-side-brand {
   flex-direction: column !important;
   justify-content: center !important;
@@ -4093,16 +4098,25 @@ body.side-compact #side .horeca-side-brand {
   padding: 6px 0 10px !important;
   gap: 4px !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .horeca-side-brand > div:last-child,
 body.side-compact #side .horeca-side-brand > div:last-child {
   display: none !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .horeca-brand-icon,
+body.side-compact #side .horeca-brand-icon {
+  flex: 0 0 38px !important;
+  width: 38px !important;
+  height: 38px !important;
+  margin: 0 auto !important;
+}
+html[data-theme^="horeca_"] body.side-compact #side .side-search-box,
 body.side-compact #side .side-search-box {
-  width: 60px !important;
-  min-height: 48px !important;
+  width: 76px !important;
+  min-height: 46px !important;
   flex-direction: column !important;
   justify-content: center !important;
   align-items: center !important;
-  padding: 6px 2px !important;
+  padding: 5px 2px !important;
   margin: 4px auto 8px !important;
   text-align: center !important;
   border-radius: 8px !important;
@@ -4110,9 +4124,11 @@ body.side-compact #side .side-search-box {
   border: 1px solid rgba(255,255,255,0.15) !important;
   cursor: pointer !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .side-search-box .nav-kbd,
 body.side-compact #side .side-search-box .nav-kbd {
   display: none !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .side-search-label,
 body.side-compact #side .side-search-label {
   display: block !important;
   font-size: 9.5px !important;
@@ -4121,18 +4137,24 @@ body.side-compact #side .side-search-label {
   margin-top: 3px !important;
   text-align: center !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .nav-item,
 body.side-compact #side .nav-item {
-  width: 64px !important;
-  min-height: 52px !important;
+  width: 76px !important;
+  min-height: 56px !important;
+  max-height: none !important;
+  height: auto !important;
   flex-direction: column !important;
   justify-content: center !important;
   align-items: center !important;
-  padding: 6px 2px !important;
+  padding: 6px 2px 7px !important;
   margin: 3px auto !important;
   text-align: center !important;
   gap: 3px !important;
   border-radius: 9px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .nav-icon,
 body.side-compact #side .nav-icon {
   width: 22px !important;
   height: 22px !important;
@@ -4140,34 +4162,43 @@ body.side-compact #side .nav-icon {
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  flex-shrink: 0 !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .nav-label,
 body.side-compact #side .nav-label {
   display: block !important;
   font-size: 9.5px !important;
-  font-weight: 700 !important;
-  line-height: 1.15 !important;
+  font-weight: 800 !important;
+  line-height: 1.25 !important;
   text-align: center !important;
   white-space: normal !important;
-  max-width: 60px !important;
-  word-break: break-word !important;
+  max-width: 72px !important;
+  word-break: normal !important;
+  overflow: visible !important;
+  color: inherit !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .nav-right,
+html[data-theme^="horeca_"] body.side-compact #side .nav-kbd,
 body.side-compact #side .nav-right,
 body.side-compact #side .nav-kbd {
   display: none !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .side-section-header,
 body.side-compact #side .side-section-header {
   padding: 4px 0 !important;
   margin: 8px auto 4px !important;
   text-align: center !important;
   font-size: 8.5px !important;
   border-top: 1px solid rgba(255,255,255,0.1) !important;
-  width: 50px !important;
+  width: 58px !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .side-section-header span:last-child,
 body.side-compact #side .side-section-header span:last-child {
   display: none !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .side-footer-toggle,
 body.side-compact #side .side-footer-toggle {
-  width: 60px !important;
+  width: 74px !important;
   min-height: 44px !important;
   flex-direction: column !important;
   justify-content: center !important;
@@ -4176,6 +4207,7 @@ body.side-compact #side .side-footer-toggle {
   padding: 6px 2px !important;
   text-align: center !important;
 }
+html[data-theme^="horeca_"] body.side-compact #side .side-footer-toggle .toggle-label,
 body.side-compact #side .side-footer-toggle .toggle-label {
   display: block !important;
   font-size: 9px !important;
@@ -4313,134 +4345,137 @@ html[data-theme^="horeca_"] #side .nav-item.active {
 }
 
 /* ==========================================================================
-   GLOBAL HIGH-CONTRAST ERP GRID TABLES, DARK BORDERS & READABILITY
+   CLEAN, NATURAL & ACCESSIBLE UI STYLES (NO HARSH BORDERS)
    ========================================================================== */
 
-/* Universal High Contrast Table Grid with Column Separators & Row Borders */
-table,
-.card table,
-.ent-table-card table,
-.table-wrap table,
+/* Clean, Natural Table Styling - Seamless without boxy column lines or outer borders */
+body[data-horeca-screen="daybook"] #main table,
 #main table {
   width: 100% !important;
   border-collapse: collapse !important;
-  border: 1.5px solid #475569 !important;
+  border: none !important;
   background: #ffffff !important;
-  color: #08080E !important;
+  color: #0f172a !important;
 }
 
-table thead tr th,
-.card table thead tr th,
-.ent-table-card th,
-.table-wrap th,
-#main table thead tr th,
-body[data-horeca-screen="daybook"] #main table thead tr th {
-  background: #f1f5f9 !important;
-  color: #08080E !important;
+body[data-horeca-screen="daybook"] #main table thead tr th,
+#main table thead tr th {
+  background: #f8fafc !important;
+  color: #0f172a !important;
   font-weight: 800 !important;
   font-size: 11.5px !important;
-  letter-spacing: 0.04em !important;
+  letter-spacing: 0.03em !important;
   padding: 10px 14px !important;
-  border: 1px solid #64748b !important; /* Visible column lines in header */
-  border-bottom: 2px solid #334155 !important;
+  border: none !important;
+  border-bottom: 2px solid #e2e8f0 !important;
   text-transform: uppercase !important;
 }
 
-table tbody tr td,
-.card table tbody tr td,
-.ent-table-card td,
-.table-wrap td,
-#main table tbody tr td,
-body[data-horeca-screen="daybook"] #main table tbody tr td {
-  color: #08080E !important;
-  font-weight: 600 !important;
+body[data-horeca-screen="daybook"] #main table tbody tr td,
+#main table tbody tr td {
+  color: #0f172a !important;
+  font-weight: 500 !important;
   font-size: 12.5px !important;
-  padding: 9px 12px !important;
-  border: 1px solid #cbd5e1 !important; /* Visible column and row lines in all data cells */
+  padding: 10px 12px !important;
+  border: none !important;
+  border-bottom: 1px solid #f1f5f9 !important;
 }
 
 table tbody tr:nth-child(even),
 #main table tbody tr:nth-child(even) {
-  background: #f8fafc !important;
+  background: #fcfdfe !important;
 }
 
 table tbody tr:hover,
 #main table tbody tr:hover {
-  background: #f1f5f9 !important;
+  background: #f8fafc !important;
 }
 
-table tfoot tr td,
-.card table tfoot tr td,
-.ent-table-card tfoot td,
+body[data-horeca-screen="daybook"] #main table tfoot tr td,
 #main table tfoot tr td {
-  background: #f1f5f9 !important;
-  color: #08080E !important;
+  background: #f8fafc !important;
+  color: #0f172a !important;
   font-weight: 800 !important;
-  border: 1px solid #64748b !important;
-  border-top: 2px solid #334155 !important;
+  border: none !important;
+  border-top: 2px solid #e2e8f0 !important;
 }
 
-/* Universal Dark Borders on All Buttons Across Application */
-.btn,
-button:not(#side button):not(#sidebtn):not(.horeca-nav-item):not(.sub-item) {
-  border: 1.5px solid #334155 !important;
-  color: #08080E !important;
-  font-weight: 750 !important;
-}
-
-.btn:hover,
-button:not(#side button):not(#sidebtn):not(.horeca-nav-item):not(.sub-item):hover {
-  border-color: #08080E !important;
-}
-
-.btn.ok, .btn-primary, .btn-login-gradient {
-  background: linear-gradient(135deg, #FF9707 0%, #ea580c 100%) !important;
-  border: 1.5px solid #c2410c !important;
-  color: #ffffff !important;
-  font-weight: 800 !important;
-}
-
-.btn.g {
-  background: #ffffff !important;
-  border: 1.5px solid #334155 !important;
-  color: #08080E !important;
-  font-weight: 750 !important;
-}
-
+/* Category Pills in Billing / POS Catalogue (Always Crystal Clear) */
+#main .cats .cat,
 .cat {
-  border: 1.5px solid #475569 !important;
-  color: #08080E !important;
-  font-weight: 750 !important;
   background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+  font-size: 11.5px !important;
+  padding: 6px 13px !important;
   border-radius: 8px !important;
-  padding: 7px 14px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
 }
 
-.cat.active, .cat[style*="background:var(--primary)"] {
-  border: 1.5px solid #c2410c !important;
+#main .cats .cat:hover,
+.cat:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+/* Active Selected Category Pill (e.g. Mutton Main Course) */
+html[data-theme] #main .cats .cat.on,
+html[data-theme] #main .horeca-pos-catalog .cat.on,
+#main .cats .cat.on,
+.cat.on {
+  background: #FF9707 !important;
+  border: 1px solid #FF9707 !important;
   color: #ffffff !important;
-  background: var(--primary) !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 6px rgba(255,151,7,0.25) !important;
 }
 
-/* Universal Dark High Contrast Text */
-#main,
-#main p,
-#main div,
-#main label,
-#main b,
-#main strong,
-.card,
-.card b,
-.card span {
-  color: #08080E;
-}
-
-#main .text-muted,
-#main [style*="color:var(--text-muted)"],
-#main [style*="color: var(--text-muted)"],
-.muted {
+/* Payment Mode Buttons in POS */
+#main .modes button,
+.modes button {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
   color: #1e293b !important;
-  font-weight: 600;
+  font-weight: 700 !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+}
+
+#main .modes button:hover,
+.modes button:hover {
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+}
+
+/* Active Selected Payment Mode (e.g. Cash) */
+html[data-theme] #main .modes button.on,
+#main .modes button.on,
+.modes button.on {
+  background: #0f172a !important;
+  border: 1px solid #0f172a !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.15) !important;
+}
+
+/* Active Split Mode */
+html[data-theme] #main .modes button.split.on,
+#main .modes button.split.on,
+.modes button.split.on {
+  background: #7c3aed !important;
+  border: 1px solid #7c3aed !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
+}
+
+.btn.ok, .btn-primary, .btn-login-gradient, #btn-finalize-bill {
+  background: linear-gradient(135deg, #FF9707 0%, #ea580c 100%) !important;
+  border: 1px solid #ea580c !important;
+  color: #ffffff !important;
+  font-weight: 800 !important;
 }
 
 /* Dedicated Top Navigation Back Button */
@@ -4452,29 +4487,20 @@ button:not(#side button):not(#sidebtn):not(.horeca-nav-item):not(.sub-item):hove
   margin: 0 10px !important;
   font-size: 13px !important;
   font-weight: 800 !important;
-  color: #08080E !important;
+  color: #0f172a !important;
   background: #ffffff !important;
-  border: 1.5px solid #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
   border-radius: 8px !important;
   cursor: pointer !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04) !important;
   transition: all 0.15s ease !important;
   flex-shrink: 0 !important;
 }
 
 .top-back-btn:hover {
   background: #f1f5f9 !important;
-  border-color: #08080E !important;
+  border-color: #94a3b8 !important;
   transform: translateX(-1px) !important;
-}
-
-/* Clear Dark Outlines on Cards & Panels */
-.card,
-.ent-card,
-.m-hero,
-.m-kpi,
-.panel {
-  border: 1.5px solid #94a3b8 !important;
 }
 
 </style>
@@ -8256,7 +8282,29 @@ const userPerms = () => { const st = activeUser && activeUser.staffId && (D.staf
 
 let _screenHistory = [];
 
+function backToDaybookFilter(){
+  dbSubmitted = false;
+  if(window.history && window.history.state && window.history.state.sub === 'report'){
+    window.history.back();
+  } else {
+    scrDaybook();
+  }
+}
+
 function goBackOrDashboard(){
+  // 1. If inside Day Book Report, go back to Day Book Filter screen
+  if(cur === 'daybook' && typeof dbSubmitted !== 'undefined' && dbSubmitted){
+    backToDaybookFilter();
+    return;
+  }
+  
+  // 2. Use browser history if available
+  if(window.history && window.history.length > 1 && window.location.hash && window.location.hash !== '#gateway'){
+    window.history.back();
+    return;
+  }
+
+  // 3. Fallback to in-memory screen history
   if(_screenHistory.length > 0){
     const prev = _screenHistory.pop();
     if(prev && prev !== cur){
@@ -8264,6 +8312,8 @@ function goBackOrDashboard(){
       return;
     }
   }
+
+  // 4. Fallback to Gateway Dashboard
   if(cur !== 'gateway'){
     go('gateway', true, true);
   } else {
@@ -8278,11 +8328,47 @@ window.addEventListener('keydown', (e) => {
   }
 });
 
+// HTML5 Popstate Handler: Makes Chrome's browser back button navigate screens instead of exiting website
+window.addEventListener('popstate', (e) => {
+  const state = e.state;
+  if(typeof activeUser === 'undefined' || !activeUser) return;
+
+  if(!state || !state.screen || state.screen === 'gateway'){
+    if(cur === 'daybook' && typeof dbSubmitted !== 'undefined' && dbSubmitted){
+      dbSubmitted = false;
+      scrDaybook();
+      return;
+    }
+    if(cur !== 'gateway'){
+      go('gateway', true, true);
+    }
+    return;
+  }
+
+  if(state.screen === 'daybook'){
+    if(state.sub === 'report'){
+      dbSubmitted = true;
+      go('daybook', true, true);
+    } else {
+      dbSubmitted = false;
+      go('daybook', true, true);
+    }
+  } else {
+    go(state.screen, true, true);
+  }
+});
+
 function go(s, approved, isBack){
   if(!isBack && cur && cur !== s){
     if(_screenHistory.length >= 30) _screenHistory.shift();
     if(!_screenHistory.length || _screenHistory[_screenHistory.length - 1] !== cur){
       _screenHistory.push(cur);
+    }
+    if(window.history && window.history.pushState){
+      const targetHash = '#' + s;
+      if(window.location.hash !== targetHash){
+        window.history.pushState({ screen: s, sub: null }, '', targetHash);
+      }
     }
   }
   document.body.dataset.horecaScreen = s;
@@ -8318,13 +8404,12 @@ function go(s, approved, isBack){
   $('#hname').textContent = D.settings.name;
   const bBtn = $('#top-back-btn');
   if(bBtn){
+    bBtn.innerHTML = '<span style="font-size:15px;font-weight:900">←</span> Back';
     if(s === 'gateway'){
-      bBtn.innerHTML = '<span style="font-size:15px;font-weight:900">←</span> Back';
       bBtn.title = _screenHistory.length ? 'Back to previous screen' : 'Gateway Dashboard';
       bBtn.style.display = _screenHistory.length ? 'inline-flex' : 'none';
     } else {
-      bBtn.innerHTML = '<span style="font-size:15px;font-weight:900">←</span> Back to Dashboard';
-      bBtn.title = 'Back to Gateway Dashboard (Alt + Left)';
+      bBtn.title = 'Back (Alt + Left)';
       bBtn.style.display = 'inline-flex';
     }
   }
@@ -9395,14 +9480,12 @@ function dzHoReCaOne(d){
         </div>`:'<div class="ho-v3-empty-compact">Payment information will appear after a bill is finalized.</div>'}
       </section>
       <section class="ho-v3-panel">
-        <div class="ho-v3-panel-heading"><div><h2>Quick Actions</h2><p>Common restaurant tasks</p></div></div>
+        <div class="ho-v3-panel-heading" style="display:flex;justify-content:space-between;align-items:center">
+          <div><h2>Quick Actions</h2><p>Common restaurant tasks</p></div>
+          <button class="btn sm" onclick="openQuickActionsModal()" style="font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer">⚙️ Customize</button>
+        </div>
         <div class="ho-v3-actions">
-          <button onclick="go('bill')">New Bill</button>
-          <button onclick="go('kitchen')">KOT Screen</button>
-          <button onclick="go('purchase')">Purchase Entry</button>
-          <button onclick="go('reports')">Sales Reports</button>
-          <button onclick="go('wa-reports')">WhatsApp</button>
-          <button onclick="go('settings')">Settings</button>
+          ${renderQuickActionButtons()}
         </div>
         ${extraStock.length?`<div class="ho-v3-stock-alert"><b>${extraStock.length} low-stock item(s)</b><button onclick="go('stock')">View stock</button></div>`:''}
       </section>
@@ -9913,6 +9996,112 @@ const DZ_LAYOUTS = {
   classic_blue: dzPastelLuxe,
   classic: dzHoReCaOne
 };
+
+
+const QUICK_ACTION_OPTIONS = [
+  { id: 'bill', name: 'New Bill (Billing Desk)', default: true },
+  { id: 'kitchen', name: 'KOT Screen (Kitchen Display)', default: true },
+  { id: 'daybook', name: 'Day Book & Ledger', default: true },
+  { id: 'purchase', name: 'Purchase Entry', default: true },
+  { id: 'expense', name: 'Expenses Out', default: false },
+  { id: 'reports', name: 'Sales Reports & Analytics', default: true },
+  { id: 'bills', name: 'Bill List & History', default: false },
+  { id: 'stock', name: 'Stock Summary', default: false },
+  { id: 'wa-reports', name: 'WhatsApp Reports', default: true },
+  { id: 'settings', name: 'Settings', default: true },
+  { id: 'customers', name: 'Customers & Loyalty', default: false },
+  { id: 'qr', name: 'QR Menu & Table Orders', default: false },
+  { id: 'captain', name: 'Captain App', default: false },
+  { id: 'reservations', name: 'Table Reservations', default: false },
+  { id: 'tokens', name: 'Token Display (TV)', default: false },
+  { id: 'cash', name: 'Cash Drawer Movements', default: false },
+  { id: 'gst', name: 'GST Returns & Credit Notes', default: false },
+  { id: 'menu', name: 'Menu Items & Rates', default: false },
+  { id: 'staff', name: 'Staff & Attendance', default: false },
+  { id: 'suppliers', name: 'Suppliers & Payables', default: false }
+];
+
+function getSelectedQuickActions(){
+  if(D && D.settings && Array.isArray(D.settings.quickActions) && D.settings.quickActions.length){
+    return D.settings.quickActions;
+  }
+  return QUICK_ACTION_OPTIONS.filter(x => x.default).map(x => x.id);
+}
+
+function renderQuickActionButtons(){
+  const keys = getSelectedQuickActions();
+  const dict = {
+    bill: { label: 'New Bill', fn: "go('bill')", style: 'background:#ecfdf5;color:#047857;border-color:#a7f3d0;font-weight:800' },
+    kitchen: { label: 'KOT Screen', fn: "go('kitchen')", style: 'color:#285279;font-weight:700' },
+    daybook: { label: 'Day Book & Ledger', fn: "go('daybook')", style: 'background:#fff7ed;color:#c2410c;border-color:#fed7aa;font-weight:800' },
+    bills: { label: 'Bill List / History', fn: "go('bills')", style: 'color:#285279;font-weight:700' },
+    purchase: { label: 'Purchase Entry', fn: "go('purchase')", style: 'color:#285279;font-weight:700' },
+    expense: { label: 'Expenses Out', fn: "go('expense')", style: 'color:#285279;font-weight:700' },
+    stock: { label: 'Stock Summary', fn: "go('stock')", style: 'color:#285279;font-weight:700' },
+    reports: { label: 'Sales Reports', fn: "go('reports')", style: 'color:#285279;font-weight:700' },
+    'wa-reports': { label: 'WhatsApp', fn: "go('wa-reports')", style: 'color:#285279;font-weight:700' },
+    settings: { label: 'Settings', fn: "go('settings')", style: 'color:#285279;font-weight:700' },
+    customers: { label: 'Customers', fn: "go('customers')", style: 'color:#285279;font-weight:700' },
+    qr: { label: 'QR Menu Orders', fn: "go('qr')", style: 'color:#285279;font-weight:700' },
+    captain: { label: 'Captain App', fn: "go('captain')", style: 'color:#285279;font-weight:700' },
+    reservations: { label: 'Reservations', fn: "go('reservations')", style: 'color:#285279;font-weight:700' },
+    tokens: { label: 'Token TV', fn: "go('tokens')", style: 'color:#285279;font-weight:700' },
+    cash: { label: 'Cash Drawer', fn: "go('cash')", style: 'color:#285279;font-weight:700' },
+    gst: { label: 'GST Returns', fn: "go('gst')", style: 'color:#285279;font-weight:700' },
+    menu: { label: 'Menu Items', fn: "go('menu')", style: 'color:#285279;font-weight:700' },
+    staff: { label: 'Staff Payroll', fn: "go('staff')", style: 'color:#285279;font-weight:700' },
+    suppliers: { label: 'Suppliers', fn: "go('suppliers')", style: 'color:#285279;font-weight:700' }
+  };
+  return keys.map(k => {
+    const item = dict[k] || { label: k, fn: `go('${k}')`, style: 'border:1.5px solid #334155;color:#08080E;font-weight:750' };
+    return `<button onclick="${item.fn}" style="${item.style};border-radius:8px;padding:12px 14px;font-size:13.5px;cursor:pointer">${esc(item.label)}</button>`;
+  }).join('');
+}
+
+function openQuickActionsModal(){
+  const current = getSelectedQuickActions();
+  const modalHtml = `
+    <div style="text-align:left;max-width:560px">
+      <h3 style="margin-top:0;font-size:18px;font-weight:800;color:#08080E">Customize Dashboard Quick Actions</h3>
+      <p style="font-size:13px;color:#1e293b;margin-bottom:16px;line-height:1.4">
+        Choose which shortcut buttons you want on your Gateway Dashboard. Select any combination of actions:
+      </p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;max-height:55vh;overflow-y:auto;padding:4px">
+        ${QUICK_ACTION_OPTIONS.map(opt => {
+          const isChecked = current.includes(opt.id);
+          return `
+            <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid ${isChecked ? '#ea580c' : '#cbd5e1'};background:${isChecked ? '#fff7ed' : '#ffffff'};border-radius:10px;cursor:pointer;transition:all 0.15s">
+              <input type="checkbox" name="qa_item" value="${opt.id}" ${isChecked ? 'checked' : ''} style="width:18px;height:18px;accent-color:#FF9707;cursor:pointer">
+              <span style="font-size:13px;font-weight:750;color:#08080E">${esc(opt.name)}</span>
+            </label>
+          `;
+        }).join('')}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px;border-top:1.5px solid #cbd5e1;padding-top:14px;flex-wrap:wrap;gap:10px">
+        <button class="btn sm g" type="button" onclick="document.querySelectorAll('input[name=qa_item]').forEach(c=>c.checked=true)" style="font-size:12px;font-weight:700">Select All</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn sm g" type="button" onclick="closeModal()">Cancel</button>
+          <button class="btn sm ok" type="button" onclick="saveCustomQuickActions()" style="padding:8px 18px;font-weight:800">✓ Save Quick Actions</button>
+        </div>
+      </div>
+    </div>
+  `;
+  modal('⚙️ Customize Quick Actions', modalHtml);
+}
+
+function saveCustomQuickActions(){
+  const checked = Array.from(document.querySelectorAll('input[name=qa_item]:checked')).map(c => c.value);
+  if(!checked.length){
+    toast('Please select at least 1 quick action button.');
+    return;
+  }
+  if(!D.settings) D.settings = {};
+  D.settings.quickActions = checked;
+  save();
+  closeModal();
+  toast('Quick Actions updated successfully!');
+  if(cur === 'gateway') scrGateway();
+}
 
 function dashModern(){
   const lay = DZ_LAYOUTS[D.settings.theme];
@@ -13082,7 +13271,7 @@ function renderDaybookFilterScreen(){
     <div class="card" style="padding:28px 32px;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,0.07);border:1px solid var(--border)">
       <div style="border-bottom:1.5px solid #64748b;padding-bottom:16px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
         <div style="display:flex;align-items:center;gap:12px">
-          <button class="btn sm" onclick="goBackOrDashboard()" style="padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E">← Back to Dashboard</button>
+          <button class="btn sm" onclick="goBackOrDashboard()" style="padding:6px 14px;font-weight:700">← Back</button>
           <div>
             <h2 style="margin:0 0 4px;font-size:20px;font-weight:800;color:#08080E">Day Book & Ledger Filter</h2>
             <p style="margin:0;font-size:12px;color:#1e293b;font-weight:600">Select dates, voucher type and parameters to generate the day book ledger</p>
@@ -13146,7 +13335,7 @@ function renderDaybookFilterScreen(){
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
             <button type="submit" class="btn ok" style="padding:10px 28px;font-size:14px;font-weight:800;border-radius:8px;background:#1e293b;color:#fff;border:1.5px solid #08080E">Submit</button>
             <button type="button" class="btn" onclick="dbFrom=dbTo=today();dbFilterType='all';dbSubmitted=true;scrDaybook()" style="padding:10px 18px;font-size:13px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Today's Quick Book</button>
-            <button type="button" class="btn" onclick="goBackOrDashboard()" style="padding:10px 18px;font-size:13px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#f8fafc">← Back to Dashboard</button>
+            <button type="button" class="btn" onclick="goBackOrDashboard()" style="padding:10px 18px;font-size:13px;font-weight:700">← Back</button>
           </div>
         </div>
       </form>
@@ -13162,6 +13351,9 @@ function submitDaybookFilter(){
   dbUser = $('#db_form_user').value || 'all';
   dbOrder = $('#db_form_order').value || 'date_asc';
   dbSubmitted = true;
+  if(window.history && window.history.pushState){
+    window.history.pushState({ screen: 'daybook', sub: 'report' }, '', '#daybook-report');
+  }
   scrDaybook();
 }
 
@@ -13213,6 +13405,39 @@ function renderDaybookReportScreen(){
   const totalInward = sum(filtered, 'in');
   const totalOutward = sum(filtered, 'out');
 
+  // Mode & Cash vs Online Calculations for displayed entries
+  const modeIn = {}, modeOut = {};
+  MODES.forEach(m => { modeIn[m] = 0; modeOut[m] = 0; });
+  let totalCashIn = 0, totalCashOut = 0;
+  let totalBankIn = 0, totalBankOut = 0;
+  let totalCreditIn = 0, totalCreditOut = 0;
+
+  filtered.forEach(r => {
+    if(r.x) return; // skip cancelled entries from summary
+    totalCashIn += (r.cashIn || 0);
+    totalCashOut += (r.cashOut || 0);
+    totalBankIn += (r.bankIn || 0);
+    totalBankOut += (r.bankOut || 0);
+    totalCreditIn += (r.creditIn || 0);
+    totalCreditOut += (r.creditOut || 0);
+
+    const m = r.mode || 'Cash';
+    if(m !== 'Split' && MODES.includes(m)){
+      if(r.in > 0) modeIn[m] = (modeIn[m] || 0) + r.in;
+      if(r.out > 0) modeOut[m] = (modeOut[m] || 0) + r.out;
+    } else if(m === 'Split'){
+      if(r.cashIn > 0) modeIn['Cash'] = (modeIn['Cash'] || 0) + r.cashIn;
+      if(r.bankIn > 0) modeIn['UPI'] = (modeIn['UPI'] || 0) + r.bankIn;
+    } else {
+      if(r.in > 0) modeIn[m] = (modeIn[m] || 0) + r.in;
+      if(r.out > 0) modeOut[m] = (modeOut[m] || 0) + r.out;
+    }
+  });
+
+  const netCashMovement = totalCashIn - totalCashOut;
+  const netBankMovement = totalBankIn - totalBankOut;
+  const netBalance = totalInward - totalOutward;
+
   const filterNames = {
     all: 'General Day Book (All Entries)',
     active_sales: 'Sales Bills (Active Only)',
@@ -13229,8 +13454,8 @@ function renderDaybookReportScreen(){
   main.innerHTML = `
   <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <button class="btn sm" onclick="goBackOrDashboard()" style="padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E">← Back to Dashboard</button>
-      <button class="btn sm" onclick="dbSubmitted=false;scrDaybook()" style="padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E">🔍 Change Filter / New Search</button>
+      <button class="btn sm" onclick="backToDaybookFilter()" style="padding:6px 14px;font-weight:700">← Back to Filter</button>
+      <button class="btn sm" onclick="backToDaybookFilter()" style="padding:6px 14px;font-weight:700">🔍 Change Filter / New Search</button>
       <button class="btn sm" onclick="printDaybook()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Print</button>
       <button class="btn ok sm" onclick="daybookPDF()" style="padding:6px 16px;font-weight:800;background:#2563eb;color:#fff;border:1.5px solid #1d4ed8">PDF</button>
       <button class="btn g sm" onclick="daybookCSV()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Excel</button>
@@ -13302,6 +13527,125 @@ function renderDaybookReportScreen(){
         </tr>
       </tfoot>
     </table>
+  </div>
+
+  <!-- Dainikee-Style Quick Bar: Total Inward, Outward & Cash vs Online -->
+  <div style="margin-top:14px;padding:12px 16px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:13px">
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
+      <span style="font-weight:800;color:#08080E">Total Inward (आवक): <span style="color:#16a34a;font-weight:900">${money(totalInward)}</span></span>
+      <span style="color:#94a3b8">|</span>
+      <span style="font-weight:800;color:#08080E">Total Outward (भुगतान): <span style="color:#dc2626;font-weight:900">${money(totalOutward)}</span></span>
+      <span style="color:#94a3b8">|</span>
+      <span style="font-weight:800;color:#08080E">Net Balance: <span style="color:${netBalance >= 0 ? '#16a34a' : '#dc2626'};font-weight:900">${money(netBalance)}</span></span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-weight:800">
+      <span style="background:#ecfdf5;color:#15803d;padding:5px 10px;border-radius:7px;border:1px solid #bbf7d0">💵 Cash: ${money(totalCashIn)}</span>
+      <span style="background:#eff6ff;color:#1d4ed8;padding:5px 10px;border-radius:7px;border:1px solid #bfdbfe">🌐 Online / UPI: ${money(totalBankIn)}</span>
+      ${totalCreditIn > 0 ? `<span style="background:#fff7ed;color:#c2410c;padding:5px 10px;border-radius:7px;border:1px solid #fed7aa">⏳ Credit: ${money(totalCreditIn)}</span>` : ''}
+    </div>
+  </div>
+
+  <!-- Dainikee Detailed Cash & Online Summary Grid -->
+  <div style="margin-top:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:16px">
+    
+    <!-- 1. Cash Summary Card -->
+    <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
+        <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
+          💵 Cash Summary (नकदी विवरण)
+        </h4>
+        <span style="font-size:11px;font-weight:800;color:#15803d;background:#ecfdf5;padding:3px 9px;border-radius:6px;border:1px solid #bbf7d0">Cash Counter</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:none !important">
+        <tbody>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Day's Cash Receipts (कुल नकद आवक)</td>
+            <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(totalCashIn)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Cash Expenses & Payments (नकद खर्चे)</td>
+            <td style="padding:8px 0;text-align:right;font-weight:800;color:#dc2626;border:none !important">${money(totalCashOut)}</td>
+          </tr>
+          <tr style="border-bottom:1.5px solid #cbd5e1;background:#f8fafc">
+            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Net Cash Movement (शुद्ध नकद बचत)</td>
+            <td style="padding:9px 6px;text-align:right;font-weight:800;color:${netCashMovement >= 0 ? '#16a34a' : '#dc2626'};border:none !important">${money(netCashMovement)}</td>
+          </tr>
+          <tr>
+            <td style="padding:10px 0 0;color:#08080E;font-weight:800;border:none !important">Expected in Cash Drawer (गल्ला बैलेंस)</td>
+            <td style="padding:10px 0 0;text-align:right;font-weight:900;font-size:14.5px;color:#08080E;border:none !important">${money(t.expected || 0)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 2. Bank & Online Summary Card -->
+    <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
+        <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
+          🌐 Bank & Online Summary (ऑनलाइन व बैंक)
+        </h4>
+        <span style="font-size:11px;font-weight:800;color:#1d4ed8;background:#eff6ff;padding:3px 9px;border-radius:6px;border:1px solid #bfdbfe">Digital</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:none !important">
+        <tbody>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">UPI / QR Receipts (ऑनलाइन यूपीआई)</td>
+            <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(modeIn['UPI'] || 0)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Card POS Receipts (कार्ड आवक)</td>
+            <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(modeIn['Card'] || 0)}</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f1f5f9">
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Bank / Online Outflow (ऑनलाइन भुगतान)</td>
+            <td style="padding:8px 0;text-align:right;font-weight:800;color:#dc2626;border:none !important">${money(totalBankOut)}</td>
+          </tr>
+          <tr style="border-top:1.5px solid #cbd5e1;background:#f8fafc">
+            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Total Online Inflow (कुल ऑनलाइन आवक)</td>
+            <td style="padding:9px 6px;text-align:right;font-weight:900;font-size:14.5px;color:#1d4ed8;border:none !important">${money(totalBankIn)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- 3. Payment Mode Breakdown Card -->
+    <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
+        <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
+          📊 Mode Breakdown (मोड अनुसार कलेक्शन)
+        </h4>
+        <span style="font-size:11px;font-weight:800;color:#c2410c;background:#fff7ed;padding:3px 9px;border-radius:6px;border:1px solid #fed7aa">All Modes</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:none !important">
+        <thead>
+          <tr style="border-bottom:1px solid #e2e8f0;color:#64748b;font-size:11px">
+            <th style="padding:5px 0;text-align:left;border:none !important">MODE</th>
+            <th style="padding:5px 0;text-align:right;border:none !important">INWARD (₹)</th>
+            <th style="padding:5px 0;text-align:right;border:none !important">OUTWARD (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${MODES.filter(m => (modeIn[m] > 0 || modeOut[m] > 0 || (t.by && t.by[m] > 0))).map(m => `
+            <tr style="border-bottom:1px solid #f1f5f9">
+              <td style="padding:7px 0;font-weight:700;color:#08080E;border:none !important">${esc(m)}</td>
+              <td style="padding:7px 0;text-align:right;font-weight:800;color:${modeIn[m] > 0 ? '#16a34a' : '#94a3b8'};border:none !important">${modeIn[m] > 0 ? money(modeIn[m]) : '—'}</td>
+              <td style="padding:7px 0;text-align:right;font-weight:800;color:${modeOut[m] > 0 ? '#dc2626' : '#94a3b8'};border:none !important">${modeOut[m] > 0 ? money(modeOut[m]) : '—'}</td>
+            </tr>
+          `).join('') || `
+            <tr>
+              <td colspan="3" style="padding:12px 0;text-align:center;color:#64748b;border:none !important">No mode collections in selected range</td>
+            </tr>
+          `}
+          ${totalCreditIn > 0 ? `
+            <tr style="border-top:1.5px solid #fed7aa;background:#fff7ed">
+              <td style="padding:7px 6px;font-weight:800;color:#c2410c;border:none !important">Credit (उधार बिल)</td>
+              <td colspan="2" style="padding:7px 6px;text-align:right;font-weight:800;color:#c2410c;border:none !important">${money(totalCreditIn)}</td>
+            </tr>
+          ` : ''}
+        </tbody>
+      </table>
+    </div>
+
   </div>
   `;
 }
@@ -21927,7 +22271,12 @@ function startUI(){
   setInterval(() => {
     if(SRV.on) waStatus().then(() => updateWaHeader()).catch(() => {});
   }, 8000);
-  if(activeUser) go('gateway');
+  if(activeUser){
+    if(window.history && window.history.replaceState && !window.history.state){
+      window.history.replaceState({ screen: 'gateway', sub: null }, '', '#gateway');
+    }
+    go('gateway');
+  }
 }
 
 async function autoPrinterSetup(){
@@ -22547,7 +22896,7 @@ function scrHoGuide(){
  const a=HO_HELP[hoSelectedGuide];
  if(!a){
   main.innerHTML="<div style='margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px'>"+
-    "<button class='btn sm' onclick='goBackOrDashboard()' style='padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E'>← Back to Dashboard</button>"+
+    "<button class='btn sm' onclick='goBackOrDashboard()' style='padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E'>← Back</button>"+
     "<div class='title' style='margin:0'>User Guide & Training <span class='r'>"+Object.keys(HO_HELP).length+" topics</span></div>"+
     "</div>"+
     "<div class='card' style='border:1.5px solid #94a3b8'><h2>Learn HoReCa One</h2><p class='muted'>Searchable offline instructions for existing modules. Use test data when practicing.</p>"+
@@ -22557,7 +22906,7 @@ function scrHoGuide(){
  }
  main.innerHTML="<div style='margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px'>"+
    "<div style='display:flex;gap:8px'>"+
-     "<button class='btn sm' onclick='goBackOrDashboard()' style='padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E'>← Back to Dashboard</button>"+
+     "<button class='btn sm' onclick='goBackOrDashboard()' style='padding:6px 14px;font-weight:800;border:1.5px solid #1e293b;background:#f8fafc;color:#08080E'>← Back</button>"+
      "<button class='btn sm g' onclick='hoSelectedGuide=\"\";go(\"guide\")' style='padding:6px 14px;font-weight:800;border:1.5px solid #334155'>All Topics</button>"+
    "</div>"+
    "<div class='title' style='margin:0'>User Guide / "+esc(a[0])+"</div>"+
