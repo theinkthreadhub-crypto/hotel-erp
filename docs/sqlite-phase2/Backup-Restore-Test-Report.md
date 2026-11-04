@@ -23,7 +23,7 @@ All tests used synthetic data in temporary folders on a 4 vCPU / 16 GB Linux con
 | Backup + restore, 200-bill test database (`test_backup_restore_and_corruption_detection`) | Backup verified, 201 bills; restored file `integrity_check` ok; **rebuilt data identical to the original** (canonical comparison) |
 | 10,000 bills (12,200 after the benchmark's own bills), 42 MB database | Backup **9.9 MB** gzip, **1.9 s** incl. verification; restore **0.6 s**, integrity ok, 12,200 bills |
 | 100,000 bills (102,200), 380 MB database | Backup **86.5 MB** gzip, **16.0 s** incl. verification; restore **6.5 s**, integrity ok, 102,200 bills |
-| 365,000 bills | See `SQLite-Performance-Benchmark.md` (filled in after the run) |
+| 365,000 bills (367,820 after the benchmark's own bills), 1.38 GB database | Backup **268 MB** gzip, **73 s** incl. verification, taken with `VACUUM INTO` while the server ran; restore **29.4 s**, integrity ok, 367,820 bills |
 | Corruption detection | A copy with random bytes written into several pages: `SqliteDoc()` **refuses to open it** (`StoreError` / `DatabaseError`). The program never serves a damaged file. |
 | Forced restore through the API (Manager) | Allowed, logged (`RESTORE by …`), audited (`Data Restore` entry); cashier refused (403). P0 suite S9 on SQLite: pass. |
 
