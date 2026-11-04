@@ -1982,6 +1982,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return tok.get('role', '').lower()
                 elif isinstance(tok, str):
                     return tok.lower()
+                # A token this counter never issued (another hotel's, revoked or made up) is refused.
+                # It must not fall back to the launch-key / bootstrap trust below.
+                return None
 
             # Constrained bootstrap fallback:
             # Tokenless local access is allowed ONLY during bootstrap/setup (when database has no PINs or users configured),

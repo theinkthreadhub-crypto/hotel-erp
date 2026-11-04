@@ -5772,6 +5772,12 @@ async function srvInitData(){
   }
   let r;
   try{ r = await srvFetch('/api/db'); }catch(e){ srvStatus(false); return false; }
+  // Main counter: a saved token the server no longer knows is dropped, then the launch key is used
+  if(r.status === 401 && SRV.token && SRV_LAUNCH && !SRV.cloud){
+    SRV.token = '';
+    lsSet(TOKEN_KEY, '');
+    try{ r = await srvFetch('/api/db'); }catch(e){ srvStatus(false); return false; }
+  }
   if(r.status === 401){
     if(!activeUser){
       $('#login-screen').style.display = 'flex';
