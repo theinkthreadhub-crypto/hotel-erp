@@ -196,7 +196,8 @@ async function stockCheck(p, server, beforeQty, made){
     return { stockMismatches: bad.length, sample: bad.slice(0, 3) };
   }, { data: server.data, beforeQty, used: made.reduce((o, m) => { for(const k in m.used) o[k] = (o[k] || 0) + m.used[k]; return o; }, {}) });
 }
-const qtyNow = p => p.evaluate(() => { const s = JSON.parse(JSON.stringify(D)); stockRecalc(s); return Object.fromEntries(s.stock.map(x => [x.id, x.qty])); });
+// Stock before a scenario, from the SERVER copy (a device's copy can lag behind the other devices' latest bills)
+const qtyNow = async p => { const data = (await serverDb()).data; return p.evaluate(data => { const s = JSON.parse(JSON.stringify(data)); stockRecalc(s); return Object.fromEntries(s.stock.map(x => [x.id, x.qty])); }, data); };
 const snapshot = async () => { const s = await serverDb(); return { billIds: s.data.bills.map(b => b.id) }; };
 
 (async () => {
@@ -317,8 +318,10 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
     return r;
   });
   await run('S9 restore', async () => {
+    // JSON engine: the server's own daily backup file. SQLite engine keeps .sqlite.gz backups, so the copy to restore
+    // is the current server data (the restore path and its permission / audit checks are the same)
     const bk = fs.readdirSync(path.join(DIR, 'Backups')).filter(f => /^setu-\d{4}-\d\d-\d\d\.json$/.test(f)).sort().pop();
-    const doc = JSON.parse(fs.readFileSync(path.join(DIR, 'Backups', bk), 'utf8'));
+    const doc = bk ? JSON.parse(fs.readFileSync(path.join(DIR, 'Backups', bk), 'utf8')) : await serverDb();
     const v = (await serverDb()).version;
     const rc = await api('/api/db', { method: 'POST', body: JSON.stringify({ baseVersion: v, force: true, data: doc.data }) }, cashTok);
     const rm = await api('/api/db', { method: 'POST', body: JSON.stringify({ baseVersion: v, force: true, data: doc.data }) });

@@ -33,6 +33,7 @@ import hashlib
 import atexit
 import setu_security as SEC
 import setu_media as MEDIA
+import setu_sqlite as SQ
 import re
 
 APP_PORT = 8000
@@ -1460,6 +1461,292 @@ class CloudBusy(Exception):
     pass
 
 
+class SqliteSetuStore(SetuStore):
+    """SetuStore on the local SQLite database (Phase 2, behind the setu-storage.json engine flag).
+
+    Same interface as SetuStore, so every existing API and the app keep working:
+    * write(doc): the whole-document upload from a device becomes ONE transaction that writes only the records
+      that changed (compared with the last committed copy in memory). Nothing is rewritten in full.
+    * settle_bill / cancel_bill: native transactions (number, rows, stock, idempotency, sync outbox).
+    * raw / data(): the data object rebuilt from the tables (kept in memory, encoded once per version).
+    Cloud full-document sync is switched off in this mode (sync_blocked) until Phase 3 incremental sync.
+    """
+
+    sync_blocked = 'Cloud sync is paused on this PC: the local SQLite database needs incremental cloud sync (Phase 3).'
+
+    def __init__(self, data_dir):
+        self.sdb = SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE))
+        self._doc = None
+        self._raw_cache = (None, 'null')
+        super().__init__(data_dir)
+
+    # The base class assigns self.raw; here the text is derived from the committed data
+    @property
+    def raw(self):
+        if self._doc is None:
+            return 'null'
+        if self._raw_cache[0] != self.version:
+            self._raw_cache = (self.version, json.dumps(self._doc, ensure_ascii=False))
+        return self._raw_cache[1]
+
+    @raw.setter
+    def raw(self, value):
+        pass
+
+    def _load(self):
+        self._doc = self.sdb.export_document()
+        self.version = int(self.sdb.meta('doc_version') or 1)
+        self.saved_at = int(self.sdb.meta('saved_at') or 0)
+        self.migrate_wa_history(self._doc)
+
+    def data(self):
+        return json.loads(self.raw)
+
+    # Hot paths read the committed in-memory copy directly (read only): no full re-encode / re-parse per request
+    def hotel_id(self):
+        d = self._doc or {}
+        return str((d.get('settings') or {}).get('hotelId') or (d.get('auth') or {}).get('hotelId') or 'default').strip()
+
+    def check_pin(self, pin):
+        return SEC.check_pin(self._doc or {}, pin)
+
+    def has_users_or_pins(self):
+        return SEC.has_credentials(self._doc or {})
+
+    def public_raw(self):
+        if self._pub[0] != self.version:
+            self._pub = (self.version, json.dumps(SEC.public_view(self._doc or {}), ensure_ascii=False))
+        return self._pub[1]
+
+    def write(self, data_obj, outbox=('doc', None)):
+        version = self.version + 1
+        saved_at = int(time.time() * 1000)
+        with self.sdb.tx() as c:
+            n = self.sdb.commit_document(c, self._doc or {}, data_obj, version, saved_at)
+            c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)',
+                      (outbox[0], outbox[1], version, json.dumps({'keys': n}), saved_at))
+        # Committed (WAL, synchronous=FULL): only now does the server move ahead
+        self._doc, self.version, self.saved_at = data_obj, version, saved_at
+        self._maxno = None
+        if self.on_write:
+            self.on_write()
+        self._backup_soon()
+
+    def _backup_soon(self):
+        # One verified online backup per day, at most every 10 minutes, in the background
+        if time.time() - getattr(self, '_last_copy', 0) < 600 or getattr(self, '_backing_up', False):
+            return
+        self._last_copy = time.time()
+        self._backing_up = True
+
+        def run():
+            try:
+                os.makedirs(self.backup_dir, exist_ok=True)
+                self.sdb.backup_to(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.sqlite.gz'), self.version, KEEP_BACKUPS)
+            except Exception as e:
+                self.log(f'SQLITE BACKUP FAILED: {e!r}')
+            finally:
+                self._backing_up = False
+        threading.Thread(target=run, daemon=True).start()
+
+    # ---------- native transactions ----------
+    def _native_ok(self, *keys):
+        kinds = json.loads(self.sdb.meta('doc_kinds') or '{}')
+        want = {'bills': 'spec', 'stock': 'spec', 'audit': 'spec', 'seq': 'seq'}
+        return all(k in (self._doc or {}) and kinds.get(k) == want[k] for k in keys) and kinds.get('kaccha', 'maptable') == 'maptable'
+
+    def _cow(self, keys):
+        """Copy-on-write of the in-memory data: a new top level, new lists for the keys that change."""
+        new = dict(self._doc)
+        for k in keys:
+            if k in new:
+                v = new[k]
+                new[k] = list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v
+        return new
+
+    def settle_bill(self, payload):
+        """Same rules and answers as SetuStore.settle_bill, as one SQLite transaction."""
+        idem_key = payload.get('idemKey')
+        bill = payload.get('bill')
+        if not idem_key or not isinstance(bill, dict):
+            return 400, {'error': 'idemKey and bill object are required'}
+        if not self._native_ok('bills', 'seq', 'stock'):
+            return super().settle_bill(payload)      # unusual data shape: same rules through the transactional write()
+        bill = copy.deepcopy(bill)
+        with self.lock:
+            con = self.sdb.con()
+            row = con.execute('SELECT id FROM bills WHERE idemKey = ?', (idem_key,)).fetchone()
+            if row:
+                existing = next((b for b in reversed(self._doc.get('bills') or []) if b.get('id') == row[0]), None) or {}
+                same = (existing.get('table') == bill.get('table') and abs(float(existing.get('total') or 0) - float(bill.get('total') or 0)) < 0.01
+                        and existing.get('mode') == bill.get('mode'))
+                if same:
+                    return 200, {'ok': True, 'alreadySettled': True, 'bill': existing, 'version': self.version}
+                return 409, {'error': 'IDEMPOTENCY_PAYLOAD_MISMATCH', 'message': 'Idempotency key has already been used with a different bill payload'}
+            sess_id, tbl = bill.get('orderSessionId'), bill.get('table')
+            if tbl and sess_id:
+                r = con.execute("SELECT id FROM bills WHERE \"table\" = ? AND json_extract(extra, '$.orderSessionId') = ? AND is_cancelled = 0", (tbl, sess_id)).fetchone()
+                if r:
+                    existing = next((b for b in reversed(self._doc.get('bills') or []) if b.get('id') == r[0]), {})
+                    return 200, {'ok': True, 'alreadySettled': True, 'bill': existing, 'version': self.version}
+            if bill.get('mode') == 'Split':
+                pays = bill.get('pays') or []
+                if not pays:
+                    return 400, {'error': 'SPLIT_TENDER_EMPTY', 'message': 'Split payment must have tender amounts'}
+                tender_sum = round(sum(float(p.get('amt') or 0) for p in pays if isinstance(p, dict)), 2)
+                if abs(tender_sum - round(float(bill.get('total') or 0), 2)) > 0.05:
+                    return 400, {'error': 'SPLIT_TENDER_MISMATCH', 'message': f'Split payment tender sum ({tender_sum}) does not match bill total ({round(float(bill.get("total") or 0), 2)})'}
+            if not bill.get('id') or con.execute('SELECT 1 FROM bills WHERE id = ?', (bill['id'],)).fetchone():
+                bill['id'] = 'srv' + secrets.token_hex(6)
+            new = self._cow(['bills', 'seq', 'stock', 'kaccha'])
+            seq = new['seq']
+            # A finalized number is never given twice: the next number after both the counter and every stored bill
+            seq['bill'] = max(int(seq.get('bill') or 0), self._max_bill_no()) + 1
+            bill['no'] = seq['bill']
+            seq['kot'] = int(seq.get('kot') or 0) + 1
+            bill['kot'] = seq['kot']
+            bill['idemKey'] = idem_key
+            bill['paymentStatus'] = 'recorded'
+            if bill.get('mode') == 'UPI' or any((p.get('mode') == 'UPI') for p in (bill.get('pays') or []) if isinstance(p, dict)):
+                bill['upiVerified'] = False
+            changed_stock = []
+            for u in bill.get('used') or []:
+                for i, it in enumerate(new['stock']):
+                    if it.get('id') == u.get('sid'):
+                        it = dict(it)
+                        it['qty'] = round(float(it.get('qty') or 0) - float(u.get('qty') or 0), 3)
+                        new['stock'][i] = it
+                        changed_stock.append((i, it))
+            if tbl and isinstance(new.get('kaccha'), dict) and tbl in new['kaccha']:
+                del new['kaccha'][tbl]
+            new['bills'].append(bill)
+            version, now = self.version + 1, int(time.time() * 1000)
+            with self.sdb.tx() as c:
+                self.sdb._put_record(c, SQ.SPEC_BY_KEY['bills'], bill, len(new['bills']) - 1)
+                for i, it in changed_stock:
+                    self.sdb._put_record(c, SQ.SPEC_BY_KEY['stock'], it, i)
+                self.sdb._put_key(c, 'seq', 'seq', seq, None)
+                if 'kaccha' in self._doc and self._doc.get('kaccha') != new['kaccha']:
+                    self.sdb._put_key(c, 'kaccha', 'maptable', new['kaccha'], self._doc.get('kaccha'))
+                c.execute("INSERT OR REPLACE INTO meta VALUES ('doc_version', ?)", (str(version),))
+                c.execute("INSERT OR REPLACE INTO meta VALUES ('saved_at', ?)", (str(now),))
+                c.execute('INSERT INTO operation_idempotency VALUES (?, ?, ?, ?, ?, ?, ?)',
+                          (idem_key, 'bill.settle', bill['id'], hashlib.sha256(json.dumps(payload.get('bill'), sort_keys=True, default=str).encode()).hexdigest(), str(bill.get('by') or ''), now, str(bill['no'])))
+                c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', ('bill.settle', bill['id'], version, json.dumps(bill, ensure_ascii=False), now))
+            self._doc, self.version, self.saved_at = new, version, now
+            self._maxno = max(self._maxno or 0, int(bill['no']))
+        if self.on_write:
+            self.on_write()
+        self._backup_soon()
+        return 200, {'ok': True, 'alreadySettled': False, 'bill': bill, 'version': self.version}
+
+    def _max_bill_no(self):
+        # Highest finalized number ever stored (cached; a whole-document write resets it)
+        if getattr(self, '_maxno', None) is None:
+            self._maxno = int(self.sdb.con().execute('SELECT MAX(CAST(no AS INTEGER)) FROM bills WHERE COALESCE(imported, 0) = 0').fetchone()[0] or 0)
+        return self._maxno
+
+    def cancel_bill(self, payload, by='Manager'):
+        """Cancel a bill in one transaction: the record stays (cancelled), stock comes back once, audited."""
+        bid, key = payload.get('billId'), payload.get('idemKey')
+        if not bid or not key:
+            return 400, {'error': 'billId and idemKey are required'}
+        if not self._native_ok('bills', 'stock', 'audit'):
+            return 409, {'error': 'native cancel not available for this data shape; cancel from the app'}
+        with self.lock:
+            con = self.sdb.con()
+            done = con.execute('SELECT ref FROM operation_idempotency WHERE key = ?', (key,)).fetchone()
+            if done:
+                return 200, {'ok': True, 'alreadyDone': True, 'billId': done[0], 'version': self.version}
+            new = self._cow(['bills', 'stock', 'audit'])
+            idx = next((i for i in range(len(new['bills']) - 1, -1, -1) if new['bills'][i].get('id') == bid), None)
+            if idx is None:
+                return 404, {'error': 'bill not found'}
+            b = dict(new['bills'][idx])
+            if b.get('cancelled'):
+                return 200, {'ok': True, 'alreadyCancelled': True, 'billId': bid, 'version': self.version}
+            b['cancelled'], b['cancelledBy'] = True, by
+            new['bills'][idx] = b
+            changed_stock = []
+            if not b.get('mv'):
+                # Bills from before stock movements: put the stock back on the items (the app's applyStock(+1))
+                for u in b.get('used') or []:
+                    for i, it in enumerate(new['stock']):
+                        if it.get('id') == u.get('sid'):
+                            it = dict(it)
+                            it['qty'] = round(float(it.get('qty') or 0) + float(u.get('qty') or 0), 3)
+                            new['stock'][i] = it
+                            changed_stock.append((i, it))
+            now = int(time.time() * 1000)
+            entry = {'id': 'srv' + secrets.token_hex(6), 'at': now, 'date': time.strftime('%Y-%m-%d'), 'time': time.strftime('%H:%M'), 'user': by, 'role': 'manager',
+                     'action': 'Bill Cancel', 'detail': f'Bill #{b.get("no")} cancelled on the main counter', 'amount': b.get('total') or 0, 'ref': bid, 'approvedBy': by}
+            new['audit'].append(entry)
+            version = self.version + 1
+            with self.sdb.tx() as c:
+                old = self._doc['bills'][idx]
+                c.execute('INSERT INTO bill_modifications (bill_id, action, at, old, new) VALUES (?, ?, ?, ?, ?)', (bid, 'cancel', now, json.dumps(old, ensure_ascii=False), json.dumps(b, ensure_ascii=False)))
+                self.sdb._put_record(c, SQ.SPEC_BY_KEY['bills'], b, idx)
+                for i, it in changed_stock:
+                    self.sdb._put_record(c, SQ.SPEC_BY_KEY['stock'], it, i)
+                self.sdb._put_record(c, SQ.SPEC_BY_KEY['audit'], entry, len(new['audit']) - 1)
+                c.execute("INSERT OR REPLACE INTO meta VALUES ('doc_version', ?)", (str(version),))
+                c.execute("INSERT OR REPLACE INTO meta VALUES ('saved_at', ?)", (str(now),))
+                c.execute('INSERT INTO operation_idempotency VALUES (?, ?, ?, ?, ?, ?, ?)', (key, 'bill.cancel', bid, None, by, now, None))
+                c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', ('bill.cancel', bid, version, json.dumps({'billId': bid, 'by': by}), now))
+            self._doc, self.version, self.saved_at = new, version, now
+        if self.on_write:
+            self.on_write()
+        return 200, {'ok': True, 'billId': bid, 'version': self.version}
+
+    # ---------- paginated reads (indexed SQL; nothing loads all history) ----------
+    def query(self, name, q):
+        con = self.sdb.con()
+        lim = max(1, min(int(q.get('limit', 100) or 100), 1000))
+        off = max(0, int(q.get('offset', 0) or 0))
+        frm, to = q.get('from') or '0000-00-00', q.get('to') or '9999-99-99'
+
+        def rows(sql, args, cols):
+            return [dict(zip(cols, r)) for r in con.execute(sql, args)]
+        if name == 'bills':
+            cols = ['id', 'no', 'date', 'time', 'table', 'channel', 'mode', 'total', 'cancelled', 'phone']
+            out = rows('SELECT id, no, date, time, "table", channel, mode, total, is_cancelled, phone FROM bills WHERE date BETWEEN ? AND ? ORDER BY date DESC, ord DESC LIMIT ? OFFSET ?', (frm, to, lim, off), cols)
+            total = con.execute('SELECT COUNT(*), COALESCE(SUM(CASE WHEN is_cancelled = 0 THEN total_p END), 0) FROM bills WHERE date BETWEEN ? AND ?', (frm, to)).fetchone()
+            return {'rows': out, 'count': total[0], 'sales_p': total[1]}
+        if name == 'daybook':
+            day = q.get('date') or time.strftime('%Y-%m-%d')
+            sales = dict(con.execute("""SELECT CASE WHEN p.synthetic = 1 THEN COALESCE(b.mode, 'Cash') ELSE p.mode END, SUM(p.amount_p) FROM bill_payments p JOIN bills b ON b.id = p.bill_id
+                                        WHERE b.date = ? AND b.is_cancelled = 0 AND (p.synthetic = 1 OR b.mode = 'Split') GROUP BY 1""", (day,)))
+            vouchers = rows('SELECT type, head, COUNT(*), SUM(amount_p) FROM vouchers WHERE date = ? GROUP BY type, head', (day,), ['type', 'head', 'count', 'amount_p'])
+            return {'date': day, 'sales_by_mode_p': sales, 'vouchers': vouchers}
+        if name == 'stock-history':
+            sid = q.get('sid', '')
+            out = rows('SELECT id, source, ref, qty, type, date, time FROM stock_movements WHERE sid = ? AND date BETWEEN ? AND ? ORDER BY date DESC, time DESC LIMIT ? OFFSET ?', (sid, frm, to, lim, off), ['id', 'source', 'ref', 'qty', 'type', 'date', 'time'])
+            bal = con.execute('SELECT qty FROM stock_balances WHERE sid = ?', (sid,)).fetchone()
+            return {'rows': out, 'balance': bal[0] if bal else 0}
+        if name == 'supplier-ledger':
+            party = str(q.get('party', '')).strip().lower()
+            out = rows("SELECT id, date, type, head, mode, amount, inv_id FROM vouchers WHERE LOWER(TRIM(COALESCE(party, ''))) = ? ORDER BY date DESC, ord DESC LIMIT ? OFFSET ?", (party, lim, off),
+                       ['id', 'date', 'type', 'head', 'mode', 'amount', 'inv_id'])
+            due = con.execute("""SELECT COALESCE(SUM(CASE WHEN (type = 'Purchase' OR (type = 'Expense' AND COALESCE(head, '') <> 'Supplier Payment')) AND mode = 'Credit' THEN amount_p
+                                 WHEN type = 'Expense' AND head = 'Supplier Payment' THEN -amount_p ELSE 0 END), 0) FROM vouchers WHERE LOWER(TRIM(COALESCE(party, ''))) = ?""", (party,)).fetchone()[0]
+            return {'rows': out, 'due_p': due}
+        if name == 'audit':
+            return {'rows': rows('SELECT id, at, date, action, user, amount, ref FROM audit_logs WHERE date BETWEEN ? AND ? ORDER BY ord DESC LIMIT ? OFFSET ?', (frm, to, lim, off), ['id', 'at', 'date', 'action', 'user', 'amount', 'ref'])}
+        if name == 'customer':
+            ph = q.get('phone', '')
+            out = rows('SELECT id, no, date, total, is_cancelled FROM bills WHERE phone = ? ORDER BY date DESC LIMIT ? OFFSET ?', (ph, lim, off), ['id', 'no', 'date', 'total', 'cancelled'])
+            agg = con.execute('SELECT COUNT(*), COALESCE(SUM(total_p), 0) FROM bills WHERE phone = ? AND is_cancelled = 0', (ph,)).fetchone()
+            return {'rows': out, 'bills': agg[0], 'spent_p': agg[1]}
+        if name == 'status':
+            p = self.sdb.path
+            size = lambda f: os.path.getsize(f) if os.path.exists(f) else 0
+            return {'engine': 'sqlite', 'file': os.path.basename(p), 'dbBytes': size(p), 'walBytes': size(p + '-wal'), 'version': self.version,
+                    'schema': self.sdb.meta('schema_version'), 'hotel': self.sdb.meta('hotel_id'), 'outboxPending': con.execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at IS NULL').fetchone()[0],
+                    'backups': rows('SELECT file, at, bytes, bills, verified, note FROM backup_manifest ORDER BY at DESC LIMIT 10', (), ['file', 'at', 'bytes', 'bills', 'verified', 'note']),
+                    'cloudSync': self.sync_blocked}
+        return None
+
+
 class CloudSync:
     """Two-way sync between this PC's setu-db.json and the hotel's Setu Cloud Worker."""
 
@@ -1681,6 +1968,10 @@ class CloudSync:
             self.wake.wait(5 if self.status.get('ok') is not False else 20)
             woken = self.wake.is_set()
             self.wake.clear()
+            if getattr(self.store, 'sync_blocked', None):
+                # Whole-database cloud sync would undo the incremental storage: off until Phase 3
+                self.status = {'ok': False, 'error': self.store.sync_blocked}
+                continue
             if not self.configured():
                 # Turned off by the owner ("enabled": false) = stay off
                 # Every save wakes this loop: try at most once a minute then, else every 30 minutes
@@ -2307,6 +2598,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 credits = int(d.get('settings', {}).get('waCredits', 500))
                 total_sent = int(d.get('settings', {}).get('waTotalSent', 0))
                 return self.send_json(200, {'ok': True, 'credits': credits, 'totalSent': total_sent})
+            if path.startswith('/api/q/'):
+                # Paginated, indexed reads (SQLite engine only): history without loading every bill
+                if not hasattr(store, 'query'):
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
+                if path[7:] == 'status' and self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                try:
+                    res = store.query(path[7:], qs)
+                except (ValueError, TypeError) as e:
+                    return self.send_json(400, {'error': str(e)})
+                return self.send_json(200, res) if res is not None else self.send_json(404, {'error': 'unknown query'})
             if path == '/api/version':
                 return self.send_json(200, {'version': store.version})
             if path == '/api/db':
@@ -3318,6 +3621,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     print_history.append({'at': int(time.time() * 1000), 'printer': printer, 'ok': False, 'error': str(e)[:200]})
                     del print_history[:-100]
                     return self.send_json(500, {'error': str(e)})
+            if path == '/api/bill/cancel':
+                role = self.role()
+                if role not in ('local', 'admin') and not self.elevated():
+                    return self.send_json(403, {'error': 'Manager approval needed'})
+                if not hasattr(store, 'cancel_bill'):
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                try:
+                    body = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                code, resp = store.cancel_bill(body, by='Main Counter' if role == 'local' else 'Manager')
+                return self.send_json(code, resp)
             if path == '/api/bill/settle':
                 role = self.role()
                 if not role:
@@ -3668,8 +3983,25 @@ def read_launch_key(data_dir):
         return ''
 
 
+def open_store(data_dir):
+    """JSON file (default) or SQLite: setu-storage.json {"engine": "sqlite"} is written only by a verified migration
+    (setu_migrate.py --cutover). SETU_STORAGE=sqlite (development / tests only) migrates a test folder first."""
+    flag = SQ.read_flag(data_dir)
+    if os.environ.get('SETU_STORAGE') == 'sqlite' and flag.get('engine') != 'sqlite' and os.path.exists(os.path.join(data_dir, 'setu-db.json')):
+        import setu_migrate
+        # Start once on the JSON file first, exactly like an installed counter (credential hashing etc.), then migrate
+        SetuStore(data_dir)
+        rep = setu_migrate.migrate(data_dir, cutover=True)
+        flag = SQ.read_flag(data_dir)
+        if rep.get('status') != 'MIGRATED':
+            print('SQLite migration did not complete:', rep.get('message'))
+    if flag.get('engine') == 'sqlite':
+        return SqliteSetuStore(data_dir)
+    return SetuStore(data_dir)
+
+
 def start_server(base_dir, data_dir, port):
-    store = SetuStore(data_dir)
+    store = open_store(data_dir)
     # Per-launch secret: the Setu window gets it in its address (#launch=…); a web page on this PC cannot read it
     store.launch = secrets.token_urlsafe(32)
     try:
@@ -3687,6 +4019,7 @@ def start_server(base_dir, data_dir, port):
     store.log(f'Server start: port {port}, database version {store.version}')
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
+    http.server.ThreadingHTTPServer.request_queue_size = 128
     updater = Updater(store)
     store.media = MEDIA.MediaStore(data_dir)
     store.autobackup = AutoBackup(store)
