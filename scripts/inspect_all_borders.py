@@ -10,3 +10,4 @@ print("Total 1.5px borders found:", len(matches))
 for idx in matches:
     print("--- AT", idx, "---")
     print(text[max(0, idx-40):min(len(text), idx+100)])
+

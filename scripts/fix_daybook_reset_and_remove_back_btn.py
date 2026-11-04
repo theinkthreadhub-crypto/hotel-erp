@@ -64,3 +64,4 @@ with open('tests/test_horeca_one_ui.py', 'w', encoding='utf-8') as f:
     f.write(test_c)
 
 print("Daybook reset state & redundant back button removal applied, bumped to setu-pos-v91!")
+

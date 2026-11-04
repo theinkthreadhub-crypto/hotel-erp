@@ -17,3 +17,4 @@ html_c = html_c.replace("sw.js?v=89", "sw.js?v=90")
 html_path.write_text(html_c, encoding="utf-8")
 
 print("Bumped sw.js to setu-pos-v90")
+

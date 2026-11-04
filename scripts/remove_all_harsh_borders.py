@@ -243,3 +243,4 @@ with open('hotel_erp.html', 'w', encoding='utf-8') as f:
     f.write(content)
 
 print("All harsh borders removed successfully across the entire application!")
+
