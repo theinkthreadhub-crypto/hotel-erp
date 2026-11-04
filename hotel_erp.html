@@ -8393,6 +8393,9 @@ function go(s, approved, isBack){
     withManager(`${m ? m[1] : s} — open`, () => go(s, true));
     return;
   }
+  if(s === 'daybook' && !isBack){
+    dbSubmitted = false;
+  }
   cur = s;
   if(typeof hoEndLesson==='function')hoEndLesson();
   clearInterval(kdsTimer);
@@ -10033,7 +10036,7 @@ function renderQuickActionButtons(){
   const dict = {
     bill: { label: 'New Bill', fn: "go('bill')", style: 'background:#ecfdf5;color:#047857;border-color:#a7f3d0;font-weight:800' },
     kitchen: { label: 'KOT Screen', fn: "go('kitchen')", style: 'color:#285279;font-weight:700' },
-    daybook: { label: 'Day Book & Ledger', fn: "go('daybook')", style: 'background:#fff7ed;color:#c2410c;border-color:#fed7aa;font-weight:800' },
+    daybook: { label: 'Day Book & Ledger', fn: "dbSubmitted=false;go('daybook')", style: 'background:#fff7ed;color:#c2410c;border-color:#fed7aa;font-weight:800' },
     bills: { label: 'Bill List / History', fn: "go('bills')", style: 'color:#285279;font-weight:700' },
     purchase: { label: 'Purchase Entry', fn: "go('purchase')", style: 'color:#285279;font-weight:700' },
     expense: { label: 'Expenses Out', fn: "go('expense')", style: 'color:#285279;font-weight:700' },
@@ -13454,7 +13457,6 @@ function renderDaybookReportScreen(){
   main.innerHTML = `
   <div style="margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <button class="btn sm" onclick="backToDaybookFilter()" style="padding:6px 14px;font-weight:700">← Back to Filter</button>
       <button class="btn sm" onclick="backToDaybookFilter()" style="padding:6px 14px;font-weight:700">🔍 Change Filter / New Search</button>
       <button class="btn sm" onclick="printDaybook()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Print</button>
       <button class="btn ok sm" onclick="daybookPDF()" style="padding:6px 16px;font-weight:800;background:#2563eb;color:#fff;border:1.5px solid #1d4ed8">PDF</button>
