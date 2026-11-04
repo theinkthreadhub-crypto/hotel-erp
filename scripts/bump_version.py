@@ -13,3 +13,4 @@ with open('tests/test_horeca_one_ui.py', 'w', encoding='utf-8') as f:
     f.write(ttext)
 
 print('Bumped cache to setu-pos-v97 in sw.js and test_horeca_one_ui.py')
+

@@ -126,3 +126,4 @@ with open('hotel_erp.html', 'w', encoding='utf-8') as f:
     f.write(content)
 
 print("hotel_erp.html patched for online Baileys successfully!")
+

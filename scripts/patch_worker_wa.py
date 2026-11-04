@@ -186,3 +186,4 @@ if target in wtext:
 else:
     print('ERROR: target not found in worker.js')
     sys.exit(1)
+

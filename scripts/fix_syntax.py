@@ -22,3 +22,4 @@ with open('tests/test_horeca_one_ui.py', 'w', encoding='utf-8') as f:
     f.write(ttext)
 
 print('Fixed backtick and updated test_horeca_one_ui.py')
+
