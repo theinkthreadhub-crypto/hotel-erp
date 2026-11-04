@@ -1,0 +1,22 @@
+{
+ "otherDeviceSave": 200,
+ "pollDownloadsHeld": 5,
+ "bill1": 1,
+ "bill2": 2,
+ "bill3": 3,
+ "pageBillsWhenDownloadLanded": 2,
+ "billsInPageRightAfterBill2": 2,
+ "pageBillsAfterPoll": [
+  1,
+  2,
+  3
+ ],
+ "serverBills": [
+  1,
+  2,
+  3
+ ],
+ "expectedBills": 3,
+ "lost": 0,
+ "duplicateNumbers": 0
+}
