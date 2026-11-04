@@ -1,0 +1,40 @@
+scenario,bills_per_day,days_simulated,module,data_key,records,json_bytes,avg_bytes_per_record,growth_bytes_per_day,share_of_database_pct,source,notes
+A,200,14,POS & Billing,bills,2800,2869570,1025,204969,78.8,"measured (app functions, synthetic data)","Sales bills incl. items, taxes, discounts, split tenders, cancel flags, stock used"
+A,200,14,KOT & Kitchen,kots,1600,523965,327,0,14.4,"measured (app functions, synthetic data)",Kitchen tickets (app keeps only the last 7 days)
+A,200,14,Purchases & Supplier,txns:Purchase,217,77541,357,5539,2.1,"measured (app functions, synthetic data)",One row per purchase line with invoice header copy
+A,200,14,Supplier payments,txns:Supplier Payment,14,3174,227,227,0.1,"measured (app functions, synthetic data)",Part payments on credit purchases
+A,200,14,Expenses / Accounting,txns:Expense,53,8628,163,616,0.2,"measured (app functions, synthetic data)",Expense vouchers
+A,200,14,Inventory movements,moves,134,20837,156,162,0.6,"measured (app functions, synthetic data)","Opening stock, waste, issues, returns, counts (sales are derived from bills, not stored twice)"
+A,200,14,Audit trail,audit,454,106445,234,7603,2.9,"measured (app functions, synthetic data)","Manager actions, cancellations, purchases (capped at 20,000 entries)"
+A,200,14,Staff attendance,att,14,1890,135,135,0.1,"measured (app functions, synthetic data)",One map per day
+A,200,14,Running tables,kaccha,0,0,0,fixed,0.0,"measured (app functions, synthetic data)",Open table orders (cleared when billed)
+A,200,14,Masters: menu + recipes,menu,120,19793,165,fixed,0.5,"measured (app functions, synthetic data)","120 dishes, 2-4 ingredient recipe lines each"
+A,200,14,Masters: stock items,stock,60,7045,117,fixed,0.2,"measured (app functions, synthetic data)",60 raw materials
+A,200,14,Masters: staff,staff,12,1632,136,fixed,0.0,"measured (app functions, synthetic data)",12 employees
+A,200,14,Settings + licence,settings,1,826,826,fixed,0.0,"measured (app functions, synthetic data)",Restaurant settings
+B,500,7,POS & Billing,bills,3498,3520923,1007,502989,72.2,"measured (app functions, synthetic data)","Sales bills incl. items, taxes, discounts, split tenders, cancel flags, stock used"
+B,500,7,KOT & Kitchen,kots,3498,1144254,327,0,23.5,"measured (app functions, synthetic data)",Kitchen tickets (app keeps only the last 7 days)
+B,500,7,Purchases & Supplier,txns:Purchase,100,35689,357,5098,0.7,"measured (app functions, synthetic data)",One row per purchase line with invoice header copy
+B,500,7,Supplier payments,txns:Supplier Payment,5,1302,260,186,0.0,"measured (app functions, synthetic data)",Part payments on credit purchases
+B,500,7,Expenses / Accounting,txns:Expense,26,4233,163,605,0.1,"measured (app functions, synthetic data)",Expense vouchers
+B,500,7,Inventory movements,moves,127,19701,155,162,0.4,"measured (app functions, synthetic data)","Opening stock, waste, issues, returns, counts (sales are derived from bills, not stored twice)"
+B,500,7,Audit trail,audit,526,122672,233,17525,2.5,"measured (app functions, synthetic data)","Manager actions, cancellations, purchases (capped at 20,000 entries)"
+B,500,7,Staff attendance,att,7,945,135,135,0.0,"measured (app functions, synthetic data)",One map per day
+B,500,7,Running tables,kaccha,0,0,0,fixed,0.0,"measured (app functions, synthetic data)",Open table orders (cleared when billed)
+B,500,7,Masters: menu + recipes,menu,120,19137,159,fixed,0.4,"measured (app functions, synthetic data)","120 dishes, 2-4 ingredient recipe lines each"
+B,500,7,Masters: stock items,stock,60,6846,114,fixed,0.1,"measured (app functions, synthetic data)",60 raw materials
+B,500,7,Masters: staff,staff,12,1624,135,fixed,0.0,"measured (app functions, synthetic data)",12 employees
+B,500,7,Settings + licence,settings,1,826,826,fixed,0.0,"measured (app functions, synthetic data)",Restaurant settings
+C,1000,4,POS & Billing,bills,4000,4071496,1018,1017874,72.8,"measured (app functions, synthetic data)","Sales bills incl. items, taxes, discounts, split tenders, cancel flags, stock used"
+C,1000,4,KOT & Kitchen,kots,4000,1308345,327,0,23.4,"measured (app functions, synthetic data)",Kitchen tickets (app keeps only the last 7 days)
+C,1000,4,Purchases & Supplier,txns:Purchase,65,23247,358,5812,0.4,"measured (app functions, synthetic data)",One row per purchase line with invoice header copy
+C,1000,4,Supplier payments,txns:Supplier Payment,3,783,261,196,0.0,"measured (app functions, synthetic data)",Part payments on credit purchases
+C,1000,4,Expenses / Accounting,txns:Expense,14,2280,163,570,0.0,"measured (app functions, synthetic data)",Expense vouchers
+C,1000,4,Inventory movements,moves,124,19216,155,162,0.3,"measured (app functions, synthetic data)","Opening stock, waste, issues, returns, counts (sales are derived from bills, not stored twice)"
+C,1000,4,Audit trail,audit,593,137918,233,34480,2.5,"measured (app functions, synthetic data)","Manager actions, cancellations, purchases (capped at 20,000 entries)"
+C,1000,4,Staff attendance,att,4,540,135,135,0.0,"measured (app functions, synthetic data)",One map per day
+C,1000,4,Running tables,kaccha,0,0,0,fixed,0.0,"measured (app functions, synthetic data)",Open table orders (cleared when billed)
+C,1000,4,Masters: menu + recipes,menu,120,19506,163,fixed,0.3,"measured (app functions, synthetic data)","120 dishes, 2-4 ingredient recipe lines each"
+C,1000,4,Masters: stock items,stock,60,6650,111,fixed,0.1,"measured (app functions, synthetic data)",60 raw materials
+C,1000,4,Masters: staff,staff,12,1635,136,fixed,0.0,"measured (app functions, synthetic data)",12 employees
+C,1000,4,Settings + licence,settings,1,826,826,fixed,0.0,"measured (app functions, synthetic data)",Restaurant settings
