@@ -2248,6 +2248,91 @@ html[data-theme^="horeca_"] #main :is(.red,.green){font-weight:750}
 }
 /* END HORECA ACCESSIBILITY FINISH */
 
+
+/* Billing Desk Zero Page Scroll Viewport Layout */
+body[data-horeca-screen="bill"] #main {
+  overflow-y: hidden !important;
+  max-height: calc(100vh - 42px) !important;
+  height: calc(100vh - 42px) !important;
+  padding: 8px 14px 4px !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body[data-horeca-screen="bill"] #main > .title.horeca-pos-title {
+  padding: 8px 16px !important;
+  min-height: 44px !important;
+  margin-bottom: 8px !important;
+  flex-shrink: 0 !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-workspace {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: calc(100% - 52px) !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1.35fr) minmax(380px, 0.85fr) !important;
+  gap: 12px !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-catalog {
+  height: 100% !important;
+  max-height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 12px 14px !important;
+  box-sizing: border-box !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-catalog .horeca-pos-section-top {
+  flex-shrink: 0 !important;
+  margin-bottom: 8px !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-catalog #q {
+  flex-shrink: 0 !important;
+  margin-bottom: 8px !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-catalog .cats {
+  flex-shrink: 0 !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px !important;
+  max-height: 75px !important;
+  overflow-y: auto !important;
+  margin-bottom: 8px !important;
+  padding-bottom: 4px !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-catalog .items,
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .horeca-pos-catalog .items,
+html[data-theme^="horeca_"] body[data-horeca-screen="bill"] #main .items {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 4px 2px 12px !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-checkout {
+  height: 100% !important;
+  max-height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 12px 14px !important;
+  box-sizing: border-box !important;
+}
+
+body[data-horeca-screen="bill"] #main .horeca-pos-channels {
+  margin-bottom: 10px !important;
+}
+
 /* END HORECA ONE PREMIUM UI */
 
 
@@ -11148,95 +11233,7 @@ function scrBill(){
     <span class="r">Next Bill No: <b>#${D.seq.bill+1}</b> · ${dmy(today())}</span>
   </div>
 
-  <!-- Channel Selector Tabs (Dine-In, Takeaway, Zomato, Swiggy) -->
-  <div class="channel-bar horeca-pos-channels">
-    <button type="button" class="channel-btn ${B.channel==='Dine-In'?'active':''}" onclick="setBillingChannel('Dine-In')">
-      Dine-In (Table)
-    </button>
-    <button type="button" class="channel-btn ${B.channel==='Takeaway'?'active':''}" onclick="setBillingChannel('Takeaway')">
-      Takeaway / Parcel
-    </button>
-    <button type="button" class="channel-btn zomato ${B.channel==='Zomato'?'active':''}" onclick="setBillingChannel('Zomato')">
-      Zomato Order
-    </button>
-    <button type="button" class="channel-btn swiggy ${B.channel==='Swiggy'?'active':''}" onclick="setBillingChannel('Swiggy')">
-      Swiggy Order
-    </button>
-  </div>
-
-  <!-- Table Selector Bar (Shown when Dine-In is selected) -->
-  ${B.channel === 'Dine-In' ? `
-    <div class="card" style="padding:10px 14px;margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:12px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">
-            Dine-In Tables (Click to Switch or Start Order)
-          </span>
-          <span style="font-size:12px;color:#b45309;font-weight:700">
-            ${kacchaEntries.length} Active Tables Dining
-          </span>
-        </div>
-
-        <!-- Visual Status Legend -->
-        <div class="table-legend-wrap" style="display:flex;align-items:center;gap:12px">
-          <span class="legend-item" title="Free Table">
-            <span class="legend-dot" style="width:8px;height:8px;border-radius:50%;background:#10b981;display:inline-block"></span>
-            <span class="legend-label" style="font-size:11.5px;font-weight:600">Free</span>
-          </span>
-          <span class="legend-item" title="Active Dine-in Order">
-            <span class="legend-dot" style="width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block"></span>
-            <span class="legend-label" style="font-size:11.5px;font-weight:600">Running</span>
-          </span>
-          <span class="legend-item" title="QR Customer Order">
-            <span class="legend-dot" style="width:8px;height:8px;border-radius:50%;background:#8b5cf6;display:inline-block"></span>
-            <span class="legend-label" style="font-size:11.5px;font-weight:600">QR Order</span>
-          </span>
-          <span class="legend-item" title="Selected Table">
-            <span class="legend-dot" style="width:8px;height:8px;border-radius:50%;background:#0284c7;display:inline-block"></span>
-            <span class="legend-label" style="font-size:11.5px;font-weight:600">Selected</span>
-          </span>
-        </div>
-      </div>
-      <div class="table-bar-wrap" style="display:flex;gap:6px;overflow-x:auto;padding:2px 0 4px;scrollbar-width:thin">
-        ${tables.map(tbl => {
-          const isOccupied = !!D.kaccha[tbl];
-          const isSelected = B.table === tbl;
-          const qrInfo = tableQrOrder(tbl);
-          const isQrPending = qrInfo && qrInfo.status === 'pending';
-          const isQrActive = qrInfo && (qrInfo.status === 'active' || qrInfo.status === 'accepted');
-          const tblTotal = isOccupied ? calc(D.kaccha[tbl].cart, D.kaccha[tbl].disc, gstRate()).total : (isQrPending && qrInfo.order ? sum(qrInfo.order.items || [], i => (i.qty || 1) * (i.price || 0)) : 0);
-
-          let chipClass = 'tbl-chip';
-          if(isSelected) chipClass += ' active';
-          if(isQrPending) chipClass += ' qr-pending';
-          else if(isQrActive) chipClass += ' qr-active occupied';
-          else if(isOccupied) chipClass += ' occupied';
-
-          let statusHtml = '';
-          if(isQrPending){
-            statusHtml = `<span style="font-size:10px;font-weight:800;color:#86198f;background:#fae8ff;padding:1px 6px;border-radius:10px"><span style="font-size:10px;font-weight:800;color:#7c3aed;background:#ede9fe;padding:1px 6px;border-radius:6px">QR New</span></span>`;
-          } else if(isQrActive){
-            statusHtml = `<b style="font-size:11px;color:${isSelected ? '#fff' : '#5b21b6'}">₹${tblTotal} <span style="font-size:9px;background:${isSelected ? 'rgba(255,255,255,0.25)' : '#ede9fe'};padding:1px 4px;border-radius:4px;margin-left:2px">QR</span></b>`;
-          } else if(isOccupied){
-            statusHtml = `<b style="font-size:11px">₹${tblTotal}</b>`;
-          } else if(tableRsv(tbl)){
-            statusHtml = `<span style="font-size:10px;color:#7c3aed;font-weight:800">Rsv ${esc(tableRsv(tbl).time)}</span>`;
-          } else {
-            statusHtml = '<span style="font-size:10px;opacity:.7">Free</span>';
-          }
-
-          return `
-            <button type="button" class="${chipClass}" onclick="switchTable('${esc(tbl)}')">
-              <span class="pulse-dot"></span>
-              <span>${esc(tbl)}</span>
-              ${statusHtml}
-            </button>
-          `;
-        }).join('')}
-      </div>
-    </div>
-  ` : ''}
-
+  
   <div class="bill horeca-pos-workspace">
     <!-- Menu workspace -->
     <div class="horeca-pos-catalog">
@@ -11248,12 +11245,24 @@ function scrBill(){
 
     <!-- Checkout workspace -->
     <div class="card horeca-pos-checkout">
+      
+      <!-- 4 Channel Selector Tabs (Dine-In, Takeaway, Zomato, Swiggy) -->
+      <div class="channel-bar horeca-pos-channels" style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px;padding:4px;border-radius:10px;background:var(--surface);border:1px solid var(--border)">
+        <button type="button" class="channel-btn ${B.channel==='Dine-In'?'active':''}" style="min-height:36px;padding:6px 2px;font-size:11.5px;font-weight:750;border-radius:7px;cursor:pointer;border:1px solid transparent" onclick="setBillingChannel('Dine-In')">
+          Dine-In
+        </button>
+        <button type="button" class="channel-btn ${B.channel==='Takeaway'?'active':''}" style="min-height:36px;padding:6px 2px;font-size:11.5px;font-weight:750;border-radius:7px;cursor:pointer;border:1px solid transparent" onclick="setBillingChannel('Takeaway')">
+          Parcel
+        </button>
+        <button type="button" class="channel-btn zomato ${B.channel==='Zomato'?'active':''}" style="min-height:36px;padding:6px 2px;font-size:11.5px;font-weight:750;border-radius:7px;cursor:pointer;border:1px solid transparent;${B.channel==='Zomato'?'background:#e23744!important;border-color:#e23744!important;color:#fff!important':''}" onclick="setBillingChannel('Zomato')">
+          Zomato
+        </button>
+        <button type="button" class="channel-btn swiggy ${B.channel==='Swiggy'?'active':''}" style="min-height:36px;padding:6px 2px;font-size:11.5px;font-weight:750;border-radius:7px;cursor:pointer;border:1px solid transparent;${B.channel==='Swiggy'?'background:#fc8019!important;border-color:#fc8019!important;color:#fff!important':''}" onclick="setBillingChannel('Swiggy')">
+          Swiggy
+        </button>
+      </div>
       <div class="horeca-pos-section-top"><div><span class="horeca-eyebrow">CURRENT ORDER</span><h3>Order & Payment</h3></div><span class="horeca-pos-counter">Live cart</span></div>
-      ${kacchaEntries.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
-        <b style="font-size:12px;color:#b45309">Running orders:</b>
-        ${kacchaEntries.map(([tbl, k]) => `<button class="btn sm ${B.table === tbl ? 'ok' : 'g'}" style="padding:5px 10px" onclick="switchTable('${esc(tbl)}')">${esc(tbl)} · ${money(calc(k.cart, k.disc, gstRate()).total)}</button>`).join('')}
-      </div>` : ''}
-      <div class="grid" style="grid-template-columns:110px 1fr 1fr;gap:10px">
+            <div class="grid" style="grid-template-columns:110px 1fr 1fr;gap:10px">
         <div>
           <label>${B.channel==='Dine-In' ? 'Table No' : B.channel.includes('Zomato')||B.channel.includes('Swiggy') ? 'Order ID' : 'Order Token'}</label>
           <input id="b_table" value="${esc(B.channel==='Dine-In' ? B.table : (B.orderId || B.table))}" 
@@ -11321,55 +11330,89 @@ function scrBill(){
           ` : ''}
         </div>
       </div>
+        <!-- Running Tables & Dine-in Switcher Tray (Directly below Clear Cart) -->
+        ${B.channel === 'Dine-In' ? `
+          <div class="pos-running-tables-section" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <span style="font-size:11.5px;font-weight:800;color:var(--text);letter-spacing:.3px;text-transform:uppercase">
+                🍽️ Dine-In Tables (${kacchaEntries.length} Running)
+              </span>
+              <span style="font-size:11px;font-weight:700;color:#b45309">
+                Total: ${money(totalKacchaAmt)}
+              </span>
+            </div>
+
+            <!-- Table Selection Chips (Free, Running, QR, Selected) -->
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;max-height:100px;overflow-y:auto;padding-right:2px">
+              ${tables.map(tbl => {
+                const isOccupied = !!D.kaccha[tbl];
+                const isSelected = B.table === tbl;
+                const qrInfo = tableQrOrder(tbl);
+                const isQr = qrInfo && (qrInfo.status === 'pending' || qrInfo.status === 'active' || qrInfo.status === 'accepted');
+                const kt = isOccupied ? calc(D.kaccha[tbl].cart, D.kaccha[tbl].disc, gstRate()) : null;
+
+                let chipClass = 'tbl-chip';
+                let bg = 'var(--surface)';
+                let color = 'var(--text)';
+                let bdr = '1px solid var(--border)';
+                let dotColor = '#10b981'; // Green: Free
+
+                if (isSelected) {
+                  bg = '#0f172a';
+                  color = '#ffffff';
+                  bdr = '1px solid #0f172a';
+                  dotColor = '#38bdf8';
+                } else if (isQr) {
+                  bg = '#f5f3ff';
+                  color = '#6d28d9';
+                  bdr = '1px solid #c4b5fd';
+                  dotColor = '#8b5cf6';
+                } else if (isOccupied) {
+                  bg = '#fffbeb';
+                  color = '#b45309';
+                  bdr = '1px solid #fde68a';
+                  dotColor = '#f59e0b';
+                }
+
+                return `
+                  <button type="button" class="${chipClass}" style="background:${bg};color:${color};border:${bdr};padding:4px 8px;font-size:11.5px;font-weight:700;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;transition:all .15s" onclick="switchTable('${esc(tbl)}')">
+                    <span style="width:7px;height:7px;border-radius:50%;background:${dotColor};display:inline-block"></span>
+                    <span>${esc(tbl)}</span>
+                    ${isOccupied ? `<span style="font-size:10px;font-weight:800;color:#b45309;margin-left:2px">${money(kt.total)}</span>` : ''}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+
+            <!-- Active Running Tables Details List -->
+            ${kacchaEntries.length ? `
+              <div style="display:flex;flex-direction:column;gap:5px;max-height:160px;overflow-y:auto;padding-right:2px">
+                ${kacchaEntries.map(([tbl, k]) => {
+                  const kt = calc(k.cart, k.disc, gstRate());
+                  const isSelected = B.table === tbl;
+                  const qrInfo = tableQrOrder(tbl);
+                  const isQr = qrInfo && (qrInfo.status === 'active' || qrInfo.status === 'accepted');
+                  return `
+                    <div style="display:flex;justify-content:space-between;align-items:center;background:${isSelected ? '#eff6ff' : 'var(--surface)'};border:1px solid ${isSelected ? '#93c5fd' : 'var(--border)'};padding:6px 10px;border-radius:8px;cursor:pointer" onclick="switchTable('${esc(tbl)}')">
+                      <div>
+                        <b style="font-size:12px;color:${isSelected ? '#1d4ed8' : 'var(--text)'}">${esc(tbl)}</b>
+                        ${isQr ? `<span style="font-size:10px;background:#ede9fe;color:#6d28d9;padding:1px 5px;border-radius:4px;margin-left:4px">QR</span>` : ''}
+                        <span style="font-size:11px;color:var(--text-muted);margin-left:6px">${sum(k.cart, 'qty')} items (${k.createdAt || 'Just now'})</span>
+                      </div>
+                      <div style="font-size:12.5px;font-weight:750;color:#b45309">${money(kt.total)}</div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            ` : `
+              <div style="font-size:11px;color:var(--text-muted);text-align:center;padding:6px">No running tables. Click any table above to take order.</div>
+            `}
+          </div>
+        ` : ''}
+
     </div>
   </div>
 
-  <!-- Bottom Panel: Active Occupied Tables Tray with Running Amounts (for Dine-In) -->
-  <div class="active-tables-tray">
-    <div class="active-tables-tray-head">
-      <div>
-        <b>Active Dine-In Tables (Running Orders)</b>
-        <span style="font-size:12px;color:var(--text-muted);margin-left:8px">
-          Click an active table below to add items or finalize its bill:
-        </span>
-      </div>
-      <div style="font-size:13px;font-weight:700;color:#9a3412">
-        Total Running Orders: <span style="font-size:16px;color:#b45309">${money(totalKacchaAmt)}</span>
-        <span style="background:#fef3c7;color:#b45309;padding:2px 8px;border-radius:12px;font-size:11px;margin-left:6px">${kacchaEntries.length} Occupied</span>
-      </div>
-    </div>
-    
-    ${kacchaEntries.length ? `
-      <div class="active-tables-grid">
-        ${kacchaEntries.map(([tbl, k]) => {
-          const kt = calc(k.cart, k.disc, gstRate());
-          const isSelected = B.table === tbl;
-          const qrInfo = tableQrOrder(tbl);
-          const isQr = qrInfo && (qrInfo.status === 'active' || qrInfo.status === 'accepted');
-          return `
-            <div class="active-table-card ${isSelected ? 'selected' : ''} ${isQr ? 'qr-order' : ''}" onclick="switchTable('${esc(tbl)}')">
-              <div class="at-top">
-                <span class="at-name"><b>${esc(tbl)}</b></span>
-                ${isQr ? `<span class="at-badge" style="background:#ede9fe;color:#6d28d9;border-color:#c4b5fd">📱 QR Order</span>` : `<span class="at-badge">Running</span>`}
-              </div>
-              <div class="at-amt" style="${isQr ? 'color:#6d28d9' : ''}">${money(kt.total)}</div>
-              <div class="at-items" title="${k.cart.map(i=>i.name+'×'+i.qty).join(', ')}">
-                <b>${sum(k.cart, 'qty')} items:</b> ${k.cart.map(i => esc(i.name) + '×' + i.qty).join(', ')}
-              </div>
-              <div class="at-footer" style="${isQr ? 'color:#6d28d9;border-color:#e9d5ff' : ''}">
-                <span>Started: ${k.createdAt || 'Just now'}</span>
-                <span>Click to Open</span>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    ` : `
-      <div style="text-align:center;padding:18px;color:var(--text-muted);font-size:13px;background:var(--surface);border-radius:8px">
-        No tables are occupied. Click a table above to start a new order.
-      </div>
-    `}
-  </div>
   `;
 
   const q = $('#q');
