@@ -316,7 +316,7 @@ class CounterServerOnSqlite(unittest.TestCase):
         [t.start() for t in ts]
         [t.join() for t in ts]
         self.assertTrue(all(s == 200 for s, _ in res), [s for s, _ in res if s != 200])
-        db = self.call('/api/db')[1]['data']
+        db = self.call('/api/db?from=2000-01-01')[1]['data']
         mine = [b for b in db['bills'] if str(b.get('idemKey')).startswith('c-')]
         self.assertEqual(len(mine), 40)
         nos = [b['no'] for b in db['bills'] if not b.get('imported')]
@@ -344,7 +344,7 @@ class CounterServerOnSqlite(unittest.TestCase):
         stop.set()
         [t.join() for t in ts]
         self.__class__.start()
-        db = self.call('/api/db')[1]['data']
+        db = self.call('/api/db?from=2000-01-01')[1]['data']
         have = {b.get('idemKey') for b in db['bills']}
         lost = [k for k in acked if k not in have]
         self.assertGreater(len(acked), 10)
@@ -358,8 +358,8 @@ class CounterServerOnSqlite(unittest.TestCase):
         # Same check as gate1_gate2 TC-SEC05, through a normal save instead of editing the old JSON file by hand
         s, db = self.call('/api/db')
         d = db['data']
-        d['auth'] = dict(d.get('auth') or {}, hotelId='SYNTH1', paidUntil=int(time.time() * 1000) - 86400000)
-        s, r = self.call('/api/db', {'baseVersion': db['version'], 'data': d})
+        auth = dict(d.get('auth') or {}, hotelId='SYNTH1', paidUntil=int(time.time() * 1000) - 86400000)
+        s, r = self.call('/api/ops', {'bv': db['version'], 'ops': [{'k': 'auth', 'set': auth}]})
         self.assertEqual(s, 200, r)
         self.proc.kill(); self.proc.wait()
         self.__class__.start()
@@ -368,7 +368,7 @@ class CounterServerOnSqlite(unittest.TestCase):
         s, db = self.call('/api/db')
         d = db['data']
         d['auth']['paidUntil'] = int(time.time() * 1000) + 86400000 * 365
-        self.assertEqual(self.call('/api/db', {'baseVersion': db['version'], 'data': d})[0], 200)
+        self.assertEqual(self.call('/api/ops', {'bv': db['version'], 'ops': [{'k': 'auth', 'set': d['auth']}]})[0], 200)
 
     def test_queries_and_status(self):
         s, r = self.call('/api/q/bills?from=2026-01-01&to=2026-01-31&limit=5')

@@ -27,7 +27,7 @@ import threading
 import time
 from decimal import Decimal, ROUND_HALF_UP
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 DB_FILE = 'setu.sqlite'
 FLAG_FILE = 'setu-storage.json'
 
@@ -159,6 +159,14 @@ CREATE TABLE IF NOT EXISTS sync_inbox_deduplication (key TEXT PRIMARY KEY, at IN
 CREATE TABLE IF NOT EXISTS sync_checkpoints (name TEXT PRIMARY KEY, value TEXT, at INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS backup_manifest (
   file TEXT PRIMARY KEY, at INTEGER NOT NULL, doc_version INTEGER, bytes INTEGER, sha256 TEXT, bills INTEGER, verified INTEGER NOT NULL DEFAULT 0, note TEXT);
+
+-- ---------------- Schema 2 (Phase 2b): incremental saves ----------------
+-- Which records changed in which saved version: devices fetch only these (GET /api/changes), never the whole data
+CREATE TABLE IF NOT EXISTS change_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, version INTEGER NOT NULL, k TEXT NOT NULL, rid TEXT NOT NULL DEFAULT '');
+CREATE INDEX IF NOT EXISTS change_log_version ON change_log(version);
+CREATE INDEX IF NOT EXISTS change_log_krid ON change_log(k, rid, version);
+-- Totals of older sales per stock item without reading every movement
+CREATE INDEX IF NOT EXISTS stock_movements_src_date ON stock_movements(source, date);
 """
 
 # ---------------------------------------------------------------------------------------------------------
@@ -259,12 +267,15 @@ class SqliteDoc:
                 raise StoreError(f'database failed its integrity check: {ok}')
         con.executescript(SCHEMA)
         cur = self.meta('schema_version')
-        if cur is None:
-            with self.tx() as c:
-                c.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
-                c.execute('INSERT OR IGNORE INTO database_migrations VALUES (?, ?, ?)', (SCHEMA_VERSION, 'initial relational schema', int(time.time() * 1000)))
-        elif int(cur) > SCHEMA_VERSION:
+        if cur is not None and int(cur) > SCHEMA_VERSION:
             raise StoreError(f'database schema {cur} is newer than this program ({SCHEMA_VERSION})')
+        if cur is None or int(cur) < SCHEMA_VERSION:
+            # The new tables / indexes were created by the script above (IF NOT EXISTS); record each step once
+            names = {1: 'initial relational schema', 2: 'change log for incremental saves; stock movement (source, date) index'}
+            with self.tx() as c:
+                for v in range(1 if cur is None else int(cur) + 1, SCHEMA_VERSION + 1):
+                    c.execute('INSERT OR IGNORE INTO database_migrations VALUES (?, ?, ?)', (v, names[v], int(time.time() * 1000)))
+                c.execute("INSERT OR REPLACE INTO meta VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
         hid = self.meta('hotel_id')
         if hotel_id and hid and hid != hotel_id:
             raise StoreError(f'this database belongs to hotel {hid}, not {hotel_id}')
@@ -288,6 +299,31 @@ class SqliteDoc:
 
     def rlock(self):
         return self.wlock
+
+    class _Reader:
+        """A separate read-only connection in one read transaction: a consistent snapshot of the last commit
+        (WAL) for long reads, without taking the write lock, so billing never waits for a report or a device load."""
+        def __init__(self, path):
+            self.path = path
+
+        def __enter__(self):
+            # Plain path (a URI would need escaping for spaces in Windows user folders); query_only = read only
+            self.c = sqlite3.connect(self.path, timeout=30, isolation_level=None, check_same_thread=False)
+            self.c.execute('PRAGMA query_only=1')
+            self.c.execute('PRAGMA busy_timeout=30000')
+            self.c.execute('PRAGMA cache_size=-16384')
+            self.c.execute('BEGIN')
+            return self.c
+
+        def __exit__(self, et, ev, tb):
+            try:
+                self.c.execute('COMMIT')
+            finally:
+                self.c.close()
+            return False
+
+    def reader(self):
+        return SqliteDoc._Reader(self.path)
 
     class _Tx:
         def __init__(self, doc):
@@ -315,10 +351,11 @@ class SqliteDoc:
         return r[0] if r else None
 
     def close(self):
-        c = getattr(self, '_con', None)
-        if c is not None:
-            c.close()
-            self._con = None
+        with self.wlock:            # never while another thread is using the shared connection
+            c = getattr(self, '_con', None)
+            if c is not None:
+                c.close()
+                self._con = None
 
     # ---- import (one record) ----
     def _put_record(self, c, spec, rec, ordn):
@@ -598,12 +635,14 @@ class SqliteDoc:
         with self.wlock:
             return self._export_document()
 
-    def _export_document(self):
+    def _export_document(self, skip=()):
         c = self.con()
         keys = json.loads(self.meta('doc_keys') or '[]')
         kinds = json.loads(self.meta('doc_kinds') or '{}')
         out = {}
         for k in keys:
+            if k in skip:
+                continue
             kind = kinds.get(k, 'setting')
             if kind == 'spec':
                 out[k] = self._export_list(c, SPEC_BY_KEY[k])
@@ -629,14 +668,22 @@ class SqliteDoc:
         return out
 
     def _export_list(self, c, spec):
+        return self._export_rows(c, spec)
+
+    def _export_rows(self, c, spec, where='', args=()):
+        """Records of one list, in stored order; `where` (on the parent table) limits parents and children alike."""
         cols = spec.cols
         has_arrays = spec.table in ('bills', 'kots', 'menu_items')
         sel = ','.join(['id'] + ['"%s"' % x for x in cols] + ['extra'] + (['arrays'] if has_arrays else []))
-        rows = c.execute(f'SELECT {sel} FROM {spec.table} ORDER BY ord').fetchall()
+        rows = c.execute(f'SELECT {sel} FROM {spec.table} {where} ORDER BY ord', args).fetchall()
         kids = {}
+        sub = f' WHERE {{fk}} IN (SELECT id FROM {spec.table} {where})' if where else ''
         for ch in spec.children:
             m = {}
-            for r in c.execute(f'SELECT {ch.fk}, {",".join(chr(34) + x + chr(34) for x in ch.cols)}, extra' + (', synthetic' if ch.table == 'bill_payments' else '') + f' FROM {ch.table} ORDER BY {ch.fk}, line'):
+            if not rows:
+                kids[ch.key] = m
+                continue
+            for r in c.execute(f'SELECT {ch.fk}, {",".join(chr(34) + x + chr(34) for x in ch.cols)}, extra' + (', synthetic' if ch.table == 'bill_payments' else '') + f' FROM {ch.table}' + sub.format(fk=ch.fk) + f' ORDER BY {ch.fk}, line', args):
                 if ch.table == 'bill_payments' and r[-1]:
                     continue
                 m.setdefault(r[0], []).append(join_record(ch.cols, r[1:1 + len(ch.cols)], r[1 + len(ch.cols)]))
@@ -652,6 +699,240 @@ class SqliteDoc:
                     rec[ch.key] = kids[ch.key].get(rid, [])
             out.append(rec)
         return out
+
+    # ---- record-level operations (Phase 2b: a save sends only the records that changed) ----
+    def kinds(self):
+        return json.loads(self.meta('doc_kinds') or '{}')
+
+    def doc_keys(self):
+        return json.loads(self.meta('doc_keys') or '[]')
+
+    def register_key(self, c, k, kind):
+        """A top-level key and the place it is stored (doc_keys / doc_kinds), inside the caller's transaction."""
+        keys, kinds = self.doc_keys(), self.kinds()
+        old = kinds.get(k)
+        if k in keys and old == kind:
+            return old
+        if old is not None and old != kind:
+            self._clear_key(c, k, old)
+        if k not in keys:
+            keys.append(k)
+        kinds[k] = kind
+        c.execute("INSERT OR REPLACE INTO meta VALUES ('doc_keys', ?)", (_dump(keys),))
+        c.execute("INSERT OR REPLACE INTO meta VALUES ('doc_kinds', ?)", (_dump(kinds),))
+        return old
+
+    def get_records(self, c, key, ids):
+        """{id: record} for the given ids of a list stored in its own table."""
+        spec, out = SPEC_BY_KEY[key], {}
+        ids = [str(i) for i in ids]
+        for i in range(0, len(ids), 400):
+            chunk = ids[i:i + 400]
+            for r in self._export_rows(c, spec, f'WHERE id IN ({",".join("?" * len(chunk))})', chunk):
+                out[r['id']] = r
+        return out
+
+    def get_ext_records(self, c, key, ids):
+        out = {}
+        for rid in ids:
+            r = c.execute('SELECT data FROM ext_records WHERE list = ? AND id = ?', (key, str(rid))).fetchone()
+            if r:
+                out[str(rid)] = json.loads(r[0])
+        return out
+
+    @staticmethod
+    def _next_ord(c, table, where='', args=()):
+        return c.execute(f'SELECT COALESCE(MAX(ord), -1) + 1 FROM {table} {where}', args).fetchone()[0]
+
+    def upsert(self, c, key, kind, rec, old=None):
+        """Insert or replace one record of a list; a new record goes to the end, an existing one keeps its place."""
+        now = int(time.time() * 1000)
+        if kind == 'spec':
+            spec = SPEC_BY_KEY[key]
+            r = c.execute(f'SELECT ord FROM {spec.table} WHERE id = ?', (rec['id'],)).fetchone()
+            if r is not None and old is not None and old != rec:
+                if spec.table == 'bills':
+                    c.execute('INSERT INTO bill_modifications (bill_id, action, at, old, new) VALUES (?, ?, ?, ?, ?)',
+                              (rec['id'], 'cancel' if rec.get('cancelled') and not old.get('cancelled') else 'edit', now, _dump(old), _dump(rec)))
+                if spec.table == 'kots' and old.get('status') != rec.get('status'):
+                    c.execute('INSERT INTO kot_status_history (kot_id, old_status, new_status, at) VALUES (?, ?, ?, ?)', (rec['id'], old.get('status'), rec.get('status'), now))
+            self._put_record(c, spec, rec, r[0] if r is not None else self._next_ord(c, spec.table))
+        elif kind == 'extlist':
+            r = c.execute('SELECT ord FROM ext_records WHERE list = ? AND id = ?', (key, rec['id'])).fetchone()
+            c.execute('INSERT OR REPLACE INTO ext_records VALUES (?, ?, ?, 0, ?)',
+                      (key, rec['id'], r[0] if r is not None else self._next_ord(c, 'ext_records', 'WHERE list = ?', (key,)), _dump(rec)))
+        else:
+            raise StoreError(f'{key}: records cannot be saved one by one ({kind})')
+
+    def remove(self, c, key, kind, rid, old=None):
+        if kind == 'spec':
+            spec = SPEC_BY_KEY[key]
+            if spec.table == 'bills' and old is not None:
+                c.execute('INSERT INTO bill_modifications (bill_id, action, at, old, new) VALUES (?, ?, ?, ?, NULL)', (rid, 'delete', int(time.time() * 1000), _dump(old)))
+            self._del_record(c, spec, rid)
+        elif kind == 'extlist':
+            c.execute('DELETE FROM ext_records WHERE list = ? AND id = ?', (key, rid))
+        else:
+            raise StoreError(f'{key}: records cannot be removed one by one ({kind})')
+
+    def map_set(self, c, key, kind, mk, v):
+        """One entry of a map (running table orders, cash drawer, salary sheets, attendance day, other maps)."""
+        if kind == 'maptable':
+            table, kc = MAP_TABLES[key]
+            r = c.execute(f'SELECT ord FROM {table} WHERE {kc} = ?', (mk,)).fetchone()
+            c.execute(f'INSERT OR REPLACE INTO {table} ({kc}, ord, data) VALUES (?, ?, ?)', (mk, r[0] if r else self._next_ord(c, table), _dump(v)))
+        elif kind == 'kvmap':
+            r = c.execute('SELECT ord FROM kv_maps WHERE map = ? AND k = ?', (key, mk)).fetchone()
+            c.execute('INSERT OR REPLACE INTO kv_maps VALUES (?, ?, ?, ?)', (key, mk, r[0] if r else self._next_ord(c, 'kv_maps', 'WHERE map = ?', (key,)), _dump(v)))
+        elif kind == 'att':
+            if not isinstance(v, dict):
+                raise StoreError('attendance day must be an object')
+            r = c.execute('SELECT MIN(ord) FROM attendance WHERE date = ?', (mk,)).fetchone()
+            if r and r[0] is not None:
+                base = r[0] - r[0] % 100000
+            else:
+                top = c.execute('SELECT MAX(ord) FROM attendance').fetchone()[0]
+                base = 0 if top is None else (top // 100000 + 1) * 100000
+            c.execute('DELETE FROM attendance WHERE date = ?', (mk,))
+            if not v:
+                c.execute("INSERT INTO attendance VALUES (?, '', ?, '__empty__')", (mk, base))
+            for si, (sk, x) in enumerate(v.items()):
+                c.execute('INSERT INTO attendance VALUES (?, ?, ?, ?)', (mk, sk, base + si, _dump(x)))
+        else:
+            raise StoreError(f'{key}: not a map ({kind})')
+
+    def map_del(self, c, key, kind, mk):
+        if kind == 'maptable':
+            table, kc = MAP_TABLES[key]
+            c.execute(f'DELETE FROM {table} WHERE {kc} = ?', (mk,))
+        elif kind == 'kvmap':
+            c.execute('DELETE FROM kv_maps WHERE map = ? AND k = ?', (key, mk))
+        elif kind == 'att':
+            c.execute('DELETE FROM attendance WHERE date = ?', (mk,))
+        else:
+            raise StoreError(f'{key}: not a map ({kind})')
+
+    def set_value(self, c, key, kind, v, old):
+        """Replace a whole top-level value (settings, sequences, staff, a small list), writing only what differs."""
+        prev = self.register_key(c, key, kind)
+        self._put_key(c, key, kind, v, old if prev == kind else None)
+
+    @staticmethod
+    def log_change(c, version, k, rid=''):
+        c.execute('INSERT INTO change_log (version, k, rid) VALUES (?, ?, ?)', (int(version), k, str(rid)))
+
+    @staticmethod
+    def set_version(c, version, saved_at):
+        c.execute("INSERT OR REPLACE INTO meta VALUES ('doc_version', ?)", (str(int(version)),))
+        c.execute("INSERT OR REPLACE INTO meta VALUES ('saved_at', ?)", (str(int(saved_at or 0)),))
+
+    def changed_since(self, c, since, upto):
+        """[(key, record id, version)] changed after version `since` up to `upto`, or None when the log no longer
+        reaches back that far (the device then loads again)."""
+        lo = c.execute('SELECT MIN(version) FROM change_log').fetchone()[0]
+        if since >= upto:
+            return []
+        if lo is None or since < lo - 1:
+            return None
+        return c.execute('SELECT k, rid, MAX(version) FROM change_log WHERE version > ? AND version <= ? GROUP BY k, rid ORDER BY MAX(version)', (int(since), int(upto))).fetchall()
+
+    @staticmethod
+    def last_change(c, k, rid=''):
+        r = c.execute('SELECT MAX(version) FROM change_log WHERE k = ? AND rid = ?', (k, str(rid))).fetchone()
+        return r[0] if r and r[0] is not None else 0
+
+    @staticmethod
+    def prune_change_log(c, keep=100000):
+        c.execute('DELETE FROM change_log WHERE seq <= (SELECT MAX(seq) FROM change_log) - ?', (int(keep),))
+
+    # ---- what the server keeps in memory, and what devices load ----
+    def export_except(self, skip=('bills',)):
+        """The data object without the long history lists (they are read from the tables when needed)."""
+        with self.wlock:
+            return self._export_document(skip)
+
+    def export_window(self, frm):
+        """Bills from `frm` (YYYY-MM-DD) on, in stored order, rebuilt exactly (own read connection)."""
+        with self.reader() as c:
+            return self._export_rows(c, SPEC_BY_KEY['bills'], 'WHERE date >= ?', (frm,))
+
+    def bill_page(self, frm, to, after, limit):
+        """(count in range, records, last ord) of bills in a date range after stored position `after`."""
+        with self.reader() as c:
+            n = c.execute('SELECT COUNT(*) FROM bills WHERE date >= ? AND date <= ?', (frm, to)).fetchone()[0]
+            ids = c.execute('SELECT id, ord FROM bills WHERE date >= ? AND date <= ? AND ord > ? ORDER BY ord LIMIT ?', (frm, to, int(after), int(limit))).fetchall()
+            recs = self.get_records(c, 'bills', [i for i, _ in ids])
+            return n, [recs[i] for i, _ in ids if i in recs], (ids[-1][1] if ids else after)
+
+    def iter_bills(self, page=5000):
+        """Every bill in stored order, `page` at a time (keyset paging; one snapshot for the whole run)."""
+        with self.reader() as c:
+            last = -1
+            while True:
+                ids = c.execute('SELECT id, ord FROM bills WHERE ord > ? ORDER BY ord LIMIT ?', (last, page)).fetchall()
+                if not ids:
+                    return
+                recs = self.get_records(c, 'bills', [i for i, _ in ids])
+                yield [recs[i] for i, _ in ids if i in recs]
+                last = ids[-1][1]
+
+    def history_totals(self, frm):
+        """Totals of the bills before `frm`, for the values the app derives from every bill ever made:
+        stock (sale / cancel movements per item), and per customer: visits, spend, first / last visit,
+        loyalty points, wallet spend and favourite dishes. Same rules as the app's customers(), ptsBal(),
+        walletBal() and stockMoves()."""
+        with self.reader() as c:
+            stock = {sid: q for sid, q in c.execute("SELECT sid, SUM(qty) FROM stock_movements WHERE source IN ('sale', 'cancel') AND date < ? GROUP BY sid", (frm,))}
+            n = c.execute('SELECT COUNT(*) FROM bills WHERE date < ?', (frm,)).fetchone()[0]
+            cust = self._cust_totals(c, frm)
+        return {'from': frm, 'bills': n, 'stock': stock, 'cust': cust}
+
+    def cust_totals(self, frm, phones):
+        """history_totals()['cust'] for some customers only (10-digit numbers), recounted from the tables."""
+        with self.reader() as c:
+            out = {}
+            for p in phones:
+                out.update({k: v for k, v in self._cust_totals(c, frm, p).items() if k == p})
+            return out
+
+    @staticmethod
+    def _cust_totals(c, frm, phone=None):
+        cust = {}
+        flt, args = ('AND phone LIKE ?', (frm, '%' + phone)) if phone else ('', (frm,))
+        for phone_, name, channel, mode, total, date, extra, canc in c.execute(
+                f'SELECT phone, cust, channel, mode, total, date, extra, is_cancelled FROM bills WHERE date < ? {flt} ORDER BY ord', args):
+            if canc:
+                continue
+            p = norm_ph(phone_)
+            if len(p) != 10:
+                continue
+            ex = json.loads(extra) if extra and extra != '{}' else {}
+            e = cust.get(p)
+            if e is None:
+                e = cust[p] = {'visits': 0, 'spend': 0, 'pts': 0, 'pa': 0, 'ws': 0, 'name': '', 'first': '', 'last': '', 'fav': {}}
+            pts = jsnum(ex.get('ptsEarned')) - jsnum(ex.get('ptsUsed'))
+            e['pa'] += pts
+            if mode == 'Wallet':
+                e['ws'] += jsnum(total)
+            if channel in ('Zomato', 'Swiggy'):
+                continue
+            if name:
+                e['name'] = name
+            if not e['visits']:
+                e['first'] = date
+            e['visits'] += 1
+            e['spend'] += jsnum(total)
+            e['last'] = date
+            e['pts'] += pts
+        for phone_, iname, qty in c.execute(f"""SELECT b.phone, i.name, i.qty FROM bill_items i JOIN bills b ON b.id = i.bill_id
+                WHERE b.date < ? {flt.replace('phone', 'b.phone')} AND b.is_cancelled = 0 AND COALESCE(b.phone, '') <> '' AND COALESCE(b.channel, '') NOT IN ('Zomato', 'Swiggy')""", args):
+            e = cust.get(norm_ph(phone_))
+            if e is not None and iname:
+                e['fav'][iname] = e['fav'].get(iname, 0) + (jsnum(qty) or 1)
+        for e in cust.values():
+            if len(e['fav']) > 20:
+                e['fav'] = dict(sorted(e['fav'].items(), key=lambda kv: -kv[1])[:20])
+        return cust
 
     # ---- stock ----
     def stock_balances(self, aliases=None):
@@ -739,6 +1020,28 @@ def restore_backup(backup_gz, dest_db):
                 os.replace(dest_db + ext, aside + ext)
     os.replace(tmp, dest_db)
     return {'bills': bills, 'integrity': ok}
+
+
+def norm_ph(p):
+    """The app's normPh(): digits only, the last 10 of a longer number."""
+    d = ''.join(ch for ch in str(p if p is not None else '') if ch in '0123456789')   # JS \D: ASCII digits only
+    return d[-10:] if len(d) > 10 else d
+
+
+def jsnum(x):
+    """JavaScript `+x || 0`."""
+    if isinstance(x, bool):
+        return int(x)
+    if isinstance(x, (int, float)):
+        return x if x == x else 0
+    if x is None:
+        return 0
+    try:
+        s = str(x).strip()
+        v = float(s) if s else 0
+        return int(v) if float(v).is_integer() else v
+    except (TypeError, ValueError):
+        return 0
 
 
 def _hotel_of(doc):
