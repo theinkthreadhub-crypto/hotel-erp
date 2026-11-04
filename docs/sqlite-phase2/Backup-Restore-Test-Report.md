@@ -6,7 +6,7 @@ All tests used synthetic data in temporary folders on a 4 vCPU / 16 GB Linux con
 
 | Item | Implementation |
 |---|---|
-| Method | **SQLite online backup API** (`Connection.backup`), taken under the write lock. It is consistent while WAL transactions run, and the live file is never copied. |
+| Method | **`VACUUM INTO` from a separate read connection**: a consistent snapshot of the last commit (WAL read transaction), taken **while billing keeps writing**. The live file is never copied byte for byte. The first build used the backup API under the write lock, which stopped billing for about 65 s per backup on a year of data (measured); replaced. |
 | Compression | gzip level 6 → `Backups\setu-YYYY-MM-DD.sqlite.gz` (written as `.part`, then renamed) |
 | Verification | Every backup is opened before compression finishes: `PRAGMA integrity_check` + bill count. SHA-256 recorded. |
 | Manifest | `backup_manifest` table: file, time, data version, bytes, sha256, bills, verified, duration |

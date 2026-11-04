@@ -1498,15 +1498,6 @@ class SqliteSetuStore(SetuStore):
         self.version = int(self.sdb.meta('doc_version') or 1)
         self.saved_at = int(self.sdb.meta('saved_at') or 0)
         self.migrate_wa_history(self._doc)
-        self._freeze()
-
-    @staticmethod
-    def _freeze():
-        # The in-memory copy holds millions of long-lived objects; keep the garbage collector from rescanning
-        # them on every collection (measured: multi-second pauses at one year of bills without this)
-        import gc
-        gc.collect()
-        gc.freeze()
 
     def data(self):
         return json.loads(self.raw)
@@ -1537,7 +1528,6 @@ class SqliteSetuStore(SetuStore):
         # Committed (WAL, synchronous=FULL): only now does the server move ahead
         self._doc, self.version, self.saved_at = data_obj, version, saved_at
         self._maxno = None
-        self._freeze()
         if self.on_write:
             self.on_write()
         self._backup_soon()
@@ -1583,7 +1573,7 @@ class SqliteSetuStore(SetuStore):
         if not self._native_ok('bills', 'seq', 'stock'):
             return super().settle_bill(payload)      # unusual data shape: same rules through the transactional write()
         bill = copy.deepcopy(bill)
-        with self.lock:
+        with self.lock, self.sdb.rlock():
             con = self.sdb.con()
             row = con.execute('SELECT id FROM bills WHERE idemKey = ?', (idem_key,)).fetchone()
             if row:
@@ -1653,7 +1643,8 @@ class SqliteSetuStore(SetuStore):
     def _max_bill_no(self):
         # Highest finalized number ever stored (cached; a whole-document write resets it)
         if getattr(self, '_maxno', None) is None:
-            self._maxno = int(self.sdb.con().execute('SELECT MAX(CAST(no AS INTEGER)) FROM bills WHERE COALESCE(imported, 0) = 0').fetchone()[0] or 0)
+            with self.sdb.rlock():
+                self._maxno = int(self.sdb.con().execute('SELECT MAX(CAST(no AS INTEGER)) FROM bills WHERE COALESCE(imported, 0) = 0').fetchone()[0] or 0)
         return self._maxno
 
     def cancel_bill(self, payload, by='Manager'):
@@ -1663,7 +1654,7 @@ class SqliteSetuStore(SetuStore):
             return 400, {'error': 'billId and idemKey are required'}
         if not self._native_ok('bills', 'stock', 'audit'):
             return 409, {'error': 'native cancel not available for this data shape; cancel from the app'}
-        with self.lock:
+        with self.lock, self.sdb.rlock():
             con = self.sdb.con()
             done = con.execute('SELECT ref FROM operation_idempotency WHERE key = ?', (key,)).fetchone()
             if done:
@@ -1710,6 +1701,10 @@ class SqliteSetuStore(SetuStore):
 
     # ---------- paginated reads (indexed SQL; nothing loads all history) ----------
     def query(self, name, q):
+        with self.sdb.rlock():
+            return self._query(name, q)
+
+    def _query(self, name, q):
         con = self.sdb.con()
         lim = max(1, min(int(q.get('limit', 100) or 100), 1000))
         off = max(0, int(q.get('offset', 0) or 0))

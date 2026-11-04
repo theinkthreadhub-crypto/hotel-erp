@@ -272,7 +272,10 @@ class SqliteDoc:
 
     # ---- connections ----
     def con(self):
-        c = getattr(self._local, 'con', None)
+        # One connection for the whole process, used under self.wlock (writes) / self.rlock() (reads).
+        # The HTTP server starts a thread per request: a connection per thread meant a new connection with a cold
+        # page cache on every request (measured: 25+ ms per bill and a collapse at 100 clients on a year of data).
+        c = getattr(self, '_con', None)
         if c is None:
             c = sqlite3.connect(self.path, timeout=30, isolation_level=None, check_same_thread=False)
             c.execute('PRAGMA journal_mode=WAL')
@@ -280,8 +283,12 @@ class SqliteDoc:
             c.execute('PRAGMA foreign_keys=ON')
             c.execute('PRAGMA busy_timeout=30000')
             c.execute('PRAGMA wal_autocheckpoint=1000')
-            self._local.con = c
+            c.execute('PRAGMA cache_size=-65536')       # 64 MB page cache
+            self._con = c
         return c
+
+    def rlock(self):
+        return self.wlock
 
     class _Tx:
         def __init__(self, doc):
@@ -304,14 +311,15 @@ class SqliteDoc:
         return SqliteDoc._Tx(self)
 
     def meta(self, k):
-        r = self.con().execute('SELECT v FROM meta WHERE k = ?', (k,)).fetchone()
+        with self.wlock:
+            r = self.con().execute('SELECT v FROM meta WHERE k = ?', (k,)).fetchone()
         return r[0] if r else None
 
     def close(self):
-        c = getattr(self._local, 'con', None)
+        c = getattr(self, '_con', None)
         if c is not None:
             c.close()
-            self._local.con = None
+            self._con = None
 
     # ---- import (one record) ----
     def _put_record(self, c, spec, rec, ordn):
@@ -588,6 +596,10 @@ class SqliteDoc:
                 c.execute('INSERT OR REPLACE INTO kv_maps VALUES (?, ?, ?, ?)', (name, k, i, _dump(v)))
 
     def export_document(self):
+        with self.wlock:
+            return self._export_document()
+
+    def _export_document(self):
         c = self.con()
         keys = json.loads(self.meta('doc_keys') or '[]')
         kinds = json.loads(self.meta('doc_kinds') or '{}')
@@ -653,7 +665,9 @@ class SqliteDoc:
                 s, n = aliases[s], n + 1
             return s
         tot = {}
-        for sid, q in self.con().execute('SELECT sid, qty FROM stock_balances'):
+        with self.wlock:
+            rows = self.con().execute('SELECT sid, qty FROM stock_balances').fetchall()
+        for sid, q in rows:
             r = root(sid)
             tot[r] = tot.get(r, 0) + q
         return tot
@@ -664,17 +678,20 @@ class SqliteDoc:
 
     # ---- backups ----
     def backup_to(self, dest_gz, doc_version=None, keep=60, verify=True):
-        """Online backup (SQLite backup API: consistent while transactions run), gzip, verify, record in the manifest."""
+        """Online backup (VACUUM INTO from a separate read connection: a consistent snapshot while transactions run),
+        gzip, verify, record in the manifest."""
         tmp = dest_gz + '.part.sqlite'
         for p in (tmp, tmp + '-wal', tmp + '-shm'):
             if os.path.exists(p):
                 os.remove(p)
         t0 = time.time()
-        dst = sqlite3.connect(tmp)
-        with self.wlock:
-            self.con().backup(dst)
-        dst.execute('PRAGMA journal_mode=DELETE')
-        dst.close()
+        # Own read connection + VACUUM INTO: a consistent snapshot of the last commit, while billing keeps writing (WAL).
+        # (Holding the write lock for the whole copy stopped billing for ~65 s on a year of data.)
+        src = sqlite3.connect(self.path, timeout=30)
+        try:
+            src.execute('VACUUM INTO ?', (tmp,))
+        finally:
+            src.close()
         h = hashlib.sha256()
         with open(tmp, 'rb') as f, gzip.open(dest_gz + '.part', 'wb', compresslevel=6) as g:
             for chunk in iter(lambda: f.read(1 << 20), b''):
