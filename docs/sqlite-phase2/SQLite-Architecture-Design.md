@@ -36,6 +36,8 @@ HoReCa One / Setu counter PC, branch `feature/horeca-one-sqlite-phase2` (on top 
 | `busy_timeout` | 30 s | Waits instead of failing when another connection holds the lock |
 | `wal_autocheckpoint` | 1000 pages | Keeps the WAL small |
 | Writes | `BEGIN IMMEDIATE` … `COMMIT` / `ROLLBACK`, serialised by one write lock | All-or-nothing; one writer at a time |
+| Connection | One shared connection, guarded by a lock; `cache_size` 64 MB | A connection per request thread started with a cold cache each time; that made settle 3× slower at one year of data (measured) |
+| Backups | `VACUUM INTO` from a separate read connection | A consistent snapshot of the last commit while billing continues; the earlier backup-API copy held the write lock for about 65 s on one year of data |
 | Queries | Parameterised only (`?`) | No string-built SQL from request data |
 | Open check | `PRAGMA quick_check`; refuses to open a damaged file | Never serves wrong data |
 | Schema | `meta.schema_version` and `database_migrations`; a newer schema than the program is refused | Safe upgrades |
@@ -84,6 +86,7 @@ The model was taken from the real data (`D`) the app stores. Nothing was invente
 
 - **Stock ledger.** `stock_movements` is written in the same transaction as its source record, with the same ids the app's `stockMoves()` derives (`s-<bill>-<sid>`, `x-…`, `p-<txn>`, `m-<move>`). A bill or purchase can produce its movements only once; re-saving replaces them.
 - **Balances.** `stock_balances` is maintained by triggers inside the same transaction. Merged items (`stockAlias`) fold into their target exactly as `sidOf()` does.
+- **Commit first, then memory.** The server keeps a rebuilt copy of the data in memory for `GET /api/db` and the compatibility diff. The native settle and cancel paths change that copy only after `COMMIT` succeeds, and change only the records involved (append one bill, replace a few stock items). An earlier build copied the whole bill list on each settle; at 365,000 bills that alone cost about 11 ms per bill (profiled), so it was removed. Readers that encode the copy (`GET /api/db`) hold a short lock so they never see half an update.
 
 **What this does not yet do.** The UI still sends the whole data object for the compatibility path, and still loads all history into the browser. Storage is incremental; the network and browser side is not. The native endpoints and paginated query API exist and are tested; switching the screens to them is the remaining frontend work (Phase 2b, see `Module-Compatibility-Report.md`).
 

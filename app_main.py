@@ -1478,6 +1478,7 @@ class SqliteSetuStore(SetuStore):
         self.sdb = SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE))
         self._doc = None
         self._raw_cache = (None, 'null')
+        self._enc_lock = threading.RLock()
         super().__init__(data_dir)
 
     # The base class assigns self.raw; here the text is derived from the committed data
@@ -1485,9 +1486,10 @@ class SqliteSetuStore(SetuStore):
     def raw(self):
         if self._doc is None:
             return 'null'
-        if self._raw_cache[0] != self.version:
-            self._raw_cache = (self.version, json.dumps(self._doc, ensure_ascii=False))
-        return self._raw_cache[1]
+        with self._enc_lock:
+            if self._raw_cache[0] != self.version:
+                self._raw_cache = (self.version, json.dumps(self._doc, ensure_ascii=False))
+            return self._raw_cache[1]
 
     @raw.setter
     def raw(self, value):
@@ -1514,9 +1516,10 @@ class SqliteSetuStore(SetuStore):
         return SEC.has_credentials(self._doc or {})
 
     def public_raw(self):
-        if self._pub[0] != self.version:
-            self._pub = (self.version, json.dumps(SEC.public_view(self._doc or {}), ensure_ascii=False))
-        return self._pub[1]
+        with self._enc_lock:
+            if self._pub[0] != self.version:
+                self._pub = (self.version, json.dumps(SEC.public_view(self._doc or {}), ensure_ascii=False))
+            return self._pub[1]
 
     def write(self, data_obj, outbox=('doc', None)):
         version = self.version + 1
@@ -1526,7 +1529,8 @@ class SqliteSetuStore(SetuStore):
             c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)',
                       (outbox[0], outbox[1], version, json.dumps({'keys': n}), saved_at))
         # Committed (WAL, synchronous=FULL): only now does the server move ahead
-        self._doc, self.version, self.saved_at = data_obj, version, saved_at
+        with self._enc_lock:
+            self._doc, self.version, self.saved_at = data_obj, version, saved_at
         self._maxno = None
         if self.on_write:
             self.on_write()
@@ -1554,15 +1558,6 @@ class SqliteSetuStore(SetuStore):
         kinds = json.loads(self.sdb.meta('doc_kinds') or '{}')
         want = {'bills': 'spec', 'stock': 'spec', 'audit': 'spec', 'seq': 'seq'}
         return all(k in (self._doc or {}) and kinds.get(k) == want[k] for k in keys) and kinds.get('kaccha', 'maptable') == 'maptable'
-
-    def _cow(self, keys):
-        """Copy-on-write of the in-memory data: a new top level, new lists for the keys that change."""
-        new = dict(self._doc)
-        for k in keys:
-            if k in new:
-                v = new[k]
-                new[k] = list(v) if isinstance(v, list) else dict(v) if isinstance(v, dict) else v
-        return new
 
     def settle_bill(self, payload):
         """Same rules and answers as SetuStore.settle_bill, as one SQLite transaction."""
@@ -1598,8 +1593,10 @@ class SqliteSetuStore(SetuStore):
                     return 400, {'error': 'SPLIT_TENDER_MISMATCH', 'message': f'Split payment tender sum ({tender_sum}) does not match bill total ({round(float(bill.get("total") or 0), 2)})'}
             if not bill.get('id') or con.execute('SELECT 1 FROM bills WHERE id = ?', (bill['id'],)).fetchone():
                 bill['id'] = 'srv' + secrets.token_hex(6)
-            new = self._cow(['bills', 'seq', 'stock', 'kaccha'])
-            seq = new['seq']
+            # Build the change from small copies; the in-memory data is updated only after COMMIT (no copy of
+            # every bill per settle: that copy was 11 ms of each 24 ms on a year of data, measured with cProfile)
+            doc = self._doc
+            seq = dict(doc.get('seq') or {})
             # A finalized number is never given twice: the next number after both the counter and every stored bill
             seq['bill'] = max(int(seq.get('bill') or 0), self._max_bill_no()) + 1
             bill['no'] = seq['bill']
@@ -1609,31 +1606,41 @@ class SqliteSetuStore(SetuStore):
             bill['paymentStatus'] = 'recorded'
             if bill.get('mode') == 'UPI' or any((p.get('mode') == 'UPI') for p in (bill.get('pays') or []) if isinstance(p, dict)):
                 bill['upiVerified'] = False
-            changed_stock = []
+            changed_stock = {}
+            stock = doc['stock']
             for u in bill.get('used') or []:
-                for i, it in enumerate(new['stock']):
+                for i, it in enumerate(stock):
                     if it.get('id') == u.get('sid'):
-                        it = dict(it)
+                        it = dict(changed_stock.get(i, it))
                         it['qty'] = round(float(it.get('qty') or 0) - float(u.get('qty') or 0), 3)
-                        new['stock'][i] = it
-                        changed_stock.append((i, it))
-            if tbl and isinstance(new.get('kaccha'), dict) and tbl in new['kaccha']:
-                del new['kaccha'][tbl]
-            new['bills'].append(bill)
+                        changed_stock[i] = it
+            kac = doc.get('kaccha')
+            new_kac = None
+            if tbl and isinstance(kac, dict) and tbl in kac:
+                new_kac = {k: v for k, v in kac.items() if k != tbl}
+            ordn = len(doc['bills'])
             version, now = self.version + 1, int(time.time() * 1000)
             with self.sdb.tx() as c:
-                self.sdb._put_record(c, SQ.SPEC_BY_KEY['bills'], bill, len(new['bills']) - 1)
-                for i, it in changed_stock:
+                self.sdb._put_record(c, SQ.SPEC_BY_KEY['bills'], bill, ordn)
+                for i, it in changed_stock.items():
                     self.sdb._put_record(c, SQ.SPEC_BY_KEY['stock'], it, i)
                 self.sdb._put_key(c, 'seq', 'seq', seq, None)
-                if 'kaccha' in self._doc and self._doc.get('kaccha') != new['kaccha']:
-                    self.sdb._put_key(c, 'kaccha', 'maptable', new['kaccha'], self._doc.get('kaccha'))
+                if new_kac is not None:
+                    self.sdb._put_key(c, 'kaccha', 'maptable', new_kac, kac)
                 c.execute("INSERT OR REPLACE INTO meta VALUES ('doc_version', ?)", (str(version),))
                 c.execute("INSERT OR REPLACE INTO meta VALUES ('saved_at', ?)", (str(now),))
                 c.execute('INSERT INTO operation_idempotency VALUES (?, ?, ?, ?, ?, ?, ?)',
                           (idem_key, 'bill.settle', bill['id'], hashlib.sha256(json.dumps(payload.get('bill'), sort_keys=True, default=str).encode()).hexdigest(), str(bill.get('by') or ''), now, str(bill['no'])))
                 c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', ('bill.settle', bill['id'], version, json.dumps(bill, ensure_ascii=False), now))
-            self._doc, self.version, self.saved_at = new, version, now
+            # Committed: now the in-memory copy (the encoders hold _enc_lock, so they never see half a change)
+            with self._enc_lock:
+                doc['bills'].append(bill)
+                doc['seq'] = seq
+                for i, it in changed_stock.items():
+                    stock[i] = it
+                if new_kac is not None:
+                    doc['kaccha'] = new_kac
+                self.version, self.saved_at = version, now
             self._maxno = max(self._maxno or 0, int(bill['no']))
         if self.on_write:
             self.on_write()
@@ -1659,42 +1666,47 @@ class SqliteSetuStore(SetuStore):
             done = con.execute('SELECT ref FROM operation_idempotency WHERE key = ?', (key,)).fetchone()
             if done:
                 return 200, {'ok': True, 'alreadyDone': True, 'billId': done[0], 'version': self.version}
-            new = self._cow(['bills', 'stock', 'audit'])
-            idx = next((i for i in range(len(new['bills']) - 1, -1, -1) if new['bills'][i].get('id') == bid), None)
+            doc = self._doc
+            row = con.execute('SELECT ord FROM bills WHERE id = ?', (bid,)).fetchone()
+            idx = row[0] if row and row[0] < len(doc['bills']) and doc['bills'][row[0]].get('id') == bid else \
+                next((i for i in range(len(doc['bills']) - 1, -1, -1) if doc['bills'][i].get('id') == bid), None)
             if idx is None:
                 return 404, {'error': 'bill not found'}
-            b = dict(new['bills'][idx])
+            b = dict(doc['bills'][idx])
             if b.get('cancelled'):
                 return 200, {'ok': True, 'alreadyCancelled': True, 'billId': bid, 'version': self.version}
             b['cancelled'], b['cancelledBy'] = True, by
-            new['bills'][idx] = b
-            changed_stock = []
+            changed_stock = {}
             if not b.get('mv'):
                 # Bills from before stock movements: put the stock back on the items (the app's applyStock(+1))
                 for u in b.get('used') or []:
-                    for i, it in enumerate(new['stock']):
+                    for i, it in enumerate(doc['stock']):
                         if it.get('id') == u.get('sid'):
-                            it = dict(it)
+                            it = dict(changed_stock.get(i, it))
                             it['qty'] = round(float(it.get('qty') or 0) + float(u.get('qty') or 0), 3)
-                            new['stock'][i] = it
-                            changed_stock.append((i, it))
+                            changed_stock[i] = it
             now = int(time.time() * 1000)
             entry = {'id': 'srv' + secrets.token_hex(6), 'at': now, 'date': time.strftime('%Y-%m-%d'), 'time': time.strftime('%H:%M'), 'user': by, 'role': 'manager',
                      'action': 'Bill Cancel', 'detail': f'Bill #{b.get("no")} cancelled on the main counter', 'amount': b.get('total') or 0, 'ref': bid, 'approvedBy': by}
-            new['audit'].append(entry)
             version = self.version + 1
             with self.sdb.tx() as c:
-                old = self._doc['bills'][idx]
+                old = doc['bills'][idx]
                 c.execute('INSERT INTO bill_modifications (bill_id, action, at, old, new) VALUES (?, ?, ?, ?, ?)', (bid, 'cancel', now, json.dumps(old, ensure_ascii=False), json.dumps(b, ensure_ascii=False)))
                 self.sdb._put_record(c, SQ.SPEC_BY_KEY['bills'], b, idx)
-                for i, it in changed_stock:
+                for i, it in changed_stock.items():
                     self.sdb._put_record(c, SQ.SPEC_BY_KEY['stock'], it, i)
-                self.sdb._put_record(c, SQ.SPEC_BY_KEY['audit'], entry, len(new['audit']) - 1)
+                self.sdb._put_record(c, SQ.SPEC_BY_KEY['audit'], entry, len(doc['audit']))
                 c.execute("INSERT OR REPLACE INTO meta VALUES ('doc_version', ?)", (str(version),))
                 c.execute("INSERT OR REPLACE INTO meta VALUES ('saved_at', ?)", (str(now),))
                 c.execute('INSERT INTO operation_idempotency VALUES (?, ?, ?, ?, ?, ?, ?)', (key, 'bill.cancel', bid, None, by, now, None))
                 c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', ('bill.cancel', bid, version, json.dumps({'billId': bid, 'by': by}), now))
-            self._doc, self.version, self.saved_at = new, version, now
+            # Committed: now the in-memory copy
+            with self._enc_lock:
+                doc['bills'][idx] = b
+                for i, it in changed_stock.items():
+                    doc['stock'][i] = it
+                doc['audit'].append(entry)
+                self.version, self.saved_at = version, now
         if self.on_write:
             self.on_write()
         return 200, {'ok': True, 'billId': bid, 'version': self.version}

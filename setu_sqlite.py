@@ -17,7 +17,6 @@ object the app has always used, so the existing UI keeps working while storage i
 
 Not here (Phase 3): cloud incremental sync. The outbox is written so Phase 3 can send it; nothing sends it yet.
 """
-import copy
 import gzip
 import hashlib
 import json

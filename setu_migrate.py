@@ -19,7 +19,6 @@ import shutil
 import stat
 import sys
 import time
-from decimal import Decimal
 
 import setu_sqlite as S
 
