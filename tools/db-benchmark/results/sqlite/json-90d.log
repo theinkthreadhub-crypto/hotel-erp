@@ -1,0 +1,10 @@
+[json-90d] 19.7 MB, 18000 bills, code: hotel-erp
+[json-90d] S1 load: PASS {"pass":true,"loadMs":2474,"ms":2484}
+[json-90d] S2 outage + in-flight download: PASS {"confirmedBills":20,"lostBills":0,"lostVouchers":0,"lostStockMoves":0,"cancellationsLost":0,"cancelNotApplied":0,"duplicateBillIds":0,"reusedBillNumbers":0,"preexistingBillsLost":0,"splitErrors":0,"seqBehind":0,"pass":true,"stockMismatches":0,"sample":[],"downloadsHeld":1,"ms":60745}
+[json-90d] S4 slow download after local work (online): PASS {"confirmedBills":20,"lostBills":0,"lostVouchers":0,"lostStockMoves":0,"cancellationsLost":0,"cancelNotApplied":0,"duplicateBillIds":0,"reusedBillNumbers":0,"preexistingBillsLost":0,"splitErrors":0,"seqBehind":0,"pass":true,"stockMismatches":0,"sample":[],"downloadsHeld":0,"ms":70121}
+[json-90d] S5 two devices + API at once: PASS {"confirmedBills":50,"lostBills":0,"lostVouchers":0,"lostStockMoves":0,"cancellationsLost":0,"cancelNotApplied":0,"duplicateBillIds":0,"reusedBillNumbers":0,"preexistingBillsLost":0,"splitErrors":0,"seqBehind":0,"pass":true,"ms":52689}
+[json-90d] S6 crash before sync, reopen: PASS {"confirmedBills":20,"lostBills":0,"lostVouchers":0,"lostStockMoves":0,"cancellationsLost":0,"cancelNotApplied":0,"duplicateBillIds":0,"reusedBillNumbers":0,"preexistingBillsLost":0,"splitErrors":0,"seqBehind":0,"pass":true,"stockMismatches":0,"sample":[],"ms":64142}
+[json-90d] S7 repeated delivery: PASS {"confirmedBills":1,"lostBills":0,"lostVouchers":0,"lostStockMoves":0,"cancellationsLost":0,"cancelNotApplied":0,"duplicateBillIds":0,"reusedBillNumbers":0,"preexistingBillsLost":0,"splitErrors":0,"seqBehind":0,"pass":true,"firstUpload":200,"replayedUpload":409,"settleStatuses":[200,200,200,200,200],"copiesOfRepeatedBill":1,"ms":10794}
+[json-90d] S8 upload that leaves records out: PASS {"cashierUpload":200,"managerUpload":200,"billsDeleted":0,"vouchersDeleted":0,"preexistingBillsLost":0,"pass":true,"ms":7954}
+[json-90d] S9 restore: PASS {"cashierRestore":403,"managerRestore":200,"restoredBills":18020,"backupBills":18020,"logged":true,"audited":true,"pass":true,"ms":5564}
+[json-90d] ALL PASS

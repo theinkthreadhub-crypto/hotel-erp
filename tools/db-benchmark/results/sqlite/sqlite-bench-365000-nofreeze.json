@@ -1,0 +1,154 @@
+{
+ "bills": 365000,
+ "perDay": 1000,
+ "machine": {
+  "cpus": 4,
+  "sqlite": "3.45.1",
+  "python": "3.13.16"
+ },
+ "days": 365,
+ "reusedMigratedFolder": true,
+ "dbMB": 1375.6,
+ "jsonMB": 420.5,
+ "migration": {
+  "status": "MIGRATED",
+  "message": "All checks passed. The counter now uses setu.sqlite; setu-db.json was left untouched.",
+  "import_seconds": 280.33,
+  "verify_seconds": 248.69
+ },
+ "serverStartSeconds": 45.3,
+ "settleMs": {
+  "n": 200,
+  "p50": 25.6,
+  "p95": 50.8,
+  "max": 3990.0
+ },
+ "cancelMs": {
+  "n": 50,
+  "p50": 27.9,
+  "p95": 39.2,
+  "max": 79.1
+ },
+ "repeatedSettleAllDeduplicated": true,
+ "concurrency": {
+  "1": {
+   "n": 400,
+   "p50": 24.9,
+   "p95": 33.1,
+   "max": 86.9,
+   "failures": 0,
+   "sample": [],
+   "billsPerSecond": 36.8
+  },
+  "5": {
+   "n": 400,
+   "p50": 131.0,
+   "p95": 192.7,
+   "max": 299.2,
+   "failures": 0,
+   "sample": [],
+   "billsPerSecond": 36.0
+  },
+  "20": {
+   "n": 400,
+   "p50": 570.5,
+   "p95": 685.7,
+   "max": 749.4,
+   "failures": 0,
+   "sample": [],
+   "billsPerSecond": 34.3
+  },
+  "50": {
+   "n": 400,
+   "p50": 1428.5,
+   "p95": 1531.5,
+   "max": 2102.6,
+   "failures": 0,
+   "sample": [],
+   "billsPerSecond": 34.7
+  },
+  "100": {
+   "n": 400,
+   "p50": 4195.3,
+   "p95": 22711.0,
+   "max": 32020.4,
+   "failures": 0,
+   "sample": [],
+   "billsPerSecond": 9.6
+  }
+ },
+ "fullDownloadMs": "not run at this size (memory; see 100k results)",
+ "fullUploadMs": "not run at this size (memory; see 100k results)",
+ "queryMs": {
+  "bills page": {
+   "n": 20,
+   "p50": 8.0,
+   "p95": 20.5,
+   "max": 20.5
+  },
+  "bills month": {
+   "n": 20,
+   "p50": 11.0,
+   "p95": 16.2,
+   "max": 16.2
+  },
+  "day book": {
+   "n": 20,
+   "p50": 13.8,
+   "p95": 53.3,
+   "max": 53.3
+  },
+  "stock history": {
+   "n": 20,
+   "p50": 3.0,
+   "p95": 4.6,
+   "max": 4.6
+  },
+  "supplier ledger": {
+   "n": 20,
+   "p50": 10.5,
+   "p95": 30.1,
+   "max": 30.1
+  },
+  "audit": {
+   "n": 20,
+   "p50": 14.2,
+   "p95": 17.7,
+   "max": 17.7
+  },
+  "customer": {
+   "n": 20,
+   "p50": 1.7,
+   "p95": 2.1,
+   "max": 2.1
+  }
+ },
+ "backup": {
+  "file": "<out>/setu-bench.sqlite.gz",
+  "bytes": 328326309,
+  "sha256": "d052ec499c6c541c6813fff2f874c1fd570e8198223519d13fbf9b043b5e666e",
+  "bills": 367200,
+  "verified": true,
+  "seconds": 65.4,
+  "MB": 313.1
+ },
+ "restore": {
+  "bills": 367200,
+  "integrity": "ok",
+  "seconds": 31.5
+ },
+ "walMB": 4.1,
+ "serverPeakRssMB": 7369,
+ "reconciliation": {
+  "acknowledgedBillsLost": 0,
+  "duplicateBillNumbers": 0,
+  "duplicateBillIds": 0,
+  "serverCopyEqualsDatabase": "n/a (server stopped; reconciled from the database)",
+  "moneyMatches": true,
+  "supplierBalancesMatch": true,
+  "stockMismatches": 0,
+  "integrity": "ok",
+  "pass": true
+ },
+ "finalDbMB": 1377.9
+}

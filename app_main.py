@@ -1498,6 +1498,15 @@ class SqliteSetuStore(SetuStore):
         self.version = int(self.sdb.meta('doc_version') or 1)
         self.saved_at = int(self.sdb.meta('saved_at') or 0)
         self.migrate_wa_history(self._doc)
+        self._freeze()
+
+    @staticmethod
+    def _freeze():
+        # The in-memory copy holds millions of long-lived objects; keep the garbage collector from rescanning
+        # them on every collection (measured: multi-second pauses at one year of bills without this)
+        import gc
+        gc.collect()
+        gc.freeze()
 
     def data(self):
         return json.loads(self.raw)
@@ -1528,6 +1537,7 @@ class SqliteSetuStore(SetuStore):
         # Committed (WAL, synchronous=FULL): only now does the server move ahead
         self._doc, self.version, self.saved_at = data_obj, version, saved_at
         self._maxno = None
+        self._freeze()
         if self.on_write:
             self.on_write()
         self._backup_soon()

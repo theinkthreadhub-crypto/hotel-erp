@@ -137,34 +137,55 @@ def bill(tag, total=105.0, mode='Cash'):
 if __name__ == '__main__':
     R = {'bills': NBILLS, 'perDay': PER_DAY, 'machine': {'cpus': os.cpu_count(), 'sqlite': S.sqlite3.sqlite_version, 'python': sys.version.split()[0]}}
     DIR = os.path.join(os.path.abspath(OUT), f'sqlite-{NBILLS}')
-    shutil.rmtree(DIR, ignore_errors=True)
-    os.makedirs(DIR)
+    REUSE = os.environ.get('REUSE') == '1' and S.read_flag(DIR).get('engine') == 'sqlite'
+    if REUSE:
+        # A folder this script already built and migrated (e.g. after an interruption): measure the server only
+        ndays = (NBILLS + PER_DAY - 1) // PER_DAY
+        LAST = add_days('2025-01-06', ndays - 1)
+        R.update(days=ndays, reusedMigratedFolder=True, dbMB=round(os.path.getsize(os.path.join(DIR, S.DB_FILE)) / 1048576, 1),
+                 jsonMB=round(os.path.getsize(os.path.join(DIR, 'setu-db.json')) / 1048576, 1))
+        try:
+            R['migration'] = json.load(open(os.path.join(DIR, 'migration', 'migration-report.json')))
+            R['migration'] = {k: R['migration'].get(k) for k in ('status', 'message', 'import_seconds', 'verify_seconds')}
+        except Exception:
+            R['migration'] = {'status': 'MIGRATED'}
+        BIG = NBILLS >= 300000
+    else:
+        shutil.rmtree(DIR, ignore_errors=True)
+        os.makedirs(DIR)
     t0 = time.time()
-    doc, ndays = build()
-    LAST = add_days('2025-01-06', ndays - 1)
-    raw = json.dumps({'version': 1, 'savedAt': 1, 'data': doc}, ensure_ascii=False)
-    with open(os.path.join(DIR, 'setu-db.json'), 'w', encoding='utf-8') as f:
-        f.write(raw)
-    R['days'] = ndays
-    R['jsonMB'] = round(len(raw.encode()) / 1048576, 1)
-    raw = None
-    R['buildSeconds'] = round(time.time() - t0, 1)
-    print(f'[{NBILLS}] dataset {R["jsonMB"]} MB JSON, {len(doc["bills"])} bills, {ndays} days', flush=True)
-    # ---- migration in its own process (measures its memory) ----
-    t0 = time.time()
-    p = subprocess.run([sys.executable, '-c', f'import sys,json,resource; sys.path.insert(0,{ROOT!r}); import setu_migrate as M; r=M.migrate({DIR!r}, cutover=True); '
-                        'r["rss_mb"]=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024); print(json.dumps({k:r.get(k) for k in ("status","message","import_seconds","verify_seconds","rss_mb")})); '
-                        'print(json.dumps([c for c in r["checks"] if not c["pass"]]))'], capture_output=True, text=True)
-    lines = p.stdout.strip().splitlines()
-    R['migration'] = json.loads(lines[0]) if lines else {'error': p.stderr[-500:]}
-    R['migration']['notPassed'] = json.loads(lines[1]) if len(lines) > 1 else None
-    R['migration']['wallSeconds'] = round(time.time() - t0, 1)
+    doc, ndays = build() if not REUSE else (None, ndays)
+    if not REUSE:
+        LAST = add_days('2025-01-06', ndays - 1)
+        raw = json.dumps({'version': 1, 'savedAt': 1, 'data': doc}, ensure_ascii=False)
+        with open(os.path.join(DIR, 'setu-db.json'), 'w', encoding='utf-8') as f:
+            f.write(raw)
+        R['days'] = ndays
+        R['jsonMB'] = round(len(raw.encode()) / 1048576, 1)
+        raw = None
+        BIG = NBILLS >= 300000
+        nb = len(doc['bills'])
+        doc = None                      # free the dataset before the migration process builds its own
+        import gc
+        gc.collect()
+        R['buildSeconds'] = round(time.time() - t0, 1)
+        print(f'[{NBILLS}] dataset {R["jsonMB"]} MB JSON, {nb} bills, {ndays} days', flush=True)
+        # ---- migration in its own process (measures its memory) ----
+        t0 = time.time()
+        p = subprocess.run([sys.executable, '-c', f'import sys,json,resource; sys.path.insert(0,{ROOT!r}); import setu_migrate as M; r=M.migrate({DIR!r}, cutover=True); '
+                            'r["rss_mb"]=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024); print(json.dumps({k:r.get(k) for k in ("status","message","import_seconds","verify_seconds","rss_mb")})); '
+                            'print(json.dumps([c for c in r["checks"] if not c["pass"]]))'], capture_output=True, text=True)
+        lines = p.stdout.strip().splitlines()
+        R['migration'] = json.loads(lines[0]) if lines else {'error': p.stderr[-500:]}
+        R['migration']['notPassed'] = json.loads(lines[1]) if len(lines) > 1 else None
+        R['migration']['wallSeconds'] = round(time.time() - t0, 1)
+        dbp = os.path.join(DIR, S.DB_FILE)
+        R['dbMB'] = round(os.path.getsize(dbp) / 1048576, 1) if os.path.exists(dbp) else None
+        print(f'[{NBILLS}] migration', R['migration'], 'db', R['dbMB'], 'MB', flush=True)
+        if R['migration'].get('status') != 'MIGRATED':
+            json.dump(R, open(os.path.join(OUT, f'sqlite-bench-{NBILLS}.json'), 'w'), indent=1)
+            sys.exit(1)
     dbp = os.path.join(DIR, S.DB_FILE)
-    R['dbMB'] = round(os.path.getsize(dbp) / 1048576, 1) if os.path.exists(dbp) else None
-    print(f'[{NBILLS}] migration', R['migration'], 'db', R['dbMB'], 'MB', flush=True)
-    if R['migration'].get('status') != 'MIGRATED':
-        json.dump(R, open(os.path.join(OUT, f'sqlite-bench-{NBILLS}.json'), 'w'), indent=1)
-        sys.exit(1)
     # ---- counter server on SQLite ----
     t0 = time.time()
     srv = subprocess.Popen([sys.executable, os.path.join(ROOT, 'app_main.py'), '--server', '--port', str(PORT), '--data', DIR], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -220,7 +241,7 @@ if __name__ == '__main__':
             print(f'[{NBILLS}] {n} clients', R['concurrency'][n], flush=True)
         # ---- whole-document uploads (what the current UI sends for KOT / purchase / stock / expense) ----
         lat_get, lat_up = [], {}
-        for kind in ('kot', 'purchase', 'waste', 'expense'):
+        for kind in (() if BIG else ('kot', 'purchase', 'waste', 'expense')):
             lat_up[kind] = []
             for i in range(3 if NBILLS < 100000 else 1):
                 s, db, ms = api.call('/api/db')
@@ -239,8 +260,8 @@ if __name__ == '__main__':
                 s, r, ms = api.call('/api/db', body)
                 assert s == 200, r
                 lat_up[kind].append(ms)
-        R['fullDownloadMs'] = stat(lat_get)
-        R['fullUploadMs'] = {k: stat(v) for k, v in lat_up.items()}
+        R['fullDownloadMs'] = stat(lat_get) if lat_get else 'not run at this size (memory; see 100k results)'
+        R['fullUploadMs'] = {k: stat(v) for k, v in lat_up.items()} if lat_up else 'not run at this size (memory; see 100k results)'
         # ---- indexed queries ----
         qs = {'bills page': f'/api/q/bills?from={LAST}&to={LAST}&limit=50', 'bills month': f'/api/q/bills?from={LAST[:8]}01&to={LAST}&limit=50&offset=200',
               'day book': f'/api/q/daybook?date={LAST}', 'stock history': '/api/q/stock-history?sid=stk1&limit=50', 'supplier ledger': '/api/q/supplier-ledger?party=Supplier%201&limit=50',
@@ -264,23 +285,29 @@ if __name__ == '__main__':
         R['walMB'] = round(os.path.getsize(dbp + '-wal') / 1048576, 1) if os.path.exists(dbp + '-wal') else 0
         R['serverPeakRssMB'] = rss_mb(srv.pid)
         # ---- reconciliation after everything ----
-        s, db, ms = api.call('/api/db')
-        d = db['data']
+        if BIG:
+            # Reconcile from the database only (no second full copy in this process)
+            srv.kill(); srv.wait()
+            ex = sdb.export_document()
+            d = SEC.public_view(ex)
+        else:
+            s, db, ms = api.call('/api/db')
+            d = db['data']
+            ex = sdb.export_document()
         have = {b.get('idemKey') for b in d['bills']}
         nos = [b['no'] for b in d['bills'] if not b.get('imported')]
-        ex = sdb.export_document()
         R['reconciliation'] = {
             'acknowledgedBillsLost': sum(1 for k in acked + [f'seq-{i}' for i in range(200)] if k not in have),
             'duplicateBillNumbers': len(nos) - len(set(nos)),
             'duplicateBillIds': len(d['bills']) - len({b['id'] for b in d['bills']}),
-            'serverCopyEqualsDatabase': S.canonical_hash(d) == S.canonical_hash(SEC.public_view(ex)),   # devices get the public view (no credential hashes)
+            'serverCopyEqualsDatabase': (S.canonical_hash(d) == S.canonical_hash(SEC.public_view(ex))) if not BIG else 'n/a (server stopped; reconciled from the database)',   # devices get the public view (no credential hashes)
             'moneyMatches': M.legacy_money(ex) == M.sql_money(sdb),
             'supplierBalancesMatch': M.legacy_supplier_dues(ex) == M.sql_supplier_dues(sdb, ex.get('supAlias')),
             'stockMismatches': sum(1 for k, v in M.legacy_stock(ex).items() if abs(v - M.sql_stock(sdb, ex).get(k, 0)) > 0.0015),
             'integrity': sdb.con().execute('PRAGMA integrity_check').fetchone()[0],
         }
         R['reconciliation']['pass'] = (R['reconciliation']['acknowledgedBillsLost'] == 0 and R['reconciliation']['duplicateBillNumbers'] == 0 and R['reconciliation']['duplicateBillIds'] == 0
-                                       and R['reconciliation']['serverCopyEqualsDatabase'] and R['reconciliation']['moneyMatches'] and R['reconciliation']['supplierBalancesMatch']
+                                       and R['reconciliation']['serverCopyEqualsDatabase'] is not False and R['reconciliation']['moneyMatches'] and R['reconciliation']['supplierBalancesMatch']
                                        and R['reconciliation']['stockMismatches'] == 0 and R['reconciliation']['integrity'] == 'ok')
         R['finalDbMB'] = round(os.path.getsize(dbp) / 1048576, 1)
     finally:
