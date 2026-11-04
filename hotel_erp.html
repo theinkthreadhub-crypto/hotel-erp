@@ -5505,6 +5505,61 @@ function mirrorToIndexedDB(data){
   } catch(err){}
 }
 
+// LAN / cloud devices: every change not yet confirmed by the server is kept in IndexedDB (the database text plus
+// the server copy it started from) before it is uploaded, and removed only after the server confirms it. A crash,
+// reload or outage therefore never loses a bill: the next start merges it back (srvRecoverPending).
+const pendKey = () => 'pending:' + location.host + '|' + (SRV.hotel || 'lan');
+function idbRun(work){
+  return new Promise((resolve, reject) => {
+    if(!window.indexedDB) return reject(new Error('IndexedDB is not available'));
+    const req = openIDB();
+    req.onerror = () => reject(req.error);
+    req.onsuccess = e => {
+      const db = e.target.result;
+      let out;
+      try{
+        const tx = db.transaction(IDB_STORE, 'readwrite'), q = work(tx.objectStore(IDB_STORE));
+        if(q) q.onsuccess = () => { out = q.result; };
+        tx.oncomplete = () => { db.close(); resolve(out); };
+        tx.onerror = tx.onabort = () => { db.close(); reject(tx.error || new Error('IndexedDB write failed')); };
+      }catch(err){ db.close(); reject(err); }
+    };
+  });
+}
+const pendPut = (mine, edits) => idbRun(s => s.put({id: pendKey(), mine, base: SRV.baseText || '', version: SRV.version, edits, at: Date.now()}));
+const pendGet = () => idbRun(s => s.get(pendKey()));
+const pendDel = () => idbRun(s => s.delete(pendKey()));
+
+// Records the server keeps even if an upload leaves them out; a device names what it deleted itself
+const GUARDED = ['bills', 'txns', 'moves', 'cnotes', 'orders'];
+function removedSinceBase(){
+  const out = {};
+  if(!SRV.base) return out;
+  GUARDED.forEach(k => {
+    const now = new Set((D[k] || []).map(x => x && x.id));
+    const gone = (SRV.base[k] || []).filter(x => x && x.id && !now.has(x.id)).map(x => x.id);
+    if(gone.length) out[k] = gone;
+  });
+  return out;
+}
+
+// What the bill status line may honestly say: recorded (in memory) -> saved on this device -> saved on the server
+const DUR = {bill: 0, edits: 0, local: 0};
+function trackBillDurable(no){
+  DUR.bill = no;
+  DUR.edits = SRV.edits;
+  DUR.local = 0;
+}
+function durableNote(edits, where){
+  if(!DUR.bill || edits < DUR.edits) return;
+  const place = SRV.cloud ? 'Hotel Setu Cloud' : 'the Main Counter';
+  if(where === 'server'){ setBillTxnStatus('saved', `Bill #${DUR.bill} saved on ${place}`); DUR.bill = 0; }
+  else if(where === 'local' && !DUR.local){ DUR.local = 1; setBillTxnStatus('processing', `Bill #${DUR.bill} saved on this device · sending to ${place}...`); }
+  else if(where === 'offline') setBillTxnStatus('unconfirmed', DUR.local
+    ? `Bill #${DUR.bill} saved on this device. Not yet on ${place}: retrying.`
+    : `Bill #${DUR.bill} is NOT saved yet. Keep this page open; retrying.`);
+}
+
 function save(){
   try{ stockRecalc(D); }catch(e){ logError('Stock could not be calculated', 'stockRecalc', e.stack || e.message); }
   if(SRV.on && SRV.readOnly){
@@ -5721,7 +5776,10 @@ function merge3(base, mine, theirs){
     if(ik){
       if(seenIdem.has(ik)) return;
       seenIdem.add(ik);
-      if(theirIdemMap.has(ik)) b = theirIdemMap.get(ik);
+      // Only a true duplicate (the same sale under another id) takes their copy. The same bill keeps the
+      // record-level merge above, or a cancellation / edit made here would be undone by every conflict.
+      const tb = theirIdemMap.get(ik);
+      if(tb && tb.id !== b.id) b = tb;
     }
     dedupedBills.push(b);
   });
@@ -5756,6 +5814,7 @@ async function srvLoad(text){
   const j = JSON.parse(text);
   SRV.version = j.version;
   SRV.base = JSON.parse(text).data;
+  SRV.baseText = text;   // kept with unsynced edits so a restart can merge them properly (pendPut)
   return j;
 }
 
@@ -5807,7 +5866,28 @@ async function srvInitData(){
   }
   D = ensureGrowth(j.data);
   srvStatus(true);
+  await srvRecoverPending(j.data);
   return true;
+}
+
+// Unsynced changes from the last session (crash, reload, closed while offline) are merged into the server copy
+async function srvRecoverPending(server){
+  let p;
+  try{ p = await pendGet(); }catch(e){ return; }
+  if(!p || !p.mine) return;
+  try{
+    const mine = JSON.parse(p.mine), base = p.base ? JSON.parse(p.base).data : null;
+    const before = (D.bills || []).length;
+    D = ensureGrowth(merge3(base, mine, server));
+    SRV.edits++;
+    SRV.dirty = true;
+    setTimeout(srvPush, 300);
+    const added = (D.bills || []).length - before;
+    logError(`Recovered unsynced changes from ${new Date(p.at).toLocaleString()}${added > 0 ? ` (${added} bill${added > 1 ? 's' : ''})` : ''}`, 'Offline safety copy (IndexedDB)', 'Merged into the latest server copy and sent again.');
+    setTimeout(() => toast(`Unsynced changes from the last session were recovered${added > 0 ? `: ${added} bill${added > 1 ? 's' : ''}` : ''}. Sending now.`), 900);
+  }catch(e){
+    logError('Unsynced changes could not be read back', 'Offline safety copy (IndexedDB)', e.message);
+  }
 }
 
 async function srvPush(){
@@ -5817,15 +5897,24 @@ async function srvPush(){
   try{
     for(let attempt = 0; attempt < 6 && SRV.dirty; attempt++){
       const edits = SRV.edits, snapshot = JSON.stringify(D), force = SRV.forceNext;
+      // Durable on this device first: the upload below may fail, the page may close or the PC may crash
+      try{ await pendPut(snapshot, edits); durableNote(edits, 'local'); }
+      catch(e){ logError('Unsaved changes could not be kept on this device', 'Offline safety copy (IndexedDB)', e.message); }
       const usedElev = SRV.elev && SRV.elev.exp > Date.now() ? SRV.elev.id : '';
-      const r = await srvFetch('/api/db', {method: 'POST', body: `{"baseVersion":${SRV.version},"force":${force},"data":${snapshot}}`});
+      const removed = force ? {} : removedSinceBase();
+      const r = await srvFetch('/api/db', {method: 'POST', body: `{"baseVersion":${SRV.version},"force":${force},"removed":${JSON.stringify(removed)},"data":${snapshot}}`});
       if(r.ok){
         if(usedElev && SRV.elev && SRV.elev.id === usedElev) SRV.elev = null;   // the server used up the approval
         const j = await r.json();
         SRV.version = j.version;
         SRV.base = JSON.parse(snapshot);
+        SRV.baseText = `{"version":${j.version},"data":${snapshot}}`;
         SRV.forceNext = false;
-        if(SRV.edits === edits) SRV.dirty = false;
+        durableNote(edits, 'server');
+        if(SRV.edits === edits){
+          SRV.dirty = false;
+          pendDel().catch(() => {});
+        }
         SRV.blocked = false;
         SRV.signup = false;
         // The server added its own parts (plan config, license keys): pull them in
@@ -5873,7 +5962,7 @@ async function srvPush(){
   }catch(e){
     logError(SRV.cloud ? 'Data was not saved to the cloud' : 'Data was not saved to the Main Counter', SRV.cloud ? 'Hotel Setu Cloud sync' : 'Main Counter sync (save)', e.message);
     srvStatus(false);
-    setBillTxnStatus('unconfirmed', '⚠️ Payment saved locally · Syncing with Main Counter/Cloud...');
+    durableNote(SRV.edits, 'offline');
     setTimeout(srvPush, 3000);
   }finally{
     SRV.busy = false;
@@ -5883,6 +5972,9 @@ async function srvPush(){
 
 async function srvPoll(){
   if(!SRV.on || SRV.busy || SRV.dirty || !activeUser || !SRV.token) return;
+  // Anything saved on this device after the poll started (a bill, a purchase, a cancellation) must never be
+  // replaced by the server copy that was downloaded meanwhile: the push merges it instead (409 -> merge3)
+  const edits0 = SRV.edits, changedHere = () => SRV.busy || SRV.dirty || SRV.edits !== edits0;
   try{
     const r = await srvFetch('/api/version');
     if(r.status === 401){
@@ -5895,9 +5987,13 @@ async function srvPoll(){
     const j = await r.json();
     SRV.blocked = !!j.blocked;
     srvStatus(true);
-    if(j.version === SRV.version || SRV.busy || SRV.dirty) return;
+    if(j.version === SRV.version || changedHere()) return;
     const r2 = await srvFetch('/api/db');
-    const fresh = await srvLoad(await r2.text());
+    if(!r2.ok) throw new Error('HTTP ' + r2.status);
+    const text = await r2.text();
+    // A big database takes seconds to download: check again before using it
+    if(changedHere()) return;
+    const fresh = await srvLoad(text);
     D = ensureGrowth(fresh.data);
     srvRefreshScreen();
     applyCloudKeys();
@@ -12013,7 +12109,10 @@ function finalizePakkaBill(approvedDisc){
     delete D.kaccha[tbl];
   }
   save();
-  unlockPay('saved', `✅ Payment saved — Bill #${bill.no}`);
+  // On a LAN / cloud device the bill is only in memory here: the status line follows it to this device's
+  // safety copy and then to the server (durableNote). Browser mode has just written it to local storage.
+  if(SRV.on && !SRV.readOnly){ trackBillDurable(bill.no); unlockPay('processing', `Bill #${bill.no} recorded · saving...`); }
+  else unlockPay('saved', `Bill #${bill.no} saved on this device`);
 
   B = newB(tbl, B.channel);
   scrBill();
@@ -12021,10 +12120,10 @@ function finalizePakkaBill(approvedDisc){
 
   if(st.afterBill === 'none' || st.afterBill === 'print'){
     if(st.afterBill === 'print') printBill(bill.id, 'bill');
-    toast(`Bill #${bill.no} saved — ${money(bill.total)}${bill.waReceiptConsent && st.waReceiptMode === 'auto' ? ' · WhatsApp pending cloud sync' : ''}`);
+    toast(`Bill #${bill.no} recorded — ${money(bill.total)}${bill.waReceiptConsent && st.waReceiptMode === 'auto' ? ' · WhatsApp pending cloud sync' : ''}`);
     return;
   }
-  modal(`Bill #${bill.no} Saved — ${money(bill.total)}`, `
+  modal(`Bill #${bill.no} Recorded — ${money(bill.total)}`, `
     <p style="margin:0 0 12px;font-size:13px"><b class="green">Bill finalized.</b> Order <b>${esc(tbl)}</b> (${esc(bill.channel)}) settled.</p>
     ${bill.token ? `<p style="margin:0 0 12px;font-size:28px;font-weight:800;text-align:center;color:var(--primary-dark)">TOKEN #${bill.token}</p>` : ''}
     ${bill.mode === 'Wallet' ? `<p class="pts" style="margin:0 0 12px">${money(bill.total)} paid from wallet · Remaining balance: <b>${money(walletBal(bill.phone))}</b></p>` : ''}

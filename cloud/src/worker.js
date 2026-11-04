@@ -2321,6 +2321,15 @@ export class SetuHotel extends DurableObject {
       const elev = this.elevated(request);
       const secChanged = await SEC.absorbSecrets(data, old, isAdmin || elev, role === 'sync');
       const blockedW = force ? [] : SEC.sanitizeWrite(role, old, data, elev);
+      // Confirmed bills, vouchers and stock movements never vanish in a routine save. The counter PC (sync) is the
+      // master copy and runs the same guard on its own server, so its uploads are taken as they are.
+      const kept = force || role === 'sync' ? [] : SEC.guardRecords(old, data, up.removed, role === 'admin' || elev);
+      if(force && this.meta.version){
+        const before = Array.isArray(old.bills) ? old.bills.length : 0, after = Array.isArray(data.bills) ? data.bills.length : 0;
+        if(!Array.isArray(data.audit)) data.audit = [];
+        data.audit.push({ id: 'restore-' + Date.now(), at: Date.now(), date: istDay(), time: new Date(Date.now() + 330 * 60000).toISOString().slice(11, 16),
+          user: role === 'sync' ? 'Main Counter' : role, role, action: 'Data Restore', detail: `Database replaced from a backup: bills ${before} -> ${after}`, amount: 0, ref: '', approvedBy: elev ? 'approved' : '' });
+      }
       // Hotel with a counter PC, billing from the website (emergency only): a few bills a day, counted here
       let tagged = false;
       if(this.account.plan === 'counter' && this.meta.version){
@@ -2329,7 +2338,7 @@ export class SetuHotel extends DurableObject {
         tagged = w.tagged;
       }
       let changed;
-      try{ changed = (await this.prepare(data)) || tagged || secChanged || blockedW.length > 0; }catch(e){ return json(500, { error: 'save failed: ' + e.message }); }
+      try{ changed = (await this.prepare(data)) || tagged || secChanged || blockedW.length > 0 || kept.length > 0; }catch(e){ return json(500, { error: 'save failed: ' + e.message }); }
       // prepare() awaited: someone may have saved in between
       if(!force && +up.baseVersion !== this.meta.version) return rawJson(409, this.dbFor(role, request, '"conflict": true, '));
       try{

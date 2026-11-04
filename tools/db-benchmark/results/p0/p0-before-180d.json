@@ -1,0 +1,140 @@
+{
+ "label": "before-180d",
+ "days": 180,
+ "billsPerDay": 200,
+ "root": "before-src",
+ "scenarios": {
+  "S1 load": {
+   "pass": true,
+   "loadMs": 4417,
+   "ms": 4430
+  },
+  "S2 outage + in-flight download": {
+   "confirmedBills": 20,
+   "lostBills": 20,
+   "lostVouchers": 3,
+   "lostStockMoves": 1,
+   "cancellationsLost": 1,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": false,
+   "stockMismatches": 49,
+   "sample": [
+    "stk0: 4814.518 vs 4813.943",
+    "stk1: 5468.866 vs 5478.514",
+    "stk2: 7527 vs 7537"
+   ],
+   "downloadsHeld": 1,
+   "ms": 87375
+  },
+  "S4 slow download after local work (online)": {
+   "confirmedBills": 20,
+   "lostBills": 20,
+   "lostVouchers": 3,
+   "lostStockMoves": 1,
+   "cancellationsLost": 1,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": false,
+   "stockMismatches": 49,
+   "sample": [
+    "stk0: 4814.518 vs 4813.943",
+    "stk1: 5468.866 vs 5478.514",
+    "stk2: 7527 vs 7537"
+   ],
+   "downloadsHeld": 1,
+   "ms": 72968
+  },
+  "S5 two devices + API at once": {
+   "confirmedBills": 50,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "ms": 96879
+  },
+  "S6 crash before sync, reopen": {
+   "confirmedBills": 20,
+   "lostBills": 20,
+   "lostVouchers": 3,
+   "lostStockMoves": 1,
+   "cancellationsLost": 1,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": false,
+   "stockMismatches": 10,
+   "sample": [
+    "stk1: 5468.162 vs 5478.162",
+    "stk2: 7527 vs 7537",
+    "stk3: 6381.806 vs 6380.806"
+   ],
+   "ms": 63600
+  },
+  "S7 repeated delivery": {
+   "confirmedBills": 1,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "firstUpload": 200,
+   "replayedUpload": 409,
+   "settleStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "copiesOfRepeatedBill": 1,
+   "ms": 19438
+  },
+  "S8 upload that leaves records out": {
+   "cashierUpload": 200,
+   "managerUpload": 200,
+   "billsDeleted": 5,
+   "vouchersDeleted": 3,
+   "preexistingBillsLost": 5,
+   "pass": false,
+   "ms": 18373
+  },
+  "S9 restore": {
+   "cashierRestore": 403,
+   "managerRestore": 200,
+   "restoredBills": 36000,
+   "backupBills": 36000,
+   "logged": false,
+   "audited": false,
+   "pass": false,
+   "ms": 11543
+  }
+ },
+ "fileMB": 38.8,
+ "allPass": false,
+ "serverLogTail": []
+}

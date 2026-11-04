@@ -1,0 +1,80 @@
+{
+ "label": "before-365d",
+ "days": 365,
+ "billsPerDay": 200,
+ "root": "before-src",
+ "scenarios": {
+  "S1 load": {
+   "pass": true,
+   "loadMs": 23941,
+   "ms": 23949
+  },
+  "S2 outage + in-flight download": {
+   "pass": false,
+   "error": "page.evaluate: Target page, context or browser has been closed",
+   "ms": 17542
+  },
+  "S4 slow download after local work (online)": {
+   "pass": false,
+   "error": "page.evaluate: Target page, context or browser has been closed",
+   "ms": 2596
+  },
+  "S5 two devices + API at once": {
+   "pass": false,
+   "error": "browser.newContext: Target page, context or browser has been closed",
+   "ms": 1
+  },
+  "S6 crash before sync, reopen": {
+   "pass": false,
+   "error": "page.evaluate: Target page, context or browser has been closed",
+   "ms": 2261
+  },
+  "S7 repeated delivery": {
+   "confirmedBills": 1,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "firstUpload": 200,
+   "replayedUpload": 409,
+   "settleStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "copiesOfRepeatedBill": 1,
+   "ms": 45349
+  },
+  "S8 upload that leaves records out": {
+   "cashierUpload": 200,
+   "managerUpload": 200,
+   "billsDeleted": 5,
+   "vouchersDeleted": 3,
+   "preexistingBillsLost": 5,
+   "pass": false,
+   "ms": 40117
+  },
+  "S9 restore": {
+   "cashierRestore": 403,
+   "managerRestore": 200,
+   "restoredBills": 73000,
+   "backupBills": 73000,
+   "logged": false,
+   "audited": false,
+   "pass": false,
+   "ms": 23404
+  }
+ },
+ "fileMB": 78.1,
+ "allPass": false,
+ "serverLogTail": []
+}

@@ -1373,8 +1373,11 @@ def merge3(base, mine, theirs):
             if ik in seen_idem:
                 continue
             seen_idem.add(ik)
-            if ik in their_idem_map:
-                b = their_idem_map[ik]
+            # Only a true duplicate (the same sale under another id) takes their copy; the same bill keeps the
+            # record-level merge, or a cancellation / edit would be undone by every conflict (same as the HTML)
+            tb = their_idem_map.get(ik)
+            if tb is not None and tb.get('id') != b.get('id'):
+                b = tb
         deduped_bills.append(b)
     out['bills'] = deduped_bills
 
@@ -3362,6 +3365,23 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         store.clean_and_validate_bills(data)
                     except ValueError as ve:
                         return self.send_json(400, {'error': str(ve)})
+                    # Confirmed bills, vouchers and stock movements never vanish in a routine save
+                    kept = []
+                    if not force:
+                        kept = SEC.guard_records(old, data, body.get('removed'), role in ('admin', 'local') or elev)
+                        if kept:
+                            store.log(f'Kept confirmed records from a {role} save: ' + '; '.join(kept[:15]) + (f' (+{len(kept) - 15} more)' if len(kept) > 15 else ''))
+                    elif store.version:
+                        # Forced restore: allowed above for the main counter / a Manager only; always recorded
+                        before = len(old.get('bills') or []) if isinstance(old.get('bills'), list) else 0
+                        after = len(data.get('bills') or []) if isinstance(data.get('bills'), list) else 0
+                        store.log(f'RESTORE by {role}{" (approved)" if elev else ""}: bills {before} -> {after}, version {store.version} replaced')
+                        if not isinstance(data.get('audit'), list):
+                            data['audit'] = []
+                        now = time.time()
+                        data['audit'].append({'id': 'restore-%d' % int(now * 1000), 'at': int(now * 1000), 'date': time.strftime('%Y-%m-%d'), 'time': time.strftime('%H:%M'),
+                                                  'user': 'Main Counter' if role == 'local' else role, 'role': role, 'action': 'Data Restore',
+                                                  'detail': f'Database replaced from a backup: bills {before} -> {after}', 'amount': 0, 'ref': '', 'approvedBy': 'approved' if elev else ''})
                     try:
                         store.write(data)
                     except Exception as e:
@@ -3370,7 +3390,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     if elev:
                         store.elev.pop(self.headers.get('X-Setu-Elev', ''), None)   # one approval = one save
                     out = {'version': store.version, 'savedAt': store.saved_at}
-                    if changed or blocked:
+                    if changed or blocked or kept:
                         out['changed'] = True          # the device pulls the stored copy again
                     if blocked:
                         out['blocked'] = blocked

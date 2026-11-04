@@ -1,0 +1,10 @@
+[after-365d] 78.1 MB, 73000 bills, code: hotel-erp
+[after-365d] S1 load: PASS {"pass":true,"loadMs":24605,"ms":24616}
+[after-365d] S2 outage + in-flight download: FAIL {"pass":false,"error":"page.evaluate: Target page, context or browser has been closed","ms":16933}
+[after-365d] S4 slow download after local work (online): FAIL {"pass":false,"error":"page.evaluate: Target page, context or browser has been closed","ms":2036}
+[after-365d] S5 two devices + API at once: FAIL {"pass":false,"error":"browser.newContext: Target page, context or browser has been closed","ms":1}
+[after-365d] S6 crash before sync, reopen: FAIL {"pass":false,"error":"page.evaluate: Target page, context or browser has been closed","ms":1981}
+[after-365d] S7 repeated delivery: PASS {"confirmedBills":1,"lostBills":0,"lostVouchers":0,"lostStockMoves":0,"cancellationsLost":0,"cancelNotApplied":0,"duplicateBillIds":0,"reusedBillNumbers":0,"preexistingBillsLost":0,"splitErrors":0,"seqBehind":0,"pass":true,"firstUpload":200,"replayedUpload":409,"settleStatuses":[200,200,200,200,200],"copiesOfRepeatedBill":1,"ms":43038}
+[after-365d] S8 upload that leaves records out: PASS {"cashierUpload":200,"managerUpload":200,"billsDeleted":0,"vouchersDeleted":0,"preexistingBillsLost":0,"pass":true,"ms":35718}
+[after-365d] S9 restore: PASS {"cashierRestore":403,"managerRestore":200,"restoredBills":73000,"backupBills":73000,"logged":true,"audited":true,"pass":true,"ms":23297}
+[after-365d] ALL NOT PASSING

@@ -355,6 +355,83 @@ def sanitize_write(role, old, new, elevated=False):
     return sorted(set(blocked))
 
 
+# ---------- confirmed records (every routine save, any role) ----------
+# A device uploads the whole database. If its copy is missing a confirmed record (a sync race, an old
+# copy, a bug), that record must come back, not vanish. A device may only remove records it names in
+# "removed" (what it deleted itself since its last sync); bills only with a Manager login / approval.
+GUARDED_LISTS = ('bills', 'txns', 'moves', 'cnotes', 'orders')
+BILL_FIXED = ('id', 'no', 'idemKey', 'date')
+CANCEL_FIELDS = ('cancelled', 'cancelledBy', 'cancelledAt', 'cancelReason')
+
+
+def _int(v):
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 0
+
+
+def guard_records(old, new, removed=None, may_remove_bills=False):
+    """Puts back confirmed records the upload dropped, keeps bill identity, numbers and cancellations.
+    Changes `new` in place; returns a list of what it corrected (empty = upload was fine)."""
+    notes = []
+    if not isinstance(old, dict) or not isinstance(new, dict):
+        return notes
+    removed = removed if isinstance(removed, dict) else {}
+    for key in GUARDED_LISTS:
+        olds = [x for x in (old.get(key) or []) if isinstance(x, dict) and x.get('id')]
+        if not olds:
+            continue
+        cur = new.get(key)
+        if not isinstance(cur, list):
+            cur = new[key] = []
+        have = {x.get('id') for x in cur if isinstance(x, dict)}
+        # The same sale under another id (duplicate removed by its idempotency key) is not a lost bill
+        if key == 'bills':
+            have |= {x.get('idemKey') for x in cur if isinstance(x, dict) and x.get('idemKey')}
+        allow = {str(i) for i in (removed.get(key) or [])} if (key != 'bills' or may_remove_bills) else set()
+        for x in olds:
+            if x['id'] not in have and (key != 'bills' or not x.get('idemKey') or x['idemKey'] not in have) and str(x['id']) not in allow:
+                cur.append(copy.deepcopy(x))
+                notes.append(f'{key} {x["id"]} kept')
+    bills = [b for b in (new.get('bills') or []) if isinstance(b, dict)]
+    ob = {b['id']: b for b in (old.get('bills') or []) if isinstance(b, dict) and b.get('id')}
+    for b in bills:
+        o = ob.get(b.get('id'))
+        if not o:
+            continue
+        for f in BILL_FIXED:
+            if f in o and b.get(f) != o[f]:
+                b[f] = o[f]
+                notes.append(f'bill {o["id"]} {f} kept')
+        # A cancelled bill stays cancelled (its original record and amounts stay in the books)
+        if o.get('cancelled') and not b.get('cancelled'):
+            for f in CANCEL_FIELDS:
+                if f in o:
+                    b[f] = o[f]
+            notes.append(f'bill {o["id"]} stays cancelled')
+    # Finalized bill numbers are never given twice (imported history keeps its own numbers)
+    own = [b for b in bills if not b.get('imported')]
+    taken = {_int(b.get('no')): b['id'] for b in own if b.get('id') in ob and _int(b.get('no'))}
+    old_seq = _int((old.get('seq') or {}).get('bill'))
+    seq = new.get('seq') if isinstance(new.get('seq'), dict) else {}
+    top = max([old_seq, _int(seq.get('bill'))] + [_int(b.get('no')) for b in own])
+    for b in own:
+        if b.get('id') in ob:
+            continue
+        no = _int(b.get('no'))
+        if no and taken.get(no, b.get('id')) != b.get('id'):
+            top += 1
+            notes.append(f'bill {b.get("id")} number {no} was already used, now {top}')
+            b['no'] = no = top
+        if no:
+            taken[no] = b.get('id')
+    if top != _int(seq.get('bill')):
+        seq['bill'] = top
+        new['seq'] = seq
+    return notes
+
+
 # ---------- request checks (local counter server) ----------
 
 def host_allowed(host_header):
