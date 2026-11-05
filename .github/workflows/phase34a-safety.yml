@@ -89,3 +89,41 @@ jobs:
           } finally {
             Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
           }
+
+  cloudflare-local-smoke:
+    name: Local Wrangler startup smoke (no deployment)
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare Worker and assets
+        working-directory: cloud
+        run: |
+          npm ci --no-audit --no-fund
+          node scripts/copy-assets.mjs
+          node --check src/worker.js
+      - name: Boot isolated Worker in local Miniflare runtime
+        working-directory: cloud
+        run: |
+          set -eu
+          npx wrangler dev --local --port 8787 --log-level error --var ADMIN_KEY:synthetic-local-only > /tmp/horeca-wrangler.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          ready=0
+          for i in $(seq 1 35); do
+            status=$(curl -sS --connect-timeout 2 -m 3 -o /tmp/horeca-resp.txt -w '%{http_code}' http://127.0.0.1:8787/api/ping 2>/dev/null || true)
+            if [ "$status" = 200 ] || [ "$status" = 400 ] || [ "$status" = 404 ]; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" -ne 1 ]; then
+            echo "Wrangler failed to start or returned a server error:"
+            cat /tmp/horeca-wrangler.log
+            exit 1
+          fi
+          echo "Local Wrangler startup PASS: HTTP $status"
