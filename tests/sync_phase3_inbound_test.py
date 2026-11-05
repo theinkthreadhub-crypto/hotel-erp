@@ -48,6 +48,22 @@ class TestPhase34InboundSync(unittest.TestCase):
         shutil.rmtree(self.tmpdir, ignore_errors=True)
 
     # 1. Gate 0 Parity: Exact money calculations down to the paise
+    def ack_ok(self, url, path, body, headers):
+        ids = json.loads(body.decode('utf-8')).get('event_ids', [])
+        return 200, json.dumps({
+            'ok': True, 'hotel': self.hotel_id, 'acked_ids': ids
+        })
+
+    def feed(self, events):
+        def fetch(url, path, headers):
+            from urllib.parse import parse_qs, urlsplit
+            since = int(parse_qs(urlsplit(path).query).get('since', ['0'])[0])
+            return 200, json.dumps({
+                'ok': True, 'hotel': self.hotel_id,
+                'events': [e for e in events if e['seq'] > since]
+            })
+        return fetch
+
     def test_gate0_money_parity_down_to_paise(self):
         # 105.50 -> 10550 paise
         p1 = S.MONEY(105.50)
@@ -90,7 +106,7 @@ class TestPhase34InboundSync(unittest.TestCase):
         def mock_post(url, path, body, headers):
             data = json.loads(body.decode('utf-8'))
             acked_events.extend(data.get('event_ids', []))
-            return 200, json.dumps({'ok': True, 'acked_count': len(data.get('event_ids', []))})
+            return self.ack_ok(url, path, body, headers)
 
         receiver = S.InboundSyncReceiver(
             store=self.store,
@@ -165,7 +181,7 @@ class TestPhase34InboundSync(unittest.TestCase):
         def mock_post(url, path, body, headers):
             data = json.loads(body.decode('utf-8'))
             acked.extend(data.get('event_ids', []))
-            return 200, json.dumps({'ok': True})
+            return self.ack_ok(url, path, body, headers)
 
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
@@ -204,7 +220,7 @@ class TestPhase34InboundSync(unittest.TestCase):
 
         def mock_post(url, path, body, headers):
             acked.extend(json.loads(body.decode('utf-8')).get('event_ids', []))
-            return 200, json.dumps({'ok': True})
+            return self.ack_ok(url, path, body, headers)
 
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
@@ -237,7 +253,7 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [evt]}))
+            http_get_fn=self.feed([evt])
         )
 
         orig_apply = receiver._apply_qr_order
@@ -274,12 +290,12 @@ class TestPhase34InboundSync(unittest.TestCase):
             ack_attempts += 1
             if ack_attempts == 1:
                 raise OSError('Power disconnected right after local commit, before ACK')
-            return 200, json.dumps({'ok': True})
+            return self.ack_ok(u, p, b, h)
 
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [evt]})),
+            http_get_fn=self.feed([evt]),
             http_post_fn=failing_post
         )
 
@@ -310,12 +326,12 @@ class TestPhase34InboundSync(unittest.TestCase):
             if calls == 1:
                 # Cloud processed it, but connection dropped before response delivered
                 raise OSError('Connection reset by peer')
-            return 200, json.dumps({'ok': True})
+            return self.ack_ok(u, p, b, h)
 
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [evt]})),
+            http_get_fn=self.feed([evt]),
             http_post_fn=post_with_lost_resp
         )
 
@@ -348,8 +364,8 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [qr_evt]})),
-            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True}))
+            http_get_fn=self.feed([qr_evt]),
+            http_post_fn=self.ack_ok
         )
 
         res = receiver.fetch_and_apply_once()
@@ -376,8 +392,8 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [order_evt]})),
-            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True}))
+            http_get_fn=self.feed([order_evt]),
+            http_post_fn=self.ack_ok
         )
         receiver.fetch_and_apply_once()
 
@@ -393,7 +409,7 @@ class TestPhase34InboundSync(unittest.TestCase):
             'event_type': 'qr_status',
             'payload': {'order_id': 'g_cancel_me', 'status': 'rejected', 'reason': 'Out of ingredients'}
         }
-        receiver.http_get_fn = lambda u, p, h: (200, json.dumps({'ok': True, 'events': [cancel_evt]}))
+        receiver.http_get_fn = self.feed([cancel_evt])
         receiver.fetch_and_apply_once()
 
         # Verify KOT is now cancelled
@@ -414,8 +430,8 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [cross_hotel_evt]})),
-            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True}))
+            http_get_fn=self.feed([cross_hotel_evt]),
+            http_post_fn=self.ack_ok
         )
         receiver.fetch_and_apply_once()
         self.assertIn('Licence hotel mismatch', receiver.stats['last_error'])
@@ -442,8 +458,8 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [renew_evt]})),
-            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True}))
+            http_get_fn=self.feed([renew_evt]),
+            http_post_fn=self.ack_ok
         )
         receiver.fetch_and_apply_once()
 
@@ -476,8 +492,8 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [forged_evt]})),
-            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True}))
+            http_get_fn=self.feed([forged_evt]),
+            http_post_fn=self.ack_ok
         )
         receiver.fetch_and_apply_once()
         self.assertIn('Invalid or forged licence', receiver.stats['last_error'])
@@ -499,8 +515,8 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=lambda u, p, h: (200, json.dumps({'ok': True, 'events': [msg_evt]})),
-            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True}))
+            http_get_fn=self.feed([msg_evt]),
+            http_post_fn=self.ack_ok
         )
         receiver.fetch_and_apply_once()
 
@@ -508,7 +524,7 @@ class TestPhase34InboundSync(unittest.TestCase):
         msg_evt2 = dict(msg_evt)
         msg_evt2['id'] = 'evt_msg_002'
         msg_evt2['seq'] = 2
-        receiver.http_get_fn = lambda u, p, h: (200, json.dumps({'ok': True, 'events': [msg_evt2]}))
+        receiver.http_get_fn = self.feed([msg_evt2])
         receiver.fetch_and_apply_once()
 
         with self.store.rlock():
@@ -547,7 +563,7 @@ class TestPhase34InboundSync(unittest.TestCase):
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True, batch_size=50,
             http_get_fn=paginated_get,
-            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True}))
+            http_post_fn=self.ack_ok
         )
 
         t0 = time.perf_counter()
