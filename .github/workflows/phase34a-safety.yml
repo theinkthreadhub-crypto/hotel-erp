@@ -54,6 +54,22 @@ jobs:
           node --loader ./tests/cf_loader.mjs tests/cloud_sync_ingestion_test.mjs
           node --loader ./tests/cf_loader.mjs tests/cloud_reports_test.mjs
 
+  chromium-browser-qa:
+    name: Chromium desktop/mobile QR + print template QA
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install temporary Chromium test runtime
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Run actual browser desktop/mobile QR/KOT click tests
+        run: node tests/phase35c_browser_e2e.mjs
+
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke
     runs-on: windows-latest
