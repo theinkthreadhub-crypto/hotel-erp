@@ -30,7 +30,7 @@ for old, new, removed, mgr in json.loads(sys.stdin.read()):
     out.append([new, len(notes)])
 print(json.dumps(out))`;
 const input = cases.map(c => [c[1], structuredClone(c[2]), c[3], c[4]]);
-const pyOut = JSON.parse(execFileSync('python3', ['-c', py], { input: JSON.stringify(input), encoding: 'utf8' }));
+const pyOut = JSON.parse(execFileSync(process.platform === 'win32' ? 'python' : 'python3', ['-c', py], { input: JSON.stringify(input), encoding: 'utf8' }));
 let failed = 0;
 cases.forEach(([name, old, neu, removed, mgr], i) => {
   const js = structuredClone(neu), n = guardRecords(old, js, removed, mgr).length;
