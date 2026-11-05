@@ -2475,8 +2475,9 @@ class SqliteSetuStore(SetuStore):
                     ' ORDER BY created_at DESC,order_id DESC LIMIT ? OFFSET ?',
                     args + (limit, offset)
                 ).fetchall()
+            native_qr = bool(getattr(getattr(getattr(self, 'dispatcher', None), 'inbound', None), '_running', False))
             return {
-                'count': count, 'status': state,
+                'count': count, 'status': state, 'inboundQrNative': native_qr,
                 'rows': [
                     {
                         'order_id': r[0], 'table': r[1],
@@ -3518,7 +3519,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(400, {'error': str(e)})
                 return self.send_json(200, res) if res is not None else self.send_json(404, {'error': 'unknown query'})
             if path == '/api/version':
-                return self.send_json(200, {'version': store.version, **({'engine': 'sqlite'} if getattr(store, 'engine', '') == 'sqlite' else {})})
+                native_qr = bool(getattr(getattr(getattr(store, 'dispatcher', None), 'inbound', None), '_running', False))
+                return self.send_json(200, {'version': store.version,
+                                            **({'engine': 'sqlite', 'inboundQrNative': native_qr} if getattr(store, 'engine', '') == 'sqlite' else {})})
             if path == '/api/changes':
                 # SQLite engine: only what changed since the device's version (never the whole data)
                 if getattr(store, 'engine', '') != 'sqlite':
