@@ -99,8 +99,10 @@ async function scenario(label,size,action){
       const printable=await page.evaluate(async w=>{
         D.settings.width=w;
         window.__qaPrints=0;
-        appPrint=()=>{window.__qaPrints++;};
-        directPrint=()=>false;
+        // Both are const in the actual ERP. Configure browser-print mode
+        // and intercept the browser action instead of reassigning constants.
+        D.settings.printMode='browser';
+        window.print=()=>{window.__qaPrints++;};
         printSent['qrkot:qrkot_browser01']=0;
         printKotTicket('qrkot_browser01');
         await new Promise(resolve=>setTimeout(resolve,250));
