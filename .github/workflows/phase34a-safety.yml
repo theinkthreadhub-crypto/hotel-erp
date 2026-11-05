@@ -28,6 +28,10 @@ jobs:
         run: python tests/phase34a_safety_test.py
       - name: Phase 3.5 counter to LAN integration tests
         run: python tests/phase35_counter_integration_test.py
+      - name: Phase 3.5b browser native QR and UI regression tests
+        run: |
+          node tests/phase35b_native_qr_ui_test.mjs
+          python tests/test_horeca_one_ui.py
       - name: Existing inbound and SQLite regression tests
         run: |
           python tests/sync_phase3_inbound_test.py
