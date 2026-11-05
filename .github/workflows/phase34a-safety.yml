@@ -31,6 +31,14 @@ jobs:
           python tests/sync_phase3_inbound_test.py
           python tests/sync_phase3_outbox_test.py
           python tests/sqlite_phase2b_test.py
+      - name: Counter dispatcher and legacy SQLite tests
+        run: |
+          python tests/sync_phase3_dispatcher_test.py
+          python tests/sqlite_phase2_test.py
+      - name: Financial accounting and guard regressions
+        run: |
+          node tests/guard-records.test.mjs
+          node tests/run_accounting_p0_suite.cjs
       - name: Cloud change feed regression tests
         run: node --loader ./tests/cf_loader.mjs tests/cloud_sync_inbound_test.mjs
       - name: Cloud reporting and ingestion tests
