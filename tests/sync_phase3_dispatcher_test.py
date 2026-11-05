@@ -135,7 +135,15 @@ class MockCloudServer(BaseHTTPRequestHandler):
                 if existing:
                     if existing['checksum'] == calc_hash:
                         # Idempotent replay
-                        results[op_id] = {'status': 'committed', 'duplicate': True, 'doc_version': env.get('doc_version'), 'at': existing['at']}
+                        results[op_id] = {
+                            'status': 'committed',
+                            'duplicate': True,
+                            'op_id': op_id,
+                            'hotel_id': hotel_header or getattr(self.server, 'expected_hotel', 'TESTHOTEL01'),
+                            'checksum': 'sha256:' + calc_hash,
+                            'doc_version': env.get('doc_version'),
+                            'at': existing['at']
+                        }
                     else:
                         # Conflicting payload
                         self.server.conflicts_quarantine[op_id] = env
@@ -156,7 +164,14 @@ class MockCloudServer(BaseHTTPRequestHandler):
                     'at': now_ms,
                     'payload': payload
                 }
-                results[op_id] = {'status': 'committed', 'doc_version': env.get('doc_version'), 'at': now_ms}
+                results[op_id] = {
+                    'status': 'committed',
+                    'op_id': op_id,
+                    'hotel_id': hotel_header or getattr(self.server, 'expected_hotel', 'TESTHOTEL01'),
+                    'checksum': 'sha256:' + calc_hash,
+                    'doc_version': env.get('doc_version'),
+                    'at': now_ms
+                }
 
             # If simulate_lost_response_once is set: commit was done, but response is abruptly severed
             if getattr(self.server, 'simulate_lost_response_once', False):
@@ -519,6 +534,174 @@ class Phase32DispatcherTests(unittest.TestCase):
         max_ms = max(times)
         print(f"\n[BENCHMARK] Local billing under cloud downtime: avg={avg_ms:.2f}ms, max={max_ms:.2f}ms")
         self.assertLess(avg_ms, 25.0, f"Average bill latency must be well under 25ms, got {avg_ms:.2f}ms")
+
+    def test_11_conflict_quarantine_stops_continuous_retries(self):
+        """Permanent conflict is quarantined (sent_at < 0) and not retried on next pass."""
+        disp = SQ.OutboxSyncDispatcher(
+            store=self.store,
+            url=self.cloud_url,
+            hotel='TESTHOTEL01',
+            key='test_sync_key_phase32',
+            enabled=True
+        )
+
+        bill = {'id': 'b_quar_test', 'no': 77, 'total': 300.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill, op_id='op_b_quar_test')
+
+        # Inject conflict on server
+        self.server.inject_conflict_for_op = 'op_b_quar_test'
+
+        # Pass 1: Conflict returned, quarantined locally
+        res1 = disp.dispatch_once()
+        self.assertEqual(res1['conflicts'], 1)
+        self.assertEqual(res1['acked'], 0)
+
+        # Verify outbox row has negative sent_at (quarantined)
+        with self.store.sdb.rlock():
+            row = self.store.sdb.con().execute(
+                "SELECT sent_at FROM sync_outbox WHERE ref LIKE '%b_quar_test%'"
+            ).fetchone()
+            self.assertIsNotNone(row)
+            self.assertLess(row[0], 0, "Quarantined op must have negative sent_at")
+
+            # Verify sync_conflicts has 1 unresolved conflict
+            conf_rows = self.store.sdb.con().execute(
+                "SELECT rid, reason, resolved FROM sync_conflicts WHERE rid = 'op_b_quar_test'"
+            ).fetchall()
+            self.assertEqual(len(conf_rows), 1)
+            self.assertEqual(conf_rows[0][2], 0, "Conflict must be unresolved (needs-review)")
+
+        # Pass 2: Dispatcher runs again -> MUST NOT retry op_b_quar_test
+        res2 = disp.dispatch_once()
+        self.assertEqual(res2['status'], 'idle', "Quarantined op must not be re-selected for dispatch")
+        self.assertEqual(res2['processed'], 0)
+
+    def test_12_conflicted_dependency_blocks_subsequent_same_entity_ops(self):
+        """Subsequent operations on the same entity as an unresolved conflict are held back."""
+        disp = SQ.OutboxSyncDispatcher(
+            store=self.store,
+            url=self.cloud_url,
+            hotel='TESTHOTEL01',
+            key='test_sync_key_phase32',
+            enabled=True
+        )
+
+        # 1. First bill op encounters a conflict
+        bill1 = {'id': 'b_dep_1', 'no': 80, 'total': 100.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill1, op_id='op_b_dep_1')
+        self.server.inject_conflict_for_op = 'op_b_dep_1'
+        disp.dispatch_once()
+
+        # Clear server injection so cloud is healthy again
+        self.server.inject_conflict_for_op = None
+
+        # 2. Second op updates the SAME bill (b_dep_1)
+        bill1_update = {'id': 'b_dep_1', 'no': 80, 'total': 150.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill1_update, op_id='op_b_dep_1_update')
+
+        # 3. Dispatch: The second op depends on b_dep_1 which has an unresolved conflict!
+        # It must be held back, not bypassing the dependency!
+        res = disp.dispatch_once()
+        self.assertEqual(res['processed'], 0)
+        self.assertNotIn('op_b_dep_1_update', self.server.committed_inbox, "Dependent op must NOT be committed while conflict active")
+
+    def test_13_independent_ops_progress_past_quarantined_conflicts(self):
+        """Independent operations on other entities proceed safely past active conflicts."""
+        disp = SQ.OutboxSyncDispatcher(
+            store=self.store,
+            url=self.cloud_url,
+            hotel='TESTHOTEL01',
+            key='test_sync_key_phase32',
+            enabled=True
+        )
+
+        # Conflicted bill b_ind_conf
+        bill_conf = {'id': 'b_ind_conf', 'no': 91, 'total': 100.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill_conf, op_id='op_b_ind_conf')
+        self.server.inject_conflict_for_op = 'op_b_ind_conf'
+        disp.dispatch_once()
+        self.server.inject_conflict_for_op = None
+
+        # Independent bill b_ind_clean
+        bill_clean = {'id': 'b_ind_clean', 'no': 92, 'total': 220.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill_clean, op_id='op_b_ind_clean')
+
+        # Dispatch: Independent bill must be processed and acknowledged!
+        res = disp.dispatch_once()
+        self.assertEqual(res['acked'], 1)
+        self.assertIn('op_b_ind_clean', self.server.committed_inbox)
+
+    def test_14_mismatched_checksum_or_hotel_acknowledgment_treated_as_unconfirmed(self):
+        """Cloud acknowledgment with wrong checksum or hotel ID is treated as unconfirmed."""
+        disp = SQ.OutboxSyncDispatcher(
+            store=self.store,
+            url=self.cloud_url,
+            hotel='TESTHOTEL01',
+            key='test_sync_key_phase32',
+            enabled=True
+        )
+
+        bill = {'id': 'b_mismatch_ack', 'no': 95, 'total': 310.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill, op_id='op_b_mismatch_ack')
+
+        # Mock http post function that returns a corrupted/mismatched checksum in ack
+        def corrupt_ack_http_post(url, path, body_bytes, headers, timeout=15):
+            fake_resp = {
+                'ok': True,
+                'results': {
+                    'op_b_mismatch_ack': {
+                        'status': 'committed',
+                        'op_id': 'op_b_mismatch_ack',
+                        'hotel_id': 'TESTHOTEL01',
+                        'checksum': 'sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+                        'doc_version': 10
+                    }
+                }
+            }
+            return 200, json.dumps(fake_resp)
+
+        disp.http_post_fn = corrupt_ack_http_post
+        res = disp.dispatch_once()
+        self.assertEqual(res['acked'], 0, "Mismatched checksum ack must NOT be acknowledged")
+
+        # Row remains pending
+        with self.store.sdb.rlock():
+            row = self.store.sdb.con().execute(
+                "SELECT sent_at FROM sync_outbox WHERE ref LIKE '%b_mismatch_ack%'"
+            ).fetchone()
+            self.assertIsNone(row[0], "sent_at must remain NULL when checksum mismatches")
+
+    def test_15_recovery_and_reconciliation_after_restart(self):
+        """Full restart recovery: unacknowledged operations and conflicts persist and reconcile."""
+        # 1. Create a bill and an expense voucher
+        bill = {'id': 'b_reboot_1', 'no': 150, 'total': 450.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill, op_id='op_b_reboot_1')
+
+        voucher = {'id': 'v_reboot_1', 'type': 'Expense', 'amount': 75.0, 'date': '2026-11-05'}
+        save_voucher(self.store, voucher, op_id='op_v_reboot_1')
+
+        # 2. Simulate counter reboot
+        new_store = SqliteSetuStore(self.dir)
+        new_disp = SQ.OutboxSyncDispatcher(
+            store=new_store,
+            url=self.cloud_url,
+            hotel='TESTHOTEL01',
+            key='test_sync_key_phase32',
+            enabled=True
+        )
+
+        # 3. Pending operations are preserved
+        pending = new_store.get_pending_outbox()
+        self.assertEqual(len(pending), 2)
+
+        # 4. Dispatch after reboot
+        res = new_disp.dispatch_once()
+        self.assertEqual(res['acked'], 2)
+        self.assertIn('op_b_reboot_1', self.server.committed_inbox)
+        self.assertIn('op_v_reboot_1', self.server.committed_inbox)
+
+        # 5. Outbox now completely drained
+        self.assertEqual(len(new_store.get_pending_outbox()), 0)
 
 
 if __name__ == '__main__':

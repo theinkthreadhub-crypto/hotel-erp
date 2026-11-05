@@ -798,6 +798,7 @@ export class SetuHotel extends DurableObject {
       qty REAL,
       unit TEXT,
       cost REAL,
+      doc_version INTEGER DEFAULT 0,
       updated_at INTEGER,
       raw_json TEXT
     )`);
@@ -813,10 +814,33 @@ export class SetuHotel extends DurableObject {
       cost REAL,
       balance_after REAL,
       ref_id TEXT,
+      doc_version INTEGER DEFAULT 0,
       updated_at INTEGER,
       raw_json TEXT
     )`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_stock_mov_sid ON sync_stock_movements (sid, date)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_purchases (
+      id TEXT PRIMARY KEY,
+      party TEXT,
+      date TEXT,
+      status TEXT,
+      total REAL,
+      doc_version INTEGER DEFAULT 0,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_purchases_date ON sync_purchases (date)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      doc_version INTEGER DEFAULT 0,
+      updated_at INTEGER
+    )`);
+
+    try { this.sql.exec('ALTER TABLE sync_stock_items ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
+    try { this.sql.exec('ALTER TABLE sync_stock_movements ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
 
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_vouchers (
       id TEXT PRIMARY KEY,
@@ -1755,8 +1779,16 @@ export class SetuHotel extends DurableObject {
     if(existing){
       const existingHash = existing.checksum.replace(/^sha256:/i, '').trim().toLowerCase();
       if(existingHash === calculatedHash.toLowerCase()){
-        // Exactly identical payload retry: return committed acknowledgment idempotently
-        return { status: 'committed', duplicate: true, doc_version: existing.doc_version, at: existing.received_at, op_id: opId };
+        // Exactly identical payload retry: return committed acknowledgment idempotently with op_id, hotel_id, and checksum
+        return {
+          status: 'committed',
+          duplicate: true,
+          op_id: opId,
+          hotel_id: this.account.code,
+          checksum: existing.checksum,
+          doc_version: existing.doc_version,
+          at: existing.received_at
+        };
       }else{
         // Conflict: Different payload for existing op_id! Quarantine and reject.
         const confId = 'conf_' + randomHex(8);
@@ -1768,174 +1800,358 @@ export class SetuHotel extends DurableObject {
       }
     }
 
-    // Atomic relational ingestion without full-document JSON rewriting
-    const now = Date.now();
+    // Task 2: Validate supported business modules - reject unsupported payloads completely
     const recs = env.payload.records || {};
     const maps = env.payload.maps || {};
+    const values = env.payload.values || {};
 
-    // 1. Bills
-    if(recs.bills && typeof recs.bills === 'object'){
-      for(const bill of (recs.bills.ups || [])){
-        const bid = String(bill.id || '');
-        if(bid){
-          const bno = bill.no != null ? +bill.no : null;
-          const bkot = bill.kot != null ? +bill.kot : null;
-          const tbl = String(bill.table || bill.tbl || '');
-          const chn = String(bill.channel || 'Dine-In');
-          const mode = String(bill.mode || 'Cash');
-          const total = +bill.total || 0;
-          const tax = +bill.tax || 0;
-          const sub = +bill.sub || 0;
-          const disc = +bill.disc || 0;
-          const cancelled = bill.cancelled ? 1 : 0;
-          const cby = String(bill.cancelledBy || bill.cancelled_by || '');
-          const bdate = String(bill.date || '');
-          const btime = String(bill.time || '');
-          const idem = String(bill.idemKey || ('idem_' + (bid || (tbl + '_' + bno))));
+    const SUPPORTED_RECORD_MODULES = new Set(['bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders']);
+    const SUPPORTED_MAP_MODULES = new Set(['tables', 'kaccha']);
+    const SUPPORTED_VALUE_MODULES = new Set(['settings', 'seq', 'auth']);
 
-          this.sql.exec(
-            `INSERT OR REPLACE INTO sync_bills (id, no, kot, table_name, channel, mode, total, tax, sub, disc, cancelled, cancelled_by, date, time, idem_key, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            bid, bno, bkot, tbl, chn, mode, total, tax, sub, disc, cancelled, cby, bdate, btime, idem, env.doc_version, now, JSON.stringify(bill)
-          );
+    for(const k of Object.keys(recs)){
+      if(!SUPPORTED_RECORD_MODULES.has(k)){
+        return { status: 'rejected', error: 'UNSUPPORTED_BUSINESS_MODULE', op_id: opId, unsupported_key: k };
+      }
+    }
+    for(const k of Object.keys(maps)){
+      if(!SUPPORTED_MAP_MODULES.has(k)){
+        return { status: 'rejected', error: 'UNSUPPORTED_BUSINESS_MODULE', op_id: opId, unsupported_key: k };
+      }
+    }
+    for(const k of Object.keys(values)){
+      if(!SUPPORTED_VALUE_MODULES.has(k)){
+        return { status: 'rejected', error: 'UNSUPPORTED_BUSINESS_MODULE', op_id: opId, unsupported_key: k };
+      }
+    }
 
-          this.sql.exec('DELETE FROM sync_bill_items WHERE bill_id = ?', bid);
-          if(Array.isArray(bill.items)){
-            bill.items.forEach((it, idx) => {
-              const itId = String(it.id || (bid + '_item_' + idx));
-              this.sql.exec(
-                `INSERT OR REPLACE INTO sync_bill_items (id, bill_id, mid, name, price, qty, amount, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                itId, bid, String(it.mid || ''), String(it.name || ''), +it.price || 0, +it.qty || 0, +it.amount || ((+it.price || 0) * (+it.qty || 0)), JSON.stringify(it)
-              );
-            });
+    const now = Date.now();
+    let commitResult = null;
+
+    // Task 1 & 5: Atomic Relational Ingestion inside transactionSync with Stale Overwrite Protection
+    try {
+      this.ctx.storage.transactionSync(() => {
+        // --- Stale Overwrite Pre-flight Check ---
+        const checkStale = (table, idCol, idVal, entityKey) => {
+          if(!idVal) return;
+          const rows = this.sql.exec(`SELECT doc_version FROM ${table} WHERE ${idCol} = ?`, idVal).toArray();
+          const row = rows[0];
+          if(row && typeof row.doc_version === 'number' && row.doc_version > env.doc_version){
+            const err = new Error(`CONFLICT_STALE_RECORD: ${entityKey} ${idVal} is at newer version ${row.doc_version}`);
+            err.isConflict = true;
+            err.entityKey = entityKey;
+            err.recordId = idVal;
+            err.reason = `STALE_RECORD_OVERWRITE_PREVENTED (current_version=${row.doc_version}, incoming_version=${env.doc_version})`;
+            err.conflictResponse = {
+              status: 'rejected',
+              error: 'CONFLICT_STALE_RECORD',
+              op_id: opId,
+              reason: `Record ${idVal} in ${entityKey} is already at newer version ${row.doc_version}, cannot overwrite with older version ${env.doc_version}`
+            };
+            throw err;
           }
+        };
 
-          this.sql.exec('DELETE FROM sync_bill_payments WHERE bill_id = ?', bid);
-          const pays = Array.isArray(bill.pays) ? bill.pays : (bill.mode ? [{ mode: bill.mode, amt: total }] : []);
-          pays.forEach((p, idx) => {
-            const pId = String(p.id || (bid + '_pay_' + idx));
+        // 1. Check bills staleness
+        if(recs.bills && typeof recs.bills === 'object'){
+          for(const b of (recs.bills.ups || [])){
+            checkStale('sync_bills', 'id', String(b.id || ''), 'bills');
+          }
+          for(const rmId of (recs.bills.rm || [])){
+            checkStale('sync_bills', 'id', String(rmId), 'bills');
+          }
+        }
+
+        // 2. Check vouchers staleness
+        const vouchersRec = recs.vouchers || recs.txns;
+        if(vouchersRec && typeof vouchersRec === 'object'){
+          for(const v of (vouchersRec.ups || [])){
+            checkStale('sync_vouchers', 'id', String(v.id || ''), 'vouchers');
+          }
+          for(const rmId of (vouchersRec.rm || [])){
+            checkStale('sync_vouchers', 'id', String(rmId), 'vouchers');
+          }
+        }
+
+        // 3. Check stock & stock movements staleness
+        if(recs.stock && typeof recs.stock === 'object'){
+          for(const s of (recs.stock.ups || [])){
+            checkStale('sync_stock_items', 'id', String(s.id || ''), 'stock');
+          }
+          for(const rmId of (recs.stock.rm || [])){
+            checkStale('sync_stock_items', 'id', String(rmId), 'stock');
+          }
+        }
+        const movesRec = recs.stock_movements || recs.moves;
+        if(movesRec && typeof movesRec === 'object'){
+          for(const sm of (movesRec.ups || [])){
+            checkStale('sync_stock_movements', 'id', String(sm.id || ''), 'stock_movements');
+          }
+          for(const rmId of (movesRec.rm || [])){
+            checkStale('sync_stock_movements', 'id', String(rmId), 'stock_movements');
+          }
+        }
+
+        // 4. Check KOTs staleness
+        if(recs.kots && typeof recs.kots === 'object'){
+          for(const kot of (recs.kots.ups || [])){
+            checkStale('sync_kots', 'id', String(kot.id || ''), 'kots');
+          }
+          for(const rmId of (recs.kots.rm || [])){
+            checkStale('sync_kots', 'id', String(rmId), 'kots');
+          }
+        }
+
+        // 5. Check purchases / orders staleness
+        const purchRec = recs.purchases || recs.orders;
+        if(purchRec && typeof purchRec === 'object'){
+          for(const po of (purchRec.ups || [])){
+            checkStale('sync_purchases', 'id', String(po.id || ''), 'purchases');
+          }
+          for(const rmId of (purchRec.rm || [])){
+            checkStale('sync_purchases', 'id', String(rmId), 'purchases');
+          }
+        }
+
+        // 6. Check tables staleness
+        const tableMap = maps.tables || maps.kaccha;
+        if(tableMap && typeof tableMap === 'object'){
+          for(const tbl of Object.keys(tableMap.set || {})){
+            checkStale('sync_table_orders', 'table_name', String(tbl), 'table_orders');
+          }
+          for(const tbl of (tableMap.del || [])){
+            checkStale('sync_table_orders', 'table_name', String(tbl), 'table_orders');
+          }
+        }
+
+        // 7. Check settings staleness
+        if(values.settings && typeof values.settings === 'object'){
+          checkStale('sync_settings', 'key', 'settings', 'settings');
+        }
+
+        // --- Mutate Business Records ---
+        // 1. Bills
+        if(recs.bills && typeof recs.bills === 'object'){
+          for(const bill of (recs.bills.ups || [])){
+            const bid = String(bill.id || '');
+            if(bid){
+              const bno = bill.no != null ? +bill.no : null;
+              const bkot = bill.kot != null ? +bill.kot : null;
+              const tbl = String(bill.table || bill.tbl || '');
+              const chn = String(bill.channel || 'Dine-In');
+              const mode = String(bill.mode || 'Cash');
+              const total = +bill.total || 0;
+              const tax = +bill.tax || 0;
+              const sub = +bill.sub || 0;
+              const disc = +bill.disc || 0;
+              const cancelled = bill.cancelled ? 1 : 0;
+              const cby = String(bill.cancelledBy || bill.cancelled_by || '');
+              const bdate = String(bill.date || '');
+              const btime = String(bill.time || '');
+              const idem = String(bill.idemKey || ('idem_' + (bid || (tbl + '_' + bno))));
+
+              this.sql.exec(
+                `INSERT OR REPLACE INTO sync_bills (id, no, kot, table_name, channel, mode, total, tax, sub, disc, cancelled, cancelled_by, date, time, idem_key, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                bid, bno, bkot, tbl, chn, mode, total, tax, sub, disc, cancelled, cby, bdate, btime, idem, env.doc_version, now, JSON.stringify(bill)
+              );
+
+              this.sql.exec('DELETE FROM sync_bill_items WHERE bill_id = ?', bid);
+              if(Array.isArray(bill.items)){
+                bill.items.forEach((it, idx) => {
+                  const itId = String(it.id || (bid + '_item_' + idx));
+                  this.sql.exec(
+                    `INSERT OR REPLACE INTO sync_bill_items (id, bill_id, mid, name, price, qty, amount, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    itId, bid, String(it.mid || ''), String(it.name || ''), +it.price || 0, +it.qty || 0, +it.amount || ((+it.price || 0) * (+it.qty || 0)), JSON.stringify(it)
+                  );
+                });
+              }
+
+              this.sql.exec('DELETE FROM sync_bill_payments WHERE bill_id = ?', bid);
+              const pays = Array.isArray(bill.pays) ? bill.pays : (bill.mode ? [{ mode: bill.mode, amt: total }] : []);
+              pays.forEach((p, idx) => {
+                const pId = String(p.id || (bid + '_pay_' + idx));
+                this.sql.exec(
+                  `INSERT OR REPLACE INTO sync_bill_payments (id, bill_id, mode, amount, raw_json) VALUES (?, ?, ?, ?, ?)`,
+                  pId, bid, String(p.mode || 'Cash'), +(p.amt ?? p.amount ?? 0), JSON.stringify(p)
+                );
+              });
+
+              this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'ups', ?)`, env.doc_version, bid, now);
+            }
+          }
+          for(const rmId of (recs.bills.rm || [])){
+            const srm = String(rmId);
+            this.sql.exec('DELETE FROM sync_bills WHERE id = ?', srm);
+            this.sql.exec('DELETE FROM sync_bill_items WHERE bill_id = ?', srm);
+            this.sql.exec('DELETE FROM sync_bill_payments WHERE bill_id = ?', srm);
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'rm', ?)`, env.doc_version, srm, now);
+          }
+        }
+
+        // 2. Vouchers & Txns
+        if(vouchersRec && typeof vouchersRec === 'object'){
+          for(const v of (vouchersRec.ups || [])){
+            const vid = String(v.id || '');
+            if(vid){
+              this.sql.exec(
+                `INSERT OR REPLACE INTO sync_vouchers (id, type, amount, party, mode, date, time, category, note, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                vid, String(v.type || 'Expense'), +v.amount || 0, String(v.party || ''), String(v.mode || 'Cash'), String(v.date || ''), String(v.time || ''), String(v.category || ''), String(v.note || ''), env.doc_version, now, JSON.stringify(v)
+              );
+              this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'ups', ?)`, env.doc_version, vid, now);
+            }
+          }
+          for(const rmId of (vouchersRec.rm || [])){
+            const srm = String(rmId);
+            this.sql.exec('DELETE FROM sync_vouchers WHERE id = ?', srm);
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'rm', ?)`, env.doc_version, srm, now);
+          }
+        }
+
+        // 3. Stock & Stock Movements
+        if(recs.stock && typeof recs.stock === 'object'){
+          for(const s of (recs.stock.ups || [])){
+            const sid = String(s.id || '');
+            if(sid){
+              this.sql.exec(
+                `INSERT OR REPLACE INTO sync_stock_items (id, name, qty, unit, cost, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                sid, String(s.name || ''), +s.qty || 0, String(s.unit || ''), +s.cost || 0, env.doc_version, now, JSON.stringify(s)
+              );
+              this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock', ?, 'ups', ?)`, env.doc_version, sid, now);
+            }
+          }
+          for(const rmId of (recs.stock.rm || [])){
+            const srm = String(rmId);
+            this.sql.exec('DELETE FROM sync_stock_items WHERE id = ?', srm);
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock', ?, 'rm', ?)`, env.doc_version, srm, now);
+          }
+        }
+        if(movesRec && typeof movesRec === 'object'){
+          for(const sm of (movesRec.ups || [])){
+            const smid = String(sm.id || '');
+            if(smid){
+              this.sql.exec(
+                `INSERT OR REPLACE INTO sync_stock_movements (id, sid, name, date, time, type, qty, cost, balance_after, ref_id, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                smid, String(sm.sid || ''), String(sm.name || ''), String(sm.date || ''), String(sm.time || ''), String(sm.type || ''), +sm.qty || 0, +sm.cost || 0, +sm.balance_after || 0, String(sm.ref_id || ''), env.doc_version, now, JSON.stringify(sm)
+              );
+              this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'ups', ?)`, env.doc_version, smid, now);
+            }
+          }
+          for(const rmId of (movesRec.rm || [])){
+            const srm = String(rmId);
+            this.sql.exec('DELETE FROM sync_stock_movements WHERE id = ?', srm);
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'rm', ?)`, env.doc_version, srm, now);
+          }
+        }
+
+        // 4. KOTs
+        if(recs.kots && typeof recs.kots === 'object'){
+          for(const kot of (recs.kots.ups || [])){
+            const kid = String(kot.id || '');
+            if(kid){
+              this.sql.exec(
+                `INSERT OR REPLACE INTO sync_kots (id, table_name, time, status, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                kid, String(kot.table || kot.tbl || ''), String(kot.time || ''), String(kot.status || 'active'), env.doc_version, now, JSON.stringify(kot)
+              );
+              this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'kots', ?, 'ups', ?)`, env.doc_version, kid, now);
+            }
+          }
+          for(const rmId of (recs.kots.rm || [])){
+            const srm = String(rmId);
+            this.sql.exec('DELETE FROM sync_kots WHERE id = ?', srm);
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'kots', ?, 'rm', ?)`, env.doc_version, srm, now);
+          }
+        }
+
+        // 5. Purchases / Orders
+        if(purchRec && typeof purchRec === 'object'){
+          for(const po of (purchRec.ups || [])){
+            const poid = String(po.id || '');
+            if(poid){
+              this.sql.exec(
+                `INSERT OR REPLACE INTO sync_purchases (id, party, date, status, total, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                poid, String(po.party || ''), String(po.date || ''), String(po.status || 'received'), +(po.total ?? po.amount ?? 0), env.doc_version, now, JSON.stringify(po)
+              );
+              this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'purchases', ?, 'ups', ?)`, env.doc_version, poid, now);
+            }
+          }
+          for(const rmId of (purchRec.rm || [])){
+            const srm = String(rmId);
+            this.sql.exec('DELETE FROM sync_purchases WHERE id = ?', srm);
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'purchases', ?, 'rm', ?)`, env.doc_version, srm, now);
+          }
+        }
+
+        // 6. Maps (tables)
+        if(tableMap && typeof tableMap === 'object'){
+          for(const [tbl, tinfo] of Object.entries(tableMap.set || {})){
             this.sql.exec(
-              `INSERT OR REPLACE INTO sync_bill_payments (id, bill_id, mode, amount, raw_json) VALUES (?, ?, ?, ?, ?)`,
-              pId, bid, String(p.mode || 'Cash'), +(p.amt ?? p.amount ?? 0), JSON.stringify(p)
+              `INSERT OR REPLACE INTO sync_table_orders (table_name, guest_name, guest_phone, pax, status, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              String(tbl), String(tinfo?.guestName || ''), String(tinfo?.guestPhone || ''), +(tinfo?.pax || 0), String(tinfo?.status || 'occupied'), env.doc_version, now, JSON.stringify(tinfo)
             );
-          });
-
-          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'ups', ?)`, env.doc_version, bid, now);
+          }
+          for(const tbl of (tableMap.del || [])){
+            this.sql.exec('DELETE FROM sync_table_orders WHERE table_name = ?', String(tbl));
+          }
         }
-      }
-      for(const rmId of (recs.bills.rm || [])){
-        const srm = String(rmId);
-        this.sql.exec('DELETE FROM sync_bills WHERE id = ?', srm);
-        this.sql.exec('DELETE FROM sync_bill_items WHERE bill_id = ?', srm);
-        this.sql.exec('DELETE FROM sync_bill_payments WHERE bill_id = ?', srm);
-        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'rm', ?)`, env.doc_version, srm, now);
-      }
-    }
 
-    // 2. Vouchers & Txns
-    const vouchersRec = recs.vouchers || recs.txns;
-    if(vouchersRec && typeof vouchersRec === 'object'){
-      for(const v of (vouchersRec.ups || [])){
-        const vid = String(v.id || '');
-        if(vid){
+        // 7. Values (settings)
+        if(values.settings && typeof values.settings === 'object'){
           this.sql.exec(
-            `INSERT OR REPLACE INTO sync_vouchers (id, type, amount, party, mode, date, time, category, note, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            vid, String(v.type || 'Expense'), +v.amount || 0, String(v.party || ''), String(v.mode || 'Cash'), String(v.date || ''), String(v.time || ''), String(v.category || ''), String(v.note || ''), env.doc_version, now, JSON.stringify(v)
+            `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('settings', ?, ?, ?)`,
+            JSON.stringify(values.settings), env.doc_version, now
           );
-          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'ups', ?)`, env.doc_version, vid, now);
+          if(values.settings.name && values.settings.name.trim() !== this.account.name){
+            this.account.name = values.settings.name.trim().slice(0, 80);
+            this.kvSet('account', this.account);
+          }
         }
-      }
-      for(const rmId of (vouchersRec.rm || [])){
-        const srm = String(rmId);
-        this.sql.exec('DELETE FROM sync_vouchers WHERE id = ?', srm);
-        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'rm', ?)`, env.doc_version, srm, now);
-      }
-    }
 
-    // 3. Stock & Stock Movements
-    if(recs.stock && typeof recs.stock === 'object'){
-      for(const s of (recs.stock.ups || [])){
-        const sid = String(s.id || '');
-        if(sid){
-          this.sql.exec(
-            `INSERT OR REPLACE INTO sync_stock_items (id, name, qty, unit, cost, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            sid, String(s.name || ''), +s.qty || 0, String(s.unit || ''), +s.cost || 0, now, JSON.stringify(s)
-          );
-          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock', ?, 'ups', ?)`, env.doc_version, sid, now);
-        }
-      }
-      for(const rmId of (recs.stock.rm || [])){
-        const srm = String(rmId);
-        this.sql.exec('DELETE FROM sync_stock_items WHERE id = ?', srm);
-        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock', ?, 'rm', ?)`, env.doc_version, srm, now);
-      }
-    }
-    if(recs.stock_movements && typeof recs.stock_movements === 'object'){
-      for(const sm of (recs.stock_movements.ups || [])){
-        const smid = String(sm.id || '');
-        if(smid){
-          this.sql.exec(
-            `INSERT OR REPLACE INTO sync_stock_movements (id, sid, name, date, time, type, qty, cost, balance_after, ref_id, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            smid, String(sm.sid || ''), String(sm.name || ''), String(sm.date || ''), String(sm.time || ''), String(sm.type || ''), +sm.qty || 0, +sm.cost || 0, +sm.balance_after || 0, String(sm.ref_id || ''), now, JSON.stringify(sm)
-          );
-          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'ups', ?)`, env.doc_version, smid, now);
-        }
-      }
-      for(const rmId of (recs.stock_movements.rm || [])){
-        const srm = String(rmId);
-        this.sql.exec('DELETE FROM sync_stock_movements WHERE id = ?', srm);
-        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'rm', ?)`, env.doc_version, srm, now);
-      }
-    }
-
-    // 4. KOTs
-    if(recs.kots && typeof recs.kots === 'object'){
-      for(const kot of (recs.kots.ups || [])){
-        const kid = String(kot.id || '');
-        if(kid){
-          this.sql.exec(
-            `INSERT OR REPLACE INTO sync_kots (id, table_name, time, status, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            kid, String(kot.table || kot.tbl || ''), String(kot.time || ''), String(kot.status || 'active'), env.doc_version, now, JSON.stringify(kot)
-          );
-          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'kots', ?, 'ups', ?)`, env.doc_version, kid, now);
-        }
-      }
-      for(const rmId of (recs.kots.rm || [])){
-        const srm = String(rmId);
-        this.sql.exec('DELETE FROM sync_kots WHERE id = ?', srm);
-        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'kots', ?, 'rm', ?)`, env.doc_version, srm, now);
-      }
-    }
-
-    // 5. Maps (tables)
-    if(maps.tables && typeof maps.tables === 'object'){
-      for(const [tbl, tinfo] of Object.entries(maps.tables.set || {})){
+        // 8. Record to sync_inbox
+        const actorStr = typeof env.actor === 'object' ? JSON.stringify(env.actor) : String(env.actor || '');
         this.sql.exec(
-          `INSERT OR REPLACE INTO sync_table_orders (table_name, guest_name, guest_phone, pax, status, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          String(tbl), String(tinfo?.guestName || ''), String(tinfo?.guestPhone || ''), +(tinfo?.pax || 0), String(tinfo?.status || 'occupied'), env.doc_version, now, JSON.stringify(tinfo)
+          `INSERT INTO sync_inbox (op_id, hotel_id, device_id, doc_version, timestamp, event_type, checksum, actor, received_at, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          opId, this.account.code, String(env.device_id || 'counter'), env.doc_version, env.timestamp || now, String(env.event_type || 'ops'), env.integrity.checksum, actorStr, now, 'committed', ''
         );
+
+        // 9. Checkpoints
+        this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('latest_doc_version', ?, ?)`, String(env.doc_version), now);
+        this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_sync_op_id', ?, ?)`, opId, now);
+        if(env.doc_version > (this.meta.version || 0)){
+          this.meta.version = env.doc_version;
+          this.meta.savedAt = now;
+          this.kvSet('meta', this.meta);
+        }
+
+        commitResult = {
+          status: 'committed',
+          op_id: opId,
+          hotel_id: this.account.code,
+          checksum: env.integrity.checksum,
+          doc_version: env.doc_version,
+          at: now,
+          // duplicate omitted on initial commit
+        };
+      });
+    } catch(err) {
+      if(err && err.isConflict){
+        try {
+          const confId = 'conf_' + randomHex(8);
+          this.sql.exec(
+            'INSERT INTO sync_conflicts (id, op_id, entity_key, record_id, reason, at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            confId, opId, err.entityKey || 'ops', String(err.recordId || ''), err.reason || 'CONFLICT_STALE_RECORD', Date.now(), JSON.stringify(env)
+          );
+        } catch(e){}
+        return err.conflictResponse;
       }
-      for(const tbl of (maps.tables.del || [])){
-        this.sql.exec('DELETE FROM sync_table_orders WHERE table_name = ?', String(tbl));
-      }
+      return {
+        status: 'rejected',
+        error: 'TRANSACTION_ABORTED',
+        op_id: opId,
+        message: err.message || String(err)
+      };
     }
 
-    // 6. Record to sync_inbox
-    const actorStr = typeof env.actor === 'object' ? JSON.stringify(env.actor) : String(env.actor || '');
-    this.sql.exec(
-      `INSERT INTO sync_inbox (op_id, hotel_id, device_id, doc_version, timestamp, event_type, checksum, actor, received_at, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      opId, this.account.code, String(env.device_id || 'counter'), env.doc_version, env.timestamp || now, String(env.event_type || 'ops'), env.integrity.checksum, actorStr, now, 'committed', ''
-    );
-
-    // 7. Checkpoints
-    this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('latest_doc_version', ?, ?)`, String(env.doc_version), now);
-    this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_sync_op_id', ?, ?)`, opId, now);
-    if(env.doc_version > (this.meta.version || 0)){
-      this.meta.version = env.doc_version;
-      this.meta.savedAt = now;
-      this.kvSet('meta', this.meta);
-    }
-
-    return { status: 'committed', doc_version: env.doc_version, at: now, op_id: opId };
+    return commitResult;
   }
 
   async handleSyncOps(b){
@@ -1956,9 +2172,10 @@ export class SetuHotel extends DurableObject {
     if(isSingle){
       const res = results[batch[0]?.op_id || 'unknown'];
       if(res && res.status === 'rejected'){
-        if(res.error === 'CONFLICT_OP_ID_PAYLOAD_MISMATCH') return json(409, { ok: false, error: res.error, results });
+        if(res.error === 'CONFLICT_OP_ID_PAYLOAD_MISMATCH' || res.error === 'CONFLICT_STALE_RECORD') return json(409, { ok: false, error: res.error, results });
         if(res.error === 'HOTEL_TENANT_MISMATCH') return json(403, { ok: false, error: res.error, results });
-        if(res.error === 'INVALID_CHECKSUM') return json(400, { ok: false, error: res.error, results });
+        if(res.error === 'UNSUPPORTED_BUSINESS_MODULE') return json(422, { ok: false, error: res.error, results });
+        if(res.error === 'INVALID_CHECKSUM' || res.error === 'INVALID_ENVELOPE_SCHEMA') return json(400, { ok: false, error: res.error, results });
         return json(400, { ok: false, error: res.error, results });
       }
     }

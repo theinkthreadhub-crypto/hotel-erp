@@ -52,7 +52,15 @@ function createHarness(sharedDb = null) {
       }
     },
     transactionSync(fn) {
-      return fn();
+      db.exec('SAVEPOINT tx_sync');
+      try {
+        const res = fn();
+        db.exec('RELEASE tx_sync');
+        return res;
+      } catch (err) {
+        db.exec('ROLLBACK TO tx_sync');
+        throw err;
+      }
     }
   };
   const ctx = {
@@ -459,6 +467,204 @@ await test('10. Unauthorized and unauthenticated access rejected', async () => {
   // Invalid sync key
   const r2 = await callApi('POST', '/api/sync/ops', { envelope: env }, { 'X-Setu-Sync': 'invalid_secret' });
   assert.equal(r2.status, 401);
+});
+
+await test('11. Stale financial overwrite prevention and cancellation preservation', async () => {
+  const { callApi, db } = createHarness();
+
+  // Commit bill at doc_version: 5
+  const payloadV5 = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [{ id: 'b_stale_1', no: 101, total: 500, cancelled: 0 }],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {}
+  };
+  const envV5 = makeTestEnvelope('op_v5', 'TESTHOTEL01', 5, payloadV5);
+  const r1 = await callApi('POST', '/api/sync/ops', { envelope: envV5 });
+  assert.equal(r1.status, 200);
+  assert.equal(r1.json.results['op_v5'].status, 'committed');
+
+  // Attempt stale overwrite with delayed doc_version: 3 (trying to change total to 200)
+  const payloadV3 = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [{ id: 'b_stale_1', no: 101, total: 200, cancelled: 0 }],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {}
+  };
+  const envV3 = makeTestEnvelope('op_v3', 'TESTHOTEL01', 3, payloadV3);
+  const r2 = await callApi('POST', '/api/sync/ops', { envelope: envV3 });
+  assert.equal(r2.status, 409, 'Delayed older operation must return 409 Conflict');
+  assert.equal(r2.json.results['op_v3'].status, 'rejected');
+  assert.equal(r2.json.results['op_v3'].error, 'CONFLICT_STALE_RECORD');
+
+  // Verify bill in database was NOT overwritten - remains total 500 at version 5
+  const bill = db.prepare('SELECT total, doc_version, cancelled FROM sync_bills WHERE id = ?').get('b_stale_1');
+  assert.equal(bill.total, 500);
+  assert.equal(bill.doc_version, 5);
+
+  // Verify conflict was recorded in sync_conflicts
+  const conflicts = db.prepare('SELECT * FROM sync_conflicts WHERE op_id = ?').all('op_v3');
+  assert.equal(conflicts.length, 1);
+  assert.equal(conflicts[0].entity_key, 'bills');
+
+  // Legitimate cancellation arrives at doc_version: 6 -> MUST BE ACCEPTED
+  const payloadV6 = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [{ id: 'b_stale_1', no: 101, total: 500, cancelled: 1, cancelledBy: 'Manager' }],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {}
+  };
+  const envV6 = makeTestEnvelope('op_v6', 'TESTHOTEL01', 6, payloadV6);
+  const r3 = await callApi('POST', '/api/sync/ops', { envelope: envV6 });
+  assert.equal(r3.status, 200);
+  assert.equal(r3.json.results['op_v6'].status, 'committed');
+
+  const updatedBill = db.prepare('SELECT total, doc_version, cancelled, cancelled_by FROM sync_bills WHERE id = ?').get('b_stale_1');
+  assert.equal(updatedBill.cancelled, 1);
+  assert.equal(updatedBill.cancelled_by, 'Manager');
+  assert.equal(updatedBill.doc_version, 6);
+});
+
+await test('12. Unsupported business module rejection without partial commit', async () => {
+  const { callApi, db } = createHarness();
+
+  // Mixed payload: valid bill + unsupported module 'crypto_holdings'
+  const payload = {
+    records: {
+      bills: { kind: 'rec', ups: [{ id: 'b_unsupported_test', total: 350 }], rm: [] },
+      crypto_holdings: { kind: 'rec', ups: [{ id: 'c1', coin: 'BTC' }], rm: [] }
+    },
+    maps: {},
+    values: {}
+  };
+  const env = makeTestEnvelope('op_unsupported', 'TESTHOTEL01', 7, payload);
+
+  const r = await callApi('POST', '/api/sync/ops', { envelope: env });
+  assert.equal(r.status, 422, 'Unsupported business module must return 422');
+  assert.equal(r.json.results['op_unsupported'].status, 'rejected');
+  assert.equal(r.json.results['op_unsupported'].error, 'UNSUPPORTED_BUSINESS_MODULE');
+
+  // Crucial: The supported bill must NOT have been partially committed!
+  const bill = db.prepare('SELECT * FROM sync_bills WHERE id = ?').all('b_unsupported_test');
+  assert.equal(bill.length, 0, 'No partial commit for unsupported envelope');
+  const inbox = db.prepare('SELECT * FROM sync_inbox WHERE op_id = ?').all('op_unsupported');
+  assert.equal(inbox.length, 0, 'Inbox must not record rejected unsupported envelope');
+});
+
+await test('13. Supported modules ingestion: purchases, settings, stock, vouchers, kots', async () => {
+  const { callApi, db } = createHarness();
+
+  const payload = {
+    records: {
+      purchases: {
+        kind: 'rec',
+        ups: [{ id: 'po_01', party: 'Veg Vendor', total: 1200, status: 'received', date: '2026-11-05' }],
+        rm: []
+      },
+      vouchers: {
+        kind: 'rec',
+        ups: [{ id: 'v_01', type: 'Expense', amount: 300, party: 'Cleaning', mode: 'Cash' }],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {
+      settings: { name: 'Hotel Grand Hardened', taxRate: 5 }
+    }
+  };
+  const env = makeTestEnvelope('op_supported_all', 'TESTHOTEL01', 8, payload);
+  const r = await callApi('POST', '/api/sync/ops', { envelope: env });
+
+  assert.equal(r.status, 200);
+  assert.equal(r.json.results['op_supported_all'].status, 'committed');
+
+  // Verify purchases table
+  const po = db.prepare('SELECT * FROM sync_purchases WHERE id = ?').get('po_01');
+  assert.equal(po.party, 'Veg Vendor');
+  assert.equal(po.total, 1200);
+
+  // Verify settings table
+  const st = db.prepare('SELECT * FROM sync_settings WHERE key = ?').get('settings');
+  assert.ok(st);
+  assert.ok(st.value.includes('Hotel Grand Hardened'));
+});
+
+await test('14. Mid-transaction error rolls back business records and inbox atomically', async () => {
+  const { callApi, db, hotel } = createHarness();
+
+  // Create envelope with 2 bill items
+  const payload = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [{
+          id: 'b_atomic_test',
+          total: 400,
+          items: [
+            { id: 'it_1', name: 'Item 1', price: 200, qty: 1 },
+            { id: 'it_2', name: 'Item 2', price: 200, qty: 1 }
+          ]
+        }],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {}
+  };
+  const env = makeTestEnvelope('op_atomic_fail', 'TESTHOTEL01', 9, payload);
+
+  // Inject a failure hook into sql.exec during item insertion
+  const originalExec = hotel.sql.exec.bind(hotel.sql);
+  hotel.sql.exec = function(query, ...params) {
+    if (query.includes('sync_bill_items') && params.includes('it_2')) {
+      throw new Error('Simulated disk/constraint failure on item 2');
+    }
+    return originalExec(query, ...params);
+  };
+
+  const r = await callApi('POST', '/api/sync/ops', { envelope: env });
+  assert.equal(r.status, 400);
+  assert.equal(r.json.results['op_atomic_fail'].status, 'rejected');
+  assert.equal(r.json.results['op_atomic_fail'].error, 'TRANSACTION_ABORTED');
+
+  // Verify full atomic rollback: NO bill, NO bill items, and NO inbox entry!
+  const bill = db.prepare('SELECT * FROM sync_bills WHERE id = ?').all('b_atomic_test');
+  assert.equal(bill.length, 0, 'Bill must be rolled back');
+  const items = db.prepare('SELECT * FROM sync_bill_items WHERE bill_id = ?').all('b_atomic_test');
+  assert.equal(items.length, 0, 'Bill items must be rolled back');
+  const inbox = db.prepare('SELECT * FROM sync_inbox WHERE op_id = ?').all('op_atomic_fail');
+  assert.equal(inbox.length, 0, 'Inbox must not contain failed op');
+});
+
+await test('15. Cloud acknowledgment returns op_id, hotel_id, and committed payload checksum', async () => {
+  const { callApi } = createHarness();
+
+  const payload = { records: { bills: { kind: 'rec', ups: [{ id: 'b_ack_verify', total: 150 }], rm: [] } }, maps: {}, values: {} };
+  const env = makeTestEnvelope('op_ack_fields', 'TESTHOTEL01', 12, payload);
+
+  const r = await callApi('POST', '/api/sync/ops', { envelope: env });
+  assert.equal(r.status, 200);
+
+  const ack = r.json.results['op_ack_fields'];
+  assert.equal(ack.status, 'committed');
+  assert.equal(ack.op_id, 'op_ack_fields');
+  assert.equal(ack.hotel_id, 'TESTHOTEL01');
+  assert.equal(ack.checksum, env.integrity.checksum);
 });
 
 console.log(`\n========================================`);

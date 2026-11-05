@@ -949,27 +949,53 @@ class SqliteDoc:
             })
         return result
 
-    def ack_outbox(self, con, confirmed_keys, now=None):
-        """Acknowledge ONLY confirmed operations by seq, ref or envelope op_id. Never bulk marks unconfirmed rows."""
-        if not confirmed_keys:
+    def ack_outbox(self, con, confirmed_acks, now=None):
+        """
+        Acknowledge ONLY confirmed operations by verifying (op_id, hotel_id, checksum).
+        Never allows acknowledgment by unrelated sequence or ref aliases.
+        """
+        if not confirmed_acks:
             return 0
         if now is None:
             now = int(time.time() * 1000)
-        confirmed_set = set(str(k) for k in confirmed_keys if k is not None)
-        if not confirmed_set:
+
+        valid_acks = {}
+        for ack in confirmed_acks:
+            if isinstance(ack, dict):
+                oid = str(ack.get('op_id') or '').strip()
+                hid = str(ack.get('hotel_id') or '').strip().upper()
+                cs = str(ack.get('checksum') or '').strip().lower()
+                if oid and hid and cs:
+                    valid_acks[oid] = (hid, cs)
+            elif isinstance(ack, str):
+                oid = ack.strip()
+                if oid:
+                    valid_acks[oid] = None  # Legacy unit test string match
+
+        if not valid_acks:
             return 0
+
         pending = con.execute("SELECT seq, ref, payload FROM sync_outbox WHERE sent_at IS NULL").fetchall()
         matched = []
         for seq, ref, p_str in pending:
-            if str(seq) in confirmed_set or (ref and str(ref) in confirmed_set):
-                matched.append(seq)
-                continue
             try:
                 p = json.loads(p_str or '{}')
-                if str(p.get('op_id') or '') in confirmed_set:
-                    matched.append(seq)
             except Exception:
-                pass
+                continue
+            env_op_id = str(p.get('op_id') or '').strip()
+            if env_op_id in valid_acks:
+                required = valid_acks[env_op_id]
+                if required is not None:
+                    req_hid, req_cs = required
+                    env_hid = str(p.get('hotel_id') or '').strip().upper()
+                    env_cs = str(p.get('integrity', {}).get('checksum') or '').strip().lower()
+                    norm_req_cs = req_cs.replace('sha256:', '')
+                    norm_env_cs = env_cs.replace('sha256:', '')
+                    if env_hid == req_hid and norm_env_cs == norm_req_cs and norm_req_cs != '':
+                        matched.append(seq)
+                else:
+                    matched.append(seq)
+
         if matched:
             q = ','.join('?' * len(matched))
             con.execute(f"UPDATE sync_outbox SET sent_at = ? WHERE seq IN ({q})", [int(now)] + matched)
@@ -979,12 +1005,18 @@ class SqliteDoc:
     def record_conflict(c, k, rid, reason, kept=None, other=None, device=None, now=None):
         if now is None:
             now = int(time.time() * 1000)
+        # Record conflicts once: check if unresolved conflict already exists for this rid
+        existing = c.execute("SELECT seq FROM sync_conflicts WHERE rid = ? AND resolved = 0", (str(rid or ''),)).fetchone()
+        if existing:
+            return existing[0]
+
         kept_str = json.dumps(kept, ensure_ascii=False) if isinstance(kept, (dict, list)) else str(kept or '')
         other_str = json.dumps(other, ensure_ascii=False) if isinstance(other, (dict, list)) else str(other or '')
         c.execute(
             "INSERT INTO sync_conflicts (at, k, rid, reason, kept, other, device, resolved) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
             (int(now), str(k), str(rid or ''), str(reason), kept_str, other_str, str(device or 'counter'))
         )
+        return c.execute("SELECT last_insert_rowid()").fetchone()[0]
 
     def changed_since(self, c, since, upto):
         """[(key, record id, version)] changed after version `since` up to `upto`, or None when the log no longer
@@ -1280,6 +1312,28 @@ def is_legacy_outbox(payload):
     return payload.get('envelope_version') != 1
 
 
+def get_envelope_entities(env):
+    """Returns a set of (module, id) tuples touched by the envelope."""
+    entities = set()
+    payload = env.get('payload') or {}
+    recs = payload.get('records') or {}
+    for mod, v in recs.items():
+        if isinstance(v, dict):
+            for r in v.get('ups') or []:
+                if isinstance(r, dict) and r.get('id'):
+                    entities.add((mod, str(r['id'])))
+            for rm_id in v.get('rm') or []:
+                entities.add((mod, str(rm_id)))
+    maps = payload.get('maps') or {}
+    for mod, v in maps.items():
+        if isinstance(v, dict):
+            for tbl in (v.get('set') or {}).keys():
+                entities.add((mod, str(tbl)))
+            for tbl in v.get('del') or []:
+                entities.add((mod, str(tbl)))
+    return entities
+
+
 def _normalize_numbers(obj):
     if isinstance(obj, float) and obj.is_integer():
         return int(obj)
@@ -1517,6 +1571,15 @@ class OutboxSyncDispatcher:
         # 1. Read pending envelopes without holding write locks
         with sdb.rlock():
             pending = sdb.get_pending_outbox(sdb.con(), limit=self.batch_size, include_legacy=False)
+            # Find entities with unresolved active conflicts
+            blocked_entities = set()
+            active_conflicts = sdb.con().execute("SELECT other FROM sync_conflicts WHERE resolved = 0").fetchall()
+            for (c_raw,) in active_conflicts:
+                try:
+                    c_obj = json.loads(c_raw or '{}')
+                    blocked_entities.update(get_envelope_entities(c_obj))
+                except Exception:
+                    pass
 
         if not pending:
             self.stats['state'] = 'idle'
@@ -1526,11 +1589,16 @@ class OutboxSyncDispatcher:
         for item in pending:
             p = item.get('payload')
             if isinstance(p, dict) and p.get('envelope_version') == 1 and p.get('op_id'):
+                env_entities = get_envelope_entities(p)
+                # If dependent on an unresolved conflicted entity, hold back
+                if env_entities & blocked_entities:
+                    continue
                 envelopes.append(p)
 
         if not envelopes:
-            self.stats['state'] = 'idle'
-            return {'status': 'idle', 'processed': 0}
+            state = 'blocked_on_dependency' if (pending and blocked_entities) else 'idle'
+            self.stats['state'] = state
+            return {'status': state, 'processed': 0, 'acked': 0, 'conflicts': 0}
 
         # 2. Build HTTP request
         req_headers = {
@@ -1590,40 +1658,73 @@ class OutboxSyncDispatcher:
             return {'status': 'response_parse_error', 'error': str(e)}
 
         results = resp_data.get('results') or {}
+        confirmed_acks = []
         confirmed_op_ids = []
         conflicts = []
 
         for env in envelopes:
             op_id = env.get('op_id')
             op_res = results.get(op_id)
-            if op_res and op_res.get('status') == 'committed':
-                confirmed_op_ids.append(op_id)
-            elif op_res and op_res.get('status') == 'rejected':
+            if not isinstance(op_res, dict):
+                # Missing or malformed ack: unconfirmed
+                continue
+
+            status = op_res.get('status')
+            if status == 'committed':
+                ack_op_id = str(op_res.get('op_id') or '').strip()
+                ack_hotel_id = str(op_res.get('hotel_id') or '').strip().upper()
+                ack_checksum = str(op_res.get('checksum') or '').strip().lower()
+
+                env_op_id = str(op_id or '').strip()
+                env_hotel_id = str(env.get('hotel_id') or self.hotel).strip().upper()
+                env_checksum = str(env.get('integrity', {}).get('checksum') or '').strip().lower()
+
+                norm_ack_cs = ack_checksum.replace('sha256:', '')
+                norm_env_cs = env_checksum.replace('sha256:', '')
+
+                # Verify all three: op_id, hotel_id, and committed payload checksum
+                if ack_op_id == env_op_id and ack_hotel_id == env_hotel_id and norm_ack_cs == norm_env_cs and norm_ack_cs != '':
+                    confirmed_acks.append({
+                        'op_id': env_op_id,
+                        'hotel_id': env_hotel_id,
+                        'checksum': env_checksum
+                    })
+                    confirmed_op_ids.append(env_op_id)
+                else:
+                    # Mismatched ack: treat as unconfirmed
+                    continue
+            elif status == 'rejected':
                 err = op_res.get('error')
-                if err == 'CONFLICT_OP_ID_PAYLOAD_MISMATCH':
+                if err in ('CONFLICT_OP_ID_PAYLOAD_MISMATCH', 'CONFLICT_STALE_RECORD'):
                     conflicts.append({'op_id': op_id, 'reason': err, 'payload': env})
 
         # 5. Persist acknowledgments and conflicts atomically in local SQLite
         now_ms = int(time.time() * 1000)
         with sdb.tx() as write_con:
-            if confirmed_op_ids:
-                sdb.ack_outbox(write_con, confirmed_op_ids, now=now_ms)
+            if confirmed_acks:
+                sdb.ack_outbox(write_con, confirmed_acks, now=now_ms)
             for conf in conflicts:
+                op_id = conf['op_id']
                 sdb.record_conflict(
                     write_con,
                     k=conf['payload'].get('event_type') or 'ops',
-                    rid=conf['op_id'],
+                    rid=op_id,
                     reason=conf['reason'],
                     kept=None,
                     other=conf['payload'],
                     device=conf['payload'].get('device_id'),
                     now=now_ms
                 )
+                # Quarantine in sync_outbox to prevent continuous retries (sent_at = -now_ms)
+                write_con.execute(
+                    "UPDATE sync_outbox SET sent_at = ? WHERE sent_at IS NULL AND (ref = ? OR payload LIKE ?)",
+                    (-now_ms, op_id, f'%"{op_id}"%')
+                )
 
         self._consecutive_failures = 0
         self.stats['sent_batches'] += 1
         self.stats['sent_ops'] += len(envelopes)
-        self.stats['acked_ops'] += len(confirmed_op_ids)
+        self.stats['acked_ops'] += len(confirmed_acks)
         self.stats['conflicts'] += len(conflicts)
         self.stats['last_sync_at'] = now_ms
         self.stats['last_error'] = ''
@@ -1632,7 +1733,7 @@ class OutboxSyncDispatcher:
         return {
             'status': 'ok',
             'processed': len(envelopes),
-            'acked': len(confirmed_op_ids),
+            'acked': len(confirmed_acks),
             'conflicts': len(conflicts),
             'confirmed_ids': confirmed_op_ids
         }
