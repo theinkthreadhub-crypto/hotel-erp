@@ -361,6 +361,45 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
       return { pass: !diff.length && HIST.n > 0, month: m, day: d, olderBillsLoaded: HIST.n, differing: diff, billsOnPage: D.bills.length };
     }, [full, month, day]);
   });
+  // Reprint of an older bill: the loyalty balance printed = a full count (the counter works it out: ptsAt)
+  if(SQLITE && A) await run('H4 reprint of an older bill', async () => {
+    const full = (await serverDb()).data;
+    const from = await A.evaluate(() => SRV.win.from);
+    const old = full.bills.filter(b => b.date < from && b.ptsEarned && !b.cancelled).slice(-1)[0];
+    if(!old) return { pass: false, error: 'no older bill with loyalty points in the data' };
+    await A.evaluate(no => histFind(String(no)), old.no);
+    await A.waitForFunction(id => !!getBill(id), old.id, { timeout: 60000 });
+    return A.evaluate(([full, id]) => {
+      const b = getBill(id), shown = ptsBalAt(b), text = billText(b);
+      const real = D, eng = SRV.engine; D = JSON.parse(JSON.stringify(full)); SRV.engine = '';
+      const ref = ptsBalAt(D.bills.find(x => x.id === id)); D = real; SRV.engine = eng;
+      return { pass: shown === ref && text.includes(String(b.no)), billNo: b.no, date: b.date, printedBalance: shown, fullCount: ref, receiptChars: text.length };
+    }, [full, old.id]);
+  });
+  // Bulk delete of older bills through the app's own delRun (vendor code check stubbed: it needs Hotel Setu Cloud)
+  if(SQLITE && A) await run('H3 bulk delete of older bills keeps stock, is audited, Manager only', async () => {
+    const day = addDays(START, 5);
+    await A.route('**/api/vendor/verify', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, ref: 'DEL-TEST' }) }));
+    const before = (await serverDb()).data;
+    const q0 = await qtyNow(A);
+    const ids = before.bills.filter(b => b.date === day).map(b => b.id);
+    await A.evaluate(d => { DELF = { kind: 'bills', from: d, to: d, only: false, cat: '', keep: true }; DEL.bills.list(DELF); }, day);
+    await A.waitForFunction(() => !HIST.busy, null, { timeout: 120000, polling: 100 });
+    await A.evaluate(() => { let i = document.getElementById('del_code'); if(!i){ i = document.createElement('input'); i.id = 'del_code'; document.body.appendChild(i); } i.value = '123456'; });
+    await A.evaluate(() => delRun());
+    await synced(A); await wait(2500); await synced(A);
+    await A.unroute('**/api/vendor/verify');
+    const after = (await serverDb()).data, have = new Set(after.bills.map(b => b.id));
+    const q1 = await qtyNow(A);
+    const moved = Object.keys(q0).filter(k => Math.abs((q0[k] || 0) - (q1[k] || 0)) > 0.001);
+    const audited = (after.audit || []).some(a => a.action === 'Bulk Delete' && /DEL-TEST/.test(a.detail || ''));
+    // A cashier device cannot delete bills (the counter keeps them)
+    const keep = after.bills.find(b => b.date === addDays(START, 6));
+    const rc = await api('/api/ops', { method: 'POST', body: JSON.stringify({ bv: -1, ops: [{ k: 'bills', rm: [keep.id] }] }) }, cashTok);
+    const stillThere = new Set((await serverDb()).data.bills.map(b => b.id)).has(keep.id);
+    return { pass: ids.length > 0 && ids.every(id => !have.has(id)) && !moved.length && audited && stillThere,
+      day, billsDeleted: ids.filter(id => !have.has(id)).length, of: ids.length, stockItemsChanged: moved.length, audited, cashierDeleteStatus: rc.status, cashierDeleteKept: stillThere };
+  });
   if(SQLITE) await run('S7 repeated delivery (incremental save)', async () => {
     const before = await snapshot();
     const s0 = await serverDb();

@@ -6106,11 +6106,20 @@ const inWin = b => !histOn() || String((b && b.date) || '') >= SRV.win.from;
 const histCust = p => (histOn() && SRV.hist && SRV.hist.cust && SRV.hist.cust[p]) || null;
 const recId = x => isPlainObj(x) && typeof x.id === 'string' && x.id ? x.id : '';
 const okIds = v => Array.isArray(v) && v.every(recId);
-// The same record twice in a list (an old offline merge, a replayed sync) is never valid: the first copy stays
-function dedupIds(v){
+// The same record twice in a list (an old offline merge, a replayed sync): an identical copy is simply one record;
+// a copy with different content is NEVER dropped silently: the first stays, the other goes to the Main Counter's
+// conflict list (Manager review) and the user is told
+function dedupIds(v, k){
   if(new Set(v.map(recId)).size === v.length) return v;
-  const seen = new Set();
-  const out = v.filter(x => !seen.has(x.id) && seen.add(x.id));
+  const first = new Map(), out = [];
+  for(const x of v){
+    const f = first.get(x.id);
+    if(!f){ first.set(x.id, x); out.push(x); continue; }
+    if(JSON.stringify(f) === JSON.stringify(x)) continue;
+    (SRV.conflicts = SRV.conflicts || []).push({k, id: x.id, reason: 'two different copies of one record on this device', kept: f, other: x});
+    logError(`Two different copies of ${k === 'bills' ? 'bill #' + (x.no ?? x.id) : k + ' ' + x.id}`, 'Data check before saving', 'The first copy is kept; the other is saved on the Main Counter for a Manager to review.');
+    toast(`Two different copies of ${k === 'bills' ? 'bill #' + (x.no ?? x.id) : 'a record'} were found. The first is kept; the other is saved for Manager review.`);
+  }
   v.splice(0, v.length, ...out);
   return v;
 }
@@ -6130,7 +6139,7 @@ function buildOps(base, cur){
     if(k === 'secure') continue;
     const v = cur[k], bv = base[k], shape = opsShape(k, v, bv);
     if(shape === 'rec'){
-      dedupIds(v);
+      dedupIds(v, k);
       const bm = new Map((bv || []).map(x => [x.id, x])), up = [], prev = {}, texts = {};
       for(const x of v){
         const s = JSON.stringify(x), b = bm.get(x.id);
@@ -6240,7 +6249,8 @@ async function srvPushOps(){
   }
   if(cur.length) parts.push(cur);
   for(let i = 0; i < parts.length; i++){
-    const body = JSON.stringify({bv: SRV.version, id: parts.length > 1 ? id + '-' + i : id, ops: parts[i].map(({texts, ...o}) => o)});
+    const sendConf = i === 0 && SRV.conflicts && SRV.conflicts.length ? SRV.conflicts.slice() : null;
+    const body = JSON.stringify({bv: SRV.version, id: parts.length > 1 ? id + '-' + i : id, ops: parts[i].map(({texts, ...o}) => o), ...(sendConf ? {conflicts: sendConf} : {})});
     const r = await srvFetch('/api/ops', {method: 'POST', body});
     if(r.status === 401){ showConnectScreen(); return 'stop'; }
     if(r.status === 403 && SRV.readOnly){ SRV.dirty = false; return 'stop'; }
@@ -6255,7 +6265,12 @@ async function srvPushOps(){
       throw new Error(j.error || 'HTTP ' + r.status);
     }
     SRV.refused = 0;
+    if(sendConf) SRV.conflicts = SRV.conflicts.slice(sendConf.length);
     const j = await r.json();
+    if(j.conflicts && j.conflicts.length){
+      logError(`${j.conflicts.length} conflicting record(s) kept for review on the Main Counter`, 'Main Counter save', j.conflicts.map(c => c.reason).join('; '));
+      toast('A record conflicted with one already saved. Both are kept; the Main Counter lists it for Manager review.');
+    }
     opsToBase(parts[i]);
     if(j.fix && j.fix.length) opsApply(j.fix);
     if(j.renumbered) Object.entries(j.renumbered).forEach(([bid, no]) => { if(!bid.startsWith('kot:')) toast(`Bill saved as #${no}: its first number was already used on another device.`); });

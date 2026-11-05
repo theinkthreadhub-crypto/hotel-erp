@@ -27,7 +27,7 @@ import threading
 import time
 from decimal import Decimal, ROUND_HALF_UP
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 DB_FILE = 'setu.sqlite'
 FLAG_FILE = 'setu-storage.json'
 
@@ -167,6 +167,12 @@ CREATE INDEX IF NOT EXISTS change_log_version ON change_log(version);
 CREATE INDEX IF NOT EXISTS change_log_krid ON change_log(k, rid, version);
 -- Totals of older sales per stock item without reading every movement
 CREATE INDEX IF NOT EXISTS stock_movements_src_date ON stock_movements(source, date);
+
+-- ---------------- Schema 3: conflicts kept for review (never silently dropped) ----------------
+-- Two copies of one record with different content, or one sale key with different amounts: the stored /
+-- first copy stays in the books, every other copy is kept here for a Manager to review
+CREATE TABLE IF NOT EXISTS sync_conflicts (seq INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, k TEXT NOT NULL, rid TEXT, reason TEXT NOT NULL,
+  kept TEXT, other TEXT, device TEXT, resolved INTEGER NOT NULL DEFAULT 0);
 """
 
 # ---------------------------------------------------------------------------------------------------------
@@ -271,7 +277,8 @@ class SqliteDoc:
             raise StoreError(f'database schema {cur} is newer than this program ({SCHEMA_VERSION})')
         if cur is None or int(cur) < SCHEMA_VERSION:
             # The new tables / indexes were created by the script above (IF NOT EXISTS); record each step once
-            names = {1: 'initial relational schema', 2: 'change log for incremental saves; stock movement (source, date) index'}
+            names = {1: 'initial relational schema', 2: 'change log for incremental saves; stock movement (source, date) index',
+                     3: 'sync_conflicts: differing copies kept for review'}
             with self.tx() as c:
                 for v in range(1 if cur is None else int(cur) + 1, SCHEMA_VERSION + 1):
                     c.execute('INSERT OR IGNORE INTO database_migrations VALUES (?, ?, ?)', (v, names[v], int(time.time() * 1000)))

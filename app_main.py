@@ -591,7 +591,7 @@ class SetuStore:
         except Exception:
             return False
 
-    def clean_and_validate_bills(self, data_obj):
+    def clean_and_validate_bills(self, data_obj, conflicts=None):
         """
         S01 Financial Invariant Enforcement:
         1. Validates that every Split mode bill satisfies sum(pays.amt) == total.
@@ -602,7 +602,7 @@ class SetuStore:
         if not isinstance(bills, list):
             return
         
-        seen_idem = set()
+        seen_idem = {}
         deduped = []
         for b in bills:
             if not isinstance(b, dict):
@@ -626,9 +626,15 @@ class SetuStore:
                 b['idemKey'] = ik
                 
             if ik in seen_idem:
-                # Discard duplicate financial posting
+                # Same sale twice: an identical copy is a retry; different money is a conflict, reported, never silent
+                f = seen_idem[ik]
+                if any(not jeq(f.get(x, MISSING), b.get(x, MISSING)) for x in ('total', 'sub', 'disc', 'tax', 'mode', 'pays', 'items', 'cancelled')):
+                    if conflicts is not None:
+                        conflicts.append(('bills', b.get('id'), f'sale key {ik} twice with different amounts (bill #{f.get("no")} kept)', f, b))
+                    else:
+                        self.log(f'CONFLICT: sale key {ik} twice with different amounts; bill #{f.get("no")} kept, other copy: {json.dumps(b, ensure_ascii=False)[:2000]}')
                 continue
-            seen_idem.add(ik)
+            seen_idem[ik] = b
             
             # 3. Explicit payment status
             if not b.get('paymentStatus'):
@@ -1464,7 +1470,8 @@ class CloudBusy(Exception):
 HIST_KEYS = ('bills',)                 # read from the tables when needed, never kept in server memory
 RECORD_KINDS = ('spec', 'extlist')     # lists saved record by record
 MAP_KINDS = ('maptable', 'kvmap', 'att')
-WHOLE_ONLY = ('staff', 'secure')       # staff PIN hashes are keyed by list position: always the whole list
+WHOLE_ONLY = ('staff', 'secure')
+FIN_FIELDS = ('total', 'sub', 'disc', 'tax', 'mode', 'pays', 'items', 'cancelled', 'amount', 'qty', 'no')   # money / stock content       # staff PIN hashes are keyed by list position: always the whole list
 MAX_OPS_RECORDS = 20000
 
 
@@ -1866,6 +1873,10 @@ class SqliteSetuStore(SetuStore):
         kinds = self.sdb.kinds()
         rec, maps, whole = {}, {}, {}
         n_rec = 0
+        conflicts = []     # (key, record id, reason, kept copy, other copy): stored, reported, never dropped silently
+        for c_ in body.get('conflicts') or []:
+            if isinstance(c_, dict) and isinstance(c_.get('k'), str):
+                conflicts.append((c_['k'], str(c_.get('id') or ''), str(c_.get('reason') or 'differing copies on the device')[:200], c_.get('kept'), c_.get('other')))
         for op in ops:
             if not isinstance(op, dict) or not isinstance(op.get('k'), str) or not op['k'] or len(op['k']) > 60:
                 return 400, {'error': 'bad op'}
@@ -1889,6 +1900,12 @@ class SqliteSetuStore(SetuStore):
                     return 400, {'error': f'{k} is not a record list here ({kind})'}
                 e = rec.setdefault(k, {'kind': kind, 'up': {}, 'rm': set(), 'prev': {}})
                 for x in up:
+                    first = e['up'].get(x['id'])
+                    if first is not None:
+                        # The same record twice in one save: identical = one copy; different = first kept, other recorded
+                        if not jeq(first, x):
+                            conflicts.append((k, x['id'], 'same id twice in one save, different content', first, x))
+                        continue
                     e['up'][x['id']] = x
                     e['rm'].discard(x['id'])
                 for i in rm:
@@ -1988,7 +2005,7 @@ class SqliteSetuStore(SetuStore):
             dup = {}
             if 'bills' in new_v:
                 try:
-                    self.clean_and_validate_bills(new_v)
+                    self.clean_and_validate_bills(new_v, conflicts)
                 except ValueError as ve:
                     return 400, {'error': str(ve)}
                 keep = []
@@ -1996,7 +2013,11 @@ class SqliteSetuStore(SetuStore):
                     if b.get('id') not in cur_rec['bills'] and b.get('idemKey'):
                         r = con.execute('SELECT id FROM bills WHERE idemKey = ? AND id <> ?', (b['idemKey'], b['id'])).fetchone()
                         if r:
-                            dup[b['id']] = self.sdb.get_records(con, 'bills', [r[0]]).get(r[0])
+                            stored = self.sdb.get_records(con, 'bills', [r[0]]).get(r[0])
+                            dup[b['id']] = stored
+                            # A retry of the same sale is fine; the same sale key with different money is a conflict
+                            if stored and any(not jeq(stored.get(f, MISSING), b.get(f, MISSING)) for f in FIN_FIELDS if f != 'no'):
+                                conflicts.append(('bills', b['id'], f'sale key {b["idemKey"]} already settled as bill #{stored.get("no")} with different amounts', stored, b))
                             continue
                     keep.append(b)
                 new_v['bills'] = keep
@@ -2089,8 +2110,12 @@ class SqliteSetuStore(SetuStore):
             final = writes_whole[k] if k in writes_whole else self._ws.get(k, MISSING)
             if final is not MISSING and not jeq(orig_whole.get(k, MISSING), final):
                 fix.append({'k': k, 'set': SEC.public_view({k: final}).get(k)})
+        if conflicts:
+            self._record_conflicts(conflicts, role)
         if not (writes_rec or writes_map or writes_whole):
             out = {'ok': True, 'version': self.version, 'savedAt': self.saved_at, 'unchanged': True}
+            if conflicts:
+                out['conflicts'] = [{'k': c_[0], 'id': c_[1], 'reason': c_[2]} for c_ in conflicts]
             if fix or dup:
                 out.update(fix=fix, dup=dup, renumbered=renum, blocked=blocked)
             return 200, out
@@ -2128,6 +2153,8 @@ class SqliteSetuStore(SetuStore):
             summary = {'keys': sorted(set(writes_rec) | set(writes_map) | set(writes_whole)), 'records': sum(len(u) + len(r) for _, u, r in writes_rec.values()), 'op': opid}
             c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', ('ops', opid or None, version, json.dumps(summary), now))
             out = {'ok': True, 'version': version, 'savedAt': now}
+            if conflicts:
+                out['conflicts'] = [{'k': c_[0], 'id': c_[1], 'reason': c_[2]} for c_ in conflicts]
             if fix or dup or renum or blocked or kept:
                 out.update(fix=fix, dup=dup, renumbered=renum, blocked=blocked, kept=len(kept))
             if opid:
@@ -2182,6 +2209,15 @@ class SqliteSetuStore(SetuStore):
         self.stats['opsRecords'] += summary['records']
         self._after_write(keep_maxno=True)
         return 200, out
+
+    def _record_conflicts(self, conflicts, role):
+        now = int(time.time() * 1000)
+        with self.sdb.tx() as c:
+            for k, rid, reason, kept, other in conflicts:
+                c.execute('INSERT INTO sync_conflicts (at, k, rid, reason, kept, other, device) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                          (now, k, rid, reason, json.dumps(kept, ensure_ascii=False), json.dumps(other, ensure_ascii=False), role))
+        self.stats['conflicts'] = self.stats.get('conflicts', 0) + len(conflicts)
+        self.log(f'CONFLICT kept for review ({role}): ' + '; '.join(f'{k} {rid}: {reason}' for k, rid, reason, _, _ in conflicts[:10]))
 
     # ---------- what changed since a version (GET /api/changes) ----------
     def changes(self, since):
@@ -2418,6 +2454,10 @@ class SqliteSetuStore(SetuStore):
             out = rows('SELECT id, no, date, total, is_cancelled FROM bills WHERE phone = ? ORDER BY date DESC LIMIT ? OFFSET ?', (ph, lim, off), ['id', 'no', 'date', 'total', 'cancelled'])
             agg = con.execute('SELECT COUNT(*), COALESCE(SUM(total_p), 0) FROM bills WHERE phone = ? AND is_cancelled = 0', (ph,)).fetchone()
             return {'rows': out, 'bills': agg[0], 'spent_p': agg[1]}
+        if name == 'conflicts':
+            return {'open': con.execute('SELECT COUNT(*) FROM sync_conflicts WHERE resolved = 0').fetchone()[0],
+                    'rows': [dict(zip(('seq', 'at', 'k', 'id', 'reason', 'kept', 'other', 'device'), (r[0], r[1], r[2], r[3], r[4], json.loads(r[5] or 'null'), json.loads(r[6] or 'null'), r[7])))
+                             for r in con.execute('SELECT seq, at, k, rid, reason, kept, other, device FROM sync_conflicts WHERE resolved = 0 ORDER BY seq DESC LIMIT ? OFFSET ?', (lim, off))]}
         if name == 'status':
             p = self.sdb.path
             size = lambda f: os.path.getsize(f) if os.path.exists(f) else 0   # noqa: E731
@@ -2426,6 +2466,7 @@ class SqliteSetuStore(SetuStore):
                     'window': {'from': self.window_from(), 'days': self.hist_days()}, 'stats': dict(self.stats), 'rssMB': rss_mb(),
                     'checkpoint': dict(getattr(self.sdb, 'ckpt_stats', None) or {'mode': 'inside commits (wal_autocheckpoint=1000)'}),
                     'lastBackup': getattr(self, 'backup_stats', None),
+                    'conflictsOpen': con.execute('SELECT COUNT(*) FROM sync_conflicts WHERE resolved = 0').fetchone()[0],
                     'backups': rows('SELECT file, at, bytes, bills, verified, note FROM backup_manifest ORDER BY at DESC LIMIT 10', (), ['file', 'at', 'bytes', 'bills', 'verified', 'note']),
                     'cloudSync': self.sync_blocked}
         return None
@@ -3340,7 +3381,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not hasattr(store, 'query'):
                     return self.send_json(404, {'error': 'available with the SQLite engine only'})
                 qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
-                if path[7:] == 'status' and self.role() not in ('local', 'admin'):
+                if path[7:] in ('status', 'conflicts') and self.role() not in ('local', 'admin'):
                     return self.send_json(403, {'error': 'manager only'})
                 try:
                     res = store.query(path[7:], qs)

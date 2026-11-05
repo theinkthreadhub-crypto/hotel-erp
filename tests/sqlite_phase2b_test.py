@@ -364,6 +364,46 @@ class OpsEngine(unittest.TestCase):
         self.store.replace_all(self.stored())
         self.assertTrue(self.store.changes(v)['reload'])
 
+    def test_differing_copies_are_kept_for_review_never_dropped(self):
+        b = {'id': 'cf1', 'no': 41, 'date': '2026-01-28', 'total': 100, 'mode': 'Cash', 'items': [{'mid': 'm1', 'name': 'x', 'price': 100, 'qty': 1}], 'idemKey': 'cf-key'}
+        # identical twice in one save: one bill, no conflict
+        code, r = self.ops([{'k': 'bills', 'up': [b, dict(b)]}])
+        self.assertEqual(code, 200, r)
+        self.assertNotIn('conflicts', r)
+        # same id twice with different money: first kept, the other recorded
+        b2 = dict(b, id='cf2', no=42, idemKey='cf-key2')
+        code, r = self.ops([{'k': 'bills', 'up': [b2, dict(b2, total=999)]}])
+        self.assertEqual(len(r['conflicts']), 1, r)
+        got = {x['id']: x for x in self.stored()['bills']}
+        self.assertEqual(got['cf2']['total'], 100)
+        # the same sale key again, different amount, new id: not a second bill, but recorded
+        code, r = self.ops([{'k': 'bills', 'up': [dict(b, id='cf3', no=43, total=150)]}])
+        self.assertNotIn('cf3', {x['id'] for x in self.stored()['bills']})
+        self.assertEqual(r['dup']['cf3']['id'], 'cf1')
+        self.assertEqual(len(r['conflicts']), 1, r)
+        # the same sale key again, identical: a retry, no conflict
+        code, r = self.ops([{'k': 'bills', 'up': [dict(b, id='cf4')]}])
+        self.assertNotIn('conflicts', r)
+        # a device's own report of differing copies is stored too
+        with self.store.lock:
+            self.store.apply_ops({'bv': self.store.version, 'ops': [{'k': 'kaccha', 'mset': {'T-7': {}}}], 'conflicts': [{'k': 'bills', 'id': 'dev1', 'reason': 'two copies', 'kept': {'total': 1}, 'other': {'total': 2}}]}, 'cashier')
+        q = self.store.query('conflicts', {})
+        self.assertEqual(q['open'], 3)
+        reasons = ' | '.join(x['reason'] for x in q['rows'])
+        self.assertIn('different content', reasons)
+        self.assertIn('different amounts', reasons)
+        self.assertEqual(next(x for x in q['rows'] if x['id'] == 'cf2')['other']['total'], 999, 'the other copy is kept in full')
+
+    def test_loyalty_balance_at_an_old_bill_matches_app_rule(self):
+        bills = self.stored()['bills']
+        rows = [b for b in bills if b.get('ptsEarned')][:6]
+        got = self.store._pts_at(rows)
+        for b in rows:
+            p = S.norm_ph(b['phone'])
+            want = sum(S.jsnum(x.get('ptsEarned')) - S.jsnum(x.get('ptsUsed')) for x in bills
+                       if not x.get('cancelled') and S.norm_ph(x.get('phone')) == p and S.jsnum(x.get('no')) <= S.jsnum(b.get('no')))
+            self.assertEqual(got[b['id']], want, b['id'])
+
     def test_bill_range_and_find(self):
         n, rows, last = self.store.sdb.bill_page('2026-01-01', '2026-01-10', -1, 7)
         want = [b for b in self.doc['bills'] if '2026-01-01' <= b.get('date', '') <= '2026-01-10']

@@ -16,7 +16,9 @@ const GUARDED = new Set(['bills', 'txns', 'moves', 'cnotes', 'orders']);
 const isObj = x => !!x && typeof x === 'object' && !Array.isArray(x);
 // Records with ids; the same id twice keeps the first copy (what the page sends, see dedupIds in the app)
 const okIds = v => Array.isArray(v) && v.every(x => isObj(x) && typeof x.id === 'string' && x.id);
-const dedup = v => { const seen = new Set(); return v.filter(x => !seen.has(x.id) && seen.add(x.id)); };
+// Identical repeats = one record; differing repeats are sent as conflicts (what the page does)
+let shimConflicts = [];
+const dedup = (v, k) => { const seen = new Map(); return v.filter(x => { const f = seen.get(x.id); if(!f){ seen.set(x.id, x); return true; } if(!same(f, x)) shimConflicts.push({ k, id: x.id, reason: 'two different copies of one record', kept: f, other: x }); return false; }); };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const engine = new Map();   // origin -> 'sqlite' | ''
 const stats = { converted: 0, passed: 0 };
@@ -41,7 +43,7 @@ function toOps(cur, kinds, data, removed){
     const v = data[k], b = cur[k], kind = kinds[k];
     if(k !== 'staff' && k !== 'seq' && (kind === 'spec' || kind === 'extlist' || (!kind && Array.isArray(v) && v.length)) && okIds(v) && (b === undefined || okIds(b))){
       const bm = new Map((b || []).map(x => [x.id, x])), up = [], prev = {};
-      for(const x of dedup(v)){ const o = bm.get(x.id); if(!o) up.push(x); else { if(!same(o, x)){ up.push(x); prev[x.id] = o; } bm.delete(x.id); } }
+      for(const x of dedup(v, k)){ const o = bm.get(x.id); if(!o) up.push(x); else { if(!same(o, x)){ up.push(x); prev[x.id] = o; } bm.delete(x.id); } }
       const allow = new Set(((removed || {})[k] || []).map(String));
       const rm = [...bm.keys()].filter(id => !GUARDED.has(k) || allow.has(id));
       rm.forEach(id => { prev[id] = bm.get(id); });
@@ -79,7 +81,8 @@ globalThis.fetch = async function(input, init = {}){
   const ops = toOps(cur.data || {}, (cur.meta || {}).kinds || {}, body.data, body.removed);
   stats.converted++;
   if(!ops.length) return new Response(JSON.stringify({ version: cur.version, savedAt: cur.savedAt }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  const r = await realFetch(url.origin + '/api/ops', { method: 'POST', headers, body: JSON.stringify({ bv: +body.baseVersion, ops }) });
+  const conf = shimConflicts; shimConflicts = [];
+  const r = await realFetch(url.origin + '/api/ops', { method: 'POST', headers, body: JSON.stringify({ bv: +body.baseVersion, ops, ...(conf.length ? { conflicts: conf } : {}) }) });
   const j = await r.json().catch(() => ({}));
   if(!r.ok) return new Response(JSON.stringify(j), { status: r.status, headers: { 'Content-Type': 'application/json' } });
   // The whole-data save's answer: version, and "changed" when the counter corrected something (the device reloads)
