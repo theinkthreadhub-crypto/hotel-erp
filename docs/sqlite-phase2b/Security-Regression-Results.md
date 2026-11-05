@@ -17,7 +17,7 @@ Every suite was run on **both engines** after the last server change (commit `11
 | `tests/sqlite_phase2b_test.py` | — | 17/17 | incremental-save rules, conflicts, numbers, merges, history totals, exports |
 | `tests/sqlite_phase2_test.py` | — | 14/14 | engine, migration, crash, corruption |
 | P0 browser suite, `SQLITE=1 CUSTOMERS=1`, 90 days | — | 13/13 | sync, outage, crash, devices, repeats, confirmed records, restore, totals = full count, older reports, reprint, bulk delete |
-| P0 browser suite, 30 days | 9/9 (JSON) | 10 passed, 3 skipped | at 30 days no bill is older than the window: H2 / H3 / H4 are **skipped and listed**, not passed |
+| P0 browser suite, 30 days | 8/8 (JSON) | 10 passed, 3 skipped | at 30 days no bill is older than the window: H2 / H3 / H4 are **skipped and listed**, not passed |
 
 ## Fixed in Phase 2b
 
