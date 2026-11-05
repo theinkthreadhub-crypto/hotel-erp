@@ -386,6 +386,32 @@ await runAsyncTest('10. Super Admin notice update emits vendor_message inbound e
   assert.equal(payload.priority, 'high');
 });
 
+// 11. An order is 'done' only with the exact accepted KOT. Response loss
+// replay returns the same ID+number; rejected/unknown orders fail closed.
+await runAsyncTest('11. Accepted QR cloud KOT confirmation is exact and idempotent', async () => {
+  const {callApi,db}=createHarness();
+  const add=(id,status)=>db.prepare(
+    "INSERT INTO guestorder(id,tbl,items,status,at) VALUES(?,?,?,?,?)"
+  ).run(id,'T7','[]',status,Date.now());
+  add('g_exact','accepted');
+  add('g_rejected','rejected');
+
+  const first=await callApi('POST','/api/qr/applied',{id:'g_exact',kot:'27'});
+  assert.equal(first.status,200);
+  assert.deepEqual(first.data,{ok:true,id:'g_exact',kot:'27',already_applied:false});
+  assert.equal(db.prepare('SELECT status,kot FROM guestorder WHERE id=?').get('g_exact').status,'done');
+  const retry=await callApi('POST','/api/qr/applied',{id:'g_exact',kot:'27'});
+  assert.equal(retry.status,200);
+  assert.equal(retry.data.already_applied,true);
+  const forgedKot=await callApi('POST','/api/qr/applied',{id:'g_exact',kot:'999'});
+  assert.equal(forgedKot.status,409);
+  const rejected=await callApi('POST','/api/qr/applied',{id:'g_rejected',kot:'30'});
+  assert.equal(rejected.status,409);
+  const unknown=await callApi('POST','/api/qr/applied',{id:'g_missing',kot:'30'});
+  assert.equal(unknown.status,404);
+  assert.equal(db.prepare('SELECT status FROM guestorder WHERE id=?').get('g_rejected').status,'rejected');
+});
+
 console.log(`\n========================================`);
 console.log(`RESULTS: ${passed} passed, ${failed} failed`);
 console.log(`========================================`);
