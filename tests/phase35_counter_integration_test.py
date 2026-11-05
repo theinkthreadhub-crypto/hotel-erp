@@ -53,7 +53,12 @@ class CounterQrIntegration(unittest.TestCase):
         })
 
     def ack(self, url, path, body, headers):
-        ids = json.loads(body)['event_ids']
+        payload = json.loads(body)
+        if path == '/api/qr/applied':
+            return 200, json.dumps({
+                'ok': True, 'id': payload['id'], 'kot': payload['kot']
+            })
+        ids = payload['event_ids']
         self.acked.extend(ids)
         return 200, json.dumps({
             'ok': True, 'hotel': self.hotel, 'acked_ids': ids
