@@ -3274,24 +3274,42 @@ export class SetuHotel extends DurableObject {
       }
 
       const eventIds = Array.isArray(b.event_ids) ? b.event_ids :
-                       Array.isArray(b.acks) ? b.acks.map(a => typeof a === 'string' ? a : (a && a.id)).filter(Boolean) : [];
-      if(!eventIds.length){
-        return json(400, { error: 'event_ids or acks array required' });
+                       Array.isArray(b.acks) ? b.acks.map(a => typeof a === 'string' ? a : a?.id) : [];
+      if(!eventIds.length || eventIds.length > 100 ||
+         eventIds.some(id => typeof id !== 'string' || !/^evt_[0-9]+_[A-Za-z0-9_-]{1,64}$/.test(id))){
+        return json(400, { ok: false, error: 'INVALID_EVENT_ACKS' });
       }
-
-      const now = Date.now();
+      // A missing ID is never "acknowledged": reject the entire request.
+      const uniqueIds = [...new Set(eventIds)];
       let ackedCount = 0;
-      for(const id of eventIds){
-        if(typeof id === 'string' && id){
-          this.sql.exec('UPDATE sync_inbound_events SET acked = 1, acked_at = ? WHERE id = ?', now, id);
-          ackedCount++;
-        }
+      const now = Date.now();
+      try {
+        this.ctx.storage.transactionSync(() => {
+          for(const id of uniqueIds){
+            const row = this.sql.exec(
+              'SELECT id, acked FROM sync_inbound_events WHERE id = ?', id
+            ).toArray()[0];
+            if(!row) throw new Error('UNKNOWN_INBOUND_EVENT_ID');
+            if(!Number(row.acked)){
+              this.sql.exec(
+                'UPDATE sync_inbound_events SET acked = 1, acked_at = ? WHERE id = ? AND acked = 0',
+                now, id
+              );
+              ackedCount++;
+            }
+          }
+        });
+      } catch(err) {
+        return json(404, { ok: false, error: 'UNKNOWN_INBOUND_EVENT_ID' });
       }
-      const pendingCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbound_events WHERE acked = 0').toArray()[0]?.c || 0;
+      const pendingCount = this.sql.exec(
+        'SELECT COUNT(*) AS c FROM sync_inbound_events WHERE acked = 0'
+      ).toArray()[0]?.c || 0;
       return json(200, {
         ok: true,
         hotel: this.account.code,
-        acked_count: ackedCount,
+        acked_count: ackedCount,   // newly changed rows, not submitted count
+        acked_ids: uniqueIds,      // includes already-confirmed IDs for retry recovery
         pending_remaining: pendingCount
       });
     }
