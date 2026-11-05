@@ -2044,7 +2044,9 @@ class InboundSyncReceiver:
                 "INSERT INTO inbound_event_failures(event_id,seq,reason,occurred_at,resolved) "
                 "VALUES (?,?,?,?,0) ON CONFLICT(event_id) DO UPDATE SET "
                 "reason=excluded.reason, occurred_at=excluded.occurred_at",
-                (str(event_id or 'unknown')[:128], int(seq or 0), str(reason)[:400], int(time.time()*1000))
+                (str(event_id or 'unknown')[:128],
+                 int(seq) if isinstance(seq, int) and not isinstance(seq, bool) else 0,
+                 str(reason)[:400], int(time.time()*1000))
             )
 
     def fetch_and_apply_once(self):
@@ -2189,6 +2191,14 @@ class InboundSyncReceiver:
                 'mid': str(it['mid'])[:90], 'name': str(it.get('name') or '')[:120],
                 'price': price, 'qty': qty
             })
+        # Duplicate order IDs may arrive via retry; conflicting content must
+        # never be silently ignored under a reused ID.
+        prior = c.execute(
+            "SELECT tbl,items_json FROM inbound_qr_orders WHERE order_id=?",
+            (order_id,)
+        ).fetchone()
+        if prior and (prior[0] != tbl or json.loads(prior[1]) != clean_items):
+            raise InboundApplyError('QR_ORDER_ID_CONTENT_CONFLICT')
         c.execute("""
             INSERT OR IGNORE INTO inbound_qr_orders
               (order_id, tbl, items_json, guest_name, note, status, kot_id, created_at, updated_at)
