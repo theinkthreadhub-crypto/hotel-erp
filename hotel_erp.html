@@ -19751,9 +19751,12 @@ function qrPanel(refresh){
   const card = (o, btns) => `<div class="card" style="margin:0 0 8px;padding:10px 12px"><div style="display:flex;justify-content:space-between"><b>Table ${esc(o.tbl)}</b><span class="muted">${tm(o.at)}</span></div>
     <div>${o.items.map(i => `${i.qty} × ${esc(i.name)}`).join(', ')} · <b>${money(sum(o.items, i => i.qty * i.price))}</b></div>
     ${o.note ? `<div class="red" style="font-size:13px">Note: ${esc(o.note)}</div>` : ''}${o.name ? `<div class="muted" style="font-size:12px">Guest: ${esc(o.name)}</div>` : ''}<div class="btns" style="margin-top:6px">${btns}</div></div>`;
+  const qrActionButtons = o => (qrNativeMode() && QR_NATIVE_DECISIONS.has(o.id))
+    ? '<span class="muted">Decision sent — awaiting counter sync. Do not accept twice.</span>'
+    : `<button class="btn ok" onclick="qrDecide('${o.id}','accept')">Accept & send KOT</button><button class="btn g" onclick="qrDecide('${o.id}','reject')">Reject</button>`;
   modal('QR orders & calls', `<div id="qr-panel">
     ${QR_ERR ? `<p class="red">${esc(QR_ERR)}</p>` : ''}
-    ${pend.map(o => card(o, `<button class="btn ok" onclick="qrDecide('${o.id}','accept')">Accept & send KOT</button><button class="btn g" onclick="qrDecide('${o.id}','reject')">Reject</button>`)).join('') || '<p class="muted">No new orders.</p>'}
+    ${pend.map(o => card(o, qrActionButtons(o))).join('') || '<p class="muted">No new orders.</p>'}
     ${stuck.length ? '<h4>Accepted, not added yet</h4>' + stuck.map(o => card(o, `<button class="btn ok" onclick="qrApply(QRS.orders.find(x=>x.id==='${o.id}'),activeUser.name).then(()=>qrPoll())">Add to table now</button>`)).join('') : ''}
     ${calls.length ? '<h4>Calls from tables</h4>' + calls.map(c => `<div class="card" style="margin:0 0 8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center"><span><b>Table ${esc(c.tbl)}</b> · ${esc(QR_CALL[c.kind] || c.kind)} <span class="muted">${tm(c.at)}</span></span><button class="btn g sm" onclick="qrDoneCall('${c.id}')">Done</button></div>`).join('') : ''}
     <div class="btns"><button class="btn g" onclick="closeModal();go('qr')">QR settings (Q)</button><button class="btn g" onclick="closeModal()">Close</button></div></div>`);
