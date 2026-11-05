@@ -839,10 +839,6 @@ export class SetuHotel extends DurableObject {
       updated_at INTEGER
     )`);
 
-    try { this.sql.exec('ALTER TABLE sync_stock_items ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
-    try { this.sql.exec('ALTER TABLE sync_stock_movements ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
-    try { this.sql.exec('ALTER TABLE sync_vouchers ADD COLUMN cancelled INTEGER DEFAULT 0'); } catch(e){}
-
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_vouchers (
       id TEXT PRIMARY KEY,
       type TEXT,
@@ -853,7 +849,9 @@ export class SetuHotel extends DurableObject {
       time TEXT,
       category TEXT,
       note TEXT,
-      doc_version INTEGER,
+      cancelled INTEGER DEFAULT 0,
+      cancelled_by TEXT,
+      doc_version INTEGER DEFAULT 0,
       updated_at INTEGER,
       raw_json TEXT
     )`);
@@ -906,6 +904,13 @@ export class SetuHotel extends DurableObject {
       raw_json TEXT
     )`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_conflicts_op ON sync_conflicts (op_id)`);
+
+    // Safe idempotent migrations for existing databases
+    try { this.sql.exec('ALTER TABLE sync_stock_items ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
+    try { this.sql.exec('ALTER TABLE sync_stock_movements ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
+    try { this.sql.exec('ALTER TABLE sync_vouchers ADD COLUMN cancelled INTEGER DEFAULT 0'); } catch(e){}
+    try { this.sql.exec('ALTER TABLE sync_vouchers ADD COLUMN cancelled_by TEXT'); } catch(e){}
+    try { this.sql.exec('ALTER TABLE sync_vouchers ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
     this.meta = this.kvGet('meta') || { version: 0, savedAt: 0, day: '' };
     this.account = this.kvGet('account');
     if(this.account && !this.account.config) this.account.config = newConfig('restaurant', 'premium');
@@ -1932,9 +1937,15 @@ export class SetuHotel extends DurableObject {
           }
         }
 
-        // 7. Check settings staleness
+        // 7. Check settings, seq, auth staleness
         if(values.settings && typeof values.settings === 'object'){
           checkStale('sync_settings', 'key', 'settings', 'settings');
+        }
+        if(values.seq && typeof values.seq === 'object'){
+          checkStale('sync_settings', 'key', 'seq', 'seq');
+        }
+        if(values.auth && typeof values.auth === 'object'){
+          checkStale('sync_settings', 'key', 'auth', 'auth');
         }
 
         // --- Mutate Business Records ---
@@ -2014,10 +2025,22 @@ export class SetuHotel extends DurableObject {
           }
           for(const rmId of (vouchersRec.rm || [])){
             const srm = String(rmId);
+            const actorRole = (env.actor && env.actor.role) ? String(env.actor.role).toLowerCase() : '';
             const actorName = (env.actor && env.actor.name) ? String(env.actor.name) : 'sync_removal_audit';
+            // Voucher removal in local accounting requires manager/admin/owner authorization.
+            // Unverified or unauthorized rm operations must not invent financial reversals.
+            const isAuthorized = ['admin', 'manager', 'owner', 'sync'].includes(actorRole);
+            if (!isAuthorized) {
+              this.sql.exec(
+                `INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'unauthorized_rm_guarded', ?)`,
+                env.doc_version, srm, now
+              );
+              continue;
+            }
             // Financial deletion safety: NEVER physically delete confirmed vouchers!
+            // Mark cancelled with authorized actor audit, preserving original note and financial integrity.
             this.sql.exec(
-              `UPDATE sync_vouchers SET cancelled = 1, note = note || ' [REVERSED by ' || ? || ']', doc_version = ?, updated_at = ? WHERE id = ?`,
+              `UPDATE sync_vouchers SET cancelled = 1, cancelled_by = ?, doc_version = ?, updated_at = ? WHERE id = ?`,
               actorName, env.doc_version, now, srm
             );
             this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'cancel', ?)`, env.doc_version, srm, now);
@@ -2111,41 +2134,50 @@ export class SetuHotel extends DurableObject {
           }
         }
 
-        // 7. Values (settings, seq, auth) - all whitelisted fields explicitly & securely persisted
+        // 7. Values (settings, seq, auth) - monotonic guards prevent older ops from overwriting newer config
         if(values.settings && typeof values.settings === 'object'){
-          this.sql.exec(
-            `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('settings', ?, ?, ?)`,
-            JSON.stringify(values.settings), env.doc_version, now
-          );
-          if(values.settings.name && values.settings.name.trim() !== this.account.name){
-            this.account.name = values.settings.name.trim().slice(0, 80);
-            this.kvSet('account', this.account);
+          const curSettings = this.sql.exec("SELECT doc_version FROM sync_settings WHERE key = 'settings'").toArray()[0];
+          if(!curSettings || env.doc_version > (curSettings.doc_version || 0)){
+            this.sql.exec(
+              `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('settings', ?, ?, ?)`,
+              JSON.stringify(values.settings), env.doc_version, now
+            );
+            if(values.settings.name && values.settings.name.trim() !== this.account.name){
+              this.account.name = values.settings.name.trim().slice(0, 80);
+              this.kvSet('account', this.account);
+            }
           }
         }
         if(values.seq && typeof values.seq === 'object'){
-          this.sql.exec(
-            `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('seq', ?, ?, ?)`,
-            JSON.stringify(values.seq), env.doc_version, now
-          );
-          if(values.seq.bill != null){
-            this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_bill_seq', ?, ?)`, String(values.seq.bill), now);
-          }
-          if(values.seq.kot != null){
-            this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_kot_seq', ?, ?)`, String(values.seq.kot), now);
+          const curSeq = this.sql.exec("SELECT doc_version FROM sync_settings WHERE key = 'seq'").toArray()[0];
+          if(!curSeq || env.doc_version > (curSeq.doc_version || 0)){
+            this.sql.exec(
+              `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('seq', ?, ?, ?)`,
+              JSON.stringify(values.seq), env.doc_version, now
+            );
+            if(values.seq.bill != null){
+              this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_bill_seq', ?, ?)`, String(values.seq.bill), now);
+            }
+            if(values.seq.kot != null){
+              this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_kot_seq', ?, ?)`, String(values.seq.kot), now);
+            }
           }
         }
         if(values.auth && typeof values.auth === 'object'){
-          const safeAuth = {};
-          for(const [ak, av] of Object.entries(values.auth)){
-            const lower = ak.toLowerCase();
-            if(!lower.includes('pass') && !lower.includes('pin') && !lower.includes('secret') && !lower.includes('token') && !lower.includes('hash')){
-              safeAuth[ak] = av;
+          const curAuth = this.sql.exec("SELECT doc_version FROM sync_settings WHERE key = 'auth'").toArray()[0];
+          if(!curAuth || env.doc_version > (curAuth.doc_version || 0)){
+            const safeAuth = {};
+            for(const [ak, av] of Object.entries(values.auth)){
+              const lower = ak.toLowerCase();
+              if(!lower.includes('pass') && !lower.includes('pin') && !lower.includes('secret') && !lower.includes('token') && !lower.includes('hash')){
+                safeAuth[ak] = av;
+              }
             }
+            this.sql.exec(
+              `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('auth', ?, ?, ?)`,
+              JSON.stringify(safeAuth), env.doc_version, now
+            );
           }
-          this.sql.exec(
-            `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('auth', ?, ?, ?)`,
-            JSON.stringify(safeAuth), env.doc_version, now
-          );
         }
 
         // 8. Record to sync_inbox
@@ -2232,6 +2264,427 @@ export class SetuHotel extends DurableObject {
       processed: batch.length,
       results
     });
+  }
+
+  handleReports(path, url, role){
+    const subpath = path.replace(/^\/api\/reports\/?/, '').split('/')[0];
+    const now = Date.now();
+
+    const parseDateRange = (col = 'date') => {
+      const from = url.searchParams.get('from') || url.searchParams.get('date') || '';
+      const to = url.searchParams.get('to') || url.searchParams.get('date') || '';
+      const clauses = [];
+      const params = [];
+      if(from){
+        clauses.push(`${col} >= ?`);
+        params.push(from);
+      }
+      if(to){
+        clauses.push(`${col} <= ?`);
+        params.push(to);
+      }
+      const whereSql = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
+      return { from, to, clauses, whereSql, params };
+    };
+
+    const limit = Math.min(500, Math.max(1, +(url.searchParams.get('limit') || 50)));
+    const offset = Math.max(0, +(url.searchParams.get('offset') || 0));
+
+    // 1. Status & Freshness
+    if(subpath === 'status' || subpath === ''){
+      const curVerRow = this.sql.exec("SELECT value FROM sync_checkpoints WHERE name = 'latest_doc_version'").toArray()[0];
+      const curVer = curVerRow ? parseInt(curVerRow.value, 10) || 0 : (this.meta.version || 0);
+      const lastOpRow = this.sql.exec("SELECT value FROM sync_checkpoints WHERE name = 'last_sync_op_id'").toArray()[0];
+      const lastOp = lastOpRow?.value || '';
+
+      const lastInbox = this.sql.exec('SELECT received_at FROM sync_inbox ORDER BY received_at DESC LIMIT 1').toArray()[0];
+      const lastSyncAt = lastInbox ? lastInbox.received_at : null;
+      const freshnessSeconds = lastSyncAt ? Math.max(0, Math.floor((now - lastSyncAt) / 1000)) : null;
+      const isStale = freshnessSeconds !== null ? freshnessSeconds > 900 : false;
+      const warning = isStale
+        ? `Cloud data may be lagging. Local counter has not synchronized in ${Math.round(freshnessSeconds / 60)} minutes.`
+        : null;
+
+      const conflictsCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_conflicts').toArray()[0]?.c || 0;
+      const billsCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_bills WHERE cancelled = 0').toArray()[0]?.c || 0;
+      const cancelledBillsCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_bills WHERE cancelled = 1').toArray()[0]?.c || 0;
+      const vouchersCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_vouchers WHERE cancelled = 0').toArray()[0]?.c || 0;
+      const stockCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_stock_items').toArray()[0]?.c || 0;
+      const inboxCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbox').toArray()[0]?.c || 0;
+
+      return json(200, {
+        ok: true,
+        hotel: { code: this.account.code, name: this.account.name },
+        latest_doc_version: curVer,
+        last_sync_op_id: lastOp,
+        last_sync_at: lastSyncAt,
+        freshness_seconds: freshnessSeconds,
+        is_stale: isStale,
+        warning,
+        unresolved_conflicts: conflictsCount,
+        counts: {
+          active_bills: billsCount,
+          cancelled_bills: cancelledBillsCount,
+          active_vouchers: vouchersCount,
+          stock_items: stockCount,
+          inbox_ops: inboxCount
+        }
+      });
+    }
+
+    // 2. Sales Report
+    if(subpath === 'sales'){
+      const range = parseDateRange('date');
+      const activeRow = this.sql.exec(
+        `SELECT COUNT(*) AS bill_count, COALESCE(SUM(total), 0) AS gross_sales, COALESCE(SUM(sub), 0) AS net_taxable, COALESCE(SUM(tax), 0) AS total_tax, COALESCE(SUM(disc), 0) AS total_discount FROM sync_bills WHERE cancelled = 0 ${range.whereSql}`,
+        ...range.params
+      ).toArray()[0] || {};
+
+      const cancRow = this.sql.exec(
+        `SELECT COUNT(*) AS cancelled_bill_count, COALESCE(SUM(total), 0) AS cancelled_amount FROM sync_bills WHERE cancelled = 1 ${range.whereSql}`,
+        ...range.params
+      ).toArray()[0] || {};
+
+      const totalDaysRow = this.sql.exec(
+        `SELECT COUNT(DISTINCT date) AS c FROM sync_bills WHERE cancelled = 0 ${range.whereSql}`,
+        ...range.params
+      ).toArray()[0] || { c: 0 };
+
+      const dailyRows = this.sql.exec(
+        `SELECT date, COUNT(*) AS bill_count, COALESCE(SUM(total), 0) AS gross_sales, COALESCE(SUM(sub), 0) AS net_taxable, COALESCE(SUM(tax), 0) AS tax, COALESCE(SUM(disc), 0) AS discount FROM sync_bills WHERE cancelled = 0 ${range.whereSql} GROUP BY date ORDER BY date ASC LIMIT ? OFFSET ?`,
+        ...range.params, limit, offset
+      ).toArray();
+
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        from: range.from || null,
+        to: range.to || null,
+        summary: {
+          bill_count: activeRow.bill_count || 0,
+          gross_sales: Math.round((activeRow.gross_sales || 0) * 100) / 100,
+          net_taxable: Math.round((activeRow.net_taxable || 0) * 100) / 100,
+          total_tax: Math.round((activeRow.total_tax || 0) * 100) / 100,
+          total_discount: Math.round((activeRow.total_discount || 0) * 100) / 100,
+          cancelled_bill_count: cancRow.cancelled_bill_count || 0,
+          cancelled_amount: Math.round((cancRow.cancelled_amount || 0) * 100) / 100
+        },
+        daily: dailyRows.map(r => ({
+          date: r.date,
+          bill_count: r.bill_count,
+          gross_sales: Math.round((r.gross_sales || 0) * 100) / 100,
+          net_taxable: Math.round((r.net_taxable || 0) * 100) / 100,
+          tax: Math.round((r.tax || 0) * 100) / 100,
+          discount: Math.round((r.discount || 0) * 100) / 100
+        })),
+        pagination: { limit, offset, total_days: totalDaysRow.c || 0 }
+      });
+    }
+
+    // 3. Payments Collections Report
+    if(subpath === 'payments'){
+      const range = parseDateRange('b.date');
+      const bWhere = range.clauses.length ? ' AND ' + range.clauses.join(' AND ') : '';
+      const rows = this.sql.exec(
+        `SELECT p.mode, COUNT(*) AS txn_count, COALESCE(SUM(p.amount), 0) AS total_amount FROM sync_bill_payments p JOIN sync_bills b ON p.bill_id = b.id WHERE b.cancelled = 0 ${bWhere} GROUP BY p.mode ORDER BY total_amount DESC`,
+        ...range.params
+      ).toArray();
+
+      const paymentsMap = {};
+      let totalCollected = 0;
+      for(const r of rows){
+        const mode = r.mode || 'Cash';
+        const amt = Math.round((r.total_amount || 0) * 100) / 100;
+        paymentsMap[mode] = (paymentsMap[mode] || 0) + amt;
+        totalCollected += amt;
+      }
+
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        from: range.from || null,
+        to: range.to || null,
+        total_collected: Math.round(totalCollected * 100) / 100,
+        payments: paymentsMap,
+        breakdown: rows.map(r => ({
+          mode: r.mode,
+          txn_count: r.txn_count,
+          amount: Math.round((r.total_amount || 0) * 100) / 100
+        }))
+      });
+    }
+
+    // 4. GST Summary Report
+    if(subpath === 'gst'){
+      const range = parseDateRange('b.date');
+      const bWhere = range.clauses.length ? ' AND ' + range.clauses.join(' AND ') : '';
+      const totalRow = this.sql.exec(
+        `SELECT COUNT(*) AS bill_count, COALESCE(SUM(b.sub), 0) AS taxable_amount, COALESCE(SUM(b.tax), 0) AS gst_amount, COALESCE(SUM(b.total), 0) AS gross_amount FROM sync_bills b WHERE b.cancelled = 0 ${bWhere}`,
+        ...range.params
+      ).toArray()[0] || {};
+
+      const totalDaysRow = this.sql.exec(
+        `SELECT COUNT(DISTINCT b.date) AS c FROM sync_bills b WHERE b.cancelled = 0 ${bWhere}`,
+        ...range.params
+      ).toArray()[0] || { c: 0 };
+
+      const dailyRows = this.sql.exec(
+        `SELECT b.date, COUNT(*) AS bill_count, COALESCE(SUM(b.sub), 0) AS taxable_amount, COALESCE(SUM(b.tax), 0) AS gst_amount, COALESCE(SUM(b.total), 0) AS gross_amount FROM sync_bills b WHERE b.cancelled = 0 ${bWhere} GROUP BY b.date ORDER BY b.date ASC LIMIT ? OFFSET ?`,
+        ...range.params, limit, offset
+      ).toArray();
+
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        from: range.from || null,
+        to: range.to || null,
+        summary: {
+          bill_count: totalRow.bill_count || 0,
+          total_taxable: Math.round((totalRow.taxable_amount || 0) * 100) / 100,
+          total_gst: Math.round((totalRow.gst_amount || 0) * 100) / 100,
+          gross_revenue: Math.round((totalRow.gross_amount || 0) * 100) / 100
+        },
+        by_date: dailyRows.map(r => ({
+          date: r.date,
+          bill_count: r.bill_count,
+          taxable_amount: Math.round((r.taxable_amount || 0) * 100) / 100,
+          gst_amount: Math.round((r.gst_amount || 0) * 100) / 100,
+          gross_amount: Math.round((r.gross_amount || 0) * 100) / 100
+        })),
+        pagination: { limit, offset, total_days: totalDaysRow.c || 0 }
+      });
+    }
+
+    // 5. Cancellations Audit Report
+    if(subpath === 'cancellations'){
+      const range = parseDateRange('date');
+      const summaryRow = this.sql.exec(
+        `SELECT COUNT(*) AS c, COALESCE(SUM(total), 0) AS total_amount FROM sync_bills WHERE cancelled = 1 ${range.whereSql}`,
+        ...range.params
+      ).toArray()[0] || {};
+
+      const listRows = this.sql.exec(
+        `SELECT id, no, table_name, total, sub, tax, date, time, cancelled_by, updated_at FROM sync_bills WHERE cancelled = 1 ${range.whereSql} ORDER BY date DESC, time DESC, id DESC LIMIT ? OFFSET ?`,
+        ...range.params, limit, offset
+      ).toArray();
+
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        from: range.from || null,
+        to: range.to || null,
+        summary: {
+          cancelled_bill_count: summaryRow.c || 0,
+          total_cancelled_amount: Math.round((summaryRow.total_amount || 0) * 100) / 100
+        },
+        cancellations: listRows.map(r => ({
+          id: r.id,
+          no: r.no,
+          table: r.table_name,
+          total: Math.round((r.total || 0) * 100) / 100,
+          sub: Math.round((r.sub || 0) * 100) / 100,
+          tax: Math.round((r.tax || 0) * 100) / 100,
+          date: r.date,
+          time: r.time,
+          cancelled_by: r.cancelled_by || 'Unknown',
+          cancelled_at: r.updated_at
+        })),
+        pagination: { limit, offset, total: summaryRow.c || 0 }
+      });
+    }
+
+    // 6. Expenses & Purchases Report
+    if(subpath === 'expenses'){
+      const range = parseDateRange('date');
+      const typeParam = url.searchParams.get('type') || '';
+      const typeClause = typeParam ? ' AND type = ?' : '';
+      const queryParams = typeParam ? [...range.params, typeParam] : range.params;
+
+      const typeRows = this.sql.exec(
+        `SELECT type, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total_amount FROM sync_vouchers WHERE cancelled = 0 ${range.whereSql}${typeClause} GROUP BY type ORDER BY total_amount DESC`,
+        ...queryParams
+      ).toArray();
+
+      const catRows = this.sql.exec(
+        `SELECT category, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS total_amount FROM sync_vouchers WHERE cancelled = 0 ${range.whereSql}${typeClause} GROUP BY category ORDER BY total_amount DESC`,
+        ...queryParams
+      ).toArray();
+
+      const purchRow = this.sql.exec(
+        `SELECT COUNT(*) AS count, COALESCE(SUM(total), 0) AS total_purchases FROM sync_purchases WHERE 1=1 ${range.whereSql}`,
+        ...range.params
+      ).toArray()[0] || {};
+
+      const totalVouchersRow = this.sql.exec(
+        `SELECT COUNT(*) AS c FROM sync_vouchers WHERE cancelled = 0 ${range.whereSql}${typeClause}`,
+        ...queryParams
+      ).toArray()[0] || { c: 0 };
+
+      const voucherRows = this.sql.exec(
+        `SELECT id, type, amount, party, mode, date, time, category, note, doc_version, updated_at FROM sync_vouchers WHERE cancelled = 0 ${range.whereSql}${typeClause} ORDER BY date DESC, time DESC, id DESC LIMIT ? OFFSET ?`,
+        ...queryParams, limit, offset
+      ).toArray();
+
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        from: range.from || null,
+        to: range.to || null,
+        by_type: typeRows.map(r => ({ type: r.type, count: r.count, total: Math.round((r.total_amount || 0) * 100) / 100 })),
+        by_category: catRows.map(r => ({ category: r.category || 'General', count: r.count, total: Math.round((r.total_amount || 0) * 100) / 100 })),
+        purchases_summary: {
+          count: purchRow.count || 0,
+          total: Math.round((purchRow.total_purchases || 0) * 100) / 100
+        },
+        vouchers: voucherRows.map(v => ({
+          id: v.id,
+          type: v.type,
+          amount: Math.round((v.amount || 0) * 100) / 100,
+          party: v.party,
+          mode: v.mode,
+          date: v.date,
+          time: v.time,
+          category: v.category,
+          note: v.note,
+          updated_at: v.updated_at
+        })),
+        pagination: { limit, offset, total: totalVouchersRow.c || 0 }
+      });
+    }
+
+    // 7. Stock Inventory & Valuation Report
+    if(subpath === 'stock'){
+      const range = parseDateRange('date');
+      const summaryRow = this.sql.exec(
+        `SELECT COUNT(*) AS item_count, COALESCE(SUM(qty * cost), 0) AS total_valuation, COALESCE(SUM(qty), 0) AS total_qty FROM sync_stock_items`
+      ).toArray()[0] || {};
+
+      const itemRows = this.sql.exec(
+        `SELECT id, name, qty, unit, cost, (qty * cost) AS valuation, doc_version, updated_at FROM sync_stock_items ORDER BY name ASC LIMIT ? OFFSET ?`,
+        limit, offset
+      ).toArray();
+
+      const totalMoveRow = this.sql.exec(
+        `SELECT COUNT(*) AS c FROM sync_stock_movements WHERE 1=1 ${range.whereSql}`,
+        ...range.params
+      ).toArray()[0] || { c: 0 };
+
+      const moveRows = this.sql.exec(
+        `SELECT id, sid, name, date, time, type, qty, cost, balance_after, ref_id, doc_version, updated_at FROM sync_stock_movements WHERE 1=1 ${range.whereSql} ORDER BY date DESC, time DESC, id DESC LIMIT ? OFFSET ?`,
+        ...range.params, limit, offset
+      ).toArray();
+
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        summary: {
+          item_count: summaryRow.item_count || 0,
+          total_valuation: Math.round((summaryRow.total_valuation || 0) * 100) / 100,
+          total_qty: Math.round((summaryRow.total_qty || 0) * 100) / 100
+        },
+        items: itemRows.map(it => ({
+          id: it.id,
+          name: it.name,
+          qty: it.qty,
+          unit: it.unit,
+          cost: it.cost,
+          valuation: Math.round((it.valuation || 0) * 100) / 100,
+          updated_at: it.updated_at
+        })),
+        recent_movements: moveRows.map(m => ({
+          id: m.id,
+          sid: m.sid,
+          name: m.name,
+          date: m.date,
+          time: m.time,
+          type: m.type,
+          qty: m.qty,
+          cost: m.cost,
+          balance_after: m.balance_after,
+          ref_id: m.ref_id
+        })),
+        pagination: { limit, offset, total_items: summaryRow.item_count || 0, total_movements: totalMoveRow.c || 0 }
+      });
+    }
+
+    // 8. Day Book (CA-ready cash, digital/bank, and credit segregation)
+    if(subpath === 'daybook'){
+      const range = parseDateRange('b.date');
+      const bWhere = range.clauses.length ? ' AND ' + range.clauses.join(' AND ') : '';
+      
+      const billPays = this.sql.exec(
+        `SELECT p.mode, COALESCE(SUM(p.amount), 0) AS total FROM sync_bill_payments p JOIN sync_bills b ON p.bill_id = b.id WHERE b.cancelled = 0 ${bWhere} GROUP BY p.mode`,
+        ...range.params
+      ).toArray();
+
+      const vRange = parseDateRange('date');
+      const receiptVouchers = this.sql.exec(
+        `SELECT mode, COALESCE(SUM(amount), 0) AS total FROM sync_vouchers WHERE cancelled = 0 AND type = 'Receipt' ${vRange.whereSql} GROUP BY mode`,
+        ...vRange.params
+      ).toArray();
+
+      const expenseVouchers = this.sql.exec(
+        `SELECT type, mode, COALESCE(SUM(amount), 0) AS total FROM sync_vouchers WHERE cancelled = 0 AND type IN ('Expense', 'Purchase') ${vRange.whereSql} GROUP BY type, mode`,
+        ...vRange.params
+      ).toArray();
+
+      const isCash = (m) => String(m || '').toLowerCase() === 'cash';
+      const isBank = (m) => {
+        const lower = String(m || '').toLowerCase();
+        return lower === 'upi' || lower === 'card' || lower === 'bank' || lower === 'digital' || lower === 'online';
+      };
+      const isCredit = (m) => String(m || '').toLowerCase() === 'credit';
+
+      let cashInflow = 0, cashOutflow = 0;
+      let bankInflow = 0, bankOutflow = 0;
+      let creditSales = 0, creditPurchases = 0;
+
+      for(const bp of billPays){
+        const amt = bp.total || 0;
+        if(isCash(bp.mode)) cashInflow += amt;
+        else if(isBank(bp.mode)) bankInflow += amt;
+        else if(isCredit(bp.mode)) creditSales += amt;
+        else bankInflow += amt;
+      }
+
+      for(const rv of receiptVouchers){
+        const amt = rv.total || 0;
+        if(isCash(rv.mode)) cashInflow += amt;
+        else bankInflow += amt;
+      }
+
+      for(const ev of expenseVouchers){
+        const amt = ev.total || 0;
+        if(isCash(ev.mode)) cashOutflow += amt;
+        else if(isBank(ev.mode)) bankOutflow += amt;
+        else if(isCredit(ev.mode) && ev.type === 'Purchase') creditPurchases += amt;
+        else bankOutflow += amt;
+      }
+
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        from: vRange.from || null,
+        to: vRange.to || null,
+        cash_book: {
+          inflows: Math.round(cashInflow * 100) / 100,
+          outflows: Math.round(cashOutflow * 100) / 100,
+          net_cash: Math.round((cashInflow - cashOutflow) * 100) / 100
+        },
+        bank_book: {
+          inflows: Math.round(bankInflow * 100) / 100,
+          outflows: Math.round(bankOutflow * 100) / 100,
+          net_bank: Math.round((bankInflow - bankOutflow) * 100) / 100
+        },
+        credit_book: {
+          receivables_generated: Math.round(creditSales * 100) / 100,
+          payables_generated: Math.round(creditPurchases * 100) / 100,
+          net_movement: Math.round((creditSales - creditPurchases) * 100) / 100
+        }
+      });
+    }
+
+    return json(404, { error: 'Unknown report type: ' + path });
   }
 
   async fetch(request){
@@ -2492,6 +2945,15 @@ export class SetuHotel extends DurableObject {
         bills_count: billsCount,
         vouchers_count: vouchersCount
       });
+    }
+
+    // Remote Owner Access & Financial Reporting APIs (Gate 2 & 3)
+    if(path.startsWith('/api/reports/') || path === '/api/reports'){
+      if(method !== 'GET') return json(405, { error: 'Method Not Allowed: Reports are read-only' });
+      if(!['admin', 'owner', 'manager', 'sync'].includes(role)){
+        return json(403, { error: 'Forbidden: Owner or Manager role required for financial reports' });
+      }
+      return this.handleReports(path, url, role);
     }
 
     if(method === 'GET' && path === '/api/version') return json(200, { version: this.meta.version, savedAt: this.meta.savedAt, blocked: this.blocked() });
