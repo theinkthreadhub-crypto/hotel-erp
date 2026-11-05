@@ -1,4 +1,4 @@
-"""Browser-driven frontend test uses Chromium + synthetic local responses."""
+// Browser-driven frontend test uses Chromium + synthetic local responses.
 import { chromium } from 'playwright';
 import http from 'node:http';
 import fs from 'node:fs';
