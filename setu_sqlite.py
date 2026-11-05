@@ -33,7 +33,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
 from horeca_license_verify import verify_signed_license, InvalidLicence, TRUSTED_PUBLIC_KEYS
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 DB_FILE = 'setu.sqlite'
 FLAG_FILE = 'setu-storage.json'
 
@@ -184,8 +184,19 @@ CREATE TABLE IF NOT EXISTS sync_conflicts (seq INTEGER PRIMARY KEY AUTOINCREMENT
 
 -- ---------------- Schema 4 (Phase 3.4): Cloud Change Feed Inbound Sync ----------------
 CREATE TABLE IF NOT EXISTS inbound_events_applied (
-  id TEXT PRIMARY KEY, seq INTEGER NOT NULL, event_type TEXT NOT NULL, entity_id TEXT, applied_at INTEGER NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_inbound_applied_seq ON inbound_events_applied(seq);
+  id TEXT PRIMARY KEY, seq INTEGER NOT NULL, event_type TEXT NOT NULL,
+  entity_id TEXT, applied_at INTEGER NOT NULL, acked_at INTEGER);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inbound_applied_seq ON inbound_events_applied(seq);
+CREATE TABLE IF NOT EXISTS inbound_cursor_state (
+  name TEXT PRIMARY KEY, seq INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS inbound_event_failures (
+  event_id TEXT PRIMARY KEY, seq INTEGER, reason TEXT NOT NULL,
+  occurred_at INTEGER NOT NULL, resolved INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS inbound_qr_orders (
+  order_id TEXT PRIMARY KEY, tbl TEXT NOT NULL, items_json TEXT NOT NULL,
+  guest_name TEXT, note TEXT, status TEXT NOT NULL DEFAULT 'pending',
+  kot_id TEXT, created_at INTEGER, updated_at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_inbound_qr_pending ON inbound_qr_orders(status, created_at);
 """
 
 # ---------------------------------------------------------------------------------------------------------
@@ -285,6 +296,10 @@ class SqliteDoc:
             if ok != 'ok':
                 raise StoreError(f'database failed its integrity check: {ok}')
         con.executescript(SCHEMA)
+        # Upgrade existing Phase 3.4 installs without deleting event history.
+        prior_cols = {r[1] for r in con.execute('PRAGMA table_info(inbound_events_applied)')}
+        if 'acked_at' not in prior_cols:
+            con.execute('ALTER TABLE inbound_events_applied ADD COLUMN acked_at INTEGER')
         cur = self.meta('schema_version')
         if cur is not None and int(cur) > SCHEMA_VERSION:
             raise StoreError(f'database schema {cur} is newer than this program ({SCHEMA_VERSION})')
@@ -292,7 +307,8 @@ class SqliteDoc:
             # The new tables / indexes were created by the script above (IF NOT EXISTS); record each step once
             names = {1: 'initial relational schema', 2: 'change log for incremental saves; stock movement (source, date) index',
                      3: 'sync_conflicts: differing copies kept for review',
-                     4: 'inbound_events_applied: change feed and QR / licence sync'}
+                     4: 'inbound_events_applied: change feed and QR / licence sync',
+                     5: 'contiguous inbound cursor, pending ACK, QR approval staging'}
             with self.tx() as c:
                 for v in range(1 if cur is None else int(cur) + 1, SCHEMA_VERSION + 1):
                     c.execute('INSERT OR IGNORE INTO database_migrations VALUES (?, ?, ?)', (v, names[v], int(time.time() * 1000)))
