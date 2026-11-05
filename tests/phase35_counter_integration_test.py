@@ -123,6 +123,38 @@ class CounterQrIntegration(unittest.TestCase):
         self.assertEqual(self.counter.sdb.con().execute(
             "SELECT COUNT(*) FROM sync_outbox").fetchone()[0], self.initial_outbox)
 
+    def test_qr_acceptance_marks_only_qr_dishes_sent_and_keeps_kds_clock(self):
+        # Existing waiter order has two unsent dishes and one previously
+        # KOT-issued dish. Accepted QR items must not reprint them.
+        with self.counter.lock:
+            status, result = self.counter.apply_ops({
+                'bv': self.counter.version, 'id': 'pre_qr_waiter_sent_case',
+                'ops': [{'k': 'kaccha', 'mset': {
+                    '11': {
+                        'table': '11',
+                        'cart': [{'mid':'m0','name':'Waiter','qty':2,'price':120},
+                                 {'mid':'m1','name':'Paneer','qty':1,'price':290}],
+                        'sent': {'m0': 1},
+                        'cust': 'Waiter'
+                    }
+                }}]}, 'local', True)
+        self.assertEqual(status, 200, result)
+        self.evt('qr_order', {
+            'order_id':'g_sent11','table':'11',
+            'items':[{'mid':'m0','name':'Waiter','qty':3,'price':120}]
+        })
+        self.evt('qr_status', {'order_id':'g_sent11','status':'accepted'})
+        out=self.receiver().fetch_and_apply_once()
+        self.assertEqual(out['status'],'ok',out)
+        order=self.counter.data()['kaccha']['11']
+        self.assertEqual(sum(i['qty'] for i in order['cart'] if i['mid']=='m0'),5)
+        self.assertEqual(order['sent']['m0'],4)
+        self.assertNotIn('m1',order['sent'])
+        kot=[k for k in self.counter.data()['kots'] if k.get('qr')=='g_sent11'][0]
+        self.assertIsInstance(kot['at'],int)
+        self.assertGreater(kot['at'],0)
+        self.assertEqual(kot['items'][0]['qty'],3)
+
     def test_rejection_preserves_waiter_cart_and_no_kitchen_ticket(self):
         with self.counter.lock:
             status, output = self.counter.apply_ops({
