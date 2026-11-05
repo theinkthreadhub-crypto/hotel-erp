@@ -38,7 +38,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install build tools
-        run: python -m pip install --upgrade pyinstaller pywebview certifi
+        run: python -m pip install --upgrade pyinstaller pywebview certifi "cryptography>=42,<48"
 
       # The version shown in Setu and sent to Super Admin = the installer's version
       - name: Stamp version
