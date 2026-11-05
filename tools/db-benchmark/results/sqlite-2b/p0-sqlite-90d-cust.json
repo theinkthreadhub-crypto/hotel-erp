@@ -6,8 +6,8 @@
  "scenarios": {
   "S1 load": {
    "pass": true,
-   "loadMs": 1737,
-   "ms": 1745
+   "loadMs": 1713,
+   "ms": 1721
   },
   "S2 outage + in-flight download": {
    "confirmedBills": 20,
@@ -25,7 +25,7 @@
    "stockMismatches": 0,
    "sample": [],
    "downloadsHeld": 1,
-   "ms": 65138
+   "ms": 64719
   },
   "S4 slow download after local work (online)": {
    "confirmedBills": 20,
@@ -42,8 +42,8 @@
    "pass": true,
    "stockMismatches": 0,
    "sample": [],
-   "downloadsHeld": 2,
-   "ms": 48451
+   "downloadsHeld": 3,
+   "ms": 54852
   },
   "S5 two devices + API at once": {
    "confirmedBills": 50,
@@ -58,7 +58,7 @@
    "splitErrors": 0,
    "seqBehind": 0,
    "pass": true,
-   "ms": 10510
+   "ms": 10465
   },
   "S6 crash before sync, reopen": {
    "confirmedBills": 20,
@@ -75,7 +75,7 @@
    "pass": true,
    "stockMismatches": 0,
    "sample": [],
-   "ms": 51943
+   "ms": 54546
   },
   "H1 page totals with older bills on the counter = full count": {
    "pass": true,
@@ -89,7 +89,7 @@
    "stockMismatches": 0,
    "loyaltyMismatches": 0,
    "walletMismatches": 0,
-   "ms": 23563
+   "ms": 26009
   },
   "H2 reports for older dates (loaded on request) = full data": {
    "pass": true,
@@ -98,7 +98,27 @@
    "olderBillsLoaded": 5200,
    "differing": [],
    "billsOnPage": 12310,
-   "ms": 20307
+   "ms": 22663
+  },
+  "H4 reprint of an older bill": {
+   "pass": true,
+   "billNo": 10997,
+   "date": "2025-03-01",
+   "printedBalance": 152,
+   "fullCount": 152,
+   "receiptChars": 373,
+   "ms": 20038
+  },
+  "H3 bulk delete of older bills keeps stock, is audited, Manager only": {
+   "pass": true,
+   "day": "2025-01-11",
+   "billsDeleted": 200,
+   "of": 200,
+   "stockItemsChanged": 0,
+   "audited": true,
+   "cashierDeleteStatus": 200,
+   "cashierDeleteKept": true,
+   "ms": 51806
   },
   "S7 repeated delivery (incremental save)": {
    "confirmedBills": 1,
@@ -128,7 +148,7 @@
    "copiesOfRepeatedBill": 1,
    "voucherCopies": 1,
    "stockItem": "stk0",
-   "ms": 5914
+   "ms": 5757
   },
   "S8 saves that try to drop or overwrite confirmed records": {
    "cashierSave": 200,
@@ -139,48 +159,48 @@
    "unCancelled": false,
    "preexistingBillsLost": 0,
    "pass": true,
-   "ms": 3324
+   "ms": 3409
   },
   "S9 restore": {
    "cashierRestore": 403,
    "managerRestore": 200,
-   "restoredBills": 18111,
-   "backupBills": 18111,
+   "restoredBills": 17911,
+   "backupBills": 17911,
    "logged": true,
    "audited": true,
    "pass": true,
-   "ms": 16204
+   "ms": 16140
   },
   "N1 no whole-data save from pages": {
    "pass": true,
    "pageWholeSaves": 0,
    "serverRefusedWholeSaves": 1,
-   "opsSaves": 19
+   "opsSaves": 18
   }
  },
  "fileMB": 19.8,
  "network": {
   "wholeSaves": 0,
   "fullLoads": 6,
-  "opsSaves": 19,
-  "changeFeeds": 8,
-  "opsBytes": 516863,
+  "opsSaves": 18,
+  "changeFeeds": 9,
+  "opsBytes": 663495,
   "wholeBytes": 0
  },
  "serverStats": {
-  "opsSaves": 22,
-  "opsRecords": 494,
+  "opsSaves": 23,
+  "opsRecords": 755,
   "legacyFullSaves": 1,
   "restores": 1,
-  "windowLoads": 27,
+  "windowLoads": 33,
   "fullExports": 0,
-  "changeFeeds": 4,
+  "changeFeeds": 5,
   "changeReloads": 4
  },
- "serverRssMB": 512.2,
+ "serverRssMB": 394.4,
  "allPass": true,
  "serverLogTail": [
-  "2026-11-05 01:53:09 Kept confirmed records from a admin save: bill mk0xjmo06j1dn-00 stays cancelled",
-  "2026-11-05 01:53:15 RESTORE by admin: bills 18111 -> 18111, version 23 replaced"
+  "2026-11-05 02:20:37 Kept confirmed records from a admin save: bill mk0xjmo06j1dn-00 stays cancelled",
+  "2026-11-05 02:20:44 RESTORE by admin: bills 17911 -> 17911, version 24 replaced"
  ]
 }

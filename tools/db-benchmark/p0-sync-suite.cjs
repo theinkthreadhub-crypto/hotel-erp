@@ -235,7 +235,8 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
   const data = build();
   fs.writeFileSync(path.join(DIR, 'setu-db.json'), '{"version": 1, "savedAt": ' + Date.now() + ', "data": ' + JSON.stringify(data) + '}');
   R.fileMB = +(fs.statSync(path.join(DIR, 'setu-db.json')).size / 1048576).toFixed(1);
-  const srv = spawn('python3', [path.join(ROOT, 'app_main.py'), '--server', '--port', String(PORT), '--data', DIR], { stdio: 'ignore' });
+  // SETU_CLOUD_URL: a dead local address, so a test server can never reach Hotel Setu Cloud (not even read-only)
+  const srv = spawn('python3', [path.join(ROOT, 'app_main.py'), '--server', '--port', String(PORT), '--data', DIR], { stdio: 'ignore', env: { ...process.env, SETU_CLOUD_URL: process.env.SETU_CLOUD_URL || 'http://127.0.0.1:9' } });
   KIDS.push(srv);
   for(let i = 0; i < 1200; i++){ try{ if((await fetch(U + '/api/ping')).ok) break; }catch(e){} await wait(100); }
   launch = fs.readFileSync(path.join(DIR, 'setu-launch.key'), 'utf8').trim();
@@ -247,6 +248,7 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
     try{
       const r = await fn();
       if(r.stockMismatches) r.pass = false;   // stock must equal opening + every movement
+      if(r.pass === null){ R.scenarios[name] = { ...r, ms: Date.now() - t0 }; console.log(`[${label}] ${name}: SKIPPED (${r.skipped})`); return; }
       R.scenarios[name] = { ...r, ms: Date.now() - t0 };
     }
     catch(e){ R.scenarios[name] = { pass: false, error: String(e.message || e).slice(0, 300), ms: Date.now() - t0 }; }
@@ -345,6 +347,7 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
   });
   if(SQLITE && A) await run('H2 reports for older dates (loaded on request) = full data', async () => {
     const full = (await serverDb()).data;
+    if(!full.bills.some(b => b.date < START.slice(0, 8) + '10') || ndays <= 35) return { pass: null, skipped: 'no dates older than the recent-bills window in this dataset (needs more than 35 days)' };
     const month = START.slice(0, 7), day = addDays(START, 3);
     // Open the older dates the way the screens do; the page loads those bills from the counter, then draws again
     await A.evaluate(([m, d]) => { monthData(m); listDate = d; billListRows(); daybookData(d, d); }, [month, day]);
@@ -366,7 +369,7 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
     const full = (await serverDb()).data;
     const from = await A.evaluate(() => SRV.win.from);
     const old = full.bills.filter(b => b.date < from && b.ptsEarned && !b.cancelled).slice(-1)[0];
-    if(!old) return { pass: false, error: 'no older bill with loyalty points in the data' };
+    if(!old) return { pass: null, skipped: 'no bill older than the recent-bills window in this dataset (needs more than 35 days)' };
     await A.evaluate(no => histFind(String(no)), old.no);
     await A.waitForFunction(id => !!getBill(id), old.id, { timeout: 60000 });
     return A.evaluate(([full, id]) => {
@@ -379,6 +382,7 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
   // Bulk delete of older bills through the app's own delRun (vendor code check stubbed: it needs Hotel Setu Cloud)
   if(SQLITE && A) await run('H3 bulk delete of older bills keeps stock, is audited, Manager only', async () => {
     const day = addDays(START, 5);
+    if(ndays <= 35) return { pass: null, skipped: 'no dates older than the recent-bills window in this dataset (needs more than 35 days)' };
     await A.route('**/api/vendor/verify', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, ref: 'DEL-TEST' }) }));
     const before = (await serverDb()).data;
     const q0 = await qtyNow(A);
@@ -481,7 +485,8 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
     // legacyFullSaves = 1: the one whole-data upload S7 sends on purpose (refused with 426)
     R.scenarios['N1 no whole-data save from pages'] = { pass: NET.wholeSaves === 0 && (st.stats || {}).legacyFullSaves === 1, pageWholeSaves: NET.wholeSaves, serverRefusedWholeSaves: (st.stats || {}).legacyFullSaves, opsSaves: NET.opsSaves };
   }
-  R.allPass = Object.values(R.scenarios).every(s => s.pass);
+  R.skipped = Object.entries(R.scenarios).filter(([, s]) => s.pass === null).map(([k, s]) => `${k}: ${s.skipped}`);
+  R.allPass = Object.values(R.scenarios).filter(s => s.pass !== null).every(s => s.pass);   // skipped checks are listed, never counted as passed
   R.serverLogTail = fs.readFileSync(path.join(DIR, 'setu-server.log'), 'utf8').split('\n').filter(l => /Kept confirmed|RESTORE|SAVE FAILED/.test(l)).slice(-6);
   fs.writeFileSync(path.join(path.resolve(OUT), `p0-${label}.json`), JSON.stringify(R, null, 1));
   console.log(`[${label}] ALL ${R.allPass ? 'PASS' : 'NOT PASSING'}`);

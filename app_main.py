@@ -3847,6 +3847,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             if path in ('/api/cloud/restore', '/api/cloud/join'):
                 if not self.counter_ok() or not cloud:
                     return self.send_json(403, {'error': 'main counter only'})
+                if getattr(store, 'sync_blocked', None):
+                    # SQLite counter: whole-data cloud sync would undo incremental saves (Phase 3 dependency)
+                    return self.send_json(409, {'error': store.sync_blocked})
                 try:
                     body = self.read_json()
                     if path == '/api/cloud/restore':

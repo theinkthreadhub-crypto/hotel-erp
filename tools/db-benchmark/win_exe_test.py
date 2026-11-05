@@ -85,6 +85,7 @@ def install(installer):
 
 def start(data, env_extra=None, cap_mb=None):
     env = dict(os.environ, **(env_extra or {}))
+    env.setdefault('SETU_CLOUD_URL', 'http://127.0.0.1:9')   # never reach Hotel Setu Cloud from a test
     cmd = [EXE, '--server', '--port', str(PORT), '--data', data]
     if cap_mb:
         # A wrapper that puts itself in a Job Object with a per-process memory limit, then starts the program
@@ -157,7 +158,7 @@ def db_counts(folder):
 def migrate_with_program(folder):
     """The program migrates the legacy JSON (SETU_STORAGE=sqlite) at start; peak memory sampled."""
     t0 = time.time()
-    p = subprocess.Popen([EXE, '--server', '--port', str(PORT), '--data', folder], env=dict(os.environ, SETU_STORAGE='sqlite'), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    p = subprocess.Popen([EXE, '--server', '--port', str(PORT), '--data', folder], env=dict(os.environ, SETU_STORAGE='sqlite', SETU_CLOUD_URL='http://127.0.0.1:9'), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     peak = 0
     while True:
         peak = max(peak, tree_rss(p) or 0)
@@ -255,6 +256,41 @@ def w4():
         full = body = None
         stop(p)
     out['pass'] = all(v['load'] == 200 and v['saves200'] == 200 and v['fullExport'] == 200 for v in out.values() if isinstance(v, dict))
+    # Migration (the one step whose memory grows with the data) under the same caps
+    mig = {}
+    for n_, cap in ((100000, 2048), (n, 2048), (n, 4096)):
+        src = os.path.join(WORK, f'scale-{n_}', 'setu-db.json')
+        dd = os.path.join(WORK, f'capmig-{n_}-{cap}')
+        shutil.rmtree(dd, ignore_errors=True)
+        os.makedirs(dd)
+        shutil.copy2(src, dd)
+        t0 = time.time()
+        p = subprocess.Popen([sys.executable, os.path.join(HERE, 'win_exe_test.py'), '--capped', str(cap), EXE, '--server', '--port', str(PORT), '--data', dd],
+                             env=dict(os.environ, SETU_STORAGE='sqlite', SETU_CLOUD_URL='http://127.0.0.1:9'), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        started = False
+        for _ in range(4000):
+            try:
+                urllib.request.urlopen(U + '/api/ping', timeout=1).read()
+                started = True
+                break
+            except Exception:
+                if p.poll() is not None:
+                    break
+                time.sleep(0.5)
+        stop(p)
+        try:
+            rep = json.load(open(os.path.join(dd, 'migration', 'migration-report.json')))
+        except Exception:
+            rep = {}
+        mig[f'{n_ // 1000}k bills, {cap // 1024} GB cap'] = {'status': rep.get('status') or 'no report', 'message': (rep.get('message') or '')[:160],
+                                                             'serverStarted': started, 'seconds': round(time.time() - t0, 1),
+                                                             'jsonStillInCharge': not os.path.exists(os.path.join(dd, 'setu-storage.json'))}
+        shutil.rmtree(dd, ignore_errors=True)
+    out['migrationUnderCaps'] = mig
+    try:
+        out['capWrapperLog'] = open(os.path.join(os.environ.get('TEMP', '.'), 'setu-capped.log')).read()[-500:]
+    except OSError:
+        pass
     return out
 
 
@@ -358,12 +394,25 @@ if __name__ == '__main__' and args and args[0] == '--capped':
     class EXT(ctypes.Structure):
         _fields_ = [('BasicLimitInformation', BASIC), ('IoInfo', IOC), ('ProcessMemoryLimit', ctypes.c_size_t), ('JobMemoryLimit', ctypes.c_size_t),
                     ('PeakProcessMemoryUsed', ctypes.c_size_t), ('PeakJobMemoryUsed', ctypes.c_size_t)]
-    job = k.CreateJobObjectW(None, None)
-    info = EXT()
-    info.BasicLimitInformation.LimitFlags = 0x100          # JOB_OBJECT_LIMIT_PROCESS_MEMORY
-    info.ProcessMemoryLimit = mb * 1048576
-    assert k.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)), 'SetInformationJobObject failed'
-    assert k.AssignProcessToJobObject(job, k.GetCurrentProcess()), 'AssignProcessToJobObject failed'
+    # 64-bit handles: declare the types (ctypes would otherwise cut them to 32 bits)
+    k.CreateJobObjectW.restype = ctypes.c_void_p
+    k.CreateJobObjectW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p]
+    k.GetCurrentProcess.restype = ctypes.c_void_p
+    k.SetInformationJobObject.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32]
+    k.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+    logf = os.path.join(os.environ.get('TEMP', '.'), 'setu-capped.log')
+    try:
+        job = k.CreateJobObjectW(None, None)
+        info = EXT()
+        info.BasicLimitInformation.LimitFlags = 0x100          # JOB_OBJECT_LIMIT_PROCESS_MEMORY
+        info.ProcessMemoryLimit = mb * 1048576
+        if not k.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
+            raise OSError(f'SetInformationJobObject failed: {ctypes.GetLastError()}')
+        if not k.AssignProcessToJobObject(job, k.GetCurrentProcess()):
+            raise OSError(f'AssignProcessToJobObject failed: {ctypes.GetLastError()}')
+    except Exception as e:
+        open(logf, 'a').write(f'cap {mb} MB: {e!r}\n')
+        sys.exit(3)
     sys.exit(subprocess.call(cmd))
 
 if __name__ == '__main__':

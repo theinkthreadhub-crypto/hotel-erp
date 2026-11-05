@@ -19,7 +19,7 @@ const rss = pid => { try{ const m = /VmRSS:\s+(\d+)/.exec(fs.readFileSync(`/proc
 (async () => {
   const R = { folder: path.basename(DIR), today: TODAY };
   const t0 = Date.now();
-  const srv = spawn('python3', [path.join(ROOT, 'app_main.py'), '--server', '--port', String(PORT), '--data', path.resolve(DIR)], { stdio: 'ignore' });
+  const srv = spawn('python3', [path.join(ROOT, 'app_main.py'), '--server', '--port', String(PORT), '--data', path.resolve(DIR)], { stdio: 'ignore', env: { ...process.env, SETU_CLOUD_URL: 'http://127.0.0.1:9' } });
   for(let i = 0; i < 6000; i++){ try{ if((await fetch(U + '/api/ping')).ok) break; }catch(e){} await wait(100); }
   R.serverStartSeconds = +((Date.now() - t0) / 1000).toFixed(1);
   const launch = fs.readFileSync(path.join(DIR, 'setu-launch.key'), 'utf8').trim();

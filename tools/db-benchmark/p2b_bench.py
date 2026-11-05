@@ -14,7 +14,7 @@ Measures, on the real counter server (app_main.py --server):
   * reconciliation after the run from the database file: every acknowledged bill present once, numbers unique,
     integrity_check ok
 --exe <path>: run the built program (Windows EXE) instead of app_main.py.
---mode: background = checkpoints in a separate thread (Phase 2b default); commit = SQLite's own, inside commits.
+--mode: commit = SQLite's own checkpoints inside commits (default, measured faster); background = a separate thread.
 """
 import json
 import os
@@ -30,7 +30,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 args = sys.argv[1:]
 DIR, OUT = os.path.abspath(args[0]), args[1]
 opt = lambda k, d: args[args.index(k) + 1] if k in args else d   # noqa: E731
-MODE, RUNS = opt('--mode', 'background'), int(opt('--runs', '3'))
+MODE, RUNS = opt('--mode', 'commit'), int(opt('--runs', '3'))
 LEVELS = [int(x) for x in opt('--levels', '1,20,50,100').split(',')]
 PORT = 8700 + (os.getpid() % 200)
 U = f'http://127.0.0.1:{PORT}'
@@ -46,7 +46,8 @@ def rss(pid):
     if not os.path.exists('/proc'):
         try:
             import psutil   # Windows: pip install psutil
-            return round(psutil.Process(pid).memory_info().rss / 1048576, 1)
+            pr = psutil.Process(pid)   # the one-file program runs as a small launcher + the real process: count both
+            return round(sum(x.memory_info().rss for x in [pr] + pr.children(recursive=True)) / 1048576, 1)
         except Exception:
             return None
     try:
@@ -97,6 +98,7 @@ if __name__ == '__main__':
     con.close()
     R['dbMB'] = round(os.path.getsize(os.path.join(DIR, 'setu.sqlite')) / 1048576, 1)
     env = dict(os.environ, SETU_CHECKPOINT=MODE)
+    env.setdefault('SETU_CLOUD_URL', 'http://127.0.0.1:9')   # never reach Hotel Setu Cloud from a test
     t0 = time.time()
     EXE = opt('--exe', '')   # the built Windows program instead of app_main.py
     cmd = ([EXE] if EXE else [sys.executable, os.path.join(ROOT, 'app_main.py')]) + ['--server', '--port', str(PORT), '--data', DIR]
