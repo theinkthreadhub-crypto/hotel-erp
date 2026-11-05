@@ -71,7 +71,7 @@ const HEADERS = {
   'Cache-Control': 'no-store',
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Setu-Token, X-Setu-Hotel, X-Setu-Launch, X-Setu-Elev'
+  'Access-Control-Allow-Headers': 'Content-Type, X-Setu-Token, X-Setu-Hotel, X-Setu-Launch, X-Setu-Elev, X-Setu-Sync, X-Setu-Caps'
 };
 const json = (code, obj) => new Response(JSON.stringify(obj), { status: code, headers: HEADERS });
 const rawJson = (code, text) => new Response(text, { status: code, headers: HEADERS });
@@ -96,6 +96,12 @@ function randomHex(n){
 }
 
 const sha256 = async text => hex(await crypto.subtle.digest('SHA-256', enc(text)));
+
+function canonicalJson(obj){
+  if(obj === null || typeof obj !== 'object') return JSON.stringify(obj);
+  if(Array.isArray(obj)) return '[' + obj.map(canonicalJson).join(',') + ']';
+  return '{' + Object.keys(obj).sort().map(k => JSON.stringify(k) + ':' + canonicalJson(obj[k])).join(',') + '}';
+}
 
 // ---- Smart Food Visuals: dish photo checks (same rules as the counter PC, setu_media.py) ----
 const MEDIA_MAX_FULL = 400 * 1024, MEDIA_MAX_THUMB = 60 * 1024, MEDIA_MAX_FILES = 3000, MEDIA_MAX_BYTES = 300 * 1024 * 1024;
@@ -725,6 +731,156 @@ export class SetuHotel extends DurableObject {
       imported INTEGER DEFAULT 0, PRIMARY KEY(provider, order_id))`);
     // Outside hotel sync JSON: backup restores cannot cause a second WhatsApp receipt.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS receipt_send (id TEXT PRIMARY KEY, phone TEXT, status TEXT, provider_id TEXT, error TEXT, at INTEGER)`);
+    // --- Phase 3.1: Secure Cloud Incremental Ingestion Relational Schema ---
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_inbox (
+      op_id TEXT PRIMARY KEY,
+      hotel_id TEXT NOT NULL,
+      device_id TEXT,
+      doc_version INTEGER NOT NULL,
+      timestamp INTEGER NOT NULL,
+      event_type TEXT,
+      checksum TEXT NOT NULL,
+      actor TEXT,
+      received_at INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      error TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_inbox_hotel_ver ON sync_inbox (hotel_id, doc_version)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_inbox_recv ON sync_inbox (received_at)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_bills (
+      id TEXT PRIMARY KEY,
+      no INTEGER,
+      kot INTEGER,
+      table_name TEXT,
+      channel TEXT,
+      mode TEXT,
+      total REAL,
+      tax REAL,
+      sub REAL,
+      disc REAL,
+      cancelled INTEGER DEFAULT 0,
+      cancelled_by TEXT,
+      date TEXT,
+      time TEXT,
+      idem_key TEXT,
+      doc_version INTEGER,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_bills_date ON sync_bills (date)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_bills_idem ON sync_bills (idem_key)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_bill_items (
+      id TEXT PRIMARY KEY,
+      bill_id TEXT NOT NULL,
+      mid TEXT,
+      name TEXT,
+      price REAL,
+      qty REAL,
+      amount REAL,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_bill_items_bid ON sync_bill_items (bill_id)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_bill_payments (
+      id TEXT PRIMARY KEY,
+      bill_id TEXT NOT NULL,
+      mode TEXT,
+      amount REAL,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_bill_pays_bid ON sync_bill_payments (bill_id)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_stock_items (
+      id TEXT PRIMARY KEY,
+      name TEXT,
+      qty REAL,
+      unit TEXT,
+      cost REAL,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_stock_movements (
+      id TEXT PRIMARY KEY,
+      sid TEXT,
+      name TEXT,
+      date TEXT,
+      time TEXT,
+      type TEXT,
+      qty REAL,
+      cost REAL,
+      balance_after REAL,
+      ref_id TEXT,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_stock_mov_sid ON sync_stock_movements (sid, date)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_vouchers (
+      id TEXT PRIMARY KEY,
+      type TEXT,
+      amount REAL,
+      party TEXT,
+      mode TEXT,
+      date TEXT,
+      time TEXT,
+      category TEXT,
+      note TEXT,
+      doc_version INTEGER,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_vouchers_date ON sync_vouchers (date)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_kots (
+      id TEXT PRIMARY KEY,
+      table_name TEXT,
+      time TEXT,
+      status TEXT,
+      doc_version INTEGER,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_table_orders (
+      table_name TEXT PRIMARY KEY,
+      guest_name TEXT,
+      guest_phone TEXT,
+      pax INTEGER,
+      status TEXT,
+      doc_version INTEGER,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_change_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      version INTEGER NOT NULL,
+      k TEXT NOT NULL,
+      rid TEXT,
+      op TEXT,
+      at INTEGER NOT NULL
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_change_log_ver ON sync_change_log (version)`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_checkpoints (
+      name TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      at INTEGER NOT NULL
+    )`);
+
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_conflicts (
+      id TEXT PRIMARY KEY,
+      op_id TEXT NOT NULL,
+      entity_key TEXT,
+      record_id TEXT,
+      reason TEXT NOT NULL,
+      at INTEGER NOT NULL,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_conflicts_op ON sync_conflicts (op_id)`);
     this.meta = this.kvGet('meta') || { version: 0, savedAt: 0, day: '' };
     this.account = this.kvGet('account');
     if(this.account && !this.account.config) this.account.config = newConfig('restaurant', 'premium');
@@ -1571,6 +1727,250 @@ export class SetuHotel extends DurableObject {
     return notes;
   }
 
+    async ingestSyncEnvelope(env){
+    if(!env || typeof env !== 'object'){
+      return { status: 'rejected', error: 'INVALID_ENVELOPE_SCHEMA', op_id: 'unknown' };
+    }
+    const opId = String(env.op_id || '').trim();
+    if(!opId || env.envelope_version !== 1 || typeof env.doc_version !== 'number' || env.doc_version <= 0 || !env.payload || typeof env.payload !== 'object' || !env.integrity || typeof env.integrity.checksum !== 'string'){
+      return { status: 'rejected', error: 'INVALID_ENVELOPE_SCHEMA', op_id: opId || 'unknown' };
+    }
+
+    // Server-side tenant isolation enforcement
+    const hotelId = String(env.hotel_id || '').trim().toUpperCase();
+    if(hotelId !== this.account.code.toUpperCase()){
+      return { status: 'rejected', error: 'HOTEL_TENANT_MISMATCH', op_id: opId };
+    }
+
+    // Checksum integrity validation
+    const canonicalStr = canonicalJson(env.payload);
+    const calculatedHash = await sha256(canonicalStr);
+    const expectedHash = env.integrity.checksum.replace(/^sha256:/i, '').trim().toLowerCase();
+    if(calculatedHash.toLowerCase() !== expectedHash){
+      return { status: 'rejected', error: 'INVALID_CHECKSUM', op_id: opId };
+    }
+
+    // Deduplication / Idempotency check against sync_inbox
+    const existing = this.sql.exec('SELECT op_id, checksum, status, doc_version, received_at FROM sync_inbox WHERE op_id = ?', opId).toArray()[0];
+    if(existing){
+      const existingHash = existing.checksum.replace(/^sha256:/i, '').trim().toLowerCase();
+      if(existingHash === calculatedHash.toLowerCase()){
+        // Exactly identical payload retry: return committed acknowledgment idempotently
+        return { status: 'committed', duplicate: true, doc_version: existing.doc_version, at: existing.received_at, op_id: opId };
+      }else{
+        // Conflict: Different payload for existing op_id! Quarantine and reject.
+        const confId = 'conf_' + randomHex(8);
+        this.sql.exec(
+          'INSERT INTO sync_conflicts (id, op_id, entity_key, record_id, reason, at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          confId, opId, env.event_type || 'ops', '', 'DIFFERENT_PAYLOAD_FOR_OP_ID', Date.now(), JSON.stringify(env)
+        );
+        return { status: 'rejected', error: 'CONFLICT_OP_ID_PAYLOAD_MISMATCH', op_id: opId };
+      }
+    }
+
+    // Atomic relational ingestion without full-document JSON rewriting
+    const now = Date.now();
+    const recs = env.payload.records || {};
+    const maps = env.payload.maps || {};
+
+    // 1. Bills
+    if(recs.bills && typeof recs.bills === 'object'){
+      for(const bill of (recs.bills.ups || [])){
+        const bid = String(bill.id || '');
+        if(bid){
+          const bno = bill.no != null ? +bill.no : null;
+          const bkot = bill.kot != null ? +bill.kot : null;
+          const tbl = String(bill.table || bill.tbl || '');
+          const chn = String(bill.channel || 'Dine-In');
+          const mode = String(bill.mode || 'Cash');
+          const total = +bill.total || 0;
+          const tax = +bill.tax || 0;
+          const sub = +bill.sub || 0;
+          const disc = +bill.disc || 0;
+          const cancelled = bill.cancelled ? 1 : 0;
+          const cby = String(bill.cancelledBy || bill.cancelled_by || '');
+          const bdate = String(bill.date || '');
+          const btime = String(bill.time || '');
+          const idem = String(bill.idemKey || ('idem_' + (bid || (tbl + '_' + bno))));
+
+          this.sql.exec(
+            `INSERT OR REPLACE INTO sync_bills (id, no, kot, table_name, channel, mode, total, tax, sub, disc, cancelled, cancelled_by, date, time, idem_key, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            bid, bno, bkot, tbl, chn, mode, total, tax, sub, disc, cancelled, cby, bdate, btime, idem, env.doc_version, now, JSON.stringify(bill)
+          );
+
+          this.sql.exec('DELETE FROM sync_bill_items WHERE bill_id = ?', bid);
+          if(Array.isArray(bill.items)){
+            bill.items.forEach((it, idx) => {
+              const itId = String(it.id || (bid + '_item_' + idx));
+              this.sql.exec(
+                `INSERT OR REPLACE INTO sync_bill_items (id, bill_id, mid, name, price, qty, amount, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                itId, bid, String(it.mid || ''), String(it.name || ''), +it.price || 0, +it.qty || 0, +it.amount || ((+it.price || 0) * (+it.qty || 0)), JSON.stringify(it)
+              );
+            });
+          }
+
+          this.sql.exec('DELETE FROM sync_bill_payments WHERE bill_id = ?', bid);
+          const pays = Array.isArray(bill.pays) ? bill.pays : (bill.mode ? [{ mode: bill.mode, amt: total }] : []);
+          pays.forEach((p, idx) => {
+            const pId = String(p.id || (bid + '_pay_' + idx));
+            this.sql.exec(
+              `INSERT OR REPLACE INTO sync_bill_payments (id, bill_id, mode, amount, raw_json) VALUES (?, ?, ?, ?, ?)`,
+              pId, bid, String(p.mode || 'Cash'), +(p.amt ?? p.amount ?? 0), JSON.stringify(p)
+            );
+          });
+
+          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'ups', ?)`, env.doc_version, bid, now);
+        }
+      }
+      for(const rmId of (recs.bills.rm || [])){
+        const srm = String(rmId);
+        this.sql.exec('DELETE FROM sync_bills WHERE id = ?', srm);
+        this.sql.exec('DELETE FROM sync_bill_items WHERE bill_id = ?', srm);
+        this.sql.exec('DELETE FROM sync_bill_payments WHERE bill_id = ?', srm);
+        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'rm', ?)`, env.doc_version, srm, now);
+      }
+    }
+
+    // 2. Vouchers & Txns
+    const vouchersRec = recs.vouchers || recs.txns;
+    if(vouchersRec && typeof vouchersRec === 'object'){
+      for(const v of (vouchersRec.ups || [])){
+        const vid = String(v.id || '');
+        if(vid){
+          this.sql.exec(
+            `INSERT OR REPLACE INTO sync_vouchers (id, type, amount, party, mode, date, time, category, note, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            vid, String(v.type || 'Expense'), +v.amount || 0, String(v.party || ''), String(v.mode || 'Cash'), String(v.date || ''), String(v.time || ''), String(v.category || ''), String(v.note || ''), env.doc_version, now, JSON.stringify(v)
+          );
+          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'ups', ?)`, env.doc_version, vid, now);
+        }
+      }
+      for(const rmId of (vouchersRec.rm || [])){
+        const srm = String(rmId);
+        this.sql.exec('DELETE FROM sync_vouchers WHERE id = ?', srm);
+        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'rm', ?)`, env.doc_version, srm, now);
+      }
+    }
+
+    // 3. Stock & Stock Movements
+    if(recs.stock && typeof recs.stock === 'object'){
+      for(const s of (recs.stock.ups || [])){
+        const sid = String(s.id || '');
+        if(sid){
+          this.sql.exec(
+            `INSERT OR REPLACE INTO sync_stock_items (id, name, qty, unit, cost, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            sid, String(s.name || ''), +s.qty || 0, String(s.unit || ''), +s.cost || 0, now, JSON.stringify(s)
+          );
+          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock', ?, 'ups', ?)`, env.doc_version, sid, now);
+        }
+      }
+      for(const rmId of (recs.stock.rm || [])){
+        const srm = String(rmId);
+        this.sql.exec('DELETE FROM sync_stock_items WHERE id = ?', srm);
+        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock', ?, 'rm', ?)`, env.doc_version, srm, now);
+      }
+    }
+    if(recs.stock_movements && typeof recs.stock_movements === 'object'){
+      for(const sm of (recs.stock_movements.ups || [])){
+        const smid = String(sm.id || '');
+        if(smid){
+          this.sql.exec(
+            `INSERT OR REPLACE INTO sync_stock_movements (id, sid, name, date, time, type, qty, cost, balance_after, ref_id, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            smid, String(sm.sid || ''), String(sm.name || ''), String(sm.date || ''), String(sm.time || ''), String(sm.type || ''), +sm.qty || 0, +sm.cost || 0, +sm.balance_after || 0, String(sm.ref_id || ''), now, JSON.stringify(sm)
+          );
+          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'ups', ?)`, env.doc_version, smid, now);
+        }
+      }
+      for(const rmId of (recs.stock_movements.rm || [])){
+        const srm = String(rmId);
+        this.sql.exec('DELETE FROM sync_stock_movements WHERE id = ?', srm);
+        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'rm', ?)`, env.doc_version, srm, now);
+      }
+    }
+
+    // 4. KOTs
+    if(recs.kots && typeof recs.kots === 'object'){
+      for(const kot of (recs.kots.ups || [])){
+        const kid = String(kot.id || '');
+        if(kid){
+          this.sql.exec(
+            `INSERT OR REPLACE INTO sync_kots (id, table_name, time, status, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            kid, String(kot.table || kot.tbl || ''), String(kot.time || ''), String(kot.status || 'active'), env.doc_version, now, JSON.stringify(kot)
+          );
+          this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'kots', ?, 'ups', ?)`, env.doc_version, kid, now);
+        }
+      }
+      for(const rmId of (recs.kots.rm || [])){
+        const srm = String(rmId);
+        this.sql.exec('DELETE FROM sync_kots WHERE id = ?', srm);
+        this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'kots', ?, 'rm', ?)`, env.doc_version, srm, now);
+      }
+    }
+
+    // 5. Maps (tables)
+    if(maps.tables && typeof maps.tables === 'object'){
+      for(const [tbl, tinfo] of Object.entries(maps.tables.set || {})){
+        this.sql.exec(
+          `INSERT OR REPLACE INTO sync_table_orders (table_name, guest_name, guest_phone, pax, status, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          String(tbl), String(tinfo?.guestName || ''), String(tinfo?.guestPhone || ''), +(tinfo?.pax || 0), String(tinfo?.status || 'occupied'), env.doc_version, now, JSON.stringify(tinfo)
+        );
+      }
+      for(const tbl of (maps.tables.del || [])){
+        this.sql.exec('DELETE FROM sync_table_orders WHERE table_name = ?', String(tbl));
+      }
+    }
+
+    // 6. Record to sync_inbox
+    const actorStr = typeof env.actor === 'object' ? JSON.stringify(env.actor) : String(env.actor || '');
+    this.sql.exec(
+      `INSERT INTO sync_inbox (op_id, hotel_id, device_id, doc_version, timestamp, event_type, checksum, actor, received_at, status, error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      opId, this.account.code, String(env.device_id || 'counter'), env.doc_version, env.timestamp || now, String(env.event_type || 'ops'), env.integrity.checksum, actorStr, now, 'committed', ''
+    );
+
+    // 7. Checkpoints
+    this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('latest_doc_version', ?, ?)`, String(env.doc_version), now);
+    this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_sync_op_id', ?, ?)`, opId, now);
+    if(env.doc_version > (this.meta.version || 0)){
+      this.meta.version = env.doc_version;
+      this.meta.savedAt = now;
+      this.kvSet('meta', this.meta);
+    }
+
+    return { status: 'committed', doc_version: env.doc_version, at: now, op_id: opId };
+  }
+
+  async handleSyncOps(b){
+    const batch = Array.isArray(b.batch) ? b.batch : (Array.isArray(b.ops) ? b.ops : (b.envelope ? [b.envelope] : (b.op_id ? [b] : null)));
+    if(!batch || !Array.isArray(batch) || batch.length === 0){
+      return json(400, { error: 'bad request: batch or envelope required' });
+    }
+    if(batch.length > 500){
+      return json(413, { error: 'batch size exceeds maximum limit of 500 operations' });
+    }
+
+    const results = {};
+    for(const env of batch){
+      results[env?.op_id || 'unknown'] = await this.ingestSyncEnvelope(env);
+    }
+
+    const isSingle = !Array.isArray(b.batch) && !Array.isArray(b.ops) && (b.envelope || b.op_id);
+    if(isSingle){
+      const res = results[batch[0]?.op_id || 'unknown'];
+      if(res && res.status === 'rejected'){
+        if(res.error === 'CONFLICT_OP_ID_PAYLOAD_MISMATCH') return json(409, { ok: false, error: res.error, results });
+        if(res.error === 'HOTEL_TENANT_MISMATCH') return json(403, { ok: false, error: res.error, results });
+        if(res.error === 'INVALID_CHECKSUM') return json(400, { ok: false, error: res.error, results });
+        return json(400, { ok: false, error: res.error, results });
+      }
+    }
+
+    return json(200, {
+      ok: true,
+      hotel: this.account.code,
+      processed: batch.length,
+      results
+    });
+  }
+
   async fetch(request){
     const url = new URL(request.url), path = url.pathname, method = request.method;
     // Always consume the body first: answering a POST before reading it breaks the connection
@@ -1798,6 +2198,38 @@ export class SetuHotel extends DurableObject {
     // A counter PC on an older Setu would lose its PINs (they are hashes now): it must update first
     if(this.legacySync(role, request) && path === '/api/db')
       return json(426, { error: 'Update Setu on the main counter PC (Settings → Software Update). Cloud sync waits until then; billing on the PC goes on.' });
+
+    // --- Phase 3.1: Secure Cloud Incremental Ingestion ---
+    if(path === '/api/sync/ops'){
+      if(method === 'GET'){
+        const limit = Math.min(100, Math.max(1, +(url.searchParams.get('limit') || 50)));
+        const rows = this.sql.exec('SELECT op_id, doc_version, timestamp, event_type, checksum, received_at, status FROM sync_inbox ORDER BY received_at DESC LIMIT ?', limit).toArray();
+        return json(200, { ok: true, hotel: this.account.code, ops: rows });
+      }
+      if(method !== 'POST') return json(405, { error: 'POST required' });
+      if(!isAdmin) return json(403, { error: 'Unauthorized: sync or admin credentials required' });
+      const why = this.blocked();
+      if(why) return json(402, { error: why === 'suspended' ? 'account suspended' : 'subscription expired' });
+      let b;
+      try{ b = JSON.parse(text || '{}'); }catch(e){ return json(400, { error: 'bad request: invalid json' }); }
+      return this.handleSyncOps(b);
+    }
+    if(method === 'GET' && path === '/api/sync/state'){
+      const latestVer = this.sql.exec("SELECT value FROM sync_checkpoints WHERE name = 'latest_doc_version'").toArray()[0]?.value || this.meta.version;
+      const lastOp = this.sql.exec("SELECT value FROM sync_checkpoints WHERE name = 'last_sync_op_id'").toArray()[0]?.value || '';
+      const inboxCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbox').toArray()[0]?.c || 0;
+      const billsCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_bills').toArray()[0]?.c || 0;
+      const vouchersCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_vouchers').toArray()[0]?.c || 0;
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        latest_doc_version: +latestVer,
+        last_sync_op_id: lastOp,
+        inbox_count: inboxCount,
+        bills_count: billsCount,
+        vouchers_count: vouchersCount
+      });
+    }
 
     if(method === 'GET' && path === '/api/version') return json(200, { version: this.meta.version, savedAt: this.meta.savedAt, blocked: this.blocked() });
     if(method === 'GET' && path === '/api/db') return rawJson(200, this.dbFor(role, request));
@@ -3104,7 +3536,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, X-Setu-Token, X-Setu-Hotel, X-Setu-Launch, X-Setu-Elev",
+          "Access-Control-Allow-Headers": "Content-Type, X-Setu-Token, X-Setu-Hotel, X-Setu-Launch, X-Setu-Elev, X-Setu-Sync, X-Setu-Caps",
           "Access-Control-Max-Age": "86400"
         }
       });
