@@ -45,7 +45,7 @@ def verify_signed_license(key, install_id, *, public_keys=TRUSTED_PUBLIC_KEYS, n
     if len(text) != 128 or not text.startswith("SETU") or any(c not in B32 for c in text):
         raise InvalidLicence("invalid signed SETU key format")
     try:
-        raw = base64.b32decode(text[4:], casefold=False)
+        raw = base64.b32decode(text[4:] + ('=' * (-len(text[4:]) % 8)), casefold=False)
     except (ValueError, base64.binascii.Error) as exc:
         raise InvalidLicence("invalid signed SETU key encoding") from exc
     if len(raw) != 77:
