@@ -1996,138 +1996,176 @@ class InboundSyncReceiver:
             'inbound_cursor': self.get_last_applied_seq()
         }
 
+    def _ack_pending(self):
+        """Resend committed event ACKs until cloud confirms exact event IDs."""
+        with self.store.rlock():
+            ids = [r[0] for r in self.store.con().execute(
+                "SELECT id FROM inbound_events_applied WHERE acked_at IS NULL "
+                "ORDER BY seq ASC LIMIT ?", (self.batch_size,)
+            ).fetchall()]
+        if not ids:
+            return 0
+        payload = json.dumps({'hotel_id': self.hotel, 'event_ids': ids}).encode('utf-8')
+        headers = {
+            'X-Setu-Hotel': self.hotel, 'X-Setu-Sync': self.key,
+            'Content-Type': 'application/json'
+        }
+        try:
+            status, response = self.http_post_fn(self.url, '/api/sync/inbound/ack', payload, headers)
+            if status != 200:
+                raise OSError('Inbound ACK HTTP ' + str(status))
+            parsed = json.loads(response)
+            if not isinstance(parsed, dict) or parsed.get('ok') is not True:
+                raise ValueError('invalid ACK response')
+            if parsed.get('hotel') != self.hotel:
+                raise ValueError('ACK tenant mismatch')
+            confirmed = set(parsed.get('acked_ids') or [])
+            confirmed.intersection_update(ids)
+            if not confirmed:
+                raise ValueError('No event IDs confirmed by cloud ACK')
+            now = int(time.time() * 1000)
+            with self.store.tx() as c:
+                for evt_id in confirmed:
+                    c.execute(
+                        "UPDATE inbound_events_applied SET acked_at = ? "
+                        "WHERE id = ? AND acked_at IS NULL", (now, evt_id)
+                    )
+            return len(confirmed)
+        except (OSError, ValueError, TypeError) as exc:
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Inbound ACK pending retry: ' + str(exc)
+            return 0
+
+    def _record_inbound_failure(self, event_id, seq, reason):
+        self.stats['errors'] += 1
+        self.stats['last_error'] = str(reason)
+        with self.store.tx() as c:
+            c.execute(
+                "INSERT INTO inbound_event_failures(event_id,seq,reason,occurred_at,resolved) "
+                "VALUES (?,?,?,?,0) ON CONFLICT(event_id) DO UPDATE SET "
+                "reason=excluded.reason, occurred_at=excluded.occurred_at",
+                (str(event_id or 'unknown')[:128], int(seq or 0), str(reason)[:400], int(time.time()*1000))
+            )
+
     def fetch_and_apply_once(self):
         if not self.is_activation_safe():
             self.stats['state'] = 'inactive'
             return {'status': 'inactive'}
 
         self.stats['state'] = 'syncing'
+        # Retry unconfirmed ACKs even when the previously committed event
+        # is outside the GET cursor window. Lost HTTP responses cannot strand ACKs.
+        pre_acked = self._ack_pending()
         last_seq = self.get_last_applied_seq()
-
         headers = {
-            'X-Setu-Hotel': self.hotel,
-            'X-Setu-Sync': self.key,
-            'Authorization': f'Bearer {self.key}',
+            'X-Setu-Hotel': self.hotel, 'X-Setu-Sync': self.key,
             'Accept': 'application/json'
         }
-
         path = f'/api/sync/inbound?since={last_seq}&limit={self.batch_size}'
         try:
-            http_status, resp_text = self.http_get_fn(self.url, path, headers)
-        except OSError as e:
-            self._consecutive_failures += 1
+            http_status, response = self.http_get_fn(self.url, path, headers)
+        except OSError as exc:
             self.stats['errors'] += 1
-            self.stats['last_error'] = str(e)
+            self.stats['last_error'] = str(exc)
             self.stats['state'] = 'offline'
-            return {'status': 'network_error', 'error': str(e)}
-
-        if http_status == 402:
-            self._consecutive_failures += 1
-            self.stats['errors'] += 1
-            self.stats['last_error'] = 'Subscription expired or account suspended (HTTP 402)'
-            self.stats['state'] = 'offline'
-            return {'status': 'payment_required', 'http_code': 402}
-
-        if http_status in (401, 403):
-            self._consecutive_failures += 1
-            self.stats['errors'] += 1
-            self.stats['last_error'] = f'Authentication or tenant mismatch failure (HTTP {http_status})'
-            self.stats['state'] = 'offline'
-            return {'status': 'unauthorized', 'http_code': http_status}
+            return {'status': 'network_error', 'error': str(exc), 'acked': pre_acked}
 
         if http_status != 200:
-            self._consecutive_failures += 1
             self.stats['errors'] += 1
-            self.stats['last_error'] = f'Cloud returned HTTP {http_status}: {resp_text[:200]}'
+            self.stats['last_error'] = f'Inbound HTTP {http_status}'
             self.stats['state'] = 'offline'
-            return {'status': 'http_error', 'http_code': http_status}
+            return {
+                'status': 'payment_required' if http_status == 402 else
+                          'unauthorized' if http_status in (401, 403) else 'http_error',
+                'http_code': http_status, 'acked': pre_acked
+            }
 
         try:
-            body = json.loads(resp_text)
-        except Exception as e:
+            body = json.loads(response)
+            if not isinstance(body, dict) or body.get('ok') is not True:
+                raise ValueError('invalid inbound response')
+            if body.get('hotel') and str(body['hotel']).upper() != self.hotel:
+                raise ValueError('wrong hotel in inbound response')
+            events = body.get('events')
+            if not isinstance(events, list) or len(events) > self.batch_size:
+                raise ValueError('invalid event batch')
+        except (TypeError, ValueError) as exc:
             self.stats['errors'] += 1
-            self.stats['last_error'] = f'Invalid JSON from cloud: {e}'
+            self.stats['last_error'] = str(exc)
             self.stats['state'] = 'offline'
-            return {'status': 'invalid_response', 'error': str(e)}
-
-        events = body.get('events', [])
-        if not events:
-            self._consecutive_failures = 0
-            self.stats['state'] = 'connected'
-            self.stats['last_sync_at'] = int(time.time() * 1000)
-            return {'status': 'idle', 'processed': 0, 'applied': 0, 'acked': 0}
+            return {'status': 'invalid_response', 'error': str(exc), 'acked': pre_acked}
 
         applied_count = 0
-        event_ids_to_ack = []
-
-        # Process each event in its own transaction or combined batch
         for evt in events:
-            evt_id = evt.get('id')
-            evt_seq = evt.get('seq', 0)
-            evt_type = evt.get('event_type')
-            entity_id = evt.get('entity_id')
-            payload = evt.get('payload') or {}
-            if isinstance(payload, str):
-                try:
+            evt_id = evt.get('id') if isinstance(evt, dict) else None
+            evt_seq = evt.get('seq') if isinstance(evt, dict) else None
+            try:
+                if not isinstance(evt_id, str) or not evt_id or len(evt_id) > 128:
+                    raise InboundApplyError('INVALID_EVENT_ID')
+                if type(evt_seq) is not int or evt_seq != last_seq + 1:
+                    raise InboundApplyError(f'INBOUND_CURSOR_GAP expected {last_seq + 1}, got {evt_seq}')
+                evt_type = evt.get('event_type')
+                if evt_type not in ('qr_order', 'qr_status', 'licence_update', 'vendor_message'):
+                    raise InboundApplyError('UNKNOWN_INBOUND_EVENT_TYPE')
+                if evt.get('hotel_id') and str(evt['hotel_id']).upper() != self.hotel:
+                    raise InboundApplyError('INBOUND_HOTEL_MISMATCH')
+                payload = evt.get('payload')
+                if isinstance(payload, str):
                     payload = json.loads(payload)
-                except Exception:
-                    payload = {}
+                if not isinstance(payload, dict):
+                    raise InboundApplyError('INVALID_EVENT_PAYLOAD')
 
-            with self.store.tx() as c:
-                # Deduplication check
-                already = c.execute("SELECT 1 FROM inbound_events_applied WHERE id = ?", (evt_id,)).fetchone()
-                if not already:
-                    if evt_type == 'qr_order':
-                        self._apply_qr_order(c, payload)
+                with self.store.tx() as c:
+                    existing = c.execute(
+                        "SELECT seq FROM inbound_events_applied WHERE id = ?", (evt_id,)
+                    ).fetchone()
+                    if existing:
+                        if int(existing[0]) != evt_seq:
+                            raise InboundApplyError('REPLAYED_EVENT_ID_NEW_SEQUENCE')
+                    else:
+                        if evt_type == 'qr_order':
+                            self._apply_qr_order(c, payload)
+                        elif evt_type == 'qr_status':
+                            self._apply_qr_status(c, payload)
+                        elif evt_type == 'licence_update':
+                            self._apply_licence_update(c, payload)
+                        elif evt_type == 'vendor_message':
+                            self._apply_vendor_message(c, payload)
+                        c.execute(
+                            "INSERT INTO inbound_events_applied"
+                            "(id,seq,event_type,entity_id,applied_at,acked_at) "
+                            "VALUES(?,?,?,?,?,NULL)",
+                            (evt_id, evt_seq, evt_type, str(evt.get('entity_id') or ''),
+                             int(time.time() * 1000))
+                        )
                         applied_count += 1
-                    elif evt_type == 'qr_status':
-                        self._apply_qr_status(c, payload)
-                        applied_count += 1
-                    elif evt_type == 'licence_update':
-                        self._apply_licence_update(c, payload)
-                        applied_count += 1
-                    elif evt_type == 'vendor_message':
-                        self._apply_vendor_message(c, payload)
-                        applied_count += 1
+                    changed = c.execute(
+                        "UPDATE inbound_cursor_state SET seq=? "
+                        "WHERE name='inbound' AND seq=?",
+                        (evt_seq, last_seq)
+                    ).rowcount
+                    if changed != 1:
+                        raise InboundApplyError('CONCURRENT_INBOUND_CURSOR_CHANGE')
+                last_seq = evt_seq
+            except (InboundApplyError, ValueError, TypeError) as exc:
+                self._record_inbound_failure(evt_id, evt_seq, str(exc))
+                self.stats['state'] = 'blocked'
+                acked = pre_acked + self._ack_pending()
+                return {
+                    'status': 'blocked', 'processed': applied_count,
+                    'applied': applied_count, 'failed_event': evt_id,
+                    'error': str(exc), 'acked': acked, 'cursor': last_seq
+                }
 
-                    now_ms = int(time.time() * 1000)
-                    c.execute("""
-                        INSERT INTO inbound_events_applied (id, seq, event_type, entity_id, applied_at)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (evt_id, evt_seq, evt_type, str(entity_id or ''), now_ms))
-
-            event_ids_to_ack.append(evt_id)
-
-        # Send ACK to cloud only after local commits
-        ack_success = False
-        try:
-            ack_payload = json.dumps({'hotel_id': self.hotel, 'event_ids': event_ids_to_ack}).encode('utf-8')
-            ack_headers = {
-                'X-Setu-Hotel': self.hotel,
-                'X-Setu-Sync': self.key,
-                'Authorization': f'Bearer {self.key}',
-                'Content-Type': 'application/json'
-            }
-            ack_status, _ = self.http_post_fn(self.url, '/api/sync/inbound/ack', ack_payload, ack_headers)
-            if ack_status == 200:
-                ack_success = True
-        except Exception as e:
-            self.stats['errors'] += 1
-            self.stats['last_error'] = f'Inbound ACK failed: {e}'
-
-        self._consecutive_failures = 0
+        acked = pre_acked + self._ack_pending()
         self.stats['applied_events'] += applied_count
-        if ack_success:
-            self.stats['acked_events'] += len(event_ids_to_ack)
-        self.stats['last_sync_at'] = int(time.time() * 1000)
+        self.stats['acked_events'] += acked
+        self.stats['last_sync_at'] = int(time.time()*1000)
         self.stats['state'] = 'connected'
-
         return {
-            'status': 'ok',
-            'processed': len(events),
-            'applied': applied_count,
-            'acked': len(event_ids_to_ack) if ack_success else 0,
-            'cursor': events[-1].get('seq', last_seq)
+            'status': 'ok' if events else 'idle',
+            'processed': len(events), 'applied': applied_count,
+            'acked': acked, 'cursor': last_seq
         }
 
     def _apply_qr_order(self, c, payload):
