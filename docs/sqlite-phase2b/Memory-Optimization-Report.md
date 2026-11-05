@@ -36,6 +36,14 @@ In all three runs the page made **0 whole-data saves**, one window load, and 2 i
 
 Before Phase 2b the page loaded all 420 MB of JSON at 365,000 bills; its heap was not measured then.
 
+### Windows (the program EXE on Windows Server 2025, 2 vCPU, 8 GB VM)
+
+| Bills | Server: rest / after load / peak (100 clients + export) | Under a 2 GB cap | Under a 4 GB cap |
+|---|---|---|---|
+| 10,000 | 93 / 107 / 164 MB | — | — |
+| 100,000 | 147 / 171 / 366 MB | migration OK | — |
+| 365,000 | 163 / 302 / 416 MB | server OK (258 MB); **migration fails (`MemoryError`), JSON stays in charge** | server OK; migration OK |
+
 ### Migration (one time; JSON → SQLite)
 
 | Bills | Peak memory, Linux | Peak memory, Windows runner (program EXE) |
@@ -58,6 +66,8 @@ Before Phase 2b the page loaded all 420 MB of JSON at 365,000 bills; its heap wa
 - **Browser:** at most 0.5 GB heap.
 - **Migration:** at least 3 × the JSON file size free. Large hotels on 4 GB PCs migrate on a staging PC and copy `setu.sqlite` over.
 
-**Windows memory caps** (a per-process Job Object limit of 2 GB and 4 GB on the GitHub `windows-latest` runner) are a **simulation**: the runner is a 16 GB VM. A cap limits the process; it does not reproduce a 4 GB PC's paging, antivirus or disk. The results are in `Windows-EXE-Test-Results.md`.
+**Windows memory caps** (a per-process Job Object limit of 2 GB and 4 GB on the GitHub `windows-latest` runner, itself an 8 GB VM) are a **simulation of smaller PCs**. A cap limits the process; it does not reproduce a 4 GB PC's paging, antivirus or disk. The results are in `Windows-EXE-Test-Results.md`.
 
-**Not measured:** a physical 4 GB or 8 GB counter PC. The real WebView2 window's total memory.
+**Measured on a real 8 GB Windows VM** (the runner).
+
+**Not measured:** a physical 4 GB or 8 GB counter PC; the real WebView2 window's total memory.

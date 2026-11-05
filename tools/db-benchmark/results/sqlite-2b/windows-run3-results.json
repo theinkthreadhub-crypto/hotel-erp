@@ -1,0 +1,804 @@
+{
+ "machine": {
+  "cpus": 2,
+  "os": "Windows-2025Server-10.0.26100-SP0",
+  "python": "3.12.10",
+  "ramGB": 8.0
+ },
+ "steps": {
+  "W1 fresh install": {
+   "pass": true,
+   "installerExit": 0,
+   "programExists": true,
+   "startSeconds": 5.2,
+   "page": 200,
+   "pageKB": 1399,
+   "ping": {
+    "setu": true,
+    "version": 0,
+    "local": true,
+    "grace": null
+   },
+   "memoryMB": 52.5,
+   "engineOfNewFolder": "json",
+   "seconds": 17.7
+  },
+  "W2 upgrade + legacy JSON migration": {
+   "dataset": {
+    "bills": 5000,
+    "days": 5,
+    "from": "2026-01-01",
+    "to": "2026-01-05",
+    "MB": 5.2
+   },
+   "oldInstallerExit": 0,
+   "oldProgramBills": 5000,
+   "newInstallerExit": 0,
+   "afterUpgradeBills": 5000,
+   "migration": {
+    "status": "MIGRATED",
+    "checksFailed": null,
+    "importSeconds": 2.75,
+    "verifySeconds": 2.59,
+    "startIncludingMigrationSeconds": 10.5,
+    "peakMemoryMB": 122.6,
+    "jsonUnchanged": true,
+    "engine": "sqlite"
+   },
+   "sqlite": {
+    "bills": 5000,
+    "integrity": "ok"
+   },
+   "servedBillsAfterMigration": 5000,
+   "engineServed": "sqlite",
+   "pass": true,
+   "seconds": 53.4
+  },
+  "W3 scale 10000": {
+   "pass": true,
+   "dataset": {
+    "bills": 10000,
+    "days": 10,
+    "from": "2025-12-27",
+    "to": "2026-01-05",
+    "MB": 9.5
+   },
+   "migration": {
+    "status": "MIGRATED",
+    "checksFailed": null,
+    "importSeconds": 5.03,
+    "verifySeconds": 4.71,
+    "startIncludingMigrationSeconds": 16.6,
+    "peakMemoryMB": 181.5,
+    "jsonUnchanged": true,
+    "engine": "sqlite"
+   },
+   "bench": {
+    "serverStartSeconds": 5.2,
+    "rssAtRestMB": 92.5,
+    "rssAfterLoadMB": 107.1,
+    "peakRssMB": 163.9,
+    "peakWalMB": 4.1,
+    "deviceLoad": {
+     "status": 200,
+     "bytes": 10005339,
+     "MB": 9.5,
+     "billsSent": 10000,
+     "olderBillsOnCounterOnly": 0,
+     "windowFrom": "2025-12-02",
+     "firstMs": 575,
+     "nextMs": [
+      520,
+      514
+     ]
+    },
+    "opsSaves": {
+     "1": [
+      {
+       "clients": 1,
+       "n": 400,
+       "p50": 3.7,
+       "p95": 9.7,
+       "p99": 17.9,
+       "max": 27.9,
+       "perSecond": 217.2,
+       "errors": 0,
+       "seconds": 1.8,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 1,
+       "n": 400,
+       "p50": 3.8,
+       "p95": 11.1,
+       "p99": 27.2,
+       "max": 30.4,
+       "perSecond": 202.4,
+       "errors": 0,
+       "seconds": 2.0,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "20": [
+      {
+       "clients": 20,
+       "n": 400,
+       "p50": 91.1,
+       "p95": 105.2,
+       "p99": 114.6,
+       "max": 125.6,
+       "perSecond": 217.0,
+       "errors": 0,
+       "seconds": 1.8,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 20,
+       "n": 400,
+       "p50": 95.3,
+       "p95": 112.7,
+       "p99": 117.2,
+       "max": 129.0,
+       "perSecond": 205.0,
+       "errors": 0,
+       "seconds": 2.0,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "50": [
+      {
+       "clients": 50,
+       "n": 400,
+       "p50": 230.8,
+       "p95": 255.5,
+       "p99": 264.8,
+       "max": 265.7,
+       "perSecond": 207.7,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 50,
+       "n": 400,
+       "p50": 194.9,
+       "p95": 281.3,
+       "p99": 284.9,
+       "max": 297.4,
+       "perSecond": 195.3,
+       "errors": 0,
+       "seconds": 2.0,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "100": [
+      {
+       "clients": 100,
+       "n": 400,
+       "p50": 443.2,
+       "p95": 483.9,
+       "p99": 491.6,
+       "max": 495.4,
+       "perSecond": 213.2,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 100,
+       "n": 400,
+       "p50": 453.4,
+       "p95": 472.0,
+       "p99": 474.9,
+       "max": 485.7,
+       "perSecond": 213.7,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ]
+    },
+    "settle50": [
+     {
+      "clients": 50,
+      "n": 400,
+      "p50": 184.8,
+      "p95": 201.5,
+      "p99": 369.9,
+      "max": 380.3,
+      "perSecond": 260.8,
+      "errors": 0,
+      "seconds": 1.5
+     },
+     {
+      "clients": 50,
+      "n": 400,
+      "p50": 191.3,
+      "p95": 201.2,
+      "p99": 367.8,
+      "max": 372.5,
+      "perSecond": 256.4,
+      "errors": 0,
+      "seconds": 1.6
+     }
+    ],
+    "changeFeedMs": {
+     "p50": 2.1,
+     "p95": 2.6
+    },
+    "olderDayLoad": {
+     "date": "2025-06-19",
+     "bills": 0,
+     "ms": 5
+    },
+    "fullExport": {
+     "status": 200,
+     "MB": 11.8,
+     "seconds": 1.6,
+     "peakRssMB": 163.9
+    },
+    "reconciliation": {
+     "acknowledgedBills": 4000,
+     "acknowledgedLost": 0,
+     "duplicateNumbers": 0,
+     "duplicateIds": 0,
+     "integrity": "ok",
+     "billsAfter": 14000,
+     "pass": true
+    }
+   },
+   "seconds": 49.6
+  },
+  "W3 scale 100000": {
+   "pass": true,
+   "dataset": {
+    "bills": 100000,
+    "days": 100,
+    "from": "2025-09-28",
+    "to": "2026-01-05",
+    "MB": 79.8
+   },
+   "migration": {
+    "status": "MIGRATED",
+    "checksFailed": null,
+    "importSeconds": 52.24,
+    "verifySeconds": 41.64,
+    "startIncludingMigrationSeconds": 107.1,
+    "peakMemoryMB": 1035.3,
+    "jsonUnchanged": true,
+    "engine": "sqlite"
+   },
+   "bench": {
+    "serverStartSeconds": 5.8,
+    "rssAtRestMB": 146.5,
+    "rssAfterLoadMB": 171.2,
+    "peakRssMB": 365.8,
+    "peakWalMB": 4.1,
+    "deviceLoad": {
+     "status": 200,
+     "bytes": 31526240,
+     "MB": 30.1,
+     "billsSent": 35000,
+     "olderBillsOnCounterOnly": 65000,
+     "windowFrom": "2025-12-02",
+     "firstMs": 2815,
+     "nextMs": [
+      1911,
+      1847
+     ]
+    },
+    "opsSaves": {
+     "1": [
+      {
+       "clients": 1,
+       "n": 400,
+       "p50": 3.5,
+       "p95": 13.2,
+       "p99": 28.7,
+       "max": 64.9,
+       "perSecond": 196.8,
+       "errors": 0,
+       "seconds": 2.0,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 1,
+       "n": 400,
+       "p50": 3.5,
+       "p95": 11.0,
+       "p99": 18.3,
+       "max": 29.7,
+       "perSecond": 219.9,
+       "errors": 0,
+       "seconds": 1.8,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "20": [
+      {
+       "clients": 20,
+       "n": 400,
+       "p50": 87.6,
+       "p95": 97.2,
+       "p99": 108.7,
+       "max": 120.6,
+       "perSecond": 222.2,
+       "errors": 0,
+       "seconds": 1.8,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 20,
+       "n": 400,
+       "p50": 95.3,
+       "p95": 111.3,
+       "p99": 115.6,
+       "max": 119.0,
+       "perSecond": 208.8,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "50": [
+      {
+       "clients": 50,
+       "n": 400,
+       "p50": 227.4,
+       "p95": 250.4,
+       "p99": 255.8,
+       "max": 267.9,
+       "perSecond": 207.5,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 50,
+       "n": 400,
+       "p50": 234.2,
+       "p95": 254.4,
+       "p99": 264.7,
+       "max": 266.6,
+       "perSecond": 209.7,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "100": [
+      {
+       "clients": 100,
+       "n": 400,
+       "p50": 445.7,
+       "p95": 468.3,
+       "p99": 475.6,
+       "max": 854.3,
+       "perSecond": 217.3,
+       "errors": 0,
+       "seconds": 1.8,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 100,
+       "n": 400,
+       "p50": 458.1,
+       "p95": 501.1,
+       "p99": 505.8,
+       "max": 510.5,
+       "perSecond": 207.4,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ]
+    },
+    "settle50": [
+     {
+      "clients": 50,
+      "n": 400,
+      "p50": 178.3,
+      "p95": 197.5,
+      "p99": 357.3,
+      "max": 369.8,
+      "perSecond": 267.0,
+      "errors": 0,
+      "seconds": 1.5
+     },
+     {
+      "clients": 50,
+      "n": 400,
+      "p50": 188.0,
+      "p95": 206.1,
+      "p99": 371.5,
+      "max": 381.3,
+      "perSecond": 256.2,
+      "errors": 0,
+      "seconds": 1.6
+     }
+    ],
+    "changeFeedMs": {
+     "p50": 2.0,
+     "p95": 2.6
+    },
+    "olderDayLoad": {
+     "date": "2025-06-19",
+     "bills": 0,
+     "ms": 3
+    },
+    "fullExport": {
+     "status": 200,
+     "MB": 82.1,
+     "seconds": 10.6,
+     "peakRssMB": 232.0
+    },
+    "reconciliation": {
+     "acknowledgedBills": 4000,
+     "acknowledgedLost": 0,
+     "duplicateNumbers": 0,
+     "duplicateIds": 0,
+     "integrity": "ok",
+     "billsAfter": 104000,
+     "pass": true
+    }
+   },
+   "seconds": 171.4
+  },
+  "W3 scale 365000": {
+   "pass": true,
+   "dataset": {
+    "bills": 365000,
+    "days": 365,
+    "from": "2025-01-06",
+    "to": "2026-01-05",
+    "MB": 288.1
+   },
+   "migration": {
+    "status": "MIGRATED",
+    "checksFailed": null,
+    "importSeconds": 233.71,
+    "verifySeconds": 194.03,
+    "startIncludingMigrationSeconds": 463.3,
+    "peakMemoryMB": 3443.2,
+    "jsonUnchanged": true,
+    "engine": "sqlite"
+   },
+   "bench": {
+    "serverStartSeconds": 7.5,
+    "rssAtRestMB": 162.9,
+    "rssAfterLoadMB": 301.6,
+    "peakRssMB": 415.8,
+    "peakWalMB": 4.1,
+    "deviceLoad": {
+     "status": 200,
+     "bytes": 33585946,
+     "MB": 32.0,
+     "billsSent": 35000,
+     "olderBillsOnCounterOnly": 330000,
+     "windowFrom": "2025-12-02",
+     "firstMs": 16305,
+     "nextMs": [
+      2085,
+      2029
+     ]
+    },
+    "opsSaves": {
+     "1": [
+      {
+       "clients": 1,
+       "n": 400,
+       "p50": 3.7,
+       "p95": 13.5,
+       "p99": 28.0,
+       "max": 154.6,
+       "perSecond": 182.0,
+       "errors": 0,
+       "seconds": 2.2,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 1,
+       "n": 400,
+       "p50": 3.8,
+       "p95": 12.5,
+       "p99": 26.0,
+       "max": 29.7,
+       "perSecond": 195.3,
+       "errors": 0,
+       "seconds": 2.0,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "20": [
+      {
+       "clients": 20,
+       "n": 400,
+       "p50": 90.8,
+       "p95": 100.6,
+       "p99": 104.9,
+       "max": 107.3,
+       "perSecond": 216.8,
+       "errors": 0,
+       "seconds": 1.8,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 20,
+       "n": 400,
+       "p50": 93.8,
+       "p95": 107.5,
+       "p99": 109.8,
+       "max": 124.1,
+       "perSecond": 211.8,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "50": [
+      {
+       "clients": 50,
+       "n": 400,
+       "p50": 223.0,
+       "p95": 242.2,
+       "p99": 253.5,
+       "max": 269.3,
+       "perSecond": 209.3,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 50,
+       "n": 400,
+       "p50": 234.1,
+       "p95": 250.8,
+       "p99": 261.3,
+       "max": 271.2,
+       "perSecond": 210.1,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ],
+     "100": [
+      {
+       "clients": 100,
+       "n": 400,
+       "p50": 448.4,
+       "p95": 474.3,
+       "p99": 480.1,
+       "max": 481.0,
+       "perSecond": 215.8,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      },
+      {
+       "clients": 100,
+       "n": 400,
+       "p50": 454.5,
+       "p95": 477.3,
+       "p99": 484.3,
+       "max": 495.4,
+       "perSecond": 209.9,
+       "errors": 0,
+       "seconds": 1.9,
+       "walMaxMB": 4.1,
+       "checkpoint": {
+        "mode": "inside commits (wal_autocheckpoint=1000)"
+       }
+      }
+     ]
+    },
+    "settle50": [
+     {
+      "clients": 50,
+      "n": 400,
+      "p50": 192.9,
+      "p95": 222.3,
+      "p99": 398.2,
+      "max": 408.5,
+      "perSecond": 249.5,
+      "errors": 0,
+      "seconds": 1.6
+     },
+     {
+      "clients": 50,
+      "n": 400,
+      "p50": 200.6,
+      "p95": 218.4,
+      "p99": 396.6,
+      "max": 410.7,
+      "perSecond": 245.9,
+      "errors": 0,
+      "seconds": 1.6
+     }
+    ],
+    "changeFeedMs": {
+     "p50": 2.2,
+     "p95": 29.1
+    },
+    "olderDayLoad": {
+     "date": "2025-06-19",
+     "bills": 1000,
+     "ms": 60387
+    },
+    "fullExport": {
+     "status": 200,
+     "MB": 290.4,
+     "seconds": 64.5,
+     "peakRssMB": 355.9
+    },
+    "reconciliation": {
+     "acknowledgedBills": 4000,
+     "acknowledgedLost": 0,
+     "duplicateNumbers": 0,
+     "duplicateIds": 0,
+     "integrity": "ok",
+     "billsAfter": 369000,
+     "pass": true
+    }
+   },
+   "seconds": 712.0
+  },
+  "W4 memory budgets (process caps)": {
+   "2GB": {
+    "start": 7.7,
+    "load": 200,
+    "loadMB": 34.3,
+    "saves200": 200,
+    "fullExport": 200,
+    "fullExportMB": 290.4,
+    "memoryMB": 257.5,
+    "alive": true
+   },
+   "4GB": {
+    "start": 7.2,
+    "load": 200,
+    "loadMB": 34.3,
+    "saves200": 200,
+    "fullExport": 200,
+    "fullExportMB": 290.4,
+    "memoryMB": 253.0,
+    "alive": true
+   },
+   "pass": true,
+   "migrationUnderCaps": {
+    "100k bills, 2 GB cap": {
+     "status": "MIGRATED",
+     "message": "All checks passed. The counter now uses setu.sqlite; setu-db.json was left untouched.",
+     "serverStarted": true,
+     "seconds": 104.1,
+     "jsonStillInCharge": false
+    },
+    "365k bills, 2 GB cap": {
+     "status": "FAILED",
+     "message": "Migration stopped: MemoryError(). The program keeps using setu-db.json.",
+     "serverStarted": true,
+     "seconds": 223.9,
+     "jsonStillInCharge": true
+    },
+    "365k bills, 4 GB cap": {
+     "status": "MIGRATED",
+     "message": "All checks passed. The counter now uses setu.sqlite; setu-db.json was left untouched.",
+     "serverStarted": true,
+     "seconds": 396.0,
+     "jsonStillInCharge": false
+    }
+   },
+   "seconds": 860.5
+  },
+  "W5 power cut during saves": {
+   "pass": true,
+   "acknowledged": 2597,
+   "lost": 0,
+   "stored": 2598,
+   "orphanItems": 0,
+   "integrity": "ok",
+   "restartSeconds": 5.3,
+   "seconds": 23.6
+  },
+  "W6 backup and restore": {
+   "pass": true,
+   "backupFile": "setu-2026-11-05.sqlite.gz",
+   "backupMB": 5.5,
+   "restore": {
+    "bills": 14000,
+    "integrity": "ok"
+   },
+   "restoreSeconds": 0.4,
+   "fullExport": {
+    "status": 200,
+    "MB": 12.3,
+    "seconds": 1.9,
+    "bills": 16598
+   },
+   "seconds": 9.1
+  },
+  "W7 printers": {
+   "list": 200,
+   "printers": [
+    "Microsoft Print to PDF"
+   ],
+   "default": "Microsoft Print to PDF",
+   "rawJob": 200,
+   "rawResult": {
+    "ok": true
+   },
+   "pass": true,
+   "note": "CI runners have no receipt printer; a RAW job to a virtual printer only shows the Windows print path works.",
+   "seconds": 7.2
+  }
+ },
+ "allPass": true
+}

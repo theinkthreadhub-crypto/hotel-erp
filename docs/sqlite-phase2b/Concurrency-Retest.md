@@ -120,6 +120,12 @@
    - No second-long stall in those runs; the write log still grew to 566 MB.
    - Source: GitHub Actions run 41952979136, job log (the artifact upload failed: the account's artifact storage quota is full).
 
+6. **Windows, final configuration** (run 41955424422, commit \`11a4d7a\`: checkpoints in commits, backup waits for a quiet counter; 8 GB Windows Server VM; 2 runs per level at 10k / 100k / 365k):
+   - 0 errors.
+   - **No second-long stall in any run.**
+   - The write log stayed at 4.1 MB.
+   - At 365k: P95 100.6 / 107.5 ms at 20 clients, 242.2 / 250.8 ms at 50, 474.3 / 477.3 ms at 100; settle 50 P95 222 / 218 ms.
+
 ## Decision
 
 - **Checkpoints:** inside commits (SQLite's own; `SETU_CHECKPOINT=commit`, the default again). It was faster, and the log stays bounded. Background checkpoints stay available but are not recommended.
