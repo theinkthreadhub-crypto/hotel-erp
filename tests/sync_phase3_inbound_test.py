@@ -145,7 +145,7 @@ class TestPhase34InboundSync(unittest.TestCase):
             self.assertIsNotNone(k_row)
             self.assertEqual(k_row[2], '4')
             self.assertEqual(k_row[3], 'Dine-In')
-            self.assertEqual(k_row[4], 'pending')
+            self.assertEqual(k_row[4], 'new')  # KDS initial status (pending is staged QR, not accepted KOT)
             k_extra = json.loads(k_row[5])
             self.assertEqual(k_extra['src'], 'qr')
             self.assertEqual(k_extra['qr'], 'g_ord_001')
