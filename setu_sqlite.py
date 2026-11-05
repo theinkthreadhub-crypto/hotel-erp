@@ -2176,65 +2176,63 @@ class InboundSyncReceiver:
                           (r[0], int(time.time() * 1000)))
 
     def _apply_licence_update(self, c, payload):
-        # 1. Hotel tenant verification
-        h_id = payload.get('hotel_id')
-        if h_id and str(h_id).strip().upper() != self.hotel:
-            self.stats['errors'] += 1
-            self.stats['last_error'] = f'Licence hotel mismatch: {h_id} != {self.hotel}'
-            return
+        """Fail-closed cryptographic verification of installation-bound SETU keys."""
+        if not isinstance(payload, dict):
+            raise InboundApplyError("INVALID_LICENCE_PAYLOAD")
+        h_id = str(payload.get('hotel_id', '')).strip().upper()
+        if h_id != self.hotel:
+            raise InboundApplyError("LICENCE_HOTEL_MISMATCH")
 
-        # 2. Installation ID check (if present)
-        inst_id = payload.get('install_id')
-        if inst_id:
-            row = c.execute("SELECT v FROM hotel_settings WHERE k = 'settings'").fetchone()
-            if row and row[0]:
-                try:
-                    local_inst = json.loads(row[0]).get('installId')
-                    if local_inst and local_inst != inst_id:
-                        self.stats['errors'] += 1
-                        self.stats['last_error'] = f'Licence install_id mismatch: {inst_id} != {local_inst}'
-                        return
-                except Exception:
-                    pass
+        row = c.execute("SELECT v FROM hotel_settings WHERE k = 'settings'").fetchone()
+        try:
+            local_settings = json.loads(row[0]) if row and row[0] else {}
+        except (ValueError, TypeError) as exc:
+            raise InboundApplyError("LICENCE_INSTALL_SETTINGS_INVALID") from exc
+        install_id = str(local_settings.get('installId') or '')
+        if len(install_id) < 8:
+            raise InboundApplyError("LICENCE_INSTALL_ID_MISSING")
+        cloud_inst = str(payload.get('install_id') or '')
+        if cloud_inst and cloud_inst.upper() != install_id.upper():
+            raise InboundApplyError("LICENCE_INSTALL_ID_MISMATCH")
 
-        # 3. Forged / invalid signature check
-        sig = str(payload.get('signature', ''))
-        if sig.startswith('forged') or sig.startswith('invalid'):
-            self.stats['errors'] += 1
-            self.stats['last_error'] = 'Invalid or forged licence signature rejected'
-            return
+        key = str(payload.get('key') or '')
+        try:
+            licence = verify_signed_license(
+                key, install_id,
+                public_keys=getattr(self, 'license_public_keys', TRUSTED_PUBLIC_KEYS)
+            )
+        except InvalidLicence as exc:
+            raise InboundApplyError("INVALID_SIGNED_LICENCE: " + str(exc)) from exc
 
-        # 4. Anti-downgrade check
         row = c.execute("SELECT v FROM hotel_settings WHERE k = 'subscription'").fetchone()
-        cur_sub = json.loads(row[0]) if row and row[0] else {}
-        if cur_sub.get('isLifetime') and not payload.get('lifetime'):
-            self.stats['errors'] += 1
-            self.stats['last_error'] = 'Cannot downgrade lifetime licence'
-            return
+        try:
+            cur_sub = json.loads(row[0]) if row and row[0] else {}
+        except (ValueError, TypeError) as exc:
+            raise InboundApplyError("LICENCE_SUBSCRIPTION_CORRUPT") from exc
 
-        # 5. Apply valid licence update
+        if bool(payload.get('lifetime')) and not licence['lifetime']:
+            raise InboundApplyError("UNSIGNED_LIFETIME_CLAIM")
+        if cur_sub.get('isLifetime') and not licence['lifetime']:
+            raise InboundApplyError("LICENCE_LIFETIME_DOWNGRADE")
+
+        keys = list(cur_sub.get('cloudKeys') or [])
+        if key in keys:
+            return  # Duplicate delivery cannot activate/extend the same key twice.
+
         new_sub = dict(cur_sub)
-        new_sub['planName'] = payload.get('plan', new_sub.get('planName', 'active'))
-        if payload.get('lifetime'):
-            new_sub['isLifetime'] = True
-            new_sub['status'] = 'lifetime'
-            new_sub['validUntil'] = '2099-12-31'
+        new_sub['planName'] = str(payload.get('plan') or cur_sub.get('planName') or 'active')[:80]
+        if licence['lifetime']:
+            new_sub.update({'isLifetime': True, 'status': 'lifetime', 'validUntil': '2099-12-31'})
         else:
-            paid_until = payload.get('paid_until')
-            if isinstance(paid_until, (int, float)):
-                dt = datetime.fromtimestamp(paid_until / 1000.0)
-                new_sub['validUntil'] = dt.strftime('%Y-%m-%d')
-            elif isinstance(paid_until, str):
-                new_sub['validUntil'] = paid_until.split('T')[0]
+            signed_until = datetime.fromtimestamp(
+                licence['valid_until_ms'] / 1000, timezone.utc
+            ).strftime('%Y-%m-%d')
+            prev = str(cur_sub.get('validUntil') or '')
+            # Never shorten a previously confirmed valid subscription.
+            new_sub['validUntil'] = max(prev, signed_until) if len(prev) == 10 else signed_until
             new_sub['status'] = 'active'
-
-        k = payload.get('key')
-        if k:
-            keys = new_sub.get('cloudKeys', [])
-            if k not in keys:
-                keys.append(k)
-            new_sub['cloudKeys'] = keys
-
+        keys.append(key)
+        new_sub['cloudKeys'] = keys
         c.execute("""
             INSERT INTO hotel_settings (k, v) VALUES ('subscription', ?)
             ON CONFLICT(k) DO UPDATE SET v = excluded.v
