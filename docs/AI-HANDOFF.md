@@ -88,3 +88,29 @@ Next: validate QR review/approval UI and physical KOT printer, real Windows clie
 
 ### Next exact task
 Phase 3.5c: validate real browser QR approval UX on Windows and phone, test physical bill/KOT printers, isolated live Wrangler local-to-counter network flow and backup/restore with historical client data. Retain the same Draft PR until all gates clear.
+
+## Phase 3.5c — Browser and offline restore QA (2026-11-05)
+
+**Branch/PR:** All edits remain in `feature/horeca-one-phase34a-safety`, [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9). The central `feature/horeca-one-phase3-cloud-sync` branch and `main` are NOT merged or deployed. Only one AI should write the branch at a time.
+
+### Implementation
+- `setu_sqlite.py.restore_backup`: now **requires expected_hotel_id**, refuses restoring onto any existing SQLite/WAL file, verifies backup using SQLite `PRAGMA integrity_check`, checks the exact tenant Hotel ID, and removes temporary files on failure. Test/demo and new-laptop restores must use a **new, empty directory**; this is not an in-place update mechanism.
+- `tests/sqlite_phase2_test.py`: existing restore test now supplies the expected Hotel ID.
+- `tests/phase35c_backup_restore_test.py`: five synthetic old-hotel upgrade/restore QA cases: legacy JSON migration → Phase 3.5 QR/KOT → online SQLite backup → offline new-folder restore; checks exact document hash, historical bills, KOTs, stock, inbound cursor, conflicts, corruption cleanup, wrong-tenant rejection and never overwriting an existing DB.
+- `tests/phase35c_browser_e2e.mjs`: **actual headless Chromium** opens the shipped HoReCa One HTML and clicks staff QR accept/reject buttons in desktop/mobile viewports. Synthetic/mock API; verifies no duplicate browser KOT, pending feedback, Kitchen Display KOT text/number and 58/80mm print-template rendering (not physical paper).
+- `.github/workflows/phase34a-safety.yml`: run restore tests on Linux AND Windows, isolated Windows EXE startup, local Wrangler, and pinned Ubuntu 24.04 Chromium browser QA.
+- `docs/phase35c-physical-qa-runbook.md`: practical hardware, low-RAM Windows, printer, guest phone, offline/online and existing-client migration test gates.
+
+### Verified CI
+- **Run 42064908710: ALL FOUR jobs SUCCESS** — (1) real Chromium desktop/mobile QA, (2) accounting and SQLite safety regressions, including new restore tests, (3) local Wrangler startup, and (4) Windows-native QR/KOT/restore tests plus EXE startup.
+- Chromium browser run logs show desktop Accept/KDS/print templates PASS and mobile Reject PASS.
+- Existing historical financial records and inbound cursor were tested using synthetic fixtures only.
+
+### IMPORTANT: NOT YET RELEASE-READY
+- Real 58/80mm USB/LAN thermal printer output, cutter, Hindi/₹ characters and failure recovery: **NOT RUN**.
+- A real phone scanning an actual QR and sending orders to a live local-Wrangler synthetic hotel: **NOT RUN**.
+- 4GB-RAM actual client hardware, older Windows compatibility, and client-specific historical backups: **NOT RUN**.
+- Full production tenant auth/network end-to-end, cloud deployment, and customer rollout: **NOT RUN**.
+- No existing hotel's `setu.sqlite`, `setu-db.json`, cloud records or credentials were used. No production sync was enabled.
+
+**Next:** Phase 3.5d should target isolated real Worker-to-counter E2E and physical printer acceptance evidence. Do NOT merge PR #9, change `main`, or deploy production until these gates are verified and the user explicitly approves.
