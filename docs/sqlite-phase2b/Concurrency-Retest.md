@@ -120,7 +120,7 @@
    - No second-long stall in those runs; the write log still grew to 566 MB.
    - Source: GitHub Actions run 41952979136, job log (the artifact upload failed: the account's artifact storage quota is full).
 
-6. **Windows, final configuration** (run 41955424422, commit \`11a4d7a\`: checkpoints in commits, backup waits for a quiet counter; 8 GB Windows Server VM; 2 runs per level at 10k / 100k / 365k):
+6. **Windows, final configuration** (run 41955424422, commit `11a4d7a`: checkpoints in commits, backup waits for a quiet counter; 8 GB Windows Server VM; 2 runs per level at 10k / 100k / 365k):
    - 0 errors.
    - **No second-long stall in any run.**
    - The write log stayed at 4.1 MB.
