@@ -68,7 +68,12 @@ class InboundSafety(unittest.TestCase):
             events = [e for e in self.events if e["seq"] > since]
             return 200, json.dumps({"ok": True, "hotel": self.hotel, "events": events})
         def ack_fn(url, path, body, headers):
-            ids = json.loads(body)["event_ids"]
+            payload = json.loads(body)
+            if path == '/api/qr/applied':
+                return 200, json.dumps({
+                    'ok': True, 'id': payload['id'], 'kot': payload['kot']
+                })
+            ids = payload["event_ids"]
             self.ack_requests.append(ids)
             if self.fail_acks:
                 self.fail_acks -= 1
