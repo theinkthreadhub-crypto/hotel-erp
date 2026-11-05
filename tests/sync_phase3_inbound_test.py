@@ -456,34 +456,42 @@ class TestPhase34InboundSync(unittest.TestCase):
 
     # 11. Licence renewal & activation update applied safely
     def test_scenario10_licence_renewal_applied(self):
+        # Generate a real signed key with an EPHEMERAL test private key.
+        # Never use a placeholder like SETU-RENEW-KEY-2027 as proof.
+        from datetime import date, timedelta
+        from phase34a_safety_test import signed_test_key
+        install_id = 'SETU-ABCD-1234'
+        key, pubkey = signed_test_key(install_id, days=30)
+        with self.store.tx() as c:
+            c.execute("INSERT INTO hotel_settings(k,v) VALUES('settings',?)",
+                      (json.dumps({'installId': install_id}),))
         renew_evt = {
-            'id': 'evt_lic_renew',
-            'seq': 1,
-            'event_type': 'licence_update',
+            'id': 'evt_lic_renew', 'seq': 1, 'event_type': 'licence_update',
             'payload': {
                 'hotel_id': self.hotel_id,
-                'key': 'SETU-RENEW-KEY-2027',
-                'plan': 'enterprise',
-                'paid_until': '2027-12-31',
-                'lifetime': False
+                'install_id': install_id,
+                'key': key, 'plan': 'enterprise', 'lifetime': False
             }
         }
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=self.feed([renew_evt]),
-            http_post_fn=self.ack_ok
+            http_get_fn=self.feed([renew_evt]), http_post_fn=self.ack_ok
         )
-        receiver.fetch_and_apply_once()
-
+        receiver.license_public_keys = (pubkey,)
+        result = receiver.fetch_and_apply_once()
+        self.assertEqual(result['status'], 'ok')
+        self.assertEqual(result['acked'], 1)
         with self.store.rlock():
-            sub_raw = self.store.con().execute("SELECT v FROM hotel_settings WHERE k = 'subscription'").fetchone()[0]
+            sub_raw = self.store.con().execute(
+                "SELECT v FROM hotel_settings WHERE k = 'subscription'"
+            ).fetchone()[0]
             sub = json.loads(sub_raw)
             self.assertEqual(sub['planName'], 'enterprise')
-            self.assertEqual(sub['validUntil'], '2027-12-31')
-            self.assertIn('SETU-RENEW-KEY-2027', sub['cloudKeys'])
+            self.assertEqual(sub['validUntil'], (date.today() + timedelta(days=31)).isoformat())
+            self.assertIn(key, sub['cloudKeys'])
 
-    # 12. Forged / mismatched licence rejected without downgrade
+
     def test_scenario11_forged_licence_rejected(self):
         # Currently active lifetime licence
         with self.store.tx() as c:
