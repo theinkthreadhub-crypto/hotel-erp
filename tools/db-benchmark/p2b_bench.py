@@ -13,6 +13,7 @@ Measures, on the real counter server (app_main.py --server):
   * change feed, older-bill pages, history totals, streamed full export (GET /api/db?full=1)
   * reconciliation after the run from the database file: every acknowledged bill present once, numbers unique,
     integrity_check ok
+--exe <path>: run the built program (Windows EXE) instead of app_main.py.
 --mode: background = checkpoints in a separate thread (Phase 2b default); commit = SQLite's own, inside commits.
 """
 import json
@@ -42,6 +43,12 @@ def pct(xs, p):
 
 
 def rss(pid):
+    if not os.path.exists('/proc'):
+        try:
+            import psutil   # Windows: pip install psutil
+            return round(psutil.Process(pid).memory_info().rss / 1048576, 1)
+        except Exception:
+            return None
     try:
         with open(f'/proc/{pid}/status') as f:
             for line in f:
@@ -91,7 +98,10 @@ if __name__ == '__main__':
     R['dbMB'] = round(os.path.getsize(os.path.join(DIR, 'setu.sqlite')) / 1048576, 1)
     env = dict(os.environ, SETU_CHECKPOINT=MODE)
     t0 = time.time()
-    srv = subprocess.Popen([sys.executable, os.path.join(ROOT, 'app_main.py'), '--server', '--port', str(PORT), '--data', DIR], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    EXE = opt('--exe', '')   # the built Windows program instead of app_main.py
+    cmd = ([EXE] if EXE else [sys.executable, os.path.join(ROOT, 'app_main.py')]) + ['--server', '--port', str(PORT), '--data', DIR]
+    R['program'] = os.path.basename(EXE) if EXE else 'app_main.py'
+    srv = subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         for _ in range(6000):
             try:
