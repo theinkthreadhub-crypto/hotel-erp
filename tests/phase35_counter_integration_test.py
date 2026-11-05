@@ -183,6 +183,51 @@ class CounterQrIntegration(unittest.TestCase):
         )
         self.assertEqual(self.counter.query('inbound-qr', {'status':'rejected'})['count'], 1)
 
+    def test_lost_cloud_kot_confirmation_retries_without_second_kot(self):
+        self.evt('qr_order', {
+            'order_id':'g_confirm_retry','table':'T3',
+            'items':[{'mid':'m1','name':'Paneer','qty':1,'price':180}]
+        })
+        self.evt('qr_status', {
+            'order_id':'g_confirm_retry','status':'accepted'
+        })
+        attempts=[]
+        def lose_first_cloud_receipt(url,path,body,headers):
+            if path == '/api/qr/applied':
+                attempts.append(json.loads(body))
+                if len(attempts)==1:
+                    return 503, json.dumps({'ok':False,'error':'temporary outage'})
+            return self.ack(url,path,body,headers)
+        r=S.InboundSyncReceiver(
+            store=self.counter, hotel=self.hotel, key='synthetic_local_key',
+            url='https://test.invalid', enabled=True,
+            http_get_fn=self.feed, http_post_fn=lose_first_cloud_receipt
+        )
+        result=r.fetch_and_apply_once()
+        self.assertEqual(result['status'],'ok',result)
+        self.assertEqual(result['applied'],2)
+        with self.counter.sdb.rlock():
+            row=self.counter.sdb.con().execute(
+                "SELECT cloud_applied_at,kot_id FROM inbound_qr_orders WHERE order_id='g_confirm_retry'"
+            ).fetchone()
+            self.assertIsNone(row[0])
+            self.assertIsNotNone(row[1])
+        self.assertEqual(len(attempts),1)
+        retry=r.fetch_and_apply_once()
+        self.assertEqual(retry['status'],'idle',retry)
+        self.assertEqual(len(attempts),2)
+        self.assertEqual(attempts[0],attempts[1])
+        with self.counter.sdb.rlock():
+            self.assertIsNotNone(self.counter.sdb.con().execute(
+                "SELECT cloud_applied_at FROM inbound_qr_orders WHERE order_id='g_confirm_retry'"
+            ).fetchone()[0])
+            self.assertEqual(self.counter.sdb.con().execute(
+                "SELECT COUNT(*) FROM kots WHERE id=?", (row[1],)
+            ).fetchone()[0],1)
+        # A third poll cannot send a duplicate cloud receipt.
+        self.assertEqual(r.fetch_and_apply_once()['status'],'idle')
+        self.assertEqual(len(attempts),2)
+
     def test_restart_preserves_original_bills_and_accepted_qr_ticket(self):
         original_bills = self.counter.bill_count()
         original_stock = self.counter.data()['stock']
