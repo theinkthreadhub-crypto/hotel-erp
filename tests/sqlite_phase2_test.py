@@ -220,7 +220,7 @@ class SqlitePhase2(unittest.TestCase):
         self.assertEqual(M.migrate(d, cutover=True)['status'], 'ALREADY_MIGRATED')
         out = os.path.join(self.tmp, 'export.json')
         M.export_json(d, out)
-        self.assertEqual(S.canonical(json.load(open(out))['data']), S.canonical(sample_doc()))
+        self.assertEqual(S.canonical(json.load(open(out, encoding='utf-8'))['data']), S.canonical(sample_doc()))
 
     def test_migration_failure_leaves_json_in_charge(self):
         d = self._folder(sample_doc())
