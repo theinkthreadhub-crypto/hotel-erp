@@ -1216,28 +1216,63 @@ class SqliteDoc:
         return {'file': dest_gz, 'bytes': size, 'sha256': h.hexdigest(), 'bills': bills, 'verified': bool(ok), 'seconds': round(time.time() - t0, 2)}
 
 
-def restore_backup(backup_gz, dest_db):
-    """Decompress a backup next to `dest_db`, check it, then move it into place (old file kept aside)."""
+def restore_backup(backup_gz, dest_db, expected_hotel_id=None):
+    """Verify and restore a backup to a *new/empty* SQLite path, offline only.
+
+    Never replace a live hotel database or WAL file. Use a new data folder,
+    verify hotel identity, and swap client paths through the offline upgrade
+    runbook only after all checks pass. No cloud or network writes are made.
+    """
+    if not expected_hotel_id:
+        # Existing test/demo copies may omit this, but real hotel restores
+        # must supply the identity to prevent accidental cross-hotel imports.
+        expected_hotel_id = None
+    if any(os.path.exists(dest_db + ext) for ext in ('', '-wal', '-shm', '.restore')):
+        raise StoreError("restore requires an empty destination; stop the counter and use a new folder")
+    parent = os.path.dirname(os.path.abspath(dest_db))
+    if not os.path.isdir(parent):
+        raise StoreError("restore destination directory does not exist")
     tmp = dest_db + '.restore'
-    with gzip.open(backup_gz, 'rb') as g, open(tmp, 'wb') as f:
-        shutil.copyfileobj(g, f)
-        f.flush()
-        os.fsync(f.fileno())
-    con = sqlite3.connect(tmp)
-    ok = con.execute('PRAGMA integrity_check').fetchone()[0]
-    bills = con.execute('SELECT COUNT(*) FROM bills').fetchone()[0]
-    con.close()
-    if ok != 'ok':
-        os.remove(tmp)
-        raise StoreError('backup failed its integrity check: ' + ok)
-    if os.path.exists(dest_db):
-        aside = dest_db + '.before-restore-' + time.strftime('%Y%m%d-%H%M%S')
-        os.replace(dest_db, aside)
-        for ext in ('-wal', '-shm'):
-            if os.path.exists(dest_db + ext):
-                os.replace(dest_db + ext, aside + ext)
-    os.replace(tmp, dest_db)
-    return {'bills': bills, 'integrity': ok}
+    try:
+        with gzip.open(backup_gz, 'rb') as g, open(tmp, 'xb') as out:
+            shutil.copyfileobj(g, out)
+            out.flush()
+            os.fsync(out.fileno())
+        # Do not trust a backup simply because it can be decompressed.
+        con = sqlite3.connect(f'file:{tmp}?mode=ro', uri=True)
+        try:
+            integrity = con.execute('PRAGMA integrity_check').fetchone()[0]
+            if integrity != 'ok':
+                raise StoreError('backup failed its integrity check: ' + str(integrity))
+            hotel_row = con.execute(
+                "SELECT value FROM meta WHERE key='hotel_id'"
+            ).fetchone()
+            # schema uses meta(k,v); support the actual installed layout below
+        except sqlite3.OperationalError as exc:
+            if 'no such column' not in str(exc):
+                raise
+            hotel_row = con.execute(
+                "SELECT v FROM meta WHERE k='hotel_id'"
+            ).fetchone()
+        finally:
+            con.close()
+
+        con = sqlite3.connect(f'file:{tmp}?mode=ro', uri=True)
+        try:
+            bills = con.execute('SELECT COUNT(*) FROM bills').fetchone()[0]
+            hotel = str(hotel_row[0] or '').strip().upper() if hotel_row else ''
+        finally:
+            con.close()
+        if expected_hotel_id and hotel != str(expected_hotel_id).strip().upper():
+            raise StoreError('backup Hotel ID does not match intended installation')
+        if not hotel:
+            raise StoreError('backup missing Hotel ID; unsafe to restore')
+        os.replace(tmp, dest_db)
+        return {'bills': bills, 'integrity': 'ok', 'hotel_id': hotel}
+    except Exception:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
 
 
 def norm_ph(p):
