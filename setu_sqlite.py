@@ -1951,14 +1951,27 @@ class InboundSyncReceiver:
         return True
 
     def get_last_applied_seq(self):
-        with self.store.rlock():
-            row = self.store.con().execute("SELECT COALESCE(MAX(seq), 0) FROM inbound_events_applied").fetchone()
-            return row[0] if row else 0
+        """Durable contiguous cursor, not MAX(seq): never hide missing events."""
+        with self.store.tx() as c:
+            row = c.execute("SELECT seq FROM inbound_cursor_state WHERE name = 'inbound'").fetchone()
+            if row:
+                return int(row[0])
+            expected = 1
+            # One-time migration for Phase 3.4 databases; stop at first gap.
+            for (seq,) in c.execute("SELECT seq FROM inbound_events_applied ORDER BY seq ASC"):
+                if int(seq) != expected:
+                    break
+                expected += 1
+            cursor = expected - 1
+            c.execute("INSERT OR IGNORE INTO inbound_cursor_state(name,seq) VALUES('inbound',?)", (cursor,))
+            return cursor
 
     def get_pending_qr_count(self):
         with self.store.rlock():
-            row = self.store.con().execute("SELECT COUNT(*) FROM kots WHERE status = 'pending' AND extra LIKE ?", ('%"src": "qr"%',)).fetchone()
-            return row[0] if row else 0
+            row = self.store.con().execute(
+                "SELECT COUNT(*) FROM inbound_qr_orders WHERE status = 'pending'"
+            ).fetchone()
+            return int(row[0]) if row else 0
 
     def get_pending_licence_count(self):
         with self.store.rlock():
