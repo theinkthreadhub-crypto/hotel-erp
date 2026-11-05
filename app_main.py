@@ -1798,7 +1798,7 @@ class SqliteSetuStore(SetuStore):
         with self.sdb.tx() as c:
             self.sdb.record_conflict(c, k, rid, reason, kept=kept, other=other, device=device, now=now)
 
-    def start_cloud_sync(self, url, hotel, key, enabled=True, batch_size=50, poll_interval=5.0):
+    def start_cloud_sync(self, url, hotel, key, enabled=False, batch_size=50, poll_interval=5.0):
         if getattr(self, 'dispatcher', None):
             self.dispatcher.stop()
         self.dispatcher = SQ.OutboxSyncDispatcher(
