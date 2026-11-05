@@ -18,6 +18,10 @@
  *   S7  the same requests delivered again (whole-database upload replayed, bill settle x5)
  *   S8  routine upload that leaves out existing bills / vouchers (old copy or bug) must not delete them
  *   S9  restore: cashier forced restore refused; Manager restore works, is logged and audited
+ *
+ * SQLITE=1 (with SETU_STORAGE=sqlite, Phase 2b): the counter keeps SQLite; devices save with /api/ops and read
+ * /api/changes. Checks read the full server data (?from=0000-00-00). S7 / S8 use the incremental save, and every
+ * page request is counted: a page must never send a whole-data save (POST /api/db) in this mode.
  */
 const { spawn } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path');
@@ -32,6 +36,8 @@ const U = `http://127.0.0.1:${PORT}`;
 const HOTEL = 'BENCH' + path.basename(POOL).replace(/^data-/, ''), OWNER_PW = 'Bench@Owner2026', MGR_PIN = '739146', CASHIER_PIN = '520000';
 const HOLD_MS = +(process.env.HOLD_MS || 2500);
 const KIDS = [];
+const SQLITE = process.env.SQLITE === '1';
+const NET = { wholeSaves: 0, fullLoads: 0, opsSaves: 0, changeFeeds: 0, opsBytes: 0, wholeBytes: 0 };
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const addDays = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 const START = '2025-01-06', LAST = addDays(START, ndays - 1);
@@ -60,6 +66,22 @@ function build(){
   }
   out.audit = out.audit.slice(-20000);
   out.seq = { ...(pool.seq || {}), bill: no, kot: kno };
+  if(process.env.CUSTOMERS === '1'){
+    // Customers: every 4th bill has one of 300 mobile numbers, a name, loyalty points; some are paid from the wallet
+    // (wallet top-ups on the first day), some Zomato / Swiggy, some cancelled
+    out.bills.forEach((b, i) => {
+      if(i % 4) return;
+      const c = (i / 4) % 300, ph = '98' + String(10000000 + c * 7919).slice(-8);
+      Object.assign(b, { phone: (c % 5 === 0 ? '+91 ' : '') + ph, cust: c % 3 ? 'Customer ' + c : '', ptsEarned: Math.floor((+b.total || 0) / 100), ptsUsed: i % 40 === 0 ? 2 : 0 });
+      if(i % 52 === 0){ b.mode = 'Wallet'; delete b.pays; }
+      if(i % 92 === 0) b.channel = 'Zomato';
+      if(i % 120 === 0){ b.cancelled = true; b.cancelledBy = 'Owner'; }
+    });
+    for(let c = 0; c < 300; c++){
+      const ph = '98' + String(10000000 + c * 7919).slice(-8);
+      out.txns.push({ id: 'wtop-' + c, type: 'Receipt', date: START, time: '09:00', head: 'Customer Wallet Topup', desc: 'Customer ' + c, party: 'Customer ' + c, phone: ph, amount: 20000, mode: 'Cash' });
+    }
+  }
   return out;
 }
 
@@ -72,7 +94,7 @@ async function api(p, opts = {}, tok = mgrTok){
   let body = null; try{ body = JSON.parse(text); }catch(e){}
   return { status: r.status, body, text };
 }
-const serverDb = async () => (await api('/api/db')).body;
+const serverDb = async () => (await api('/api/db' + (SQLITE ? '?from=0000-00-00' : ''))).body;
 async function login(pin){ const r = await fetch(U + '/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Setu-Launch': launch }, body: JSON.stringify({ pin }) }); return (await r.json()).token; }
 
 // ---- browser device ----
@@ -93,6 +115,13 @@ async function device(ctx){
   if(!ctx.__prepared){ await prepareContext(ctx); ctx.__prepared = true; }
   const p = await ctx.newPage();
   p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); p.on('dialog', d => d.accept().catch(() => {}));
+  p.on('request', r => {
+    const u = new URL(r.url()), body = r.postData() || '';
+    if(u.pathname === '/api/db' && r.method() === 'POST'){ NET.wholeSaves++; NET.wholeBytes += body.length; }
+    if(u.pathname === '/api/db' && r.method() === 'GET') NET.fullLoads++;
+    if(u.pathname === '/api/ops'){ NET.opsSaves++; NET.opsBytes += body.length; }
+    if(u.pathname === '/api/changes') NET.changeFeeds++;
+  });
   await p.clock.setFixedTime(new Date(LAST + 'T13:00:00'));
   await p.goto(`${U}/hotel_erp.html#launch=${launch}`, { timeout: 600000 });
   const vis = s => p.evaluate(x => { const e = document.querySelector(x); return !!(e && e.offsetParent); }, s).catch(() => false);
@@ -148,7 +177,7 @@ async function work(p, n, tag, extra = true){
 async function netControl(p){
   const st = { offline: false, held: 0, holding: 0 };
   await p.route('**/api/**', async route => {
-    const req = route.request(), isDb = new URL(req.url()).pathname === '/api/db';
+    const req = route.request(), pth = new URL(req.url()).pathname, isDb = pth === '/api/db' || (SQLITE && pth === '/api/changes');
     if(isDb && req.method() === 'GET' && st.hold){
       st.held++; st.holding++;
       try{ const resp = await route.fetch(); const body = await resp.text(); await wait(HOLD_MS); await route.fulfill({ response: resp, body }); }
@@ -291,7 +320,80 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
       return { ...check(s, [made], before), ...(await stockCheck(A, s, q0, [made])) };
     });
   }
-  await run('S7 repeated delivery', async () => {
+  // SQLite: the page holds recent bills + the counter's totals of older ones; everything it derives must equal a full count
+  if(SQLITE && A) await run('H1 page totals with older bills on the counter = full count', async () => {
+    await synced(A); await wait(3000); await synced(A);
+    const full = (await serverDb()).data;
+    return A.evaluate(full => {
+      const real = D, eng = SRV.engine, norm = c => ({ visits: c.visits, spend: r2(c.spend), pts: c.pts, wallet: r2(c.wallet), first: c.first, last: c.last, name: c.name, fav: c.fav });
+      const win = { cust: customers(), stock: Object.fromEntries(D.stock.map(x => [x.id, r3(+x.qty || 0)])) };
+      const phones = win.cust.map(c => c.phone);
+      win.pts = phones.map(ptsBal); win.wallet = phones.map(walletBal);
+      D = JSON.parse(JSON.stringify(full)); SRV.engine = '';
+      stockRecalc(D);
+      const ref = { cust: customers(), stock: Object.fromEntries(D.stock.map(x => [x.id, r3(+x.qty || 0)])) };
+      ref.pts = phones.map(ptsBal); ref.wallet = phones.map(walletBal);
+      D = real; SRV.engine = eng;
+      const rc = new Map(ref.cust.map(c => [c.phone, norm(c)])), bad = [];
+      win.cust.forEach(c => { if(JSON.stringify(norm(c)) !== JSON.stringify(rc.get(c.phone))) bad.push(c.phone); });
+      const stockBad = Object.keys(ref.stock).filter(k => Math.abs(ref.stock[k] - (win.stock[k] || 0)) > 0.001);
+      const ptsBad = phones.filter((p, i) => win.pts[i] !== ref.pts[i]), walBad = phones.filter((p, i) => Math.abs(win.wallet[i] - ref.wallet[i]) > 0.001);
+      return { pass: !bad.length && win.cust.length === ref.cust.length && !stockBad.length && !ptsBad.length && !walBad.length,
+        billsOnPage: D.bills.length, billsOnCounter: full.bills.length, windowFrom: SRV.win.from, customers: win.cust.length, customerMismatches: bad.length, sample: bad.slice(0, 3), detail: bad.length ? [norm(win.cust.find(c => c.phone === bad[0])), rc.get(bad[0])] : null,
+        stockMismatches: stockBad.length, loyaltyMismatches: ptsBad.length, walletMismatches: walBad.length };
+    }, full);
+  });
+  if(SQLITE && A) await run('H2 reports for older dates (loaded on request) = full data', async () => {
+    const full = (await serverDb()).data;
+    const month = START.slice(0, 7), day = addDays(START, 3);
+    // Open the older dates the way the screens do; the page loads those bills from the counter, then draws again
+    await A.evaluate(([m, d]) => { monthData(m); listDate = d; billListRows(); daybookData(d, d); }, [month, day]);
+    await A.waitForFunction(() => !HIST.busy, null, { timeout: 120000, polling: 100 });
+    await A.evaluate(([m, d]) => { monthData(m); daybookData(d, d); }, [month, day]);
+    await A.waitForFunction(() => !HIST.busy, null, { timeout: 120000, polling: 100 });
+    return A.evaluate(([full, m, d]) => {
+      const pick = () => ({ month: JSON.stringify(monthData(m)), gst: JSON.stringify(gstMonth(m)), list: billListRows().map(b => b.id).join(','), day: JSON.stringify(daybookData(d, d)) });
+      const got = pick(), real = D, eng = SRV.engine;
+      D = JSON.parse(JSON.stringify(full)); SRV.engine = '';
+      const ref = pick();
+      D = real; SRV.engine = eng;
+      const diff = Object.keys(ref).filter(k => got[k] !== ref[k]);
+      return { pass: !diff.length && HIST.n > 0, month: m, day: d, olderBillsLoaded: HIST.n, differing: diff, billsOnPage: D.bills.length };
+    }, [full, month, day]);
+  });
+  if(SQLITE) await run('S7 repeated delivery (incremental save)', async () => {
+    const before = await snapshot();
+    const s0 = await serverDb();
+    const t = s0.data.stock[0], op = { bv: s0.version, id: 'replay-' + label, ops: [{ k: 'txns', up: [{ id: 'rep-tx-' + label, type: 'Expense', date: LAST, head: 'Milk', amount: 120, mode: 'Cash' }] }] };
+    const r1 = await api('/api/ops', { method: 'POST', body: JSON.stringify(op) }), r2 = await api('/api/ops', { method: 'POST', body: JSON.stringify(op) });
+    const whole = await api('/api/db', { method: 'POST', body: JSON.stringify({ baseVersion: s0.version, force: false, data: s0.data }) });
+    const id = `rep-${label}`, bill = { id, table: '', channel: 'Takeaway', mode: 'UPI', items: [{ mid: 'mnu1', name: 'Dish 2', price: 100, qty: 1 }], sub: 100, tax: 5, total: 105, date: LAST, time: '14:00', used: [] };
+    const sts = await Promise.all(Array.from({ length: 5 }, () => api('/api/bill/settle', { method: 'POST', body: JSON.stringify({ idemKey: 'idem-' + id, bill }) })));
+    const s = await serverDb();
+    const r = check(s, [{ bills: [{ id }], txns: ['rep-tx-' + label], moves: [] }], before);
+    const copies = s.data.bills.filter(b => b.idemKey === 'idem-' + id).length, txCopies = s.data.txns.filter(x => x.id === 'rep-tx-' + label).length;
+    return { ...r, firstSave: r1.status, replayed: r2.status, replayFlag: !!(r2.body || {}).repeat, sameVersion: (r1.body || {}).version === (r2.body || {}).version,
+      wholeDataSave: whole.status, settleStatuses: sts.map(x => x.status), copiesOfRepeatedBill: copies, voucherCopies: txCopies, stockItem: t.id,
+      pass: r.pass && r1.status === 200 && r2.status === 200 && (r2.body || {}).repeat === true && whole.status === 426 && copies === 1 && txCopies === 1 };
+  });
+  if(SQLITE) await run('S8 saves that try to drop or overwrite confirmed records', async () => {
+    const s0 = await serverDb(), before = { billIds: s0.data.bills.map(b => b.id) };
+    const drop = s0.data.bills.slice(-5).map(b => b.id), dropTx = s0.data.txns.slice(-3).map(t => t.id);
+    const b0 = s0.data.bills[s0.data.bills.length - 6];
+    // a cashier device removing bills / vouchers, and changing a confirmed bill's amount and mode
+    const rc = await api('/api/ops', { method: 'POST', body: JSON.stringify({ bv: s0.version, ops: [{ k: 'bills', rm: drop, up: [{ ...b0, total: 1, mode: 'Card', items: [] }], prev: { [b0.id]: b0 } }, { k: 'txns', rm: dropTx }] }) }, cashTok);
+    // a Manager device with an old copy of a bill that was cancelled meanwhile cannot un-cancel it
+    const canc = s0.data.bills.find(b => b.cancelled);
+    const rm = canc ? await api('/api/ops', { method: 'POST', body: JSON.stringify({ bv: s0.version, ops: [{ k: 'bills', up: [{ ...canc, cancelled: false }], prev: { [canc.id]: canc } }] }) }) : { status: 0 };
+    const s = await serverDb(), ids = new Map(s.data.bills.map(b => [b.id, b])), tx = new Set(s.data.txns.map(t => t.id));
+    const b0n = ids.get(b0.id);
+    const r = { cashierSave: rc.status, managerSave: rm.status, billsDeleted: drop.filter(id => !ids.has(id)).length, vouchersDeleted: dropTx.filter(id => !tx.has(id)).length,
+      confirmedBillChanged: !b0n || b0n.total !== b0.total || b0n.mode !== b0.mode || JSON.stringify(b0n.items) !== JSON.stringify(b0.items),
+      unCancelled: canc ? !(ids.get(canc.id) || {}).cancelled : false, preexistingBillsLost: before.billIds.filter(id => !ids.has(id)).length };
+    r.pass = !r.billsDeleted && !r.vouchersDeleted && !r.preexistingBillsLost && !r.confirmedBillChanged && !r.unCancelled;
+    return r;
+  });
+  if(!SQLITE) await run('S7 repeated delivery', async () => {
     const before = await snapshot();
     const s0 = await serverDb();
     const body = JSON.stringify({ baseVersion: s0.version, force: false, data: s0.data });
@@ -303,7 +405,7 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
     const copies = s.data.bills.filter(b => b.idemKey === 'idem-' + id).length;
     return { ...r, firstUpload: r1.status, replayedUpload: r2.status, settleStatuses: sts.map(x => x.status), copiesOfRepeatedBill: copies, pass: r.pass && r2.status === 409 && copies === 1 };
   });
-  await run('S8 upload that leaves records out', async () => {
+  if(!SQLITE) await run('S8 upload that leaves records out', async () => {
     const s0 = await serverDb(), before = { billIds: s0.data.bills.map(b => b.id) };
     const drop = s0.data.bills.slice(-5).map(b => b.id), dropTx = s0.data.txns.slice(-3).map(t => t.id);
     const data = { ...s0.data, bills: s0.data.bills.filter(b => !drop.includes(b.id)), txns: s0.data.txns.filter(t => !dropTx.includes(t.id)) };
@@ -332,6 +434,14 @@ const snapshot = async () => { const s = await serverDb(); return { billIds: s.d
     r.pass = rc.status === 403 && rm.status === 200 && r.restoredBills === r.backupBills && r.logged && r.audited;
     return r;
   });
+  R.network = { ...NET };
+  if(SQLITE){
+    const st = (await api('/api/q/status')).body || {};
+    R.serverStats = st.stats; R.serverRssMB = st.rssMB;
+    // The page never sends the whole data in SQLite mode
+    // legacyFullSaves = 1: the one whole-data upload S7 sends on purpose (refused with 426)
+    R.scenarios['N1 no whole-data save from pages'] = { pass: NET.wholeSaves === 0 && (st.stats || {}).legacyFullSaves === 1, pageWholeSaves: NET.wholeSaves, serverRefusedWholeSaves: (st.stats || {}).legacyFullSaves, opsSaves: NET.opsSaves };
+  }
   R.allPass = Object.values(R.scenarios).every(s => s.pass);
   R.serverLogTail = fs.readFileSync(path.join(DIR, 'setu-server.log'), 'utf8').split('\n').filter(l => /Kept confirmed|RESTORE|SAVE FAILED/.test(l)).slice(-6);
   fs.writeFileSync(path.join(path.resolve(OUT), `p0-${label}.json`), JSON.stringify(R, null, 1));

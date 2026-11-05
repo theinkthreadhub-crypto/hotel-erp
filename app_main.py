@@ -1487,7 +1487,9 @@ def _bill_part(b):
     """What one bill adds to the history totals (same rules as SqliteDoc.history_totals)."""
     if not isinstance(b, dict):
         return None
-    out = {'date': str(b.get('date') or ''), 'stock': {}, 'p': None}
+    tot = b.get('total')
+    sale = SQ.MONEY(tot) if isinstance(tot, (int, float)) and not isinstance(tot, bool) and not b.get('cancelled') else (0 if not b.get('cancelled') else None)
+    out = {'date': str(b.get('date') or ''), 'stock': {}, 'p': None, 'sale': sale}
     if b.get('mv'):
         for u in b.get('used') or []:
             if isinstance(u, dict):
@@ -1538,6 +1540,7 @@ class SqliteSetuStore(SetuStore):
         self._hist_lock = threading.Lock()
         self.stats = {'opsSaves': 0, 'opsRecords': 0, 'legacyFullSaves': 0, 'restores': 0, 'windowLoads': 0, 'fullExports': 0, 'changeFeeds': 0, 'changeReloads': 0}
         super().__init__(data_dir)
+        self.sdb.start_checkpointer()
         threading.Thread(target=self._warm_hist, daemon=True).start()
 
     # ---------- memory: the working data only ----------
@@ -1603,9 +1606,16 @@ class SqliteSetuStore(SetuStore):
         except (TypeError, ValueError):
             return 35
 
-    def window_from(self, days=None):
+    def window_from(self, days=None, today=None):
+        """First day of the recent-bills window. `today` = the device's date (its screens use its own clock)."""
         days = days or self.hist_days()
-        return time.strftime('%Y-%m-%d', time.localtime(time.time() - (days - 1) * 86400))
+        base = time.time()
+        if today:
+            try:
+                base = time.mktime(time.strptime(today, '%Y-%m-%d')) + 43200
+            except ValueError:
+                pass
+        return time.strftime('%Y-%m-%d', time.localtime(base - (days - 1) * 86400))
 
     def _warm_hist(self):
         try:
@@ -1631,8 +1641,8 @@ class SqliteSetuStore(SetuStore):
             if not old:
                 break
         with self._hist_lock:
-            for k in [x for x in self._hist if x != frm]:
-                self._hist.pop(k, None)   # one window at a time (the date moves once a day)
+            for k in sorted(x for x in self._hist if x != frm)[:-2]:
+                self._hist.pop(k, None)   # at most 3 windows kept (the date moves once a day; devices' clocks differ)
             self._hist.setdefault(frm, h)
             return self._hist[frm]
 
@@ -1648,6 +1658,12 @@ class SqliteSetuStore(SetuStore):
                         continue
                     for sid, q in part['stock'].items():
                         h['stock'][sid] = h['stock'].get(sid, 0) + sign * q
+                    if part['sale'] is not None:
+                        dd = h.setdefault('days', {}).setdefault(part['date'], [0, 0])
+                        dd[0] += sign
+                        dd[1] += sign * part['sale']
+                        if dd[0] <= 0:
+                            h['days'].pop(part['date'], None)
                     if part['p']:
                         phones.add(part['p']['phone'])
                 was = bool(old) and str(old.get('date') or '') < frm
@@ -2275,7 +2291,7 @@ class SqliteSetuStore(SetuStore):
             lim = max(1, min(int(q.get('limit', 2000) or 2000), 5000))
             after = int(q.get('after', -1) or -1)
             n, rows, last = self.sdb.bill_page(frm, to, after, lim)
-            return {'count': n, 'after': last, 'rows': rows, 'more': len(rows) == lim}
+            return {'count': n, 'after': last, 'rows': rows, 'more': len(rows) == lim, 'ptsAt': self._pts_at(rows)}
         if name == 'hist':
             frm = q.get('from') or self.window_from()
             if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', frm):
@@ -2283,6 +2299,29 @@ class SqliteSetuStore(SetuStore):
             return {'histRev': self._hist_rev, 'hist': self.hist(frm)}
         with self.sdb.rlock():
             return self._query(name, q)
+
+    def _pts_at(self, rows):
+        """Loyalty balance right after each bill (the app's ptsBalAt: same customer, not cancelled, number <= this one),
+        for older bills a device loads (their earlier bills are not on the device)."""
+        out, cache = {}, {}
+        with self.sdb.reader() as c:
+            for b in rows:
+                if not (b.get('ptsEarned') or b.get('ptsUsed')):
+                    continue
+                p = SQ.norm_ph(b.get('phone'))
+                if len(p) != 10:
+                    continue
+                if p not in cache:
+                    lst = []
+                    for no, extra, canc, ph in c.execute('SELECT no, extra, is_cancelled, phone FROM bills WHERE phone LIKE ?', ('%' + p,)):
+                        if canc or SQ.norm_ph(ph) != p:
+                            continue
+                        ex = json.loads(extra) if extra and extra != '{}' else {}
+                        lst.append((SQ.jsnum(no), SQ.jsnum(ex.get('ptsEarned')) - SQ.jsnum(ex.get('ptsUsed'))))
+                    cache[p] = lst
+                no = SQ.jsnum(b.get('no'))
+                out[b['id']] = sum(v for n, v in cache[p] if n <= no)
+        return out
 
     def _query(self, name, q):
         con = self.sdb.con()
@@ -2294,7 +2333,8 @@ class SqliteSetuStore(SetuStore):
             return [dict(zip(cols, r)) for r in con.execute(sql, args)]
         if name == 'bill':
             ids = [x for x in str(q.get('id') or '').split(',') if x][:200]
-            return {'rows': list(self.sdb.get_records(con, 'bills', ids).values())}
+            rows_ = list(self.sdb.get_records(con, 'bills', ids).values())
+            return {'rows': rows_, 'ptsAt': self._pts_at(rows_)}
         if name == 'bill-find':
             # Bill number, mobile or customer name, newest first (older bills not loaded on the device)
             s = str(q.get('q') or '').strip()
@@ -2306,7 +2346,8 @@ class SqliteSetuStore(SetuStore):
                 sql, args = 'WHERE id IN (SELECT id FROM bills WHERE phone LIKE ? ORDER BY ord DESC LIMIT 50)', ('%' + s[-10:],)
             else:
                 sql, args = 'WHERE id IN (SELECT id FROM bills WHERE cust LIKE ? ORDER BY ord DESC LIMIT 50)', ('%' + s.replace('%', '') + '%',)
-            return {'rows': self.sdb._export_rows(con, SQ.SPEC_BY_KEY['bills'], sql, args)}
+            rows_ = self.sdb._export_rows(con, SQ.SPEC_BY_KEY['bills'], sql, args)
+            return {'rows': rows_, 'ptsAt': self._pts_at(rows_)}
         if name == 'bills':
             cols = ['id', 'no', 'date', 'time', 'table', 'channel', 'mode', 'total', 'cancelled', 'phone']
             out = rows('SELECT id, no, date, time, "table", channel, mode, total, is_cancelled, phone FROM bills WHERE date BETWEEN ? AND ? ORDER BY date DESC, ord DESC LIMIT ? OFFSET ?', (frm, to, lim, off), cols)
@@ -2343,6 +2384,7 @@ class SqliteSetuStore(SetuStore):
             return {'engine': 'sqlite', 'file': os.path.basename(p), 'dbBytes': size(p), 'walBytes': size(p + '-wal'), 'version': self.version,
                     'schema': self.sdb.meta('schema_version'), 'hotel': self.sdb.meta('hotel_id'), 'outboxPending': con.execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at IS NULL').fetchone()[0],
                     'window': {'from': self.window_from(), 'days': self.hist_days()}, 'stats': dict(self.stats), 'rssMB': rss_mb(),
+                    'checkpoint': dict(getattr(self.sdb, 'ckpt_stats', None) or {'mode': 'inside commits (wal_autocheckpoint=1000)'}),
                     'backups': rows('SELECT file, at, bytes, bills, verified, note FROM backup_manifest ORDER BY at DESC LIMIT 10', (), ['file', 'at', 'bytes', 'bills', 'verified', 'note']),
                     'cloudSync': self.sync_blocked}
         return None
@@ -3285,6 +3327,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     frm = qs.get('from') or None
                     if frm and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', frm):
                         return self.send_json(400, {'error': 'from must be YYYY-MM-DD'})
+                    if not frm and re.fullmatch(r'\d{4}-\d{2}-\d{2}', qs.get('today') or ''):
+                        frm = store.window_from(today=qs['today'])
                     body = store.db_payload(frm)       # recent bills + totals of older ones; billing is not paused
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -4323,6 +4367,27 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(400, {'error': 'bad request'})
                 status_code, resp = store.settle_bill(body)
                 return self.send_json(status_code, resp)
+            if path == '/api/backup/save':
+                # SQLite engine, main counter: the whole data (every bill) as a JSON backup in Downloads\Setu, written in parts
+                if not hasattr(store, 'write_full_json'):
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                if not self.counter_ok() and self.role() != 'local':
+                    return self.send_json(403, {'error': 'main counter only'})
+                try:
+                    body = self.read_json()
+                except Exception:
+                    body = {}
+                name = str((body or {}).get('name') or 'setu-backup.json')
+                try:
+                    path = user_file_path(name if name.endswith('.json') else name + '.json')
+                    with open(path + '.part', 'w', encoding='utf-8') as f:
+                        store.write_full_json(f, public=True)
+                    os.replace(path + '.part', path)
+                    store.log(f'Full JSON backup saved to {path}')
+                    return self.send_json(200, {'ok': True, 'path': path})
+                except Exception as e:
+                    store.log(f'FULL BACKUP FAILED: {e!r}')
+                    return self.send_json(500, {'error': str(e)})
             if path == '/api/ops':
                 # SQLite engine: a device saves only what changed (records, map entries, small values), one transaction
                 if getattr(store, 'engine', '') != 'sqlite':
@@ -4841,6 +4906,20 @@ def main():
                 time.sleep(3600)
         except KeyboardInterrupt:
             return
+
+
+def user_file_path(name):
+    """A free file name in Downloads\\Setu (never overwrites)."""
+    name = ''.join(c for c in os.path.basename(name) if c.isalnum() or c in '._- ()').strip(' .') or 'setu-file.txt'
+    home = os.path.expanduser('~')
+    root = next((d for d in (os.path.join(home, 'Downloads'), os.path.join(home, 'Documents')) if os.path.isdir(d)), home)
+    folder = os.path.join(root, 'Setu')
+    os.makedirs(folder, exist_ok=True)
+    stem, ext = os.path.splitext(name)
+    path, n = os.path.join(folder, name), 2
+    while os.path.exists(path):
+        path, n = os.path.join(folder, f'{stem} ({n}){ext}'), n + 1
+    return path
 
 
 def save_user_file(name, text):   # text: str, or bytes (PDF)

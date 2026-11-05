@@ -292,10 +292,80 @@ class SqliteDoc:
             c.execute('PRAGMA synchronous=FULL')        # financial records: a commit is on disk before we answer
             c.execute('PRAGMA foreign_keys=ON')
             c.execute('PRAGMA busy_timeout=30000')
-            c.execute('PRAGMA wal_autocheckpoint=1000')
+            # Checkpoints (copying the write log back into the database file): inside a commit every 1,000 pages
+            # (SQLite's default), or - SETU_CHECKPOINT=background - by a separate thread so no bill waits for one.
+            # Durability is the same either way: every commit is flushed to the log (synchronous=FULL).
+            c.execute('PRAGMA wal_autocheckpoint=1000')   # the server's start_checkpointer() turns this off
             c.execute('PRAGMA cache_size=-65536')       # 64 MB page cache
             self._con = c
         return c
+
+    @staticmethod
+    def _bg_ckpt():
+        return os.environ.get('SETU_CHECKPOINT', 'background') == 'background'
+
+    def start_checkpointer(self, every=1.0, wal_mb=16, idle_truncate=30):
+        """Background checkpoints on an own connection: PASSIVE (never blocks a writer) when the log passes `wal_mb`
+        or every 30 s; TRUNCATE (shrinks the log file) after `idle_truncate` s without a commit."""
+        if not self._bg_ckpt() or getattr(self, '_ckpt', None):
+            return
+        with self.wlock:
+            self.con().execute('PRAGMA wal_autocheckpoint=0')
+        self.ckpt_stats = {'mode': 'background', 'runs': 0, 'pages': 0, 'busy': 0, 'maxMs': 0, 'totalMs': 0, 'truncates': 0, 'lastAt': 0, 'error': ''}
+        self._ckpt = threading.Thread(target=self._ckpt_loop, args=(every, wal_mb, idle_truncate), daemon=True)
+        self._ckpt.start()
+
+    def _ckpt_loop(self, every, wal_mb, idle_truncate):
+        wal = self.path + '-wal'
+        c = None
+        last_run, last_size, quiet_since, truncated = time.time(), -1, time.time(), False
+        try:
+            c = sqlite3.connect(self.path, timeout=5, isolation_level=None, check_same_thread=False)
+            c.execute('PRAGMA busy_timeout=5000')
+            while not getattr(self, '_ckpt_stop', False):
+                time.sleep(every)
+                try:
+                    size = os.path.getsize(wal) if os.path.exists(wal) else 0
+                except OSError:
+                    continue
+                now = time.time()
+                if size != last_size:
+                    quiet_since, truncated, last_size = now, False, size
+                mode = None
+                if size > wal_mb * 1048576 or (size and now - last_run > 30):
+                    mode = 'PASSIVE'
+                elif size and not truncated and now - quiet_since > idle_truncate:
+                    mode = 'TRUNCATE'
+                if not mode:
+                    continue
+                t0 = time.perf_counter()
+                busy, log_pages, done = c.execute(f'PRAGMA wal_checkpoint({mode})').fetchone()
+                ms = (time.perf_counter() - t0) * 1000
+                st = self.ckpt_stats
+                st['runs'] += 1
+                st['pages'] += max(0, done or 0)
+                st['busy'] += 1 if busy else 0
+                st['maxMs'] = round(max(st['maxMs'], ms), 1)
+                st['totalMs'] = round(st['totalMs'] + ms, 1)
+                st['lastAt'] = int(now * 1000)
+                if mode == 'TRUNCATE' and not busy:
+                    st['truncates'] += 1
+                    truncated = True
+                last_run = now
+        except Exception as e:
+            # Never leave the log growing: fall back to SQLite's own checkpoints
+            self.ckpt_stats['error'] = repr(e)[:200]
+            try:
+                with self.wlock:
+                    self.con().execute('PRAGMA wal_autocheckpoint=1000')
+            except Exception:
+                pass
+        finally:
+            if c is not None:
+                c.close()
+
+    def stop_checkpointer(self):
+        self._ckpt_stop = True
 
     def rlock(self):
         return self.wlock
@@ -351,6 +421,7 @@ class SqliteDoc:
         return r[0] if r else None
 
     def close(self):
+        self.stop_checkpointer()
         with self.wlock:            # never while another thread is using the shared connection
             c = getattr(self, '_con', None)
             if c is not None:
@@ -885,7 +956,11 @@ class SqliteDoc:
             stock = {sid: q for sid, q in c.execute("SELECT sid, SUM(qty) FROM stock_movements WHERE source IN ('sale', 'cancel') AND date < ? GROUP BY sid", (frm,))}
             n = c.execute('SELECT COUNT(*) FROM bills WHERE date < ?', (frm,)).fetchone()[0]
             cust = self._cust_totals(c, frm)
-        return {'from': frm, 'bills': n, 'stock': stock, 'cust': cust}
+            # Sales per day (not cancelled), for charts of older months: [bills, total in paise]
+            days = {d: [k, p or 0] for d, k, p in c.execute('SELECT date, COUNT(*), SUM(total_p) FROM bills WHERE date < ? AND is_cancelled = 0 GROUP BY date', (frm,)) if d}
+            # Last day each dish was sold (Slow Movers report)
+            item_last = {nm: d for nm, d in c.execute('SELECT i.name, MAX(b.date) FROM bill_items i JOIN bills b ON b.id = i.bill_id WHERE b.date < ? AND b.is_cancelled = 0 GROUP BY i.name', (frm,)) if nm}
+        return {'from': frm, 'bills': n, 'stock': stock, 'cust': cust, 'days': days, 'itemLast': item_last}
 
     def cust_totals(self, frm, phones):
         """history_totals()['cust'] for some customers only (10-digit numbers), recounted from the tables."""
@@ -925,13 +1000,13 @@ class SqliteDoc:
             e['last'] = date
             e['pts'] += pts
         for phone_, iname, qty in c.execute(f"""SELECT b.phone, i.name, i.qty FROM bill_items i JOIN bills b ON b.id = i.bill_id
-                WHERE b.date < ? {flt.replace('phone', 'b.phone')} AND b.is_cancelled = 0 AND COALESCE(b.phone, '') <> '' AND COALESCE(b.channel, '') NOT IN ('Zomato', 'Swiggy')""", args):
+                WHERE b.date < ? {flt.replace('phone', 'b.phone')} AND b.is_cancelled = 0 AND COALESCE(b.phone, '') <> '' AND COALESCE(b.channel, '') NOT IN ('Zomato', 'Swiggy')
+                ORDER BY b.ord, i.line""", args):
             e = cust.get(norm_ph(phone_))
             if e is not None and iname:
                 e['fav'][iname] = e['fav'].get(iname, 0) + (jsnum(qty) or 1)
-        for e in cust.values():
-            if len(e['fav']) > 20:
-                e['fav'] = dict(sorted(e['fav'].items(), key=lambda kv: -kv[1])[:20])
+        # Every dish a customer ordered, in first-ordered order (no cap: a cap changes which dish is the favourite
+        # once recent orders are added; the app breaks ties by that order)
         return cust
 
     # ---- stock ----

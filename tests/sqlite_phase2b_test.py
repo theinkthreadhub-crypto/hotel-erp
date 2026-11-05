@@ -329,6 +329,8 @@ class OpsEngine(unittest.TestCase):
         fresh = self.store.sdb.history_totals(frm)
         self.assertEqual({k: round(v, 6) for k, v in kept['stock'].items()}, {k: round(v, 6) for k, v in fresh['stock'].items()})
         self.assertEqual(S.canonical(kept['cust']), S.canonical(fresh['cust']))
+        self.assertEqual(kept['days'], fresh['days'])
+        self.assertEqual(kept['bills'], fresh['bills'])
 
     # ---- whole-data exports stay complete without holding history in memory ----
     def test_streamed_full_export_equals_database(self):

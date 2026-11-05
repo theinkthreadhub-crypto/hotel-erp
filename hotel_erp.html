@@ -5526,7 +5526,7 @@ function idbRun(work){
     };
   });
 }
-const pendPut = (mine, edits) => idbRun(s => s.put({id: pendKey(), mine, base: SRV.baseText || '', version: SRV.version, edits, at: Date.now()}));
+const pendPut = (mine, edits, mode) => idbRun(s => s.put({id: pendKey(), mine, base: SRV.baseText || '', version: SRV.version, edits, at: Date.now(), ...(mode ? {mode} : {})}));
 const pendGet = () => idbRun(s => s.get(pendKey()));
 const pendDel = () => idbRun(s => s.delete(pendKey()));
 
@@ -5814,7 +5814,17 @@ async function srvLoad(text){
   const j = JSON.parse(text);
   SRV.version = j.version;
   SRV.base = JSON.parse(text).data;
-  SRV.baseText = text;   // kept with unsynced edits so a restart can merge them properly (pendPut)
+  // SQLite counter: recent bills only, totals of the older ones, how each key is stored (incremental saves)
+  const m = j.meta;
+  if(m && m.engine === 'sqlite'){
+    Object.assign(SRV, {engine: 'sqlite', win: m.win, kinds: m.kinds || {}, hist: m.hist || null, histRev: m.histRev, baseText: ''});
+    // This object holds recent bills only (ensureGrowth works out stock on it before it becomes D)
+    if(isPlainObj(j.data)) Object.defineProperty(j.data, '__win', {value: true, enumerable: false});
+  } else {
+    SRV.engine = '';
+    SRV.win = null;
+    SRV.baseText = text;   // kept with unsynced edits so a restart can merge them properly (pendPut)
+  }
   return j;
 }
 
@@ -5830,7 +5840,8 @@ async function srvInitData(){
     return false;
   }
   let r;
-  try{ r = await srvFetch('/api/db'); }catch(e){ srvStatus(false); return false; }
+  // ?today: a SQLite counter sends the bills of the recent days by this device's date (other servers ignore it)
+  try{ r = await srvFetch('/api/db?today=' + today()); }catch(e){ srvStatus(false); return false; }
   if(r.status === 401){
     if(!activeUser){
       $('#login-screen').style.display = 'flex';
@@ -5875,6 +5886,29 @@ async function srvRecoverPending(server){
   let p;
   try{ p = await pendGet(); }catch(e){ return; }
   if(!p || !p.mine) return;
+  if(SRV.engine === 'sqlite'){
+    // SQLite counter: send the saved operations again (same id: the counter applies them once), or, for a
+    // copy kept by an older version of this page, only the changes it had made to its own server copy
+    try{
+      let body;
+      if(p.mode === 'ops') body = p.mine;
+      else{
+        const mine = JSON.parse(p.mine), base = p.base ? JSON.parse(p.base).data : {};
+        const ops = buildOps(base, mine).map(({texts, ...o}) => o);
+        if(!ops.length){ pendDel().catch(() => {}); return; }
+        body = JSON.stringify({bv: -1, id: 'rec-' + uid(), ops});
+      }
+      const r = await srvFetch('/api/ops', {method: 'POST', body});
+      if(!r.ok) throw new Error('HTTP ' + r.status);
+      pendDel().catch(() => {});
+      await srvReloadWindow();
+      logError(`Recovered unsynced changes from ${new Date(p.at).toLocaleString()}`, 'Offline safety copy (IndexedDB)', 'Sent to the Main Counter again.');
+      setTimeout(() => toast('Unsynced changes from the last session were recovered and saved on the Main Counter.'), 900);
+    }catch(e){
+      logError('Unsynced changes could not be sent again', 'Offline safety copy (IndexedDB)', e.message + ' — kept on this device; retried at the next start.');
+    }
+    return;
+  }
   try{
     const mine = JSON.parse(p.mine), base = p.base ? JSON.parse(p.base).data : null;
     const before = (D.bills || []).length;
@@ -5896,6 +5930,11 @@ async function srvPush(){
   SRV.busy = true;
   try{
     for(let attempt = 0; attempt < 6 && SRV.dirty; attempt++){
+      // SQLite counter: only what changed (a restore still sends the whole data once)
+      if(SRV.engine === 'sqlite' && !SRV.forceNext && SRV.base){
+        if(await srvPushOps() === 'stop') return;
+        continue;
+      }
       const edits = SRV.edits, snapshot = JSON.stringify(D), force = SRV.forceNext;
       // Durable on this device first: the upload below may fail, the page may close or the PC may crash
       try{ await pendPut(snapshot, edits); durableNote(edits, 'local'); }
@@ -5910,11 +5949,14 @@ async function srvPush(){
         SRV.base = JSON.parse(snapshot);
         SRV.baseText = `{"version":${j.version},"data":${snapshot}}`;
         SRV.forceNext = false;
+        SRV.okEdits = Math.max(SRV.okEdits || 0, edits);
         durableNote(edits, 'server');
         if(SRV.edits === edits){
           SRV.dirty = false;
           pendDel().catch(() => {});
         }
+        // SQLite counter after a restore: load recent bills again (this device keeps no full history)
+        if(SRV.engine === 'sqlite'){ setTimeout(() => srvReloadWindow().catch(() => {}), 300); }
         SRV.blocked = false;
         SRV.signup = false;
         // The server added its own parts (plan config, license keys): pull them in
@@ -5971,6 +6013,7 @@ async function srvPush(){
 }
 
 async function srvPoll(){
+  if(SRV.engine === 'sqlite') return srvPollOps();
   if(!SRV.on || SRV.busy || SRV.dirty || !activeUser || !SRV.token) return;
   // Anything saved on this device after the poll started (a bill, a purchase, a cancellation) must never be
   // replaced by the server copy that was downloaded meanwhile: the push merges it instead (409 -> merge3)
@@ -6046,6 +6089,339 @@ function setupCloudHotel(j, pass){
 
 function srvStartPolling(){
   if(!SRV.pollTimer) SRV.pollTimer = setInterval(srvPoll, 2500);
+}
+
+/* ================= SQLITE COUNTER (Phase 2b): incremental saves, recent bills, older history on request =================
+   When the Main Counter keeps its data in SQLite (GET /api/db says engine "sqlite"):
+   * A save sends only what changed since the last confirmed copy (POST /api/ops): records of lists, entries of maps,
+     small values. One transaction on the counter; the answer comes after the data is on its disk.
+   * Devices load the bills of the last days (settings: histDays, default 35) and totals of the older ones
+     (stock sold, loyalty, wallet, customers, sales per day). Screens for older dates load those bills when opened.
+   * Other devices' changes arrive as changes only (GET /api/changes), never the whole data. */
+const OPS_MAX = 4000;                 // records per request (larger saves go in parts)
+const HIST_MAX = 120000;              // older bills loaded on one device at most (memory)
+const HIST = {ranges: [], busy: null, n: 0, ptsAt: {}};
+const histOn = () => SRV.engine === 'sqlite' && !!SRV.win;
+const inWin = b => !histOn() || String((b && b.date) || '') >= SRV.win.from;
+const histCust = p => (histOn() && SRV.hist && SRV.hist.cust && SRV.hist.cust[p]) || null;
+const recId = x => isPlainObj(x) && typeof x.id === 'string' && x.id ? x.id : '';
+const okIds = v => Array.isArray(v) && v.every(recId) && new Set(v.map(recId)).size === v.length;
+
+function opsShape(k, v, bv){
+  if(k === 'staff' || k === 'seq' || k === 'secure') return 'set';
+  const kind = (SRV.kinds || {})[k];
+  if((kind === 'spec' || kind === 'extlist' || (!kind && Array.isArray(v) && v.length)) && okIds(v) && (bv === undefined || okIds(bv))) return 'rec';
+  if((kind === 'maptable' || kind === 'kvmap' || kind === 'att') && isPlainObj(v) && (bv === undefined || isPlainObj(bv))) return 'map';
+  return 'set';
+}
+// Everything that differs between the last confirmed copy (SRV.base) and D, as typed operations
+function buildOps(base, cur){
+  const ops = [];
+  base = base || {};
+  for(const k of Object.keys(cur)){
+    if(k === 'secure') continue;
+    const v = cur[k], bv = base[k], shape = opsShape(k, v, bv);
+    if(shape === 'rec'){
+      const bm = new Map((bv || []).map(x => [x.id, x])), up = [], prev = {}, texts = {};
+      for(const x of v){
+        const s = JSON.stringify(x), b = bm.get(x.id);
+        if(!b){ up.push(x); texts[x.id] = s; }
+        else{
+          if(opsText(b) !== s){ up.push(x); prev[x.id] = b; texts[x.id] = s; }
+          bm.delete(x.id);
+        }
+      }
+      const rm = [...bm.keys()];
+      rm.forEach(id => { prev[id] = bm.get(id); });
+      for(let i = 0; i < Math.max(up.length, rm.length ? 1 : 0); i += OPS_MAX){
+        const part = up.slice(i, i + OPS_MAX), pp = {};
+        part.forEach(x => { if(prev[x.id]) pp[x.id] = prev[x.id]; });
+        const op = {k, up: part, prev: pp, texts};
+        if(i === 0 && rm.length){ op.rm = rm; rm.forEach(id => { op.prev[id] = prev[id]; }); }
+        ops.push(op);
+      }
+    } else if(shape === 'map'){
+      const bm = bv || {}, mset = {}, mprev = {}, mdel = [];
+      for(const mk of Object.keys(v)){
+        if(!(mk in bm)) mset[mk] = v[mk];
+        else if(!jeq(bm[mk], v[mk])){ mset[mk] = v[mk]; mprev[mk] = bm[mk]; }
+      }
+      for(const mk of Object.keys(bm)) if(!(mk in v)){ mdel.push(mk); mprev[mk] = bm[mk]; }
+      if(Object.keys(mset).length || mdel.length) ops.push({k, mset, mdel, mprev});
+    } else if(!(k in base) || !jeq(bv, v)){
+      ops.push(bv === undefined ? {k, set: v} : {k, set: v, prev: bv});
+    }
+  }
+  return ops;
+}
+// The confirmed copy never changes in place, so its records' text can be kept (saves time on every save)
+const OPS_TEXT = new WeakMap();
+function opsText(x){ let s = OPS_TEXT.get(x); if(s === undefined){ s = JSON.stringify(x); OPS_TEXT.set(x, s); } return s; }
+const copyOf = x => x === undefined ? undefined : JSON.parse(JSON.stringify(x));
+
+// After the counter confirmed: the confirmed copy takes what was sent
+function opsToBase(ops){
+  SRV.base = SRV.base || {};
+  for(const op of ops){
+    const k = op.k;
+    if('set' in op){ SRV.base[k] = copyOf(op.set); continue; }
+    if(op.up || op.rm){
+      const lst = Array.isArray(SRV.base[k]) ? SRV.base[k] : (SRV.base[k] = []);
+      const ix = new Map(lst.map((x, i) => [x.id, i]));
+      for(const x of op.up || []){
+        const c = JSON.parse(op.texts && op.texts[x.id] || JSON.stringify(x));
+        const i = ix.get(x.id);
+        if(i === undefined){ ix.set(x.id, lst.length); lst.push(c); } else lst[i] = c;
+      }
+      if(op.rm && op.rm.length){ const gone = new Set(op.rm); SRV.base[k] = lst.filter(x => !gone.has(x.id)); }
+      continue;
+    }
+    const m = isPlainObj(SRV.base[k]) ? SRV.base[k] : (SRV.base[k] = {});
+    Object.entries(op.mset || {}).forEach(([mk, v]) => { m[mk] = copyOf(v); });
+    (op.mdel || []).forEach(mk => { delete m[mk]; });
+  }
+}
+// Changes from the counter (its corrections to this save, or other devices' saves) go into D and the confirmed copy
+function opsApply(ops, onlyBase){
+  for(const op of ops || []){
+    const k = op.k;
+    for(const tgt of onlyBase ? [SRV.base] : [D, SRV.base]){
+      if('set' in op){ tgt[k] = copyOf(op.set); continue; }
+      if(op.up || op.rm){
+        let lst = Array.isArray(tgt[k]) ? tgt[k] : (tgt[k] = []);
+        const ix = new Map(lst.map((x, i) => [x && x.id, i]));
+        for(const x of op.up || []){
+          const i = ix.get(x.id);
+          // An older bill this device has not loaded stays on the counter (its totals come with the history)
+          if(i === undefined && k === 'bills' && !inWin(x)) continue;
+          if(i === undefined){ ix.set(x.id, lst.length); lst.push(copyOf(x)); } else lst[i] = copyOf(x);
+        }
+        if(op.rm && op.rm.length){ const gone = new Set(op.rm); tgt[k] = lst.filter(x => !(x && gone.has(x.id))); }
+        continue;
+      }
+      const m = isPlainObj(tgt[k]) ? tgt[k] : (tgt[k] = {});
+      Object.entries(op.mset || {}).forEach(([mk, v]) => { m[mk] = copyOf(v); });
+      (op.mdel || []).forEach(mk => { delete m[mk]; });
+    }
+  }
+}
+
+async function srvPushOps(){
+  const edits = SRV.edits;
+  const ops = buildOps(SRV.base, D);
+  if(!ops.length){
+    SRV.okEdits = edits;
+    durableNote(edits, 'server');
+    if(SRV.edits === edits){ SRV.dirty = false; pendDel().catch(() => {}); }
+    return 'ok';
+  }
+  const wire = ops.map(({texts, ...o}) => o);
+  const id = 'op-' + uid();
+  // Durable on this device first: the request below may fail, the page may close or the PC may crash
+  try{ await pendPut(JSON.stringify({ops: wire, bv: SRV.version, id}), edits, 'ops'); durableNote(edits, 'local'); }
+  catch(e){ logError('Unsaved changes could not be kept on this device', 'Offline safety copy (IndexedDB)', e.message); }
+  const usedElev = SRV.elev && SRV.elev.exp > Date.now() ? SRV.elev.id : '';
+  // One request per part (a very large import goes in parts; each part is all-or-nothing on the counter)
+  const parts = [];
+  let cur = [], n = 0;
+  for(const o of ops){
+    const c = (o.up ? o.up.length : 0) + (o.rm ? o.rm.length : 0);
+    if(cur.length && n + c > OPS_MAX){ parts.push(cur); cur = []; n = 0; }
+    cur.push(o); n += c;
+  }
+  if(cur.length) parts.push(cur);
+  for(let i = 0; i < parts.length; i++){
+    const body = JSON.stringify({bv: SRV.version, id: parts.length > 1 ? id + '-' + i : id, ops: parts[i].map(({texts, ...o}) => o)});
+    const r = await srvFetch('/api/ops', {method: 'POST', body});
+    if(r.status === 401){ showConnectScreen(); return 'stop'; }
+    if(r.status === 403 && SRV.readOnly){ SRV.dirty = false; return 'stop'; }
+    if(!r.ok){
+      const j = await r.json().catch(() => ({}));
+      if(r.status === 400 || r.status === 413){
+        // The counter refused this save as malformed: keep it on this device and tell the user (a retry would loop)
+        logError('The Main Counter refused a save', 'Main Counter sync (save)', (j.error || 'HTTP ' + r.status) + ' — the change is kept on this device.');
+        SRV.refused = (SRV.refused || 0) + 1;
+        if(SRV.refused > 3){ setBillTxnStatus('unconfirmed', 'A change could not be saved on the Main Counter. Open Error Log (2).'); return 'stop'; }
+      }
+      throw new Error(j.error || 'HTTP ' + r.status);
+    }
+    SRV.refused = 0;
+    const j = await r.json();
+    opsToBase(parts[i]);
+    if(j.fix && j.fix.length) opsApply(j.fix);
+    if(j.renumbered) Object.entries(j.renumbered).forEach(([bid, no]) => { if(!bid.startsWith('kot:')) toast(`Bill saved as #${no}: its first number was already used on another device.`); });
+    if(j.dup && Object.keys(j.dup).length) toast('This sale was already settled on another device. The stored bill is shown.');
+    if(j.blocked && j.blocked.length) toast('Some changes need a Manager login and were not saved.');
+    if(j.fix && j.fix.length){ try{ stockRecalc(D); }catch(e){} srvRefreshScreen(); }
+  }
+  if(usedElev && SRV.elev && SRV.elev.id === usedElev) SRV.elev = null;   // the counter used up the approval
+  SRV.okEdits = Math.max(SRV.okEdits || 0, edits);
+  SRV.forceNext = false;
+  durableNote(edits, 'server');
+  if(SRV.edits === edits){ SRV.dirty = false; pendDel().catch(() => {}); }
+  SRV.blocked = false;
+  srvStatus(true);
+  if(billTxnStatus === 'unconfirmed') setBillTxnStatus('saved', 'Saved on the Main Counter');
+  setTimeout(srvPoll, 60);
+  return 'ok';
+}
+
+// Wait until everything changed so far is on the counter's disk (bill settle waits for this). false = not confirmed.
+function srvFlush(ms){
+  const target = SRV.edits;
+  clearTimeout(SRV.timer);
+  srvPush();
+  return new Promise(res => {
+    const t0 = Date.now();
+    (function wait(){
+      if((SRV.okEdits || 0) >= target) return res(true);
+      if(Date.now() - t0 > ms) return res(false);
+      setTimeout(wait, 30);
+    })();
+  });
+}
+
+async function srvPollOps(){
+  if(!SRV.on || SRV.busy || SRV.dirty || !activeUser || !SRV.token) return;
+  const edits0 = SRV.edits, changedHere = () => SRV.busy || SRV.dirty || SRV.edits !== edits0;
+  try{
+    const r = await srvFetch('/api/version');
+    if(r.status === 401){
+      if(activeUser){ activeUser = null; showConnectScreen('Your session has expired. Please sign in again.'); }
+      return;
+    }
+    const v = await r.json();
+    SRV.blocked = !!v.blocked;
+    srvStatus(true);
+    if(v.version === SRV.version || changedHere()) return;
+    const r2 = await srvFetch('/api/changes?since=' + SRV.version);
+    if(!r2.ok) throw new Error('HTTP ' + r2.status);
+    const c = await r2.json();
+    if(changedHere()) return;
+    if(c.reload){ await srvReloadWindow(); return; }
+    opsApply(c.ops);
+    SRV.version = c.version;
+    if(c.histRev !== undefined && c.histRev !== SRV.histRev) histTotalsRefresh(c.histRev);
+    try{ stockRecalc(D); }catch(e){}
+    srvRefreshScreen();
+    applyCloudKeys();
+  }catch(e){
+    if(SRV.online !== false) logError('Connection to the Main Counter lost', 'Main Counter sync (read)', e.message);
+    srvStatus(false);
+  }
+}
+
+// The counter's copy again (after a restore, or when this device was away too long): recent bills + totals
+async function srvReloadWindow(){
+  const r = await srvFetch('/api/db?today=' + today());
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  const text = await r.text();
+  if(SRV.busy || SRV.dirty) return;
+  const j = await srvLoad(text);
+  HIST.ranges = []; HIST.n = 0; HIST.ptsAt = {};
+  D = ensureGrowth(j.data);
+  srvRefreshScreen();
+  applyCloudKeys();
+}
+
+async function histTotalsRefresh(rev){
+  try{
+    const r = await srvFetch('/api/q/hist?from=' + SRV.win.from);
+    if(!r.ok) return;
+    const j = await r.json();
+    SRV.hist = j.hist;
+    SRV.histRev = j.histRev ?? rev;
+    try{ stockRecalc(D); }catch(e){}
+    srvRefreshScreen();
+  }catch(e){}
+}
+
+// ---- older bills: loaded for the dates a screen shows (reports, day book, bill list, GST, ...) ----
+function histHas(from, to){
+  if(!histOn() || !from) return true;
+  if(String(from) >= SRV.win.from) return true;
+  const hi = !to || String(to) >= SRV.win.from ? addDays(SRV.win.from, -1) : String(to);
+  return HIST.ranges.some(([a, b]) => a <= from && b >= hi);
+}
+// true = the bills of these dates are on this device; false = they are being loaded (the screen draws again)
+function histNeed(from, to){
+  if(histHas(from, to)) return true;
+  if(!HIST.busy){
+    const screen = cur;
+    HIST.busy = histLoad(String(from), String(to || today()))
+      .catch(e => { logError('Older bills could not be loaded', 'Bill history (Main Counter)', e.message); toast('Older bills could not be loaded from the Main Counter.'); })
+      .finally(() => { HIST.busy = null; if(cur === screen && SCREENS[cur] && !isModal()) SCREENS[cur](); });
+  }
+  return false;
+}
+async function histLoad(from, to){
+  const hi = to >= SRV.win.from ? addDays(SRV.win.from, -1) : to;
+  toast(`Loading bills from ${dmy(from)} to ${dmy(hi)} from the Main Counter...`);
+  let after = -1, got = [];
+  for(;;){
+    const r = await srvFetch(`/api/q/bill-range?from=${from}&to=${hi}&after=${after}&limit=2000`);
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    const j = await r.json();
+    if(HIST.n + j.count > HIST_MAX){ toast(`That range has ${j.count.toLocaleString('en-IN')} bills. Please choose a shorter range (up to ${HIST_MAX.toLocaleString('en-IN')} older bills at a time).`); return; }
+    got = got.concat(j.rows || []);
+    Object.assign(HIST.ptsAt, j.ptsAt || {});
+    after = j.after;
+    if(!j.more) break;
+  }
+  histAdd(got);
+  HIST.ranges.push([from, hi]);
+}
+// Older bills join D (and the confirmed copy, so they are never sent back unchanged), oldest first
+function histAdd(rows){
+  const have = new Set(D.bills.map(b => b.id));
+  const add = rows.filter(b => b && b.id && !have.has(b.id));
+  if(!add.length) return 0;
+  const bh = new Set((SRV.base.bills || []).map(b => b.id));
+  add.forEach(b => { if(!bh.has(b.id)) SRV.base.bills.push(copyOf(b)); });
+  const old = D.bills.filter(b => !inWin(b)).concat(add.map(copyOf));
+  old.sort((a, b) => String(a.date).localeCompare(String(b.date)) || (+a.no || 0) - (+b.no || 0));
+  D.bills = old.concat(D.bills.filter(inWin));
+  HIST.n += add.length;
+  return add.length;
+}
+// Search the counter for an older bill (number, mobile or name) and open its day
+async function histFind(q){
+  try{
+    const r = await srvFetch('/api/q/bill-find?q=' + encodeURIComponent(q));
+    const j = await r.json();
+    if(!j.rows || !j.rows.length){ toast('No bill found on the Main Counter for ' + q); return; }
+    Object.assign(HIST.ptsAt, j.ptsAt || {});
+    histAdd(j.rows);
+    listDate = j.rows[0].date;
+    go('bills');
+  }catch(e){ toast('The Main Counter could not be searched.'); }
+}
+
+// Sales before the window, per day (for charts of older months): [bills, total in paise]
+function histSales(prefix){
+  if(!histOn() || !SRV.hist || !SRV.hist.days) return 0;
+  let t = 0;
+  for(const [d, v] of Object.entries(SRV.hist.days)) if(d.startsWith(prefix)) t += v[1];
+  return t / 100;
+}
+
+// The whole data with every bill (backup): written on the counter PC, or downloaded on a Manager device
+async function backupFull(name){
+  if(/^(127\.0\.0\.1|localhost)$/.test(location.hostname)){
+    try{
+      const r = await srvFetch('/api/backup/save', {method: 'POST', body: JSON.stringify({name})});
+      const j = await r.json().catch(() => ({}));
+      if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+      toast('Backup ready. Saved: ' + j.path);
+      lsSet('setu_last_backup', String(Date.now()));
+      return;
+    }catch(e){ logError('Backup not saved', 'backupFull', e.message); toast('Backup could not be saved: ' + e.message); return; }
+  }
+  const r = await srvFetch('/api/db?full=1');
+  if(!r.ok){ toast(r.status === 403 ? 'A full backup needs a Manager login.' : 'Backup failed: HTTP ' + r.status); return; }
+  const j = await r.json();
+  saveFile(name, JSON.stringify(j.data, null, 1), 'application/json', 'Backup ready.');
+  lsSet('setu_last_backup', String(Date.now()));
 }
 
 // Setu Cloud puts a signed license key into the data for every paid cycle (and the vendor's
@@ -8216,14 +8592,19 @@ const normPh = p => { p = String(p || '').replace(/\D/g, ''); return p.length > 
 const isAggregator = ch => ch === 'Zomato' || ch === 'Swiggy';
 const daysAgo = d => Math.round((new Date(today()) - new Date(d)) / 864e5);
 
+// SQLite counter: bills before the window are counted by the counter (SRV.hist), the recent ones here
 function ptsBal(phone){
   const p = normPh(phone);
   if(p.length !== 10) return 0;
-  return D.bills.filter(b => !b.cancelled && normPh(b.phone) === p).reduce((t,b) => t + (+b.ptsEarned || 0) - (+b.ptsUsed || 0), 0);
+  const h = histCust(p);
+  return (h ? h.pa : 0) + D.bills.filter(b => inWin(b) && !b.cancelled && normPh(b.phone) === p).reduce((t,b) => t + (+b.ptsEarned || 0) - (+b.ptsUsed || 0), 0);
 }
 function ptsBalAt(b){
   const p = normPh(b.phone);
-  return D.bills.filter(x => !x.cancelled && normPh(x.phone) === p && x.no <= b.no).reduce((t,x) => t + (+x.ptsEarned || 0) - (+x.ptsUsed || 0), 0);
+  // An older bill loaded from the counter: the counter worked out its balance (its earlier bills are not here)
+  if(histOn() && !inWin(b) && HIST.ptsAt && HIST.ptsAt[b.id] !== undefined) return HIST.ptsAt[b.id];
+  const h = histOn() && inWin(b) ? histCust(p) : null;
+  return (h ? h.pa : 0) + D.bills.filter(x => (!h || inWin(x)) && !x.cancelled && normPh(x.phone) === p && x.no <= b.no).reduce((t,x) => t + (+x.ptsEarned || 0) - (+x.ptsUsed || 0), 0);
 }
 
 function customers(){
@@ -8232,7 +8613,7 @@ function customers(){
   const bills = D.bills || [];
   for(let i = 0; i < bills.length; i++){
     const b = bills[i];
-    if(!b || b.cancelled) continue;
+    if(!b || b.cancelled || !inWin(b)) continue;
     const rawPh = b.phone;
     if(!rawPh) continue;
     const p = normPh(rawPh);
@@ -8251,6 +8632,22 @@ function customers(){
     for(let j = 0; j < items.length; j++){
       const it = items[j];
       if(it && it.name) c.fav[it.name] = (c.fav[it.name] || 0) + (+it.qty || 1);
+    }
+  }
+
+  // SQLite counter: customers' older bills, counted on the counter (same rules), joined to the recent ones
+  if(histOn() && SRV.hist && SRV.hist.cust){
+    for(const [p, e] of Object.entries(SRV.hist.cust)){
+      if(e.ws) walletSpends.set(p, (walletSpends.get(p) || 0) + e.ws);
+      if(!(e.visits > 0)) continue;
+      const c = m[p];
+      if(!c){ m[p] = {phone: p, name: e.name || '', visits: e.visits, spend: e.spend, first: e.first, last: e.last, pts: e.pts, fav: {...e.fav}}; continue; }
+      c.visits += e.visits; c.spend += e.spend; c.pts += e.pts; c.first = e.first || c.first;
+      if(!c.name) c.name = e.name || '';
+      // Older dishes first: the favourite is the most ordered, ties go to the one ordered first
+      const fav = {...(e.fav || {})};
+      for(const [k, q] of Object.entries(c.fav)) fav[k] = (fav[k] || 0) + q;
+      c.fav = fav;
     }
   }
 
@@ -8400,7 +8797,8 @@ function walletBal(phone){
   const p = normPh(phone);
   if(p.length !== 10) return 0;
   const inn = sum(D.txns.filter(t => t.type === 'Receipt' && t.head === 'Customer Wallet Topup' && normPh(t.phone) === p), 'amount');
-  const out = sum(D.bills.filter(b => !b.cancelled && b.mode === 'Wallet' && normPh(b.phone) === p), 'total');
+  const h = histCust(p);
+  const out = sum(D.bills.filter(b => inWin(b) && !b.cancelled && b.mode === 'Wallet' && normPh(b.phone) === p), 'total') + (h ? h.ws : 0);
   return r2(inn - out);
 }
 
@@ -9050,6 +9448,7 @@ function cnHTML(c){
 let GST_M = '';
 // One month of GST data, built once and used by the screen, the JSON and the tests
 function gstMonth(ym){
+  histNeed(ym + '-01', ym + '-31');
   const pos = hotelStateCode(), bills = D.bills.filter(b => String(b.date).startsWith(ym)), issued = bills.slice().sort((a, b) => a.no - b.no);
   const ok = bills.filter(b => !b.cancelled && (b.scheme || 'regular') === 'regular');
   const own = ok.filter(b => !isEco(b)), eco = ok.filter(isEco);
@@ -9166,6 +9565,8 @@ function ckFind(q){
       .forEach(r => out.push(['Report', `${esc(r.title)} <span class="muted">${esc(r.desc || '').slice(0, 60)}</span>`, `go('analytics');anOpen('${r.id}')`]));
     D.bills.slice(-3000).reverse().filter(b => String(b.no) === num || has(b.cust) || (num.length >= 4 && String(b.phone || '').includes(num)) || has(b.table) && q.length > 1).slice(0, 8)
       .forEach(b => out.push(['Bill', `#${b.no} · ${dmy(b.date)} · ${esc(b.table || b.channel || '')}${b.cust ? ' · ' + esc(b.cust) : ''} · <b>${money(b.total)}</b>${b.cancelled ? ' <span class="red">Cancelled</span>' : ''}`, `dzOpen('bill:${b.id}')`]));
+    // SQLite counter: older bills are on the counter only; one line searches there (bill number, mobile or name)
+    if(histOn() && (/^\d+$/.test(num) || q.length >= 3)) out.push(['Bill', `Search older bills on the Main Counter for "${esc(q)}"`, `histFind(${JSON.stringify(num || q).replace(/"/g, '&quot;')})`]);
     D.menu.filter(m => has(m.name)).slice(0, 6).forEach(m => out.push(['Dish', `${esc(m.name)} · ${money(m.price)}`, isManager() ? `editMenu('${m.id}')` : `go('menu')`]));
     D.stock.filter(s => !s.merged && has(s.name)).slice(0, 6).forEach(s => out.push(['Stock', `${esc(s.name)} · ${fq(s.qty)} ${esc(s.unit || '')}`, isManager() ? `editStock('${s.id}')` : `go('stock')`]));
     customers().filter(c => has(c.name) || (num.length >= 4 && c.phone.includes(num))).slice(0, 5).forEach(c => out.push(['Customer', `${esc(c.name || 'Customer')} · ${esc(c.phone)} · ${c.visits} visits`, `go('customers')`]));
@@ -9410,7 +9811,7 @@ function dzData(){
   (D.bills || []).forEach(b => { if(!b.cancelled && b.date) billsByDateMap.set(b.date, (billsByDateMap.get(b.date) || 0) + (+b.total || 0)); });
   const days = n => { const o = []; for(let i = n - 1; i >= 0; i--){ const d = addDays(t, -i); o.push([d, billsByDateMap.get(d) || 0]); } return o; };
   const months = []; for(let i = 5; i >= 0; i--){ const d = new Date(t.slice(0, 7) + '-01T00:00'); d.setMonth(d.getMonth() - i); months.push(d.getFullYear() + '-' + pad(d.getMonth() + 1)); }
-  const mSales = m => sum(D.bills.filter(b => !b.cancelled && b.date.startsWith(m)), 'total');
+  const mSales = m => sum(D.bills.filter(b => inWin(b) && !b.cancelled && b.date.startsWith(m)), 'total') + histSales(m);
   const mCost = m => sum(D.txns.filter(x => x.date.startsWith(m) && (x.type === 'Purchase' || (x.type === 'Expense' && !NON_EXPENSE_HEADS.includes(x.head)))), 'amount');
   const pay = {}; s.bills.forEach(b => payParts(b).forEach(p => { pay[p.mode] = (pay[p.mode] || 0) + (+p.amt || 0); }));
   const qrn = QRS && QRS.on ? QRS.orders.filter(o => o.status === 'pending').length : 0;
@@ -10474,7 +10875,7 @@ function dashCharts(){
   const pay = {}; bills.forEach(b => payParts(b).forEach(p => { pay[p.mode] = (pay[p.mode] || 0) + (+p.amt || 0); }));
   const items = {}; bills.forEach(b => (b.items || []).forEach(i => { items[i.name] = (items[i.name] || 0) + (+i.qty || 0); }));
   const months = []; for(let i = 5; i >= 0; i--){ const d = new Date(t.slice(0, 7) + '-01T00:00'); d.setMonth(d.getMonth() - i); months.push(d.getFullYear() + '-' + pad(d.getMonth() + 1)); }
-  const mSales = k => sum(D.bills.filter(b => !b.cancelled && b.date.startsWith(k)), 'total');
+  const mSales = k => sum(D.bills.filter(b => inWin(b) && !b.cancelled && b.date.startsWith(k)), 'total') + histSales(k);
   const mCost = k => sum(D.txns.filter(x => x.date.startsWith(k) && (x.type === 'Purchase' || (x.type === 'Expense' && !NON_EXPENSE_HEADS.includes(x.head)))), 'amount');
   const tot = Object.values(day).reduce((a, v) => a + v, 0);
   return `<div class="card">
@@ -12116,6 +12517,22 @@ function finalizePakkaBill(approvedDisc){
 
   B = newB(tbl, B.channel);
   scrBill();
+  // SQLite counter: the bill counts as saved, and prints with its final number, only after the counter has
+  // written it to its disk (a number another device took meanwhile is replaced there first)
+  if(SRV.on && !SRV.readOnly && SRV.engine === 'sqlite'){
+    const id = bill.id;
+    srvFlush(8000).then(ok => {
+      const b = getBill(id) || bill;
+      if(!ok) setBillTxnStatus('unconfirmed', `Bill #${b.no} is NOT yet saved on the Main Counter. It is kept on this device; retrying.`);
+      billDone(b, st, tbl);
+    });
+    return;
+  }
+  billDone(bill, st, tbl);
+}
+
+// After a bill is settled: WhatsApp receipt, print, or the choices popup
+function billDone(bill, st, tbl){
   waAutoSend(bill);
 
   if(st.afterBill === 'none' || st.afterBill === 'print'){
@@ -12161,29 +12578,39 @@ function stockMoves(s = D){
   const out = [];
   (s.moves || []).forEach(m => out.push({...m, sid: sidOf(m.sid, s), ...(m.note === 'Shuruaat ka stock' ? {note: 'Starting stock'} : {})}));
   (s.txns || []).forEach(t => { if(t.type === 'Purchase' && t.mv && t.sid && +t.qty) out.push({id: 'p-' + t.id, date: t.date, time: t.time || '', sid: sidOf(t.sid, s), qty: +t.qty, type: 'purchase', ref: t.id, by: t.by || '', note: [t.party, t.inv && t.inv.no ? 'Inv ' + t.inv.no : ''].filter(Boolean).join(' · ')}); });
-  (s.bills || []).forEach(b => { if(!b.mv) return; (b.used || []).forEach(u => {
+  const hon = (s === D || s.__win) && histOn() && SRV.hist;
+  (s.bills || []).forEach(b => { if(!b.mv || (hon && !inWin(b))) return; (b.used || []).forEach(u => {
     const base = {date: b.date, time: b.time || '', sid: sidOf(u.sid, s), ref: b.id, by: b.by || ''};
     out.push({...base, id: 's-' + b.id + '-' + u.sid, qty: -(+u.qty || 0), type: 'sale', note: 'Bill #' + b.no});
     if(b.cancelled) out.push({...base, id: 'x-' + b.id + '-' + u.sid, qty: +u.qty || 0, type: 'cancel', note: 'Bill #' + b.no + ' cancel'});
   }); });
+  // SQLite counter: sales of the older bills, one line per item (counted on the counter from its movement ledger)
+  if(hon) Object.entries(SRV.hist.stock || {}).forEach(([sid, q]) => {
+    if(Math.abs(+q || 0) > 1e-9) out.push({id: 'hist-' + sid, date: addDays(SRV.win.from, -1), time: '23:59', sid: sidOf(sid, s), qty: r3(+q), type: 'sale', ref: '', by: '',
+      note: `Sales before ${dmy(SRV.win.from)}, net of cancellations (${(SRV.hist.bills || 0).toLocaleString('en-IN')} older bills)`});
+  });
   const ord = {open: 0};
   return out.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')) || (ord[a.type] ?? 1) - (ord[b.type] ?? 1));
 }
 // Current stock of every item = sum of its movements. Items without an opening movement get one now (their stock today).
 function stockRecalc(s = D){
   if(!s || !Array.isArray(s.stock)) return;
+  // SQLite counter without the older bills' totals yet: stock cannot be worked out here, so it is left as stored
+  if((s === D || s.__win) && histOn() && !SRV.hist) return;
   if(!Array.isArray(s.moves)) s.moves = [];
   const tot = {};
   (s.moves || []).forEach(m => { const sid = sidOf(m.sid, s); tot[sid] = (tot[sid] || 0) + (+m.qty || 0); });
   (s.txns || []).forEach(t => { if(t.type === 'Purchase' && t.mv && t.sid && +t.qty){ const sid = sidOf(t.sid, s); tot[sid] = (tot[sid] || 0) + (+t.qty || 0); } });
+  const hon = (s === D || s.__win) && histOn() && SRV.hist;
   (s.bills || []).forEach(b => {
-    if(!b.mv) return;
+    if(!b.mv || (hon && !inWin(b))) return;
     (b.used || []).forEach(u => {
       const sid = sidOf(u.sid, s);
       tot[sid] = (tot[sid] || 0) - (+u.qty || 0);
       if(b.cancelled) tot[sid] = (tot[sid] || 0) + (+u.qty || 0);
     });
   });
+  if(hon) Object.entries(SRV.hist.stock || {}).forEach(([sid, q]) => { const x = sidOf(sid, s); tot[x] = (tot[x] || 0) + (+q || 0); });
   const opened = new Set(s.moves.filter(m => m.type === 'open').map(m => m.sid));
   s.stock.forEach(x => {
     if(x.merged) return;
@@ -12689,6 +13116,7 @@ let listDate = today(), billFilterChannel = 'all', billPage = 1;
 const BILLS_PER_PAGE = 50;
 
 function scrBills(){
+  histNeed(listDate, listDate);
   let bs = D.bills.filter(b => b.date === listDate);
   if(billFilterChannel !== 'all'){
     bs = bs.filter(b => (b.channel || 'Dine-In') === billFilterChannel);
@@ -12780,6 +13208,7 @@ function scrBills(){
 
 // Bill List export: the date and channel shown on screen
 function billListRows(){
+  histNeed(listDate, listDate);
   return D.bills.filter(b => b.date === listDate && (billFilterChannel === 'all' || (b.channel || 'Dine-In') === billFilterChannel)).sort((a, b) => a.no - b.no);
 }
 function billsCSV(){
@@ -13375,6 +13804,7 @@ let dbFrom = today(), dbTo = today(), dbView = 'all';
 
 // Every voucher (bills, credit notes, cash & bank transactions) between two dates
 function daybookData(from, to, view = dbView){
+  histNeed(from, to);
   const inRange = d => d >= from && d <= to, allEntries = [];
 
   // 1. Sales Invoices
@@ -15697,6 +16127,8 @@ const appPrint = () => window.SA && SA.print ? SA.print(document.title || 'Setu'
 // app_main.py saves it in Downloads\Setu; in a browser / phone it is a normal download.
 // text may be a string or bytes (Uint8Array, e.g. a PDF).
 async function saveFile(name, text, type, msg){
+  // An export made while older bills are still arriving would leave some out
+  if(typeof HIST !== 'undefined' && HIST.busy){ toast('Older bills are still loading from the Main Counter. Please try again in a moment.'); return; }
   const bin = text instanceof Uint8Array;
   // Setu POS phone app: hand the file to Android (save to Files / send on WhatsApp, Gmail, Drive)
   if(window.SA && SA.save){
@@ -16870,7 +17302,7 @@ let stlFrom = addDays(today(), -6), stlTo = today();
 function scrSettlement(){
   const st = D.settings;
   const rows = ['Zomato', 'Swiggy'].map(ch => {
-    const bills = D.bills.filter(b => !b.cancelled && b.channel === ch && b.date >= stlFrom && b.date <= stlTo);
+    const bills = (histNeed(stlFrom, stlTo), D.bills).filter(b => !b.cancelled && b.channel === ch && b.date >= stlFrom && b.date <= stlTo);
     const gross = sum(bills, 'total'), pct = +(ch === 'Zomato' ? st.zomatoComm : st.swiggyComm) || 0;
     const comm = r2(gross * pct / 100), expected = r2(gross - comm);
     const got = sum(D.txns.filter(t => t.type === 'Receipt' && t.head === ch + ' Settlement' && t.date >= stlFrom && t.date <= stlTo), 'amount');
@@ -16921,6 +17353,7 @@ function addSettlement(ch){
 let rptFrom = today(), rptTo = today(), rptTab = 'summary';
 
 function rptBills(all){
+  histNeed(rptFrom, rptTo);
   return D.bills.filter(b => b.date >= rptFrom && b.date <= rptTo && (all || !b.cancelled));
 }
 
@@ -18446,6 +18879,7 @@ const prevMonth = m => { const d = new Date(+m.slice(0, 4), +m.slice(5, 7) - 2, 
 let mrMonth = +today().slice(8) <= 10 ? prevMonth(today().slice(0, 7)) : today().slice(0, 7);
 
 function monthData(m){
+  histNeed(m + '-01', m + '-31');
   const all = D.bills.filter(b => b.date.startsWith(m));
   const bs = all.filter(b => !b.cancelled), canc = all.filter(b => b.cancelled);
   const tx = D.txns.filter(t => t.date.startsWith(m));
@@ -18571,6 +19005,7 @@ function sendMonthly(to){
 }
 
 function monthlyRegisterCSV(){
+  if(!histNeed(mrMonth + '-01', mrMonth + '-31')) return;
   const rows = D.bills.filter(b => b.date.startsWith(mrMonth)).sort((a, b) => a.no - b.no);
   if(!rows.length){ toast('No bills this month'); return; }
   downloadCSV([['Date', 'Bill No', 'Type', 'Customer', 'Mobile', 'Channel', 'Payment Mode', 'Gross', 'Discount', 'Taxable', 'GST %', 'CGST', 'SGST', 'Round Off', 'Total', 'Status']]
@@ -18970,7 +19405,7 @@ function impSave(kind){
 
 // ----- bulk delete -----
 const DEL = {
-  bills: {label: 'Bills (sales) in a date range', dates: true, list: f => D.bills.filter(b => b.date >= f.from && b.date <= f.to && (!f.only || b.imported))},
+  bills: {label: 'Bills (sales) in a date range', dates: true, list: f => (histNeed(f.from, f.to), D.bills).filter(b => b.date >= f.from && b.date <= f.to && (!f.only || b.imported))},
   purchase: {label: 'Purchase entries in a date range', dates: true, list: f => D.txns.filter(t => t.type === 'Purchase' && t.date >= f.from && t.date <= f.to && (!f.only || t.imported))},
   expense: {label: 'Expense / payment entries in a date range', dates: true, list: f => D.txns.filter(t => t.type === 'Expense' && t.date >= f.from && t.date <= f.to && (!f.only || t.imported))},
   income: {label: 'Other income entries in a date range', dates: true, list: f => D.txns.filter(t => t.type === 'Receipt' && t.date >= f.from && t.date <= f.to && (!f.only || t.imported))},
@@ -19008,10 +19443,18 @@ async function delRun(){
     if(!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
     ref = j.ref;
   }catch(e){ toast(e.message); return; }
-  backup();
+  await backup();
   const before = DELF.keep && ['bills', 'purchase'].includes(DELF.kind) ? Object.fromEntries(D.stock.map(s => [s.id, +s.qty || 0])) : null;
   const ids = new Set(list.map(x => x.id || x.phone));
-  if(DELF.kind === 'bills') D.bills = D.bills.filter(b => !ids.has(b.id));
+  if(DELF.kind === 'bills'){
+    if(HIST.busy){ toast('Older bills are still loading. Please try again in a moment.'); return; }
+    // SQLite counter: older bills are in the counter's stock totals; take their part out here too
+    if(histOn() && SRV.hist) D.bills.filter(b => ids.has(b.id) && !inWin(b) && b.mv).forEach(b => (b.used || []).forEach(u => {
+      const q = +u.qty || 0;
+      SRV.hist.stock[u.sid] = (+SRV.hist.stock[u.sid] || 0) + q - (b.cancelled ? q : 0);
+    }));
+    D.bills = D.bills.filter(b => !ids.has(b.id));
+  }
   else if(['purchase', 'expense', 'income'].includes(DELF.kind)){
     // An invoice goes with its own payment lines so no payment is left without its bill
     const inv = new Set(list.map(t => t.inv && t.inv.id).filter(Boolean));
@@ -19469,7 +19912,7 @@ let AN = {id: '', from: today(), to: today(), q: '', sort: null, page: 0, f: {},
 const AN_CATS = [['sales', 'Sales'], ['tax', 'Tax & GST'], ['analytics', 'Analytics'], ['customers', 'Customers'], ['staff', 'Staff'],
   ['operations', 'Operations'], ['inventory', 'Inventory'], ['purchase', 'Purchase & Suppliers'], ['expenses', 'Expenses & Accounts'], ['channels', 'Channels']];
 const isEco = b => b.channel === 'Zomato' || b.channel === 'Swiggy';   // sold through an e-commerce operator
-const anBills = (all, f = AN.f) => D.bills.filter(b => b.date >= AN.from && b.date <= AN.to && (all || !b.cancelled)
+const anBills = (all, f = AN.f) => (histNeed(AN.from, AN.to), D.bills).filter(b => b.date >= AN.from && b.date <= AN.to && (all || !b.cancelled)
   && (!f.channel || (b.channel || 'Dine-In') === f.channel) && (!f.staff || (b.by || '') === f.staff)
   && (!f.mode || payParts(b).some(p => p.mode === f.mode)));
 const anTx = type => D.txns.filter(t => t.type === type && t.date >= AN.from && t.date <= AN.to);
@@ -19563,6 +20006,7 @@ const AN_REPORTS = [
       const m = {}, last = {};
       D.menu.forEach(x => { m[x.name] = {cat: x.cat || 'Other', price: pz(x.price), qty: 0, net: 0}; });
       anBills(false).forEach(b => billLines(b).forEach(l => { const x = m[l.name]; if(x){ x.qty += l.qty; x.net += l.net; } }));
+      if(histOn() && SRV.hist) Object.assign(last, SRV.hist.itemLast || {});
       D.bills.forEach(b => !b.cancelled && (b.items || []).forEach(i => { if(!last[i.name] || b.date > last[i.name]) last[i.name] = b.date; }));
       const list = Object.entries(m).sort((a, b) => a[1].qty - b[1].qty || a[1].net - b[1].net).slice(0, AN.top);
       return {cols: [C('Item'), C('Category'), C('Menu Price', 'm'), C('Qty', 'q'), C('Net Revenue', 'm'), C('Last Sold', 'd')], rows: list.map(([k, x]) => [k, x.cat, x.price, x.qty, x.net, last[k] || '']), fixed: true,
@@ -19671,6 +20115,8 @@ const AN_REPORTS = [
   {id: 'retention', cat: 'customers', title: 'Customer Retention', desc: 'New and returning customers each month.', filters: [],
     build(){
       const first = {}, m = {};
+      // SQLite counter: a customer's first visit may be older than the bills on this device
+      if(histOn() && SRV.hist) Object.entries(SRV.hist.cust || {}).forEach(([p, e]) => { if(e.visits > 0 && e.first) first[p] = e.first.slice(0, 7); });
       D.bills.filter(b => !b.cancelled && normPh(b.phone).length === 10 && !isEco(b)).sort((a, b) => a.date.localeCompare(b.date)).forEach(b => {
         const p = normPh(b.phone), mo = b.date.slice(0, 7);
         if(!first[p]) first[p] = mo;
@@ -22639,6 +23085,8 @@ function saveSettings(){
 
 function backup(){
   const name = String(D.settings.name || 'hotel').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'hotel';
+  // SQLite counter: this device has only recent bills; the full backup comes from the counter's tables
+  if(histOn()) return backupFull(`setu-backup-${name}-${today()}.json`);
   saveFile(`setu-backup-${name}-${today()}.json`, JSON.stringify(D, null, 1), 'application/json', 'Backup ready.');
   lsSet('setu_last_backup', String(Date.now()));
 }
