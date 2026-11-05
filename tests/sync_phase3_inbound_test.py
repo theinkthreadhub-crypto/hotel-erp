@@ -49,7 +49,12 @@ class TestPhase34InboundSync(unittest.TestCase):
 
     # 1. Gate 0 Parity: Exact money calculations down to the paise
     def ack_ok(self, url, path, body, headers):
-        ids = json.loads(body.decode('utf-8')).get('event_ids', [])
+        payload = json.loads(body.decode('utf-8'))
+        if path == '/api/qr/applied':
+            return 200, json.dumps({
+                'ok': True, 'id': payload['id'], 'kot': payload['kot']
+            })
+        ids = payload.get('event_ids', [])
         return 200, json.dumps({
             'ok': True, 'hotel': self.hotel_id, 'acked_ids': ids
         })
