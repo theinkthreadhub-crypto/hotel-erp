@@ -302,7 +302,9 @@ class SqliteDoc:
 
     @staticmethod
     def _bg_ckpt():
-        return os.environ.get('SETU_CHECKPOINT', 'background') == 'background'
+        # Default: SQLite's own checkpoints inside commits (measured faster at 365,000 bills: 245 vs 175 saves/s at
+        # 100 clients); background checkpoints only when asked for (SETU_CHECKPOINT=background)
+        return os.environ.get('SETU_CHECKPOINT', 'commit') == 'background'
 
     def start_checkpointer(self, every=1.0, wal_mb=16, idle_truncate=30):
         """Background checkpoints on an own connection: PASSIVE (never blocks a writer) when the log passes `wal_mb`

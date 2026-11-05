@@ -38,7 +38,8 @@ PROG_DIR = os.path.join(os.environ.get('LOCALAPPDATA', ''), 'Programs', 'Aghanya
 EXE = os.path.join(PROG_DIR, 'Aghanya-Devanya-Hotel-ERP.exe')
 PORT = 8811
 U = f'http://127.0.0.1:{PORT}'
-R = {'machine': {'cpus': os.cpu_count(), 'windows': sys.getwindowsversion()._asdict() if hasattr(sys, 'getwindowsversion') else None}, 'steps': {}}
+import platform
+R = {'machine': {'cpus': os.cpu_count(), 'os': platform.platform(), 'python': platform.python_version()}, 'steps': {}}
 try:
     import psutil
     R['machine']['ramGB'] = round(psutil.virtual_memory().total / 2 ** 30, 1)

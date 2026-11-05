@@ -1792,22 +1792,44 @@ class SqliteSetuStore(SetuStore):
             self.on_write()
         self._backup_soon()
 
-    def _backup_soon(self):
-        # One verified online backup per day, at most every 10 minutes, in the background
-        if time.time() - getattr(self, '_last_copy', 0) < 600 or getattr(self, '_backing_up', False):
-            return
-        self._last_copy = time.time()
-        self._backing_up = True
+    BACKUP_IDLE = 45          # seconds without a save before the daily backup starts
+    BACKUP_MAX_WAIT = 1800    # ... but never later than this after it became due
 
-        def run():
+    def _backup_soon(self):
+        """One verified online backup per day, at most every 10 minutes, taken when the counter is quiet.
+        A backup reads the whole file in one snapshot (about 70 s at 365,000 bills); while it runs the write log
+        cannot be folded back, and the checkpoint after it stalled saves for about a second (measured). So it waits
+        for BACKUP_IDLE seconds without a save, at most BACKUP_MAX_WAIT, then shrinks the write log."""
+        self._last_save = time.time()
+        if os.environ.get('SETU_BACKUP') == 'off':
+            return
+        if getattr(self, '_backup_due', 0) or time.time() - getattr(self, '_last_copy', 0) < 600 or getattr(self, '_backing_up', False):
+            return
+        self._backup_due = time.time()
+        if getattr(self, '_backup_thread', None) is None:
+            self._backup_thread = threading.Thread(target=self._backup_loop, daemon=True)
+            self._backup_thread.start()
+
+    def _backup_loop(self):
+        while True:
+            time.sleep(5)
+            due = getattr(self, '_backup_due', 0)
+            if not due:
+                continue
+            now = time.time()
+            if now - self._last_save < self.BACKUP_IDLE and now - due < self.BACKUP_MAX_WAIT:
+                continue
+            self._backup_due, self._backing_up, self._last_copy = 0, True, now
             try:
                 os.makedirs(self.backup_dir, exist_ok=True)
                 self.sdb.backup_to(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.sqlite.gz'), self.version, KEEP_BACKUPS)
+                self.backup_stats = {'at': int(time.time() * 1000), 'waitedSeconds': round(now - due), 'tookSeconds': round(time.time() - now, 1)}
+                with self.sdb.wlock:
+                    self.sdb.con().execute('PRAGMA wal_checkpoint(TRUNCATE)')
             except Exception as e:
                 self.log(f'SQLITE BACKUP FAILED: {e!r}')
             finally:
                 self._backing_up = False
-        threading.Thread(target=run, daemon=True).start()
 
     # ---------- incremental saves from devices (POST /api/ops) ----------
     def _cur(self, c, k, kind, ids):
@@ -2403,6 +2425,7 @@ class SqliteSetuStore(SetuStore):
                     'schema': self.sdb.meta('schema_version'), 'hotel': self.sdb.meta('hotel_id'), 'outboxPending': con.execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at IS NULL').fetchone()[0],
                     'window': {'from': self.window_from(), 'days': self.hist_days()}, 'stats': dict(self.stats), 'rssMB': rss_mb(),
                     'checkpoint': dict(getattr(self.sdb, 'ckpt_stats', None) or {'mode': 'inside commits (wal_autocheckpoint=1000)'}),
+                    'lastBackup': getattr(self, 'backup_stats', None),
                     'backups': rows('SELECT file, at, bytes, bills, verified, note FROM backup_manifest ORDER BY at DESC LIMIT 10', (), ['file', 'at', 'bytes', 'bills', 'verified', 'note']),
                     'cloudSync': self.sync_blocked}
         return None
