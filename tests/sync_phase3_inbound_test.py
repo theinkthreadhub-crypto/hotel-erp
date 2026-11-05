@@ -96,6 +96,12 @@ class TestPhase34InboundSync(unittest.TestCase):
                 'total': 540,
                 'at': int(time.time() * 1000)
             }
+        }, {
+            'id': 'evt_2_g_ord_001',
+            'seq': 2,
+            'event_type': 'qr_status',
+            'entity_id': 'g_ord_001',
+            'payload': {'order_id': 'g_ord_001', 'status': 'accepted'}
         }]
 
         acked_events = []
@@ -120,9 +126,9 @@ class TestPhase34InboundSync(unittest.TestCase):
 
         res = receiver.fetch_and_apply_once()
         self.assertEqual(res['status'], 'ok')
-        self.assertEqual(res['applied'], 1)
-        self.assertEqual(res['acked'], 1)
-        self.assertEqual(acked_events, ['evt_1_g_ord_001'])
+        self.assertEqual(res['applied'], 2)
+        self.assertEqual(res['acked'], 2)
+        self.assertEqual(acked_events, ['evt_1_g_ord_001', 'evt_2_g_ord_001'])
 
         # Verify Table Order (kaccha)
         with self.store.rlock():
@@ -167,7 +173,7 @@ class TestPhase34InboundSync(unittest.TestCase):
     # 3. Offline -> reconnect recovery in ascending sequence order
     def test_scenario2_offline_reconnect_recovery(self):
         cloud_events = [
-            {'id': f'evt_{i}_ord', 'seq': i, 'event_type': 'qr_order', 'payload': {'table': str(i), 'items': [{'mid': 'm1', 'qty': 1}]}}
+            {'id': f'evt_{i}_ord', 'seq': i, 'event_type': 'qr_order', 'payload': {'table': str(i), 'order_id': f'g_online_{i}', 'items': [{'mid': 'm1', 'qty': 1}]}}
             for i in range(1, 4)
         ]
         acked = []
@@ -216,7 +222,7 @@ class TestPhase34InboundSync(unittest.TestCase):
         acked = []
 
         def mock_get(url, path, headers):
-            return 200, json.dumps({'ok': True, 'events': [evt]})
+            return self.feed([evt])(url, path, headers)
 
         def mock_post(url, path, body, headers):
             acked.extend(json.loads(body.decode('utf-8')).get('event_ids', []))
@@ -235,10 +241,11 @@ class TestPhase34InboundSync(unittest.TestCase):
         res2 = receiver.fetch_and_apply_once()
         self.assertEqual(res2['applied'], 0)  # Deduped!
 
-        # KOT count remains exactly 1
+        # Pending QR order does not create a KOT until approval
         with self.store.rlock():
             kot_count = self.store.con().execute("SELECT COUNT(*) FROM kots WHERE \"table\" = '2'").fetchone()[0]
-            self.assertEqual(kot_count, 1)
+            self.assertEqual(kot_count, 0)
+            self.assertEqual(receiver.get_pending_qr_count(), 1)
 
     # 5. Counter crash before commit (transaction rollback)
     def test_scenario4_counter_crash_before_commit(self):
@@ -246,7 +253,7 @@ class TestPhase34InboundSync(unittest.TestCase):
             'id': 'evt_crash_before',
             'seq': 1,
             'event_type': 'qr_order',
-            'payload': {'table': '1', 'items': [{'mid': 'm1', 'qty': 1}]}
+            'payload': {'table': '1', 'order_id': 'g_crash', 'items': [{'mid': 'm1', 'qty': 1}]}
         }
 
         # Simulate exception during _apply_qr_order
@@ -281,7 +288,7 @@ class TestPhase34InboundSync(unittest.TestCase):
             'id': 'evt_crash_after',
             'seq': 1,
             'event_type': 'qr_order',
-            'payload': {'table': '3', 'items': [{'mid': 'm_soup', 'qty': 2}]}
+            'payload': {'table': '3', 'order_id': 'g_crash_after', 'items': [{'mid': 'm_soup', 'qty': 2}]}
         }
         ack_attempts = 0
 
@@ -307,13 +314,14 @@ class TestPhase34InboundSync(unittest.TestCase):
 
         # 2. Second attempt: Cloud re-sends unacked event; counter finds it applied, skips duplicate KOT, ACKs successfully
         res2 = receiver.fetch_and_apply_once()
-        self.assertEqual(res2['status'], 'ok')
+        self.assertEqual(res2['status'], 'idle')
         self.assertEqual(res2['applied'], 0)  # NOT applied again!
         self.assertEqual(res2['acked'], 1)    # ACKed!
 
         with self.store.rlock():
             kot_count = self.store.con().execute("SELECT COUNT(*) FROM kots WHERE \"table\" = '3'").fetchone()[0]
-            self.assertEqual(kot_count, 1)
+            self.assertEqual(kot_count, 0)
+            self.assertEqual(receiver.get_pending_qr_count(), 1)
 
     # 7. Lost cloud response handling
     def test_scenario6_lost_cloud_response(self):
@@ -338,7 +346,7 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver.fetch_and_apply_once()
         # Next run recovers without error
         res = receiver.fetch_and_apply_once()
-        self.assertEqual(res['status'], 'ok')
+        self.assertEqual(res['status'], 'idle')
         self.assertEqual(res['acked'], 1)
 
     # 8. Concurrent table orders (POS + Inbound QR merged safely)
@@ -361,10 +369,14 @@ class TestPhase34InboundSync(unittest.TestCase):
             }
         }
 
+        status_evt = {
+            'id': 'evt_qr_table5_accepted', 'seq': 2,
+            'event_type': 'qr_status', 'payload': {'order_id': 'g_t5', 'status': 'accepted'}
+        }
         receiver = S.InboundSyncReceiver(
             store=self.store, url='https://cloud.hotelsetu.com', hotel=self.hotel_id,
             key='sync_key', enabled=True,
-            http_get_fn=self.feed([qr_evt]),
+            http_get_fn=self.feed([qr_evt, status_evt]),
             http_post_fn=self.ack_ok
         )
 
@@ -397,10 +409,11 @@ class TestPhase34InboundSync(unittest.TestCase):
         )
         receiver.fetch_and_apply_once()
 
-        # Verify KOT is pending
+        # Awaiting staff approval: no KOT or cart lines yet
         with self.store.rlock():
-            status = self.store.con().execute("SELECT status FROM kots WHERE \"table\" = '6'").fetchone()[0]
+            status = self.store.con().execute("SELECT status FROM inbound_qr_orders WHERE order_id='g_cancel_me'").fetchone()[0]
             self.assertEqual(status, 'pending')
+            self.assertEqual(self.store.con().execute("SELECT COUNT(*) FROM kots").fetchone()[0], 0)
 
         # 2. QR Rejection / cancellation arrives
         cancel_evt = {
@@ -412,12 +425,12 @@ class TestPhase34InboundSync(unittest.TestCase):
         receiver.http_get_fn = self.feed([cancel_evt])
         receiver.fetch_and_apply_once()
 
-        # Verify KOT is now cancelled
+        # Rejected items never reached running cart or KOT.
         with self.store.rlock():
-            status = self.store.con().execute("SELECT status FROM kots WHERE \"table\" = '6'").fetchone()[0]
-            self.assertEqual(status, 'cancelled')
-            hist = self.store.con().execute("SELECT old_status, new_status FROM kot_status_history").fetchone()
-            self.assertEqual(hist, ('pending', 'cancelled'))
+            status = self.store.con().execute("SELECT status FROM inbound_qr_orders WHERE order_id='g_cancel_me'").fetchone()[0]
+            self.assertEqual(status, 'rejected')
+            self.assertEqual(self.store.con().execute("SELECT COUNT(*) FROM kots").fetchone()[0], 0)
+            self.assertIsNone(self.store.con().execute("SELECT data FROM table_orders WHERE tbl='6'").fetchone())
 
     # 10. Hotel tenant isolation (cross-hotel rejected)
     def test_scenario9_hotel_tenant_isolation(self):
@@ -434,7 +447,7 @@ class TestPhase34InboundSync(unittest.TestCase):
             http_post_fn=self.ack_ok
         )
         receiver.fetch_and_apply_once()
-        self.assertIn('Licence hotel mismatch', receiver.stats['last_error'])
+        self.assertIn('LICENCE_HOTEL_MISMATCH', receiver.stats['last_error'])
 
         # Subscription must not be modified
         with self.store.rlock():
@@ -477,6 +490,9 @@ class TestPhase34InboundSync(unittest.TestCase):
             c.execute("INSERT INTO hotel_settings (k, v) VALUES ('subscription', ?)",
                       (json.dumps({'planName': 'enterprise', 'isLifetime': True, 'status': 'lifetime', 'validUntil': '2099-12-31'}),))
 
+        with self.store.tx() as c:
+            c.execute("INSERT INTO hotel_settings(k,v) VALUES('settings',?)",
+                      (json.dumps({'installId': 'SETU-ABCD-1234'}),))
         forged_evt = {
             'id': 'evt_forged_lic',
             'seq': 1,
@@ -496,7 +512,7 @@ class TestPhase34InboundSync(unittest.TestCase):
             http_post_fn=self.ack_ok
         )
         receiver.fetch_and_apply_once()
-        self.assertIn('Invalid or forged licence', receiver.stats['last_error'])
+        self.assertIn('INVALID_SIGNED_LICENCE', receiver.stats['last_error'])
 
         # Lifetime subscription preserved untouched
         with self.store.rlock():
