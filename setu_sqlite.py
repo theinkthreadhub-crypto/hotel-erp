@@ -30,7 +30,8 @@ import threading
 import time
 import secrets
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime
+from datetime import datetime, timezone
+from horeca_license_verify import verify_signed_license, InvalidLicence, TRUSTED_PUBLIC_KEYS
 
 SCHEMA_VERSION = 4
 DB_FILE = 'setu.sqlite'
@@ -1795,6 +1796,9 @@ class OutboxSyncDispatcher:
             self.stats['state'] = 'running'
             self._thread = threading.Thread(target=self._run_loop, daemon=True, name='SetuOutboxDispatcher')
             self._thread.start()
+            safe, _ = self.is_activation_safe()
+            if safe:
+                self.inbound.start()
 
     def stop(self, timeout=5.0):
         with self._lock:
@@ -1806,6 +1810,7 @@ class OutboxSyncDispatcher:
             self.stats['state'] = 'stopped'
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=timeout)
+        self.inbound.stop(timeout=timeout)
 
     def wake(self):
         self._wake_event.set()
@@ -1847,6 +1852,11 @@ class OutboxSyncDispatcher:
 
 
 
+class InboundApplyError(ValueError):
+    """Permanent invalid inbound event: never commit or ACK."""
+    pass
+
+
 class InboundSyncReceiver:
     """
     Phase 3.4 Inbound Cloud Change Feed Sync Receiver.
@@ -1866,7 +1876,8 @@ class InboundSyncReceiver:
     def __init__(self, store, url=None, hotel=None, key=None, enabled=False,
                  batch_size=50, poll_interval=5.0, max_backoff=30.0,
                  http_get_fn=None, http_post_fn=None):
-        self.store = store
+        # SqliteSetuStore (live counter) wraps SqliteDoc (tests).
+        self.store = getattr(store, 'sdb', store)
         self.url = (url or '').rstrip('/')
         self.hotel = (hotel or '').strip().upper()
         self.key = (key or '').strip()
