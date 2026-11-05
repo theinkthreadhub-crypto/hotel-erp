@@ -2259,27 +2259,56 @@ class InboundSyncReceiver:
         if order_id not in qr_ids:
             qr_ids.append(order_id)
         order['qr'] = qr_ids
+        # Keep these two data-object keys registered so /api/db and
+        # /api/changes can export inbound mutations to all LAN devices.
+        self.store.register_key(c, 'kaccha', 'maptable')
+        self.store.register_key(c, 'kots', 'spec')
         c.execute("""
             INSERT INTO table_orders (tbl, ord, data) VALUES (?, ?, ?)
             ON CONFLICT(tbl) DO UPDATE SET data=excluded.data
         """, (tbl, now_ms, json.dumps(order)))
 
         kot_id = 'qrkot_' + hashlib.sha256(order_id.encode('utf-8')).hexdigest()[:24]
-        last_no = c.execute("SELECT COALESCE(MAX(CAST(no AS INTEGER)), 0) FROM kots").fetchone()[0]
-        kot_no = int(last_no) + 1
+        last_no = c.execute(
+            "SELECT COALESCE(MAX(CAST(no AS INTEGER)),0) FROM kots"
+        ).fetchone()[0]
+        seq_row = c.execute(
+            "SELECT n FROM sequences WHERE name = 'kot'"
+        ).fetchone()
+        try:
+            configured_kot_no = int(seq_row[0]) if seq_row else 0
+        except (TypeError, ValueError):
+            configured_kot_no = 0
+        kot_no = max(int(last_no), configured_kot_no) + 1
         now = datetime.now()
-        c.execute("""
-            INSERT INTO kots (id, ord, no, date, time, "table", channel, status, arrays, extra)
-            VALUES (?, ?, ?, ?, ?, ?, 'Dine-In', 'pending', '', ?)
-        """, (kot_id, now_ms, str(kot_no), now.strftime('%Y-%m-%d'),
-              now.strftime('%H:%M:%S'), tbl,
-              json.dumps({'src': 'qr', 'qr': order_id, 'guest_name': guest_name})))
-        for idx, it in enumerate(items):
-            c.execute("""
-                INSERT INTO kot_items (kot_id, line, mid, name, qty, extra)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (kot_id, idx, it['mid'], it['name'], it['qty'],
-                  json.dumps({'price': it['price'], 'qr_order_id': order_id})))
+        # One established serializer owns the arrays flags and child-table
+        # rows; raw INSERTs left 'arrays' empty and hid KOT items from exports.
+        self.store.upsert(c, 'kots', 'spec', {
+            'id': kot_id,
+            'no': kot_no,
+            'date': now.strftime('%Y-%m-%d'),
+            'time': now.strftime('%H:%M:%S'),
+            'table': tbl,
+            'channel': 'Dine-In',
+            'status': 'pending',
+            'items': [dict(it) for it in items],
+            'src': 'qr',
+            'qr': order_id,
+            'guest_name': guest_name
+        })
+        # Preserve the existing sequence map and keep KOT numbers unique
+        # across waiter-created and cloud-created tickets.
+        self.store.register_key(c, 'seq', 'seq')
+        if seq_row is None:
+            ord_row = c.execute(
+                "SELECT COALESCE(MAX(ord),-1)+1 FROM sequences"
+            ).fetchone()
+            c.execute(
+                "INSERT INTO sequences(name,n,t,ord) VALUES('kot',?,NULL,?)",
+                (kot_no, int(ord_row[0]))
+            )
+        else:
+            c.execute("UPDATE sequences SET n=?,t=NULL WHERE name='kot'", (kot_no,))
         c.execute("""
             UPDATE inbound_qr_orders SET status='accepted', kot_id=?, updated_at=?
             WHERE order_id=? AND status='pending'
