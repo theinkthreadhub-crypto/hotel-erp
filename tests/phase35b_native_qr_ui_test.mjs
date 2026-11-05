@@ -87,6 +87,9 @@ assert.equal(posts.length,1);
 assert.equal(posts[0].action,'accept');
 assert.equal(savedLegacy,0);
 assert.equal(vm.runInContext("QR_NATIVE_DECISIONS.has('g_native_test')",ctx),true);
+vm.runInContext('qrPanel()',ctx);
+assert(renderedModal.includes('Decision sent — awaiting counter sync'));
+assert(!renderedModal.includes('Accept & send KOT'), 'Do not offer double-accept while awaiting sync');
 assert.equal(vm.runInContext("D.kots.length",ctx),0);
 assert.equal(vm.runInContext("D.kaccha['7']",ctx),undefined);
 
