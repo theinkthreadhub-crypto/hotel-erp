@@ -133,7 +133,7 @@ class SafeClientRestore(unittest.TestCase):
             data=f.read()
         with open(bad,'wb') as f:
             f.write(data[:max(10,len(data)//4)])
-        with self.assertRaises((OSError,EOFError,Exception)):
+        with self.assertRaises((OSError, EOFError, S.StoreError)):
             S.restore_backup(bad,target,expected_hotel_id=self.hotel)
         self.assertFalse(os.path.exists(target))
         self.assertFalse(os.path.exists(target+'.restore'))
