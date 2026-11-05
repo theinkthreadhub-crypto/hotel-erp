@@ -45,4 +45,4 @@ Updated: 2026-11-05. This document tracks development handoffs between ChatGPT, 
 4. Phase 3.5 on real Windows EXE, Cloudflare Wrangler, QR order, printer, 4GB machine, backup/restore, offline/reconnect and existing-client upgrade.
 5. Final controlled release PR to `main` only after Phase 3.5 QA.
 
-**Status at handoff:** Phase 3.4 code is remote-pushed; Phase 3.4a hardening underway; no main merge or production deployment authorized.
+**Status at handoff (2026-11-05):** Phase 3.4a code is pushed to `feature/horeca-one-phase34a-safety`. Draft PR #9 tracks the changes and remaining tasks. GitHub Actions run `42020328906` passed 167 automated tests. Real Windows EXE, POS screen propagation, KOT printing, and Cloudflare Wrangler verification remain pending. No merge into the central integration branch or `main` is approved, and no production rollout is authorized.
