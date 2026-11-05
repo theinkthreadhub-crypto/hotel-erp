@@ -20,6 +20,9 @@ Not here (Phase 3): cloud incremental sync. The outbox is written so Phase 3 can
 import gzip
 import hashlib
 import json
+import random
+import urllib.request
+import urllib.error
 import os
 import shutil
 import sqlite3
@@ -972,6 +975,17 @@ class SqliteDoc:
             con.execute(f"UPDATE sync_outbox SET sent_at = ? WHERE seq IN ({q})", [int(now)] + matched)
         return len(matched)
 
+    @staticmethod
+    def record_conflict(c, k, rid, reason, kept=None, other=None, device=None, now=None):
+        if now is None:
+            now = int(time.time() * 1000)
+        kept_str = json.dumps(kept, ensure_ascii=False) if isinstance(kept, (dict, list)) else str(kept or '')
+        other_str = json.dumps(other, ensure_ascii=False) if isinstance(other, (dict, list)) else str(other or '')
+        c.execute(
+            "INSERT INTO sync_conflicts (at, k, rid, reason, kept, other, device, resolved) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+            (int(now), str(k), str(rid or ''), str(reason), kept_str, other_str, str(device or 'counter'))
+        )
+
     def changed_since(self, c, since, upto):
         """[(key, record id, version)] changed after version `since` up to `upto`, or None when the log no longer
         reaches back that far (the device then loads again)."""
@@ -1266,6 +1280,16 @@ def is_legacy_outbox(payload):
     return payload.get('envelope_version') != 1
 
 
+def _normalize_numbers(obj):
+    if isinstance(obj, float) and obj.is_integer():
+        return int(obj)
+    if isinstance(obj, dict):
+        return {k: _normalize_numbers(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_normalize_numbers(v) for v in obj]
+    return obj
+
+
 def make_sync_envelope(
     op_id,
     hotel_id,
@@ -1348,6 +1372,7 @@ def make_sync_envelope(
         'maps': clean_map,
         'values': clean_values
     }
+    payload = _normalize_numbers(payload)
 
     payload_canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
     checksum = hashlib.sha256(payload_canonical.encode('utf-8')).hexdigest()
@@ -1386,3 +1411,288 @@ def make_sync_envelope(
         }
     }
     return envelope
+
+
+
+class OutboxSyncDispatcher:
+    """
+    Phase 3.2 Reliable Background Counter-to-Cloud Sync Dispatcher.
+
+    Guarantees:
+    - Reads pending full Phase 3.0 envelopes in ascending sequence order.
+    - Never sends legacy summary-only rows as normal transactions.
+    - Sends bounded batches with timeouts over authenticated HTTPS (X-Setu-Sync / X-Setu-Hotel).
+    - Sync credentials stay strictly server-side, never exposed to clients or browser.
+    - Never holds SQLite write locks during HTTP network roundtrips.
+    - Accepts ONLY explicit, individual per-operation committed acknowledgments.
+    - Preserves unacknowledged operations across restarts and transient network failures.
+    - Quarantines permanent conflicts in sync_conflicts for Manager review without dropping payloads.
+    - Kept disabled by default; activates only when explicitly configured and safely validated.
+    """
+    def __init__(self, store, url=None, hotel=None, key=None, enabled=False,
+                 batch_size=50, poll_interval=5.0, max_backoff=30.0, http_post_fn=None):
+        self.store = store
+        self.url = (url or '').rstrip('/')
+        self.hotel = (hotel or '').strip().upper()
+        self.key = (key or '').strip()
+        self.enabled = bool(enabled)
+        self.batch_size = max(1, min(100, int(batch_size)))
+        self.poll_interval = float(poll_interval)
+        self.max_backoff = float(max_backoff)
+        self.http_post_fn = http_post_fn or self._default_http_post
+
+        self._running = False
+        self._stop_event = threading.Event()
+        self._wake_event = threading.Event()
+        self._thread = None
+        self._lock = threading.Lock()
+        self._consecutive_failures = 0
+        self.stats = {
+            'sent_batches': 0,
+            'sent_ops': 0,
+            'acked_ops': 0,
+            'conflicts': 0,
+            'errors': 0,
+            'last_sync_at': 0,
+            'last_error': '',
+            'state': 'stopped'
+        }
+
+    @staticmethod
+    def _default_http_post(url, path, body_bytes, headers, timeout=15):
+        full_url = url.rstrip('/') + path
+        req = urllib.request.Request(full_url, data=body_bytes, method='POST', headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status, resp.read().decode('utf-8')
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode('utf-8', 'replace')
+        except urllib.error.URLError as e:
+            raise OSError(f'Network connection failed: {e.reason}')
+
+    def is_activation_safe(self):
+        """
+        Activation safety check:
+        Phase 3 sync is disabled by default.
+        Allowed only for explicitly configured isolated test hotels after verifying:
+        1. Explicitly enabled (self.enabled == True)
+        2. Configured credentials (url, hotel, key)
+        3. Hotel code matches local database identity
+        4. No unresolved legacy summary outbox rows pending
+        """
+        if not self.enabled:
+            return False, 'Phase 3 cloud sync is disabled by default.'
+        if not self.url or not self.hotel or not self.key:
+            return False, 'Missing cloud sync credentials (url, hotel code, or sync key).'
+
+        sdb = getattr(self.store, 'sdb', self.store)
+        doc_hotel = sdb.meta('hotel_id')
+        if doc_hotel and doc_hotel.strip().upper() != self.hotel:
+            return False, f'Hotel identity mismatch: database belongs to {doc_hotel}, configured for {self.hotel}.'
+
+        with sdb.rlock():
+            pending_raw = sdb.con().execute("SELECT payload FROM sync_outbox WHERE sent_at IS NULL").fetchall()
+            for (p_raw,) in pending_raw:
+                if is_legacy_outbox(p_raw):
+                    return False, 'Unresolved legacy summary outbox records found. Baseline migration must be reconciled before Phase 3 activation.'
+
+        return True, 'OK'
+
+    def dispatch_once(self):
+        """
+        Executes a single non-blocking dispatch pass:
+        1. Checks activation safety.
+        2. Reads pending Phase 3 envelopes via read-only query (NO write lock held during network).
+        3. Sends batch over authenticated HTTPS.
+        4. Acknowledges ONLY confirmed operations and quarantines conflicts.
+        """
+        safe, reason = self.is_activation_safe()
+        if not safe:
+            self.stats['state'] = 'inactive'
+            self.stats['last_error'] = reason
+            return {'status': 'inactive', 'reason': reason, 'processed': 0}
+
+        sdb = getattr(self.store, 'sdb', self.store)
+
+        # 1. Read pending envelopes without holding write locks
+        with sdb.rlock():
+            pending = sdb.get_pending_outbox(sdb.con(), limit=self.batch_size, include_legacy=False)
+
+        if not pending:
+            self.stats['state'] = 'idle'
+            return {'status': 'idle', 'processed': 0}
+
+        envelopes = []
+        for item in pending:
+            p = item.get('payload')
+            if isinstance(p, dict) and p.get('envelope_version') == 1 and p.get('op_id'):
+                envelopes.append(p)
+
+        if not envelopes:
+            self.stats['state'] = 'idle'
+            return {'status': 'idle', 'processed': 0}
+
+        # 2. Build HTTP request
+        req_headers = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-Setu-Hotel': self.hotel,
+            'X-Setu-Sync': self.key,
+            'X-Setu-Caps': 'secure1',
+            'User-Agent': 'Setu-Main-Counter/1.0'
+        }
+        req_body = json.dumps({'batch': envelopes}, ensure_ascii=False).encode('utf-8')
+
+        # 3. Network roundtrip (isolated from SQLite write locks)
+        try:
+            code, text = self.http_post_fn(self.url, '/api/sync/ops', req_body, req_headers, timeout=15)
+        except Exception as e:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = str(e)
+            self.stats['state'] = 'error'
+            return {'status': 'network_error', 'error': str(e), 'processed': 0}
+
+        if code == 401:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Invalid sync credentials (HTTP 401)'
+            self.stats['state'] = 'auth_error'
+            return {'status': 'auth_error', 'http_code': 401, 'error': 'Invalid sync credentials'}
+
+        if code == 402:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Hotel account suspended or subscription expired (HTTP 402)'
+            self.stats['state'] = 'payment_required'
+            return {'status': 'payment_required', 'http_code': 402, 'error': 'Subscription expired'}
+
+        if code == 403:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Hotel tenant mismatch or forbidden (HTTP 403)'
+            self.stats['state'] = 'forbidden'
+            return {'status': 'forbidden', 'http_code': 403, 'error': 'Tenant mismatch'}
+
+        if code != 200:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = f'Cloud returned HTTP {code}: {text[:150]}'
+            self.stats['state'] = 'server_error'
+            return {'status': 'server_error', 'http_code': code, 'error': text[:150]}
+
+        # 4. Process individual acknowledgments
+        try:
+            resp_data = json.loads(text or '{}')
+        except Exception as e:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = f'Malformed JSON response from cloud: {e}'
+            return {'status': 'response_parse_error', 'error': str(e)}
+
+        results = resp_data.get('results') or {}
+        confirmed_op_ids = []
+        conflicts = []
+
+        for env in envelopes:
+            op_id = env.get('op_id')
+            op_res = results.get(op_id)
+            if op_res and op_res.get('status') == 'committed':
+                confirmed_op_ids.append(op_id)
+            elif op_res and op_res.get('status') == 'rejected':
+                err = op_res.get('error')
+                if err == 'CONFLICT_OP_ID_PAYLOAD_MISMATCH':
+                    conflicts.append({'op_id': op_id, 'reason': err, 'payload': env})
+
+        # 5. Persist acknowledgments and conflicts atomically in local SQLite
+        now_ms = int(time.time() * 1000)
+        with sdb.tx() as write_con:
+            if confirmed_op_ids:
+                sdb.ack_outbox(write_con, confirmed_op_ids, now=now_ms)
+            for conf in conflicts:
+                sdb.record_conflict(
+                    write_con,
+                    k=conf['payload'].get('event_type') or 'ops',
+                    rid=conf['op_id'],
+                    reason=conf['reason'],
+                    kept=None,
+                    other=conf['payload'],
+                    device=conf['payload'].get('device_id'),
+                    now=now_ms
+                )
+
+        self._consecutive_failures = 0
+        self.stats['sent_batches'] += 1
+        self.stats['sent_ops'] += len(envelopes)
+        self.stats['acked_ops'] += len(confirmed_op_ids)
+        self.stats['conflicts'] += len(conflicts)
+        self.stats['last_sync_at'] = now_ms
+        self.stats['last_error'] = ''
+        self.stats['state'] = 'active'
+
+        return {
+            'status': 'ok',
+            'processed': len(envelopes),
+            'acked': len(confirmed_op_ids),
+            'conflicts': len(conflicts),
+            'confirmed_ids': confirmed_op_ids
+        }
+
+    def start(self):
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+            self._stop_event.clear()
+            self._wake_event.clear()
+            self.stats['state'] = 'running'
+            self._thread = threading.Thread(target=self._run_loop, daemon=True, name='SetuOutboxDispatcher')
+            self._thread.start()
+
+    def stop(self, timeout=5.0):
+        with self._lock:
+            if not self._running:
+                return
+            self._running = False
+            self._stop_event.set()
+            self._wake_event.set()
+            self.stats['state'] = 'stopped'
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=timeout)
+
+    def wake(self):
+        self._wake_event.set()
+
+    def _run_loop(self):
+        attempt = 0
+        while not self._stop_event.is_set():
+            try:
+                res = self.dispatch_once()
+                status = res.get('status')
+                if status == 'ok':
+                    attempt = 0
+                    if res.get('processed', 0) >= self.batch_size:
+                        if self._stop_event.wait(0.05):
+                            break
+                        continue
+                    self._wake_event.wait(self.poll_interval)
+                    self._wake_event.clear()
+                elif status in ('idle', 'inactive'):
+                    attempt = 0
+                    self._wake_event.wait(self.poll_interval)
+                    self._wake_event.clear()
+                else:
+                    attempt += 1
+                    backoff = min(self.max_backoff, 1.0 * (2 ** min(attempt - 1, 6)))
+                    jitter = random.uniform(0.8, 1.2)
+                    sleep_time = max(0.5, backoff * jitter)
+                    self._wake_event.wait(sleep_time)
+                    self._wake_event.clear()
+            except Exception as e:
+                attempt += 1
+                backoff = min(self.max_backoff, 1.0 * (2 ** min(attempt - 1, 6)))
+                jitter = random.uniform(0.8, 1.2)
+                sleep_time = max(0.5, backoff * jitter)
+                self.stats['errors'] += 1
+                self.stats['last_error'] = str(e)
+                self._wake_event.wait(sleep_time)
+                self._wake_event.clear()

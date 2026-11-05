@@ -1546,6 +1546,8 @@ class SqliteSetuStore(SetuStore):
         self._hist_rev = 0
         self._hist_lock = threading.Lock()
         self.stats = {'opsSaves': 0, 'opsRecords': 0, 'legacyFullSaves': 0, 'restores': 0, 'windowLoads': 0, 'fullExports': 0, 'changeFeeds': 0, 'changeReloads': 0}
+        self.dispatcher = None
+        self.phase3_sync_enabled = False
         super().__init__(data_dir)
         self.sdb.start_checkpointer()
         threading.Thread(target=self._warm_hist, daemon=True).start()
@@ -1791,6 +1793,29 @@ class SqliteSetuStore(SetuStore):
     def ack_outbox(self, confirmed_keys, now=None):
         with self.sdb.tx() as c:
             return self.sdb.ack_outbox(c, confirmed_keys, now=now)
+
+    def record_conflict(self, k, rid, reason, kept=None, other=None, device=None, now=None):
+        with self.sdb.tx() as c:
+            self.sdb.record_conflict(c, k, rid, reason, kept=kept, other=other, device=device, now=now)
+
+    def start_cloud_sync(self, url, hotel, key, enabled=True, batch_size=50, poll_interval=5.0):
+        if getattr(self, 'dispatcher', None):
+            self.dispatcher.stop()
+        self.dispatcher = SQ.OutboxSyncDispatcher(
+            store=self, url=url, hotel=hotel, key=key, enabled=enabled,
+            batch_size=batch_size, poll_interval=poll_interval
+        )
+        self.dispatcher.start()
+        return self.dispatcher
+
+    def stop_cloud_sync(self, timeout=5.0):
+        if getattr(self, 'dispatcher', None):
+            self.dispatcher.stop(timeout=timeout)
+
+    def _after_write(self, keep_maxno=False):
+        super()._after_write(keep_maxno=keep_maxno)
+        if getattr(self, 'dispatcher', None) and getattr(self.dispatcher, '_running', False):
+            self.dispatcher.wake()
 
     def replace_all(self, doc):
         """Whole replacement in one transaction (restore from a backup, first upload): every key rewritten."""
@@ -2199,6 +2224,8 @@ class SqliteSetuStore(SetuStore):
                 conflicts=conflicts
             )
             SQ.SqliteDoc.append_outbox(c, 'ops', op_id_val, version, envelope, now)
+            if getattr(self, 'dispatcher', None) and getattr(self.dispatcher, '_running', False):
+                self.dispatcher.wake()
             out = {'ok': True, 'version': version, 'savedAt': now}
             if conflicts:
                 out['conflicts'] = [{'k': c_[0], 'id': c_[1], 'reason': c_[2]} for c_ in conflicts]
