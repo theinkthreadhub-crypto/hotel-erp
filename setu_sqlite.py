@@ -2413,7 +2413,7 @@ class InboundSyncReceiver:
         notices = json.loads(row[0]) if row and row[0] else []
         if not any(n.get('id') == msg_id for n in notices):
             notices.append(payload)
-            self.store.set_value(c, 'vendor_notices', 'extlist', notices, notices[:-1])
+            self.store.set_value(c, 'vendor_notices', 'setting', notices, notices[:-1])
 
     def start(self):
         with self._lock:
