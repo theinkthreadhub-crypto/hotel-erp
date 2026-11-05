@@ -60,9 +60,9 @@ Implemented on this branch:
 
 Verification status:
 - Linux/Node/SQLite tests and local Wrangler startup: checked in GitHub Actions.
-- Windows EXE compilation: successful in Actions run `42025499044`; Windows server boot verification was still running when this handoff was written.
+- **Verified CI run `42026540510`:** 171/171 Linux/Node/Python tests passed, local Wrangler startup passed, and Windows PyInstaller EXE compiled and started successfully in isolated SQLite mode. Windows public /api/ping returned OK and the bundled POS HTML was served successfully.
 - Physical thermal-printer output, staffed browser UX, actual 4GB client hardware, and full backup/restore: **NOT RUN**.
 - Inbound QR review UI and printer trigger are not fully wired; the server review API and POS change feed are only the backend foundation.
 - No production release and no existing-client automatic upgrade permitted.
 
-Next: verify the newest CI run and Windows job result, address failures, then validate frontend QR review/print workflow and local Worker-to-Windows end-to-end test before merging.
+Next: validate QR review/approval UI and physical KOT printer, real Windows client (4GB RAM), existing-client migration and full backup/restore, plus local Worker-to-Windows end-to-end QR flow. These remain blockers before merging.
