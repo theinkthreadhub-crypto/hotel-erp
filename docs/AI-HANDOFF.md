@@ -66,3 +66,25 @@ Verification status:
 - No production release and no existing-client automatic upgrade permitted.
 
 Next: validate QR review/approval UI and physical KOT printer, real Windows client (4GB RAM), existing-client migration and full backup/restore, plus local Worker-to-Windows end-to-end QR flow. These remain blockers before merging.
+
+## Phase 3.5b — Staff QR review & cloud KOT confirmation (2026-11-05)
+
+**Single-writer state:** ChatGPT used only `feature/horeca-one-phase34a-safety`, tracked by **Draft PR #9**. Do not create a parallel feature branch, modify `main`, or enable cloud sync for existing hotels.
+
+### Implemented and pushed
+- `hotel_erp.html`: when `/api/version.inboundQrNative` confirms a running inbound receiver, staff QR panel shows the **local SQLite staged pending orders**. It never calls legacy `qrApply()` to duplicate a KOT. Cloud accept/reject creates a durable incoming decision event; staff sees "Decision sent — awaiting counter sync" while that event is pending. Legacy QR path remains available when native inbound is disabled.
+- Accepted QR quantities are tracked in `kaccha.sent` without marking previously unsent waiter quantities as sent. KOT has a valid `at` timestamp for Kitchen Display. Manual KOT print button uses existing direct/standard print paths with double-click suppression.
+- `setu_sqlite.py` schema v6: the counter retries `/api/qr/applied` after committing the accepted QR KOT, including across lost responses and restarts; `cloud_applied_at` is only marked following cloud confirmation of exact order ID + printed KOT number.
+- `cloud/src/worker.js`: QR completion responds with exact `id` + `kot`, is idempotent for the same pair, and rejects nonexistent, rejected, or mismatched orders.
+- `tests/phase35b_native_qr_ui_test.mjs`: executes native UI logic in a Node VM (not a real browser). Backend tests cover acceptance/rejection, incomplete waiter KOTs, cloud response loss/retry, old bills/stock preservation, restart and exact cloud receipts.
+- CI includes Windows native QR/KOT tests, Windows EXE compilation/SQLite HTTP startup, and local Cloudflare Wrangler smoke.
+
+### Verification and limitations
+- GitHub Actions `42029609926`: Linux/Node regressions, local Wrangler startup and Windows EXE boot all PASS. Follow-up run `42029808175` added Windows-native QR/SQLite tests, which have already passed; confirm all jobs finish before declaring the latest commit fully green.
+- Actual thermal printer/58mm/80mm printout, browser staff QR experience, offline guest order from a physical phone, 4GB legacy client, production Cloudflare tenant, and full backup/restore upgrade remain **NOT RUN**.
+- Cloud event reception is disabled unless separately activated by the safe cloud sync gate; no production activation or migration was performed.
+- No automatic thermal print on arbitrary LAN devices (risk: double paper slips). Staff can print via Kitchen Display; a physical printer test is needed before automating.
+- **DO NOT MERGE/DEPLOY:** Review and explicitly approve remaining physical, migration and end-to-end test gates. The canonical Phase 3 integration branch still points to Phase 3.4, not this draft PR.
+
+### Next exact task
+Phase 3.5c: validate real browser QR approval UX on Windows and phone, test physical bill/KOT printers, isolated live Wrangler local-to-counter network flow and backup/restore with historical client data. Retain the same Draft PR until all gates clear.
