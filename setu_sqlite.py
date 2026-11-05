@@ -2284,6 +2284,15 @@ class InboundSyncReceiver:
                 **it, 'src': 'qr', 'qr_order_id': order_id
             })
         order['cart'] = cart
+        order['table'] = tbl
+        # The cloud-approved QR quantities already have a kitchen ticket.
+        # Extend the prior 'sent' quantities, not every cart line, so waiter
+        # items that still need sending are not accidentally marked as sent.
+        already_sent = dict(order.get('sent') or {})
+        for it in items:
+            mid = it['mid']
+            already_sent[mid] = round(float(already_sent.get(mid, 0) or 0) + float(it['qty']), 3)
+        order['sent'] = already_sent
         if guest_name and not order.get('cust'):
             order['cust'] = guest_name
         if note:
@@ -2323,7 +2332,8 @@ class InboundSyncReceiver:
             'time': now.strftime('%H:%M:%S'),
             'table': tbl,
             'channel': 'Dine-In',
-            'status': 'pending',
+            'status': 'new',
+            'at': now_ms,
             'items': [dict(it) for it in items],
             'src': 'qr',
             'qr': order_id,
