@@ -5608,7 +5608,7 @@ const SRV_LAUNCH = (() => {
   }catch(e){}
   return k;
 })();
-const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', hotelName: '', hostLocked: false, readOnly: false, blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
+const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', hotelName: '', hostLocked: false, readOnly: false, blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true, nativeQr: false };
 const TOKEN_KEY = 'setu_device_token';
 const HOTEL_KEY = 'setu_hotel_code';
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
@@ -6315,6 +6315,7 @@ async function srvPollOps(){
       return;
     }
     const v = await r.json();
+    SRV.nativeQr = !!v.inboundQrNative;
     SRV.blocked = !!v.blocked;
     srvStatus(true);
     if(v.version === SRV.version || changedHere()) return;
@@ -6323,7 +6324,15 @@ async function srvPollOps(){
     const c = await r2.json();
     if(changedHere()) return;
     if(c.reload){ await srvReloadWindow(); return; }
+    const prevKots = new Set((D.kots || []).map(k => k.id));
     opsApply(c.ops);
+    // QR orders have already been persisted by the counter receiver.
+    // Notify kitchen once per new KOT without re-running qrApply or printing
+    // on multiple LAN browser sessions.
+    if(qrNativeMode()){
+      (D.kots || []).filter(k => k.src === 'qr' && !prevKots.has(k.id))
+        .forEach(k => notifyNewKot(k));
+    }
     SRV.version = c.version;
     if(c.histRev !== undefined && c.histRev !== SRV.histRev) histTotalsRefresh(c.histRev);
     try{ stockRecalc(D); }catch(e){}
@@ -16037,6 +16046,7 @@ function kotSet(id, status){
 function printKotTicket(id){
   const k = (D.kots || []).find(x => x.id === id);
   if(!k) return;
+  if(k.src === 'qr' && !printOnce('qrkot:' + String(k.id))) return;
   const doc = {kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note, token: k.token, by: k.by};
   if(directPrint()){ directKot(doc); return; }
   printDoc([kotHTML(doc)]);
@@ -19554,6 +19564,9 @@ function scrData(){
 // then they join the table's running order the same way as the Captain App (KOT for the new items only). The cloud
 // never writes this hotel's data, and D.qrDone keeps an accepted order from being added twice.
 let QRS = null, QR_ERR = '';
+let QR_NATIVE_ROWS = [], QR_NATIVE_CALLS = [], QR_NATIVE_CALLS_AT = 0;
+const QR_NATIVE_DECISIONS = new Set();
+const qrNativeMode = () => SRV.on && SRV.engine === 'sqlite' && SRV.nativeQr === true;
 const QR_SEEN = new Set(), QR_BUSY = new Set();
 const qrReady = () => SRV.on && !!activeUser && !SRV.readOnly && (SRV.cloud || SRV.local || !!SRV.token);
 // Auto-accept runs on the main counter PC, or on a phone-only hotel's devices (the cloud lets only one accept win)
@@ -19565,12 +19578,48 @@ async function qrApi(path, body){
   return j;
 }
 // Accepted (on any device) but not in this hotel's data yet, for over a minute: the device stopped half-way
-const qrStuck = () => (QRS && QRS.orders || []).filter(o => o.status === 'accepted' && !D.qrDone.includes(o.id) && Date.now() - (o.decided || 0) > 60000);
+const qrStuck = () => qrNativeMode() ? [] : (QRS && QRS.orders || []).filter(o => o.status === 'accepted' && !D.qrDone.includes(o.id) && Date.now() - (o.decided || 0) > 60000);
 async function qrPoll(){
   clearTimeout(qrPoll.t);
   let next = 120000;
   try{
-    if(qrReady()){
+    if(qrReady() && qrNativeMode()){
+      // Source of truth: counter's durable inbound staging queue. Do not
+      // re-add cloud orders to D.kaccha; the inbound receiver alone does that.
+      const response = await srvFetch('/api/q/inbound-qr?status=pending&limit=100');
+      if(!response.ok) throw new Error('Local QR inbox: HTTP ' + response.status);
+      const queue = await response.json();
+      QR_NATIVE_ROWS = (queue.rows || []).map(o => ({
+        id: o.order_id, tbl: o.table, items: o.items || [],
+        name: o.guest_name || '', note: o.note || '', at: o.created_at,
+        status: o.status
+      }));
+      QR_NATIVE_DECISIONS.forEach(id => {
+        if(!QR_NATIVE_ROWS.some(o => o.id === id)) QR_NATIVE_DECISIONS.delete(id);
+      });
+      QRS = {on: true, auto: false, localNative: true,
+             orders: QR_NATIVE_ROWS, calls: QR_NATIVE_CALLS};
+      QR_ERR = '';
+      next = 6000;
+      const fresh = QR_NATIVE_ROWS.filter(o => !QR_SEEN.has(o.id));
+      fresh.forEach(o => QR_SEEN.add(o.id));
+      if(fresh.length){
+        playOrderChime();
+        toast('New QR order: Table ' + fresh[0].tbl);
+        if(!isModal() || $('#qr-panel')) qrPanel();
+      }
+      // Guest service calls still come from cloud. This is non-blocking:
+      // an internet outage must never prevent viewing the local QR inbox.
+      if(Date.now() - QR_NATIVE_CALLS_AT > 15000){
+        QR_NATIVE_CALLS_AT = Date.now();
+        qrApi('state').then(remote => {
+          if(!qrNativeMode()) return;
+          QR_NATIVE_CALLS = Array.isArray(remote.calls) ? remote.calls : [];
+          if(QRS && QRS.localNative) QRS.calls = QR_NATIVE_CALLS;
+          qrPill();
+        }).catch(() => {});
+      }
+    }else if(qrReady()){
       QRS = await qrApi('state'); QR_ERR = '';
       if(QRS.on){
         next = 10000;
@@ -19601,7 +19650,9 @@ const QR_CALL = {waiter: 'Call waiter', water: 'Water please', bill: 'Request bi
 function qrPill(){
   const el = $('#top-qr-pill');
   if(!el) return;
-  const n = QRS && QRS.on ? QRS.orders.filter(o => o.status === 'pending').length + QRS.calls.length + qrStuck().length : 0;
+  const n = qrNativeMode()
+    ? QR_NATIVE_ROWS.length + QR_NATIVE_CALLS.length
+    : (QRS && QRS.on ? QRS.orders.filter(o => o.status === 'pending').length + QRS.calls.length + qrStuck().length : 0);
   el.style.display = n ? '' : 'none';
   el.textContent = `QR ${n}`;
 }
@@ -19620,8 +19671,15 @@ async function qrDecide(id, action, auto){
   const by = auto ? 'Auto' : (activeUser && activeUser.name) || 'Staff';
   try{
     const r = await qrApi('decide', {id, action, by, reason});
-    qrLog(r.order, action === 'accept' ? 'accepted' : 'rejected', by);
-    if(action === 'accept') await qrApply(r.order, by); else save();
+    if(qrNativeMode()){
+      // Cloud emits qr_status; the local receiver creates one KOT after
+      // committing that event. Legacy qrApply would create a duplicate.
+      QR_NATIVE_DECISIONS.add(id);
+      toast('Decision received. Counter will update this QR order after sync.');
+    }else{
+      qrLog(r.order, action === 'accept' ? 'accepted' : 'rejected', by);
+      if(action === 'accept') await qrApply(r.order, by); else save();
+    }
   }catch(e){
     toast(e.status === 409 ? `This order was already ${(e.data && e.data.status) || 'handled'}${e.data && e.data.by ? ' by ' + e.data.by : ''}` : 'QR order: ' + e.message);
   }finally{
@@ -19639,6 +19697,10 @@ async function qrDecide(id, action, auto){
 }
 // Add an accepted guest order to its table: same steps as captainSend(), the screen's own bill is kept as it was
 async function qrApply(o, by){
+  if(qrNativeMode()){
+    toast('QR order is handled by counter sync; no duplicate KOT will be created.');
+    return false;
+  }
   if(D.qrDone.includes(o.id)){ qrApi('applied', {id: o.id}).catch(() => {}); return true; }
   const tbl = o.tbl, keep = B, same = keep && keep.table === tbl && keep.channel === 'Dine-In';
   if(same && JSON.stringify(sentMap(keep.cart)) !== JSON.stringify(keep.sent || {})){
@@ -19680,7 +19742,7 @@ const qrDoneCall = async id => {
 };
 function qrPanel(refresh){
   if(refresh && !$('#qr-panel')) return;
-  const ord = QRS && QRS.orders || [], pend = ord.filter(o => o.status === 'pending'), stuck = qrStuck(), calls = QRS && QRS.calls || [];
+  const ord = qrNativeMode() ? QR_NATIVE_ROWS : (QRS && QRS.orders || []), pend = ord.filter(o => o.status === 'pending'), stuck = qrStuck(), calls = qrNativeMode() ? QR_NATIVE_CALLS : (QRS && QRS.calls || []);
   if(refresh && !pend.length && !stuck.length && !calls.length){
     if(typeof isModal === 'function' && isModal() && document.getElementById('qr-panel')) closeModal();
     return;
