@@ -967,10 +967,7 @@ class SqliteDoc:
                 cs = str(ack.get('checksum') or '').strip().lower()
                 if oid and hid and cs:
                     valid_acks[oid] = (hid, cs)
-            elif isinstance(ack, str):
-                oid = ack.strip()
-                if oid:
-                    valid_acks[oid] = None  # Legacy unit test string match
+            # Strict acknowledgment: string-only or alias acks permanently removed from production
 
         if not valid_acks:
             return 0
@@ -984,16 +981,12 @@ class SqliteDoc:
                 continue
             env_op_id = str(p.get('op_id') or '').strip()
             if env_op_id in valid_acks:
-                required = valid_acks[env_op_id]
-                if required is not None:
-                    req_hid, req_cs = required
-                    env_hid = str(p.get('hotel_id') or '').strip().upper()
-                    env_cs = str(p.get('integrity', {}).get('checksum') or '').strip().lower()
-                    norm_req_cs = req_cs.replace('sha256:', '')
-                    norm_env_cs = env_cs.replace('sha256:', '')
-                    if env_hid == req_hid and norm_env_cs == norm_req_cs and norm_req_cs != '':
-                        matched.append(seq)
-                else:
+                req_hid, req_cs = valid_acks[env_op_id]
+                env_hid = str(p.get('hotel_id') or '').strip().upper()
+                env_cs = str(p.get('integrity', {}).get('checksum') or '').strip().lower()
+                norm_req_cs = req_cs.replace('sha256:', '')
+                norm_env_cs = env_cs.replace('sha256:', '')
+                if env_hid == req_hid and norm_env_cs == norm_req_cs and norm_req_cs != '':
                     matched.append(seq)
 
         if matched:
@@ -1593,7 +1586,11 @@ class OutboxSyncDispatcher:
                 # If dependent on an unresolved conflicted entity, hold back
                 if env_entities & blocked_entities:
                     continue
-                envelopes.append(p)
+                # Attach exact outbox row metadata for precise quarantine indexing
+                p_with_meta = dict(p)
+                p_with_meta['_outbox_seq'] = item['seq']
+                p_with_meta['_outbox_ref'] = item.get('ref') or p.get('op_id')
+                envelopes.append(p_with_meta)
 
         if not envelopes:
             state = 'blocked_on_dependency' if (pending and blocked_entities) else 'idle'
@@ -1608,7 +1605,11 @@ class OutboxSyncDispatcher:
             'X-Setu-Caps': 'secure1',
             'User-Agent': 'Setu-Main-Counter/1.0'
         }
-        req_body = json.dumps({'batch': envelopes}, ensure_ascii=False).encode('utf-8')
+        wire_envelopes = []
+        for env in envelopes:
+            clean_env = {k: v for k, v in env.items() if not k.startswith('_outbox_')}
+            wire_envelopes.append(clean_env)
+        req_body = json.dumps({'batch': wire_envelopes}, ensure_ascii=False).encode('utf-8')
 
         # 3. Network roundtrip (isolated from SQLite write locks)
         try:
@@ -1715,11 +1716,18 @@ class OutboxSyncDispatcher:
                     device=conf['payload'].get('device_id'),
                     now=now_ms
                 )
-                # Quarantine in sync_outbox to prevent continuous retries (sent_at = -now_ms)
-                write_con.execute(
-                    "UPDATE sync_outbox SET sent_at = ? WHERE sent_at IS NULL AND (ref = ? OR payload LIKE ?)",
-                    (-now_ms, op_id, f'%"{op_id}"%')
-                )
+                # Exact indexed quarantine: match by primary key seq or indexed ref!
+                outbox_seq = conf['payload'].get('_outbox_seq')
+                if outbox_seq:
+                    write_con.execute(
+                        "UPDATE sync_outbox SET sent_at = ? WHERE seq = ? AND sent_at IS NULL",
+                        (-now_ms, outbox_seq)
+                    )
+                else:
+                    write_con.execute(
+                        "UPDATE sync_outbox SET sent_at = ? WHERE ref = ? AND sent_at IS NULL",
+                        (-now_ms, op_id)
+                    )
 
         self._consecutive_failures = 0
         self.stats['sent_batches'] += 1

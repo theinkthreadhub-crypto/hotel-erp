@@ -841,6 +841,7 @@ export class SetuHotel extends DurableObject {
 
     try { this.sql.exec('ALTER TABLE sync_stock_items ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
     try { this.sql.exec('ALTER TABLE sync_stock_movements ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
+    try { this.sql.exec('ALTER TABLE sync_vouchers ADD COLUMN cancelled INTEGER DEFAULT 0'); } catch(e){}
 
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_vouchers (
       id TEXT PRIMARY KEY,
@@ -1831,22 +1832,29 @@ export class SetuHotel extends DurableObject {
     // Task 1 & 5: Atomic Relational Ingestion inside transactionSync with Stale Overwrite Protection
     try {
       this.ctx.storage.transactionSync(() => {
-        // --- Stale Overwrite Pre-flight Check ---
+        // --- Stale & Equal-Version Mutation Conflict Pre-flight Check ---
         const checkStale = (table, idCol, idVal, entityKey) => {
           if(!idVal) return;
           const rows = this.sql.exec(`SELECT doc_version FROM ${table} WHERE ${idCol} = ?`, idVal).toArray();
           const row = rows[0];
-          if(row && typeof row.doc_version === 'number' && row.doc_version > env.doc_version){
-            const err = new Error(`CONFLICT_STALE_RECORD: ${entityKey} ${idVal} is at newer version ${row.doc_version}`);
+          if(row && typeof row.doc_version === 'number' && row.doc_version >= env.doc_version){
+            const isSameVer = row.doc_version === env.doc_version;
+            const errType = isSameVer ? 'SAME_VERSION_MUTATION_CONFLICT' : 'CONFLICT_STALE_RECORD';
+            const reason = isSameVer
+              ? `SAME_VERSION_CONFLICT: Record ${idVal} in ${entityKey} already exists at version ${row.doc_version}`
+              : `STALE_RECORD_OVERWRITE_PREVENTED (current_version=${row.doc_version}, incoming_version=${env.doc_version})`;
+            const err = new Error(reason);
             err.isConflict = true;
             err.entityKey = entityKey;
             err.recordId = idVal;
-            err.reason = `STALE_RECORD_OVERWRITE_PREVENTED (current_version=${row.doc_version}, incoming_version=${env.doc_version})`;
+            err.reason = reason;
             err.conflictResponse = {
               status: 'rejected',
-              error: 'CONFLICT_STALE_RECORD',
+              error: errType,
               op_id: opId,
-              reason: `Record ${idVal} in ${entityKey} is already at newer version ${row.doc_version}, cannot overwrite with older version ${env.doc_version}`
+              reason: isSameVer
+                ? `Record ${idVal} in ${entityKey} already exists at equal version ${row.doc_version} with differing content`
+                : `Record ${idVal} in ${entityKey} is already at newer version ${row.doc_version}, cannot overwrite with older version ${env.doc_version}`
             };
             throw err;
           }
@@ -1981,10 +1989,14 @@ export class SetuHotel extends DurableObject {
           }
           for(const rmId of (recs.bills.rm || [])){
             const srm = String(rmId);
-            this.sql.exec('DELETE FROM sync_bills WHERE id = ?', srm);
-            this.sql.exec('DELETE FROM sync_bill_items WHERE bill_id = ?', srm);
-            this.sql.exec('DELETE FROM sync_bill_payments WHERE bill_id = ?', srm);
-            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'rm', ?)`, env.doc_version, srm, now);
+            const actorName = (env.actor && env.actor.name) ? String(env.actor.name) : 'sync_removal_audit';
+            // Financial deletion safety: NEVER physically delete bills, items, or payments!
+            // Mark bill cancelled with audit metadata and retain full item/payment ledger.
+            this.sql.exec(
+              `UPDATE sync_bills SET cancelled = 1, cancelled_by = ?, doc_version = ?, updated_at = ? WHERE id = ?`,
+              actorName, env.doc_version, now, srm
+            );
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'cancel', ?)`, env.doc_version, srm, now);
           }
         }
 
@@ -2002,8 +2014,13 @@ export class SetuHotel extends DurableObject {
           }
           for(const rmId of (vouchersRec.rm || [])){
             const srm = String(rmId);
-            this.sql.exec('DELETE FROM sync_vouchers WHERE id = ?', srm);
-            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'rm', ?)`, env.doc_version, srm, now);
+            const actorName = (env.actor && env.actor.name) ? String(env.actor.name) : 'sync_removal_audit';
+            // Financial deletion safety: NEVER physically delete confirmed vouchers!
+            this.sql.exec(
+              `UPDATE sync_vouchers SET cancelled = 1, note = note || ' [REVERSED by ' || ? || ']', doc_version = ?, updated_at = ? WHERE id = ?`,
+              actorName, env.doc_version, now, srm
+            );
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'cancel', ?)`, env.doc_version, srm, now);
           }
         }
 
@@ -2038,8 +2055,8 @@ export class SetuHotel extends DurableObject {
           }
           for(const rmId of (movesRec.rm || [])){
             const srm = String(rmId);
-            this.sql.exec('DELETE FROM sync_stock_movements WHERE id = ?', srm);
-            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'rm', ?)`, env.doc_version, srm, now);
+            // Financial deletion safety: posted stock movements are an immutable audit trail, never physically delete!
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'stock_movements', ?, 'rm_attempt_audit', ?)`, env.doc_version, srm, now);
           }
         }
 
@@ -2094,7 +2111,7 @@ export class SetuHotel extends DurableObject {
           }
         }
 
-        // 7. Values (settings)
+        // 7. Values (settings, seq, auth) - all whitelisted fields explicitly & securely persisted
         if(values.settings && typeof values.settings === 'object'){
           this.sql.exec(
             `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('settings', ?, ?, ?)`,
@@ -2105,6 +2122,31 @@ export class SetuHotel extends DurableObject {
             this.kvSet('account', this.account);
           }
         }
+        if(values.seq && typeof values.seq === 'object'){
+          this.sql.exec(
+            `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('seq', ?, ?, ?)`,
+            JSON.stringify(values.seq), env.doc_version, now
+          );
+          if(values.seq.bill != null){
+            this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_bill_seq', ?, ?)`, String(values.seq.bill), now);
+          }
+          if(values.seq.kot != null){
+            this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_kot_seq', ?, ?)`, String(values.seq.kot), now);
+          }
+        }
+        if(values.auth && typeof values.auth === 'object'){
+          const safeAuth = {};
+          for(const [ak, av] of Object.entries(values.auth)){
+            const lower = ak.toLowerCase();
+            if(!lower.includes('pass') && !lower.includes('pin') && !lower.includes('secret') && !lower.includes('token') && !lower.includes('hash')){
+              safeAuth[ak] = av;
+            }
+          }
+          this.sql.exec(
+            `INSERT OR REPLACE INTO sync_settings (key, value, doc_version, updated_at) VALUES ('auth', ?, ?, ?)`,
+            JSON.stringify(safeAuth), env.doc_version, now
+          );
+        }
 
         // 8. Record to sync_inbox
         const actorStr = typeof env.actor === 'object' ? JSON.stringify(env.actor) : String(env.actor || '');
@@ -2113,9 +2155,13 @@ export class SetuHotel extends DurableObject {
           opId, this.account.code, String(env.device_id || 'counter'), env.doc_version, env.timestamp || now, String(env.event_type || 'ops'), env.integrity.checksum, actorStr, now, 'committed', ''
         );
 
-        // 9. Checkpoints
-        this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('latest_doc_version', ?, ?)`, String(env.doc_version), now);
-        this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_sync_op_id', ?, ?)`, opId, now);
+        // 9. Checkpoints - strictly monotonic, older operations must never lower cloud checkpoints
+        const curVerRow = this.sql.exec("SELECT value FROM sync_checkpoints WHERE name = 'latest_doc_version'").toArray()[0];
+        const curVer = curVerRow ? parseInt(curVerRow.value, 10) || 0 : 0;
+        if(env.doc_version > curVer){
+          this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('latest_doc_version', ?, ?)`, String(env.doc_version), now);
+          this.sql.exec(`INSERT OR REPLACE INTO sync_checkpoints (name, value, at) VALUES ('last_sync_op_id', ?, ?)`, opId, now);
+        }
         if(env.doc_version > (this.meta.version || 0)){
           this.meta.version = env.doc_version;
           this.meta.savedAt = now;
@@ -2172,7 +2218,7 @@ export class SetuHotel extends DurableObject {
     if(isSingle){
       const res = results[batch[0]?.op_id || 'unknown'];
       if(res && res.status === 'rejected'){
-        if(res.error === 'CONFLICT_OP_ID_PAYLOAD_MISMATCH' || res.error === 'CONFLICT_STALE_RECORD') return json(409, { ok: false, error: res.error, results });
+        if(res.error === 'CONFLICT_OP_ID_PAYLOAD_MISMATCH' || res.error === 'CONFLICT_STALE_RECORD' || res.error === 'SAME_VERSION_MUTATION_CONFLICT') return json(409, { ok: false, error: res.error, results });
         if(res.error === 'HOTEL_TENANT_MISMATCH') return json(403, { ok: false, error: res.error, results });
         if(res.error === 'UNSUPPORTED_BUSINESS_MODULE') return json(422, { ok: false, error: res.error, results });
         if(res.error === 'INVALID_CHECKSUM' || res.error === 'INVALID_ENVELOPE_SCHEMA') return json(400, { ok: false, error: res.error, results });

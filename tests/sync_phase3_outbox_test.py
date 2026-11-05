@@ -259,7 +259,13 @@ class Phase3SyncOutboxTest(unittest.TestCase):
         self.assertEqual(len(batch_seqs), 3)
 
         # Remote server accepted op_batch_1 and op_batch_3, but failed op_batch_2
-        acked_count = self.store.ack_outbox(['op_batch_1', 'op_batch_3'])
+        p1 = [p['payload'] for p in pending if p['ref'] == 'op_batch_1'][0]
+        p3 = [p['payload'] for p in pending if p['ref'] == 'op_batch_3'][0]
+        valid_acks = [
+            {'op_id': p1['op_id'], 'hotel_id': p1['hotel_id'], 'checksum': p1['integrity']['checksum']},
+            {'op_id': p3['op_id'], 'hotel_id': p3['hotel_id'], 'checksum': p3['integrity']['checksum']}
+        ]
+        acked_count = self.store.ack_outbox(valid_acks)
         self.assertEqual(acked_count, 2)
 
         # Verify only op_batch_1 and op_batch_3 are marked sent; op_batch_2 is still pending!

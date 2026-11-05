@@ -667,6 +667,147 @@ await test('15. Cloud acknowledgment returns op_id, hotel_id, and committed payl
   assert.equal(ack.checksum, env.integrity.checksum);
 });
 
+await test('16. Equal-version conflict rejection (different op_id, same doc_version)', async () => {
+  const { callApi, db } = createHarness();
+
+  // Commit bill b_eq_ver at doc_version: 5 via op_eq_1
+  const payload1 = { records: { bills: { kind: 'rec', ups: [{ id: 'b_eq_ver', total: 100 }], rm: [] } }, maps: {}, values: {} };
+  const env1 = makeTestEnvelope('op_eq_1', 'TESTHOTEL01', 5, payload1);
+  const r1 = await callApi('POST', '/api/sync/ops', { envelope: env1 });
+  assert.equal(r1.status, 200);
+
+  // Different op (op_eq_2) arrives also claiming doc_version: 5 for same bill b_eq_ver
+  const payload2 = { records: { bills: { kind: 'rec', ups: [{ id: 'b_eq_ver', total: 200 }], rm: [] } }, maps: {}, values: {} };
+  const env2 = makeTestEnvelope('op_eq_2', 'TESTHOTEL01', 5, payload2);
+  const r2 = await callApi('POST', '/api/sync/ops', { envelope: env2 });
+  assert.equal(r2.status, 409, 'Equal-version mutation clash must be rejected with 409');
+  assert.equal(r2.json.results['op_eq_2'].status, 'rejected');
+  assert.equal(r2.json.results['op_eq_2'].error, 'SAME_VERSION_MUTATION_CONFLICT');
+
+  // Verify bill in database remains original total 100
+  const bill = db.prepare('SELECT total, doc_version FROM sync_bills WHERE id = ?').get('b_eq_ver');
+  assert.equal(bill.total, 100);
+});
+
+await test('17. Out-of-order independent records do not lower cloud checkpoints', async () => {
+  const { callApi, db } = createHarness();
+
+  // Commit bill b_cp_10 at doc_version: 10
+  const p10 = { records: { bills: { kind: 'rec', ups: [{ id: 'b_cp_10', total: 500 }], rm: [] } }, maps: {}, values: {} };
+  const env10 = makeTestEnvelope('op_cp_10', 'TESTHOTEL01', 10, p10);
+  await callApi('POST', '/api/sync/ops', { envelope: env10 });
+
+  let cpVer = db.prepare("SELECT value FROM sync_checkpoints WHERE name = 'latest_doc_version'").get();
+  assert.equal(cpVer.value, '10');
+
+  // Now an independent delayed op for b_cp_4 arrives with doc_version: 4
+  const p4 = { records: { bills: { kind: 'rec', ups: [{ id: 'b_cp_4', total: 250 }], rm: [] } }, maps: {}, values: {} };
+  const env4 = makeTestEnvelope('op_cp_4', 'TESTHOTEL01', 4, p4);
+  const r4 = await callApi('POST', '/api/sync/ops', { envelope: env4 });
+  assert.equal(r4.status, 200, 'Independent out-of-order record must be committed');
+
+  // Checkpoint must STILL be 10, never lowered!
+  cpVer = db.prepare("SELECT value FROM sync_checkpoints WHERE name = 'latest_doc_version'").get();
+  assert.equal(cpVer.value, '10', 'Checkpoint must never be lowered by older operation');
+});
+
+await test('18. Financial deletion safety: ordinary sync rm never physically deletes bills, items, or payments', async () => {
+  const { callApi, db } = createHarness();
+
+  // Commit a bill with items and payments at doc_version: 5
+  const payload = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [{
+          id: 'b_perm_safe',
+          total: 500,
+          items: [{ id: 'it_safe_1', name: 'Paneer', price: 250, qty: 2 }],
+          pays: [{ id: 'p_safe_1', mode: 'Cash', amt: 500 }]
+        }],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {}
+  };
+  const env1 = makeTestEnvelope('op_safe_create', 'TESTHOTEL01', 5, payload);
+  await callApi('POST', '/api/sync/ops', { envelope: env1 });
+
+  // Verify bill exists
+  assert.equal(db.prepare('SELECT count(*) as c FROM sync_bills WHERE id = ?').get('b_perm_safe').c, 1);
+  assert.equal(db.prepare('SELECT count(*) as c FROM sync_bill_items WHERE bill_id = ?').get('b_perm_safe').c, 1);
+  assert.equal(db.prepare('SELECT count(*) as c FROM sync_bill_payments WHERE bill_id = ?').get('b_perm_safe').c, 1);
+
+  // Newer operation attempts deletion via recs.bills.rm at doc_version: 6
+  const rmPayload = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [],
+        rm: ['b_perm_safe']
+      }
+    },
+    maps: {},
+    values: {}
+  };
+  const env2 = makeTestEnvelope('op_safe_delete_attempt', 'TESTHOTEL01', 6, rmPayload, {
+    actor: { name: 'AuditManager', role: 'manager' }
+  });
+  const r2 = await callApi('POST', '/api/sync/ops', { envelope: env2 });
+  assert.equal(r2.status, 200);
+
+  // Financial Deletion Safety Guarantees:
+  // 1. Bill is NOT deleted from sync_bills!
+  const bill = db.prepare('SELECT * FROM sync_bills WHERE id = ?').get('b_perm_safe');
+  assert.ok(bill, 'Bill record must NEVER be deleted');
+  assert.equal(bill.cancelled, 1, 'Bill must be marked cancelled');
+  assert.equal(bill.cancelled_by, 'AuditManager', 'Audited cancellation actor retained');
+
+  // 2. Bill items and payments are KEPT untouched for financial audit & reconciliation!
+  const items = db.prepare('SELECT * FROM sync_bill_items WHERE bill_id = ?').all('b_perm_safe');
+  assert.equal(items.length, 1, 'Items must be retained');
+  assert.equal(items[0].name, 'Paneer');
+
+  const payments = db.prepare('SELECT * FROM sync_bill_payments WHERE bill_id = ?').all('b_perm_safe');
+  assert.equal(payments.length, 1, 'Payments must be retained');
+  assert.equal(payments[0].amount, 500);
+});
+
+await test('19. Durable persistence of whitelisted seq counters and sanitized auth', async () => {
+  const { callApi, db } = createHarness();
+
+  const payload = {
+    records: {},
+    maps: {},
+    values: {
+      seq: { bill: 142, kot: 39, token: 5 },
+      auth: { hotelId: 'TESTHOTEL01', ownerName: 'Test Owner', password_should_be_stripped: 'secret123' }
+    }
+  };
+  const env = makeTestEnvelope('op_seq_auth_persist', 'TESTHOTEL01', 14, payload);
+  const r = await callApi('POST', '/api/sync/ops', { envelope: env });
+  assert.equal(r.status, 200);
+
+  // Verify seq persistence in sync_settings and sync_checkpoints
+  const seqRow = db.prepare("SELECT value FROM sync_settings WHERE key = 'seq'").get();
+  assert.ok(seqRow);
+  const seqData = JSON.parse(seqRow.value);
+  assert.equal(seqData.bill, 142);
+  assert.equal(seqData.kot, 39);
+
+  const billSeqCp = db.prepare("SELECT value FROM sync_checkpoints WHERE name = 'last_bill_seq'").get();
+  assert.equal(billSeqCp.value, '142');
+
+  // Verify auth persistence is sanitized (no passwords)
+  const authRow = db.prepare("SELECT value FROM sync_settings WHERE key = 'auth'").get();
+  assert.ok(authRow);
+  const authData = JSON.parse(authRow.value);
+  assert.equal(authData.hotelId, 'TESTHOTEL01');
+  assert.equal(authData.ownerName, 'Test Owner');
+  assert.equal(authData.password_should_be_stripped, undefined, 'Secret credentials must never be persisted');
+});
+
 console.log(`\n========================================`);
 console.log(`RESULTS: ${pass} passed, ${fail} failed`);
 console.log(`========================================`);

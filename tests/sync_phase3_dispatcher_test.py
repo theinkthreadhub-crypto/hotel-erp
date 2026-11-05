@@ -703,6 +703,87 @@ class Phase32DispatcherTests(unittest.TestCase):
         # 5. Outbox now completely drained
         self.assertEqual(len(new_store.get_pending_outbox()), 0)
 
+    def test_16_strict_acknowledgment_rejects_string_or_raw_seq_aliases(self):
+        """Production ack_outbox strictly rejects string-only IDs, integers, or missing checksums."""
+        bill = {'id': 'b_strict_ack', 'no': 201, 'total': 199.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill, op_id='op_b_strict_ack')
+
+        pending = self.store.get_pending_outbox()
+        target_item = [p for p in pending if p['ref'] == 'op_b_strict_ack'][0]
+        seq = target_item['seq']
+        p_obj = target_item['payload']
+
+        # 1. Attempt string-only ack
+        with self.store.sdb.tx() as write_con:
+            r1 = self.store.sdb.ack_outbox(write_con, ['op_b_strict_ack'])
+        self.assertEqual(r1, 0, "String-only ack must be rejected")
+
+        # 2. Attempt raw sequence integer ack
+        with self.store.sdb.tx() as write_con:
+            r2 = self.store.sdb.ack_outbox(write_con, [seq])
+        self.assertEqual(r2, 0, "Raw integer sequence ack must be rejected")
+
+        # 3. Attempt dict with missing checksum
+        with self.store.sdb.tx() as write_con:
+            r3 = self.store.sdb.ack_outbox(write_con, [{'op_id': 'op_b_strict_ack', 'hotel_id': 'TESTHOTEL01'}])
+        self.assertEqual(r3, 0, "Dict without checksum must be rejected")
+
+        # Verify row is STILL pending
+        row_pending = self.store.sdb.con().execute(
+            "SELECT sent_at FROM sync_outbox WHERE seq = ?", (seq,)
+        ).fetchone()
+        self.assertIsNone(row_pending[0])
+
+        # 4. Valid triple ack: (op_id, hotel_id, checksum) -> MUST SUCCEED
+        valid_ack = {
+            'op_id': p_obj['op_id'],
+            'hotel_id': p_obj['hotel_id'],
+            'checksum': p_obj['integrity']['checksum']
+        }
+        with self.store.sdb.tx() as write_con:
+            r4 = self.store.sdb.ack_outbox(write_con, [valid_ack])
+        self.assertEqual(r4, 1, "Exact triple ack must succeed")
+
+        row_acked = self.store.sdb.con().execute(
+            "SELECT sent_at FROM sync_outbox WHERE seq = ?", (seq,)
+        ).fetchone()
+        self.assertIsNotNone(row_acked[0])
+
+    def test_17_exact_indexed_conflict_quarantine_prevents_false_matches(self):
+        """Exact indexed conflict quarantine ensures similar substring op_ids are not quarantined."""
+        disp = SQ.OutboxSyncDispatcher(
+            store=self.store,
+            url=self.cloud_url,
+            hotel='TESTHOTEL01',
+            key='test_sync_key_phase32',
+            enabled=True
+        )
+
+        # Create two operations with overlapping names
+        # Op 1: op_overlap
+        # Op 2: op_overlap_longer_sub
+        bill1 = {'id': 'b_ov_1', 'no': 211, 'total': 100.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill1, op_id='op_overlap')
+
+        bill2 = {'id': 'b_ov_2', 'no': 212, 'total': 200.0, 'date': '2026-11-05'}
+        save_bill(self.store, bill2, op_id='op_overlap_longer_sub')
+
+        # Inject conflict ONLY for op_overlap
+        self.server.inject_conflict_for_op = 'op_overlap'
+
+        res = disp.dispatch_once()
+        self.assertEqual(res['conflicts'], 1)
+        self.assertEqual(res['acked'], 1)
+
+        # op_overlap must be quarantined (sent_at < 0)
+        with self.store.sdb.rlock():
+            con = self.store.sdb.con()
+            row1 = con.execute("SELECT sent_at FROM sync_outbox WHERE ref = 'op_overlap'").fetchone()
+            row2 = con.execute("SELECT sent_at FROM sync_outbox WHERE ref = 'op_overlap_longer_sub'").fetchone()
+
+        self.assertLess(row1[0], 0, "op_overlap must be quarantined with negative sent_at")
+        self.assertGreater(row2[0], 0, "op_overlap_longer_sub must be successfully acknowledged (NOT quarantined)")
+
 
 if __name__ == '__main__':
     unittest.main()
