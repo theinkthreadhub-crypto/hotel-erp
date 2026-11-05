@@ -81,15 +81,20 @@ jobs:
               $proc.Refresh()
               if ($proc.HasExited) { throw "Counter EXE crashed during startup (exit $($proc.ExitCode))" }
               try {
-                $response = Invoke-RestMethod -Uri "http://127.0.0.1:8177/api/version" -TimeoutSec 3 -NoProxy
-                if ($response.engine -eq "sqlite") { $ready = $true; break }
-                Write-Host "Counter responded but engine was $($response.engine)"
+                # /api/version requires a logged-in staff session (401 is correct).
+                # /api/ping is the intentionally public readiness endpoint.
+                $response = Invoke-RestMethod -Uri "http://127.0.0.1:8177/api/ping" -TimeoutSec 3 -NoProxy
+                if ($response.setu -eq $true) { $ready = $true; break }
+                Write-Host "Counter responded but did not identify as HoReCa One"
               } catch {
                 if ($i % 5 -eq 0) { Write-Host "Counter polling: $($_.Exception.Message)" }
                 Start-Sleep -Seconds 2
               }
             }
-            if (-not $ready) { throw "SQLite counter HTTP endpoint did not become ready" }
+            if (-not $ready) { throw "Counter public readiness endpoint did not become ready" }
+            if (-not (Test-Path (Join-Path $dataDir "setu.sqlite"))) {
+              throw "SQLite database not created in isolated test data folder"
+            }
             $page = Invoke-WebRequest -Uri "http://127.0.0.1:8177/hotel_erp.html" -TimeoutSec 10 -NoProxy
             if ($page.StatusCode -ne 200) { throw "Main POS HTML not available" }
             Write-Output "Windows EXE server smoke PASS (SQLite engine and POS HTML)"
