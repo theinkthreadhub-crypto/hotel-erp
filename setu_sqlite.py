@@ -34,7 +34,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
 from horeca_license_verify import verify_signed_license, InvalidLicence, TRUSTED_PUBLIC_KEYS
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 DB_FILE = 'setu.sqlite'
 FLAG_FILE = 'setu-storage.json'
 
@@ -196,7 +196,7 @@ CREATE TABLE IF NOT EXISTS inbound_event_failures (
 CREATE TABLE IF NOT EXISTS inbound_qr_orders (
   order_id TEXT PRIMARY KEY, tbl TEXT NOT NULL, items_json TEXT NOT NULL,
   guest_name TEXT, note TEXT, status TEXT NOT NULL DEFAULT 'pending',
-  kot_id TEXT, created_at INTEGER, updated_at INTEGER);
+  kot_id TEXT, created_at INTEGER, updated_at INTEGER, cloud_applied_at INTEGER);
 CREATE INDEX IF NOT EXISTS idx_inbound_qr_pending ON inbound_qr_orders(status, created_at);
 """
 
@@ -301,6 +301,9 @@ class SqliteDoc:
         prior_cols = {r[1] for r in con.execute('PRAGMA table_info(inbound_events_applied)')}
         if 'acked_at' not in prior_cols:
             con.execute('ALTER TABLE inbound_events_applied ADD COLUMN acked_at INTEGER')
+        qr_cols = {r[1] for r in con.execute('PRAGMA table_info(inbound_qr_orders)')}
+        if 'cloud_applied_at' not in qr_cols:
+            con.execute('ALTER TABLE inbound_qr_orders ADD COLUMN cloud_applied_at INTEGER')
         cur = self.meta('schema_version')
         if cur is not None and int(cur) > SCHEMA_VERSION:
             raise StoreError(f'database schema {cur} is newer than this program ({SCHEMA_VERSION})')
@@ -309,7 +312,8 @@ class SqliteDoc:
             names = {1: 'initial relational schema', 2: 'change log for incremental saves; stock movement (source, date) index',
                      3: 'sync_conflicts: differing copies kept for review',
                      4: 'inbound_events_applied: change feed and QR / licence sync',
-                     5: 'contiguous inbound cursor, pending ACK, QR approval staging'}
+                     5: 'contiguous inbound cursor, pending ACK, QR approval staging',
+                     6: 'cloud KOT applied confirmation retry state'}
             with self.tx() as c:
                 for v in range(1 if cur is None else int(cur) + 1, SCHEMA_VERSION + 1):
                     c.execute('INSERT OR IGNORE INTO database_migrations VALUES (?, ?, ?)', (v, names[v], int(time.time() * 1000)))
@@ -2039,6 +2043,54 @@ class InboundSyncReceiver:
             self.stats['last_error'] = 'Inbound ACK pending retry: ' + str(exc)
             return 0
 
+    def _report_cloud_applied(self):
+        """Tell the guest cloud *only after* an accepted KOT is durable locally.
+
+        Cloud may be offline or the HTTP response lost. Unconfirmed orders
+        remain in inbound_qr_orders and are retried on later poll/restarts.
+        This is independent of inbound event ACK and never affects bills.
+        """
+        with self.store.rlock():
+            rows = self.store.con().execute("""
+                SELECT q.order_id, CAST(k.no AS TEXT)
+                FROM inbound_qr_orders q
+                JOIN kots k ON k.id = q.kot_id
+                WHERE q.status='accepted' AND q.cloud_applied_at IS NULL
+                ORDER BY q.created_at, q.order_id
+                LIMIT ?
+            """, (self.batch_size,)).fetchall()
+        done = 0
+        headers = {
+            'X-Setu-Hotel': self.hotel, 'X-Setu-Sync': self.key,
+            'Content-Type': 'application/json'
+        }
+        for order_id, kot_no in rows:
+            try:
+                status, raw = self.http_post_fn(
+                    self.url, '/api/qr/applied',
+                    json.dumps({'id': order_id, 'kot': kot_no}).encode('utf-8'),
+                    headers
+                )
+                if status != 200:
+                    raise OSError('QR applied cloud HTTP ' + str(status))
+                reply = json.loads(raw)
+                if not isinstance(reply, dict) or reply.get('ok') is not True or \
+                   reply.get('id') != order_id or str(reply.get('kot')) != kot_no:
+                    raise ValueError('cloud did not confirm this QR/KOT pair')
+                with self.store.tx() as c:
+                    c.execute(
+                        "UPDATE inbound_qr_orders SET cloud_applied_at=? "
+                        "WHERE order_id=? AND status='accepted' AND kot_id IN "
+                        "(SELECT id FROM kots WHERE CAST(no AS TEXT)=?) "
+                        "AND cloud_applied_at IS NULL",
+                        (int(time.time()*1000), order_id, kot_no)
+                    )
+                done += 1
+            except (OSError, ValueError, TypeError) as exc:
+                # Keep pending; do not ack, delete or change the kitchen KOT.
+                self.stats['last_error'] = 'QR cloud KOT confirmation pending: ' + str(exc)
+        return done
+
     def _record_inbound_failure(self, event_id, seq, reason):
         self.stats['errors'] += 1
         self.stats['last_error'] = str(reason)
@@ -2061,6 +2113,7 @@ class InboundSyncReceiver:
         # Retry unconfirmed ACKs even when the previously committed event
         # is outside the GET cursor window. Lost HTTP responses cannot strand ACKs.
         pre_acked = self._ack_pending()
+        self._report_cloud_applied()
         last_seq = self.get_last_applied_seq()
         headers = {
             'X-Setu-Hotel': self.hotel, 'X-Setu-Sync': self.key,
@@ -2193,6 +2246,7 @@ class InboundSyncReceiver:
                 }
 
         acked = pre_acked + self._ack_pending()
+        self._report_cloud_applied()
         self.stats['applied_events'] += applied_count
         self.stats['acked_events'] += acked
         self.stats['last_sync_at'] = int(time.time()*1000)
