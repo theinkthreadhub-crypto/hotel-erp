@@ -1223,6 +1223,8 @@ def restore_backup(backup_gz, dest_db, expected_hotel_id=None):
     tenant identity when an expected Hotel ID is provided. An administrator
     must separately change the installed data path after checking results.
     """
+    if not str(expected_hotel_id or '').strip():
+        raise StoreError('expected Hotel ID is required before restore')
     if any(os.path.exists(dest_db + ext) for ext in ('', '-wal', '-shm', '.restore')):
         raise StoreError("restore requires an empty destination: use a new folder")
     if not os.path.isdir(os.path.dirname(os.path.abspath(dest_db))):
