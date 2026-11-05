@@ -34,6 +34,7 @@ import atexit
 import setu_security as SEC
 import setu_media as MEDIA
 import setu_sqlite as SQ
+import setu_cloud_client as CC
 import re
 
 APP_PORT = 8000
@@ -3041,6 +3042,13 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
 
         def qr_proxy(self, method, path, body=None):
             # QR self-ordering lives on Hotel Setu Cloud; this PC forwards with its own sync key (never given to devices)
+            agent = getattr(store, 'cloud3', None)
+            if agent and path.startswith('/api/qr/'):
+                try:
+                    code, j = agent.qr(method, '/v1/qr/' + path[len('/api/qr/'):], body)
+                except Exception:
+                    return self.send_json(502, {'error': 'Could not reach Hotel Setu Cloud. QR orders need the internet.'})
+                return self.send_json(code, j)
             if not cloud:
                 return self.send_json(503, {'error': 'QR ordering needs Hotel Setu Cloud'})
             try:
@@ -3233,7 +3241,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             if path == '/api/cloud':
                 if not self.counter_ok():
                     return self.send_json(403, {'error': 'main counter only'})
-                return self.send_json(200, cloud.public() if cloud else {'configured': False})
+                pub = cloud.public() if cloud else {'configured': False}
+                if getattr(store, 'cloud3', None):
+                    pub = {**pub, 'phase3': store.cloud3.public()}
+                return self.send_json(200, pub)
             if path == '/api/info':
                 return self.send_json(200, {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()})
             if path == '/api/hotel/info':
@@ -4892,6 +4903,14 @@ def start_server(base_dir, data_dir, port):
         store.log(f'Launch key not written: {e!r}')
     cloud = CloudSync(store)
     store.on_write = cloud.wake.set
+    # Phase 3: incremental cloud sync for a SQLite counter (setu-cloud2.json in the data folder); the legacy
+    # whole-document sync stays blocked on SQLite
+    store.cloud3 = None
+    conf3 = CC.load_conf(data_dir) if getattr(store, 'engine', '') == 'sqlite' else None
+    if conf3:
+        store.cloud3 = CC.CloudAgent(store, conf3).start()
+        store.on_write = lambda: (cloud.wake.set(), store.cloud3.wake.set())
+        store.log(f'Phase 3 cloud sync on: {conf3["url"]} hotel {conf3["hotel"]}')
     store.log(f'Server start: port {port}, database version {store.version}')
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'

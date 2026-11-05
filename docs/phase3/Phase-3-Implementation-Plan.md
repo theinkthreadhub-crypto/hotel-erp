@@ -40,7 +40,7 @@
 - **Cloud → counter:** a command queue with sequence numbers, acknowledged by the counter.
   - Kinds: licence key, vendor message, vendor lock / unlock, QR order events, restore requests.
   - **Commands never write records directly.** The counter applies each one through its own audited save path (`apply_ops` or the server write), so confirmed records stay protected.
-- **Credentials:** only the **owner password hash** (the existing PBKDF2) is replicated, for remote owner login. Staff PIN hashes stay on the counter.
+- **Credentials:** the counter's `secure` block (PBKDF2 hashes only) is replicated. It is used for remote owner login and so that a recovered counter keeps its manager and staff PINs. It is never served to devices, owner screens or guests.
 - **Tenant isolation, three layers:**
   1. every table has `hotel_id`;
   2. PostgreSQL row-level security (`FORCE ROW LEVEL SECURITY`) with the hotel set per transaction;

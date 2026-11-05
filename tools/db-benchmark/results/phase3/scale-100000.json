@@ -1,0 +1,14 @@
+{
+ "bills": 100000,
+ "snapshotSeconds": 44.7,
+ "snapshotBytesOut": 52726843,
+ "batches": 101,
+ "exportSeconds": 14.8,
+ "equal": true,
+ "backupSeconds": 29.0,
+ "backupBytes": 1843963,
+ "backupVerified": true,
+ "pgBillsBytes": 98320384,
+ "bytesPerBill": 983,
+ "counterPeakRssMB": 853
+}

@@ -1,0 +1,40 @@
+{
+ "initialSnapshot": {
+  "SYNTH1": {
+   "seconds": 0.088,
+   "bytesOut": 37749,
+   "batches": 1
+  },
+  "SYNTH2": {
+   "seconds": 0.066,
+   "bytesOut": 37749,
+   "batches": 1
+  }
+ },
+ "backup": {
+  "bytes": 3462,
+  "bills": 88
+ },
+ "concurrentDevices": {
+  "devices": 8,
+  "acknowledgedBills": 1926,
+  "agent": {
+   "batches": 79,
+   "pushed": 938,
+   "bytesOut": 415594,
+   "snapshots": 0,
+   "conflicts": 0
+  }
+ },
+ "costs": {
+  "billsInCloud": 2107,
+  "billsTableBytes": 1818624,
+  "bytesPerBillTableAndIndexes": 863,
+  "recordsTableBytes": 81920,
+  "databaseBytes": 10599447,
+  "pushPerBillRequestBytesMedian": 1503,
+  "pushLatencyMsMedian": 18.5,
+  "pushLatencyMsP95": 20.2,
+  "note": "one settled bill per sync (worst case); localhost PostgreSQL 16, no network latency"
+ }
+}

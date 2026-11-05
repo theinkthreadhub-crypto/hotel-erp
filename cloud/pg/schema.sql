@@ -50,8 +50,10 @@ CREATE TABLE IF NOT EXISTS bills (
 );
 CREATE INDEX IF NOT EXISTS bills_hotel_date ON bills (hotel_id, date);
 CREATE INDEX IF NOT EXISTS bills_hotel_phone ON bills (hotel_id, phone);
-CREATE UNIQUE INDEX IF NOT EXISTS bills_hotel_idem ON bills (hotel_id, idem_key) WHERE idem_key IS NOT NULL AND NOT deleted;
-CREATE UNIQUE INDEX IF NOT EXISTS bills_hotel_no ON bills (hotel_id, no) WHERE no IS NOT NULL AND NOT imported AND NOT deleted;
+-- Sale key and bill number: the counter enforces uniqueness. The cloud is its replica and must never refuse one of its
+-- bills (a refused bill would be missing from backups and recovery), so a clash is stored AND reported in conflicts.
+CREATE INDEX IF NOT EXISTS bills_hotel_idem ON bills (hotel_id, idem_key) WHERE idem_key IS NOT NULL AND NOT deleted;
+CREATE INDEX IF NOT EXISTS bills_hotel_no ON bills (hotel_id, no) WHERE no IS NOT NULL AND NOT imported AND NOT deleted;
 
 -- Every other record: list records (k, id), map entries (k, key), whole values (k, '')
 CREATE TABLE IF NOT EXISTS records (
