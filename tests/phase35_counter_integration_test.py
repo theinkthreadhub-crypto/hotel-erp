@@ -24,6 +24,7 @@ class CounterQrIntegration(unittest.TestCase):
         self.prev_backup = os.environ.get('SETU_BACKUP')
         os.environ['SETU_BACKUP'] = 'off'
         path = migrated(self.tmp.name, sample_doc(3))
+        self.data_dir = path
         self.counter = A.SqliteSetuStore(path)
         self.hotel = self.counter.hotel_id().upper()
         self.start_version = self.counter.version
@@ -144,6 +145,29 @@ class CounterQrIntegration(unittest.TestCase):
             [{'mid':'m0','qty':1,'price':120}]
         )
         self.assertEqual(self.counter.query('inbound-qr', {'status':'rejected'})['count'], 1)
+
+    def test_restart_preserves_original_bills_and_accepted_qr_ticket(self):
+        original_bills = self.counter.bill_count()
+        original_stock = self.counter.data()['stock']
+        self.evt('qr_order', {
+            'order_id':'g_reboot', 'table':'10',
+            'items':[{'mid':'m1','name':'Paneer','qty':2,'price':290}]
+        })
+        self.evt('qr_status', {'order_id':'g_reboot','status':'accepted'})
+        self.assertEqual(self.receiver().fetch_and_apply_once()['status'],'ok')
+        version = self.counter.version
+        self.counter.sdb.close()
+        self.counter = A.SqliteSetuStore(self.data_dir)
+        self.assertEqual(self.counter.version, version)
+        self.assertEqual(self.counter.bill_count(), original_bills)
+        self.assertEqual(self.counter.data()['stock'], original_stock)
+        qr_kots = [k for k in self.counter.data()['kots'] if k.get('qr') == 'g_reboot']
+        self.assertEqual(len(qr_kots), 1)
+        self.assertEqual(qr_kots[0]['items'][0]['qty'], 2)
+        self.assertEqual(self.counter.query('inbound-qr', {'status':'accepted'})['count'], 1)
+        self.assertEqual(self.counter.sdb.con().execute(
+            "PRAGMA quick_check").fetchone()[0], 'ok')
+
 
 if __name__ == '__main__':
     unittest.main()
