@@ -107,14 +107,6 @@ assert.equal(vm.runInContext('QR_NATIVE_DECISIONS.size',ctx),0);
 // Manual QR KOT printing is debounced on repeat clicks; actual physical
 // output requires Windows printer testing and is not asserted here.
 let prints=0, keys=[];
-vm.runInContext(span('function printKotTicket(', '/* ================= CUSTOMERS'), vm.createContext({
-  D:{kots:[{id:'qrkot_one',src:'qr',no:20,table:'7',items:[{name:'Paneer Tikka',qty:2}]}]},
-  printOnce:k=>{keys.push(k);return keys.length===1;},
-  directPrint:()=>false,
-  printDoc:()=>{prints++;},
-  kotHTML:()=>'<article>KOT</article>',
-  directKot:()=>{prints++;},
-}));
 const printCtx=vm.createContext({
   D:{kots:[{id:'qrkot_one',src:'qr',no:20,table:'7',items:[{name:'Paneer Tikka',qty:2}]}]},
   printOnce:k=>{keys.push(k);return keys.length===1;},
