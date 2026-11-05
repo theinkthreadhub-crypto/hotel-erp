@@ -46,3 +46,23 @@ Updated: 2026-11-05. This document tracks development handoffs between ChatGPT, 
 5. Final controlled release PR to `main` only after Phase 3.5 QA.
 
 **Status at handoff (2026-11-05):** Phase 3.4a code is pushed to `feature/horeca-one-phase34a-safety`. Draft PR #9 tracks the changes and remaining tasks. GitHub Actions run `42020328906` passed 167 automated tests. Real Windows EXE, POS screen propagation, KOT printing, and Cloudflare Wrangler verification remain pending. No merge into the central integration branch or `main` is approved, and no production rollout is authorized.
+
+## Phase 3.5 counter integration (2026-11-05)
+
+**Active writer:** ChatGPT; same short-lived safety branch and Draft PR #9. Base integration branch remains `feature/horeca-one-phase3-cloud-sync`. No merge into integration or `main`.
+
+Implemented on this branch:
+- Accepted QR ticket creation now uses native SQLite record serializer to preserve KOT child items and update KOT sequence.
+- Incoming committed operations advance the local counter document version, populate the LAN change feed, and refresh the live `SqliteSetuStore` cache.
+- A local authenticated `GET /api/q/inbound-qr` review API exposes staged, accepted and rejected QR orders; pending items do not enter billable cart.
+- Real `SqliteSetuStore` synthetic tests cover approval, rejection, LAN changes, no extra outbox echo, and restart durability.
+- Added CI smoke jobs for Windows PyInstaller EXE startup and local Wrangler/Miniflare startup. These do not publish production workers or installers.
+
+Verification status:
+- Linux/Node/SQLite tests and local Wrangler startup: checked in GitHub Actions.
+- Windows EXE compilation: successful in Actions run `42025499044`; Windows server boot verification was still running when this handoff was written.
+- Physical thermal-printer output, staffed browser UX, actual 4GB client hardware, and full backup/restore: **NOT RUN**.
+- Inbound QR review UI and printer trigger are not fully wired; the server review API and POS change feed are only the backend foundation.
+- No production release and no existing-client automatic upgrade permitted.
+
+Next: verify the newest CI run and Windows job result, address failures, then validate frontend QR review/print workflow and local Worker-to-Windows end-to-end test before merging.
