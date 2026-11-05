@@ -1,0 +1,30 @@
+{
+ "label": "C-365d",
+ "billsPerDay": 1000,
+ "days": 365,
+ "replicated": true,
+ "counts": {
+  "bills": 365000
+ },
+ "fileBytes": 438839381,
+ "dataMB": 371.7,
+ "gzipBytes": 45088768,
+ "note": "scale.cjs process ended without writing results (server start + concurrency on a 438 MB file exceeded the run limit). Measured by hand on the same isolated server and file:",
+ "serverRssMB": 4655,
+ "loginMs": 8048,
+ "getDbMs": 1511,
+ "settleBillMs": [
+  24910,
+  34502,
+  33619
+ ],
+ "backupFolderMB": 419,
+ "cloudSaveMemory": {
+  "dataMB": 371.7,
+  "heapForTextMB": 1475,
+  "heapAtSaveMB": 4424.8,
+  "workerLimitMB": 128,
+  "fits": false
+ },
+ "browser": "not attempted (the 78 MB database already crashed the tab)"
+}

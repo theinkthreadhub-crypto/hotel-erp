@@ -1,0 +1,41 @@
+{
+ "folder": "p2b365a",
+ "today": "2026-01-05",
+ "serverStartSeconds": 5,
+ "serverRssAtRestMB": 224,
+ "pageLoadSeconds": 17.9,
+ "afterLoad": {
+  "usedMB": 173,
+  "totalMB": 175,
+  "nodes": 2129,
+  "engine": "sqlite",
+  "windowFrom": "2025-12-02",
+  "billsOnPage": 43620,
+  "olderBillsOnCounter": 330000,
+  "stockItems": 60
+ },
+ "serverRssAfterLoadMB": 312,
+ "billSettle": {
+  "committed": true,
+  "ms": 530,
+  "status": "saved"
+ },
+ "olderMonthReport": {
+  "month": "2025-07",
+  "seconds": 4,
+  "olderBillsLoaded": 31000,
+  "usedMB": 225,
+  "totalMB": 228,
+  "nodes": 2171
+ },
+ "serverRssPeakMB": 312,
+ "network": {
+  "wholeSaves": 0,
+  "fullLoads": 1,
+  "opsSaves": 2,
+  "opsBytes": 4767,
+  "dbBytes": 0
+ },
+ "pageErrors": [],
+ "pass": true
+}

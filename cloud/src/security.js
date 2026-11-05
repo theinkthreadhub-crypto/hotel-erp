@@ -238,3 +238,59 @@ export function sanitizeWrite(role, old, neu, elevated = false){
   }
   return [...new Set(blocked)].sort();
 }
+
+// ---------- confirmed records (port of setu_security.guard_records; keep the two the same) ----------
+// A device uploads the whole database. If its copy is missing a confirmed record (a sync race, an old copy,
+// a bug), that record comes back. A device may only remove what it names in `removed` (its own deletions since
+// its last sync); bills only with a Manager login / approval. Bill identity, numbers and cancellations stay.
+const GUARDED_LISTS = ['bills', 'txns', 'moves', 'cnotes', 'orders'];
+const BILL_FIXED = ['id', 'no', 'idemKey', 'date'];
+const CANCEL_FIELDS = ['cancelled', 'cancelledBy', 'cancelledAt', 'cancelReason'];
+const int = v => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : 0; };
+export function guardRecords(old, neu, removed = {}, mayRemoveBills = false){
+  const notes = [];
+  if(!old || typeof old !== 'object' || !neu || typeof neu !== 'object') return notes;
+  removed = removed && typeof removed === 'object' ? removed : {};
+  for(const key of GUARDED_LISTS){
+    const olds = (Array.isArray(old[key]) ? old[key] : []).filter(x => x && typeof x === 'object' && x.id);
+    if(!olds.length) continue;
+    if(!Array.isArray(neu[key])) neu[key] = [];
+    const cur = neu[key];
+    const have = new Set(cur.filter(x => x && typeof x === 'object').map(x => x.id));
+    // The same sale under another id (duplicate removed by its idempotency key) is not a lost bill
+    if(key === 'bills') cur.forEach(x => { if(x && x.idemKey) have.add(x.idemKey); });
+    const allow = key !== 'bills' || mayRemoveBills ? new Set((removed[key] || []).map(String)) : new Set();
+    for(const x of olds){
+      if(!have.has(x.id) && (key !== 'bills' || !x.idemKey || !have.has(x.idemKey)) && !allow.has(String(x.id))){
+        cur.push(clone(x));
+        notes.push(`${key} ${x.id} kept`);
+      }
+    }
+  }
+  const bills = (Array.isArray(neu.bills) ? neu.bills : []).filter(b => b && typeof b === 'object');
+  const ob = new Map((Array.isArray(old.bills) ? old.bills : []).filter(b => b && typeof b === 'object' && b.id).map(b => [b.id, b]));
+  for(const b of bills){
+    const o = ob.get(b.id);
+    if(!o) continue;
+    for(const f of BILL_FIXED) if(f in o && !same(b[f], o[f])){ b[f] = o[f]; notes.push(`bill ${o.id} ${f} kept`); }
+    // A cancelled bill stays cancelled (its original record and amounts stay in the books)
+    if(o.cancelled && !b.cancelled){ CANCEL_FIELDS.forEach(f => { if(f in o) b[f] = o[f]; }); notes.push(`bill ${o.id} stays cancelled`); }
+  }
+  // Finalized bill numbers are never given twice (imported history keeps its own numbers)
+  const own = bills.filter(b => !b.imported);
+  const taken = new Map(own.filter(b => ob.has(b.id) && int(b.no)).map(b => [int(b.no), b.id]));
+  const seq = neu.seq && typeof neu.seq === 'object' ? neu.seq : {};
+  let top = Math.max(int((old.seq || {}).bill), int(seq.bill), ...own.map(b => int(b.no)));
+  for(const b of own){
+    if(ob.has(b.id)) continue;
+    let no = int(b.no);
+    if(no && taken.has(no) && taken.get(no) !== b.id){
+      top++;
+      notes.push(`bill ${b.id} number ${no} was already used, now ${top}`);
+      b.no = no = top;
+    }
+    if(no) taken.set(no, b.id);
+  }
+  if(top !== int(seq.bill)){ seq.bill = top; neu.seq = seq; }
+  return notes;
+}

@@ -1,0 +1,175 @@
+{
+ "folder": "mem10000",
+ "mode": "background",
+ "runs": 1,
+ "machine": {
+  "cpus": 4,
+  "sqlite": "3.45.1",
+  "python": "3.13.16"
+ },
+ "billsBefore": 10000,
+ "dbMB": 18.9,
+ "program": "app_main.py",
+ "serverStartSeconds": 0.4,
+ "rssAtRestMB": 82.9,
+ "deviceLoad": {
+  "status": 200,
+  "bytes": 10005339,
+  "MB": 9.5,
+  "billsSent": 10000,
+  "olderBillsOnCounterOnly": 0,
+  "windowFrom": "2025-12-02",
+  "firstMs": 499,
+  "nextMs": [
+   496,
+   534
+  ]
+ },
+ "rssAfterLoadMB": 111.3,
+ "opsSaves": {
+  "1": [
+   {
+    "clients": 1,
+    "n": 400,
+    "p50": 3.6,
+    "p95": 4.8,
+    "p99": 6.3,
+    "max": 12.6,
+    "perSecond": 258.1,
+    "errors": 0,
+    "seconds": 1.6,
+    "walMaxMB": 70.1,
+    "checkpoint": {
+     "mode": "background",
+     "runs": 2,
+     "pages": 23838,
+     "busy": 0,
+     "maxMs": 4.1,
+     "totalMs": 5.8,
+     "truncates": 0,
+     "lastAt": 1793845618865,
+     "error": ""
+    }
+   }
+  ],
+  "20": [
+   {
+    "clients": 20,
+    "n": 400,
+    "p50": 71.5,
+    "p95": 91.9,
+    "p99": 97.5,
+    "max": 98.6,
+    "perSecond": 266.5,
+    "errors": 0,
+    "seconds": 1.5,
+    "walMaxMB": 141.3,
+    "checkpoint": {
+     "mode": "background",
+     "runs": 3,
+     "pages": 54419,
+     "busy": 0,
+     "maxMs": 4.1,
+     "totalMs": 7.4,
+     "truncates": 0,
+     "lastAt": 1793845619867,
+     "error": ""
+    }
+   }
+  ],
+  "100": [
+   {
+    "clients": 100,
+    "n": 400,
+    "p50": 395.8,
+    "p95": 423.8,
+    "p99": 432.3,
+    "max": 445.2,
+    "perSecond": 249.1,
+    "errors": 0,
+    "seconds": 1.6,
+    "walMaxMB": 212.5,
+    "checkpoint": {
+     "mode": "background",
+     "runs": 5,
+     "pages": 148340,
+     "busy": 0,
+     "maxMs": 4.1,
+     "totalMs": 12.8,
+     "truncates": 0,
+     "lastAt": 1793845621873,
+     "error": ""
+    }
+   }
+  ]
+ },
+ "settle50": [
+  {
+   "clients": 50,
+   "n": 400,
+   "p50": 160.6,
+   "p95": 176.5,
+   "p99": 178.0,
+   "max": 179.5,
+   "perSecond": 303.0,
+   "errors": 0,
+   "seconds": 1.3
+  }
+ ],
+ "changeFeedMs": {
+  "p50": 1.7,
+  "p95": 2.0
+ },
+ "olderDayLoad": {
+  "date": "2025-06-19",
+  "bills": 0,
+  "ms": 2
+ },
+ "histTotalsMs": {
+  "p50": 0.9,
+  "max": 1
+ },
+ "fullExport": {
+  "status": 200,
+  "MB": 10.4,
+  "seconds": 1.1,
+  "peakRssMB": 181.1
+ },
+ "statusAtEnd": {
+  "rssMB": 137.1,
+  "walBytes": 285717912,
+  "dbBytes": 22695936,
+  "stats": {
+   "opsSaves": 1600,
+   "opsRecords": 2800,
+   "legacyFullSaves": 0,
+   "restores": 0,
+   "windowLoads": 4,
+   "fullExports": 0,
+   "changeFeeds": 10,
+   "changeReloads": 0
+  },
+  "checkpoint": {
+   "mode": "background",
+   "runs": 7,
+   "pages": 281429,
+   "busy": 0,
+   "maxMs": 8.5,
+   "totalMs": 25.2,
+   "truncates": 0,
+   "lastAt": 1793845623884,
+   "error": ""
+  }
+ },
+ "peakRssMB": 181.1,
+ "peakWalMB": 272.5,
+ "reconciliation": {
+  "acknowledgedBills": 1600,
+  "acknowledgedLost": 0,
+  "duplicateNumbers": 0,
+  "duplicateIds": 0,
+  "integrity": "ok",
+  "billsAfter": 11600,
+  "pass": true
+ }
+}

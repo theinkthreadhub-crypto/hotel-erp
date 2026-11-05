@@ -1,0 +1,131 @@
+{
+ "label": "after-90d",
+ "days": 90,
+ "billsPerDay": 200,
+ "root": "hotel-erp",
+ "scenarios": {
+  "S1 load": {
+   "pass": true,
+   "loadMs": 2857,
+   "ms": 2867
+  },
+  "S2 outage + in-flight download": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "downloadsHeld": 1,
+   "ms": 52398
+  },
+  "S4 slow download after local work (online)": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "downloadsHeld": 1,
+   "ms": 40086
+  },
+  "S5 two devices + API at once": {
+   "confirmedBills": 50,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "ms": 55884
+  },
+  "S6 crash before sync, reopen": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "ms": 44230
+  },
+  "S7 repeated delivery": {
+   "confirmedBills": 1,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "firstUpload": 200,
+   "replayedUpload": 409,
+   "settleStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "copiesOfRepeatedBill": 1,
+   "ms": 10601
+  },
+  "S8 upload that leaves records out": {
+   "cashierUpload": 200,
+   "managerUpload": 200,
+   "billsDeleted": 0,
+   "vouchersDeleted": 0,
+   "preexistingBillsLost": 0,
+   "pass": true,
+   "ms": 8406
+  },
+  "S9 restore": {
+   "cashierRestore": 403,
+   "managerRestore": 200,
+   "restoredBills": 18020,
+   "backupBills": 18020,
+   "logged": true,
+   "audited": true,
+   "pass": true,
+   "ms": 5780
+  }
+ },
+ "fileMB": 19.7,
+ "allPass": true,
+ "serverLogTail": [
+  "2026-11-04 08:12:46 Kept confirmed records from a admin save: bills m94810g0m9bm1 kept; bills m94810g0otr6e kept; bills m94810g0jlngy kept; bills m94810g0yduly kept; bills rep-after-90d kept; txns m94810g05j86v kept; txns m94810g0weylw kept; txns m94810g07y3hz kept",
+  "2026-11-04 08:12:51 RESTORE by admin: bills 18111 -> 18020, version 22 replaced"
+ ]
+}

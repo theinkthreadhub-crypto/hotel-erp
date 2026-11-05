@@ -1,0 +1,197 @@
+{
+ "label": "sqlite-30d-cust",
+ "days": 30,
+ "billsPerDay": 200,
+ "root": "hotel-erp",
+ "scenarios": {
+  "S1 load": {
+   "pass": true,
+   "loadMs": 1448,
+   "ms": 1455
+  },
+  "S2 outage + in-flight download": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "downloadsHeld": 1,
+   "ms": 20831
+  },
+  "S4 slow download after local work (online)": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "downloadsHeld": 3,
+   "ms": 25283
+  },
+  "S5 two devices + API at once": {
+   "confirmedBills": 50,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "ms": 7929
+  },
+  "S6 crash before sync, reopen": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "ms": 24514
+  },
+  "H1 page totals with older bills on the counter = full count": {
+   "pass": true,
+   "billsOnPage": 6110,
+   "billsOnCounter": 6110,
+   "windowFrom": "2025-01-01",
+   "customers": 300,
+   "customerMismatches": 0,
+   "sample": [],
+   "detail": null,
+   "stockMismatches": 0,
+   "loyaltyMismatches": 0,
+   "walletMismatches": 0,
+   "ms": 10123
+  },
+  "H2 reports for older dates (loaded on request) = full data": {
+   "pass": null,
+   "skipped": "no dates older than the recent-bills window in this dataset (needs more than 35 days)",
+   "ms": 521
+  },
+  "H4 reprint of an older bill": {
+   "pass": null,
+   "skipped": "no bill older than the recent-bills window in this dataset (needs more than 35 days)",
+   "ms": 585
+  },
+  "H3 bulk delete of older bills keeps stock, is audited, Manager only": {
+   "pass": null,
+   "skipped": "no dates older than the recent-bills window in this dataset (needs more than 35 days)",
+   "ms": 0
+  },
+  "S7 repeated delivery (incremental save)": {
+   "confirmedBills": 1,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "firstSave": 200,
+   "replayed": 200,
+   "replayFlag": true,
+   "sameVersion": true,
+   "wholeDataSave": 426,
+   "settleStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "copiesOfRepeatedBill": 1,
+   "voucherCopies": 1,
+   "stockItem": "stk0",
+   "ms": 1864
+  },
+  "S8 saves that try to drop or overwrite confirmed records": {
+   "cashierSave": 200,
+   "managerSave": 200,
+   "billsDeleted": 0,
+   "vouchersDeleted": 0,
+   "confirmedBillChanged": false,
+   "unCancelled": false,
+   "preexistingBillsLost": 0,
+   "pass": true,
+   "ms": 1124
+  },
+  "S9 restore": {
+   "cashierRestore": 403,
+   "managerRestore": 200,
+   "restoredBills": 6111,
+   "backupBills": 6111,
+   "logged": true,
+   "audited": true,
+   "pass": true,
+   "ms": 5327
+  },
+  "N1 no whole-data save from pages": {
+   "pass": true,
+   "pageWholeSaves": 0,
+   "serverRefusedWholeSaves": 1,
+   "opsSaves": 16
+  }
+ },
+ "fileMB": 7,
+ "network": {
+  "wholeSaves": 0,
+  "fullLoads": 6,
+  "opsSaves": 16,
+  "changeFeeds": 8,
+  "opsBytes": 396031,
+  "wholeBytes": 0
+ },
+ "serverStats": {
+  "opsSaves": 22,
+  "opsRecords": 495,
+  "legacyFullSaves": 1,
+  "restores": 1,
+  "windowLoads": 28,
+  "fullExports": 0,
+  "changeFeeds": 4,
+  "changeReloads": 4
+ },
+ "serverRssMB": 273.1,
+ "skipped": [
+  "H2 reports for older dates (loaded on request) = full data: no dates older than the recent-bills window in this dataset (needs more than 35 days)",
+  "H4 reprint of an older bill: no bill older than the recent-bills window in this dataset (needs more than 35 days)",
+  "H3 bulk delete of older bills keeps stock, is audited, Manager only: no dates older than the recent-bills window in this dataset (needs more than 35 days)"
+ ],
+ "allPass": true,
+ "serverLogTail": [
+  "2026-11-05 02:26:14 Kept confirmed records from a admin save: bill mk0xjmo06j1dn-00 stays cancelled",
+  "2026-11-05 02:26:16 RESTORE by admin: bills 6111 -> 6111, version 23 replaced"
+ ]
+}

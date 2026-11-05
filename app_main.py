@@ -33,6 +33,7 @@ import hashlib
 import atexit
 import setu_security as SEC
 import setu_media as MEDIA
+import setu_sqlite as SQ
 import re
 
 APP_PORT = 8000
@@ -590,7 +591,7 @@ class SetuStore:
         except Exception:
             return False
 
-    def clean_and_validate_bills(self, data_obj):
+    def clean_and_validate_bills(self, data_obj, conflicts=None):
         """
         S01 Financial Invariant Enforcement:
         1. Validates that every Split mode bill satisfies sum(pays.amt) == total.
@@ -601,7 +602,7 @@ class SetuStore:
         if not isinstance(bills, list):
             return
         
-        seen_idem = set()
+        seen_idem = {}
         deduped = []
         for b in bills:
             if not isinstance(b, dict):
@@ -625,9 +626,15 @@ class SetuStore:
                 b['idemKey'] = ik
                 
             if ik in seen_idem:
-                # Discard duplicate financial posting
+                # Same sale twice: an identical copy is a retry; different money is a conflict, reported, never silent
+                f = seen_idem[ik]
+                if any(not jeq(f.get(x, MISSING), b.get(x, MISSING)) for x in ('total', 'sub', 'disc', 'tax', 'mode', 'pays', 'items', 'cancelled')):
+                    if conflicts is not None:
+                        conflicts.append(('bills', b.get('id'), f'sale key {ik} twice with different amounts (bill #{f.get("no")} kept)', f, b))
+                    else:
+                        self.log(f'CONFLICT: sale key {ik} twice with different amounts; bill #{f.get("no")} kept, other copy: {json.dumps(b, ensure_ascii=False)[:2000]}')
                 continue
-            seen_idem.add(ik)
+            seen_idem[ik] = b
             
             # 3. Explicit payment status
             if not b.get('paymentStatus'):
@@ -1373,8 +1380,11 @@ def merge3(base, mine, theirs):
             if ik in seen_idem:
                 continue
             seen_idem.add(ik)
-            if ik in their_idem_map:
-                b = their_idem_map[ik]
+            # Only a true duplicate (the same sale under another id) takes their copy; the same bill keeps the
+            # record-level merge, or a cancellation / edit would be undone by every conflict (same as the HTML)
+            tb = their_idem_map.get(ik)
+            if tb is not None and tb.get('id') != b.get('id'):
+                b = tb
         deduped_bills.append(b)
     out['bills'] = deduped_bills
 
@@ -1455,6 +1465,1035 @@ def _key_kind(key):
 
 class CloudBusy(Exception):
     pass
+
+
+HIST_KEYS = ('bills',)                 # read from the tables when needed, never kept in server memory
+RECORD_KINDS = ('spec', 'extlist')     # lists saved record by record
+MAP_KINDS = ('maptable', 'kvmap', 'att')
+WHOLE_ONLY = ('staff', 'secure')
+FIN_FIELDS = ('total', 'sub', 'disc', 'tax', 'mode', 'pays', 'items', 'cancelled', 'amount', 'qty', 'no')   # money / stock content       # staff PIN hashes are keyed by list position: always the whole list
+MAX_OPS_RECORDS = 20000
+
+
+def _seq_merge(mine, cur):
+    """Running numbers never go back (the rule of merge3): bill / KOT / credit note = the larger, tokens by day."""
+    mine = mine if isinstance(mine, dict) else {}
+    cur = cur if isinstance(cur, dict) else {}
+    seq = {**cur, **mine}
+    for k in ('bill', 'kot', 'cn'):
+        if k in mine or k in cur:
+            seq[k] = max(_num(mine.get(k)), _num(cur.get(k)))
+    md, td = str(mine.get('tokenDate') or ''), str(cur.get('tokenDate') or '')
+    if 'tokenDate' in mine or 'tokenDate' in cur:
+        seq['tokenDate'] = md if md > td else td
+        seq['token'] = max(_num(mine.get('token')), _num(cur.get('token'))) if md == td else (_num(mine.get('token')) if md > td else _num(cur.get('token')))
+    return seq
+
+
+def _bill_part(b):
+    """What one bill adds to the history totals (same rules as SqliteDoc.history_totals)."""
+    if not isinstance(b, dict):
+        return None
+    tot = b.get('total')
+    sale = SQ.MONEY(tot) if isinstance(tot, (int, float)) and not isinstance(tot, bool) and not b.get('cancelled') else (0 if not b.get('cancelled') else None)
+    out = {'date': str(b.get('date') or ''), 'stock': {}, 'p': None, 'sale': sale}
+    if b.get('mv'):
+        for u in b.get('used') or []:
+            if isinstance(u, dict):
+                sid = str(u.get('sid')) if u.get('sid') is not None else ''
+                q = float(u.get('qty') or 0)
+                out['stock'][sid] = out['stock'].get(sid, 0) - q + (q if b.get('cancelled') else 0)
+    if b.get('cancelled'):
+        return out
+    p = SQ.norm_ph(b.get('phone'))
+    if len(p) != 10:
+        return out
+    pts = SQ.jsnum(b.get('ptsEarned')) - SQ.jsnum(b.get('ptsUsed'))
+    agg = b.get('channel') in ('Zomato', 'Swiggy')
+    fav = {}
+    if not agg:
+        for it in b.get('items') or []:
+            if isinstance(it, dict) and it.get('name'):
+                fav[it['name']] = fav.get(it['name'], 0) + (SQ.jsnum(it.get('qty')) or 1)
+    out['p'] = {'phone': p, 'pa': pts, 'ws': SQ.jsnum(b.get('total')) if b.get('mode') == 'Wallet' else 0,
+                'agg': agg, 'pts': 0 if agg else pts, 'spend': 0 if agg else SQ.jsnum(b.get('total')), 'name': b.get('cust') or '', 'fav': fav}
+    return out
+
+
+class SqliteSetuStore(SetuStore):
+    """SetuStore on the local SQLite database (Phase 2b).
+
+    * The server keeps in memory only the working data (settings, menu, stock, vouchers, KOTs, audit, maps, ...),
+      never the bill history. Bills are read from the tables: a window of recent days for devices
+      (GET /api/db), any older range on request (/api/q/bill-range), totals of older bills (/api/q/hist).
+    * Devices save with POST /api/ops: only the records, map entries or small values that changed, in one
+      transaction, through the same security rules as before (credentials, cashier limits, confirmed records,
+      bill numbers). Other devices fetch only what changed (GET /api/changes).
+    * The whole-document upload (POST /api/db) is accepted only for a restore and the first upload.
+    Cloud full-document sync is switched off in this mode (sync_blocked) until Phase 3 incremental sync.
+    """
+
+    sync_blocked = 'Cloud sync is paused on this PC: the local SQLite database needs incremental cloud sync (Phase 3).'
+    engine = 'sqlite'
+
+    def __init__(self, data_dir):
+        self.sdb = SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE))
+        self._ws = None
+        self._idx = {}
+        self._raw_cache = (None, 'null')
+        self._enc_lock = threading.RLock()
+        self._hist = {}
+        self._hist_rev = 0
+        self._hist_lock = threading.Lock()
+        self.stats = {'opsSaves': 0, 'opsRecords': 0, 'legacyFullSaves': 0, 'restores': 0, 'windowLoads': 0, 'fullExports': 0, 'changeFeeds': 0, 'changeReloads': 0}
+        super().__init__(data_dir)
+        self.sdb.start_checkpointer()
+        threading.Thread(target=self._warm_hist, daemon=True).start()
+
+    # ---------- memory: the working data only ----------
+    @property
+    def raw(self):
+        if self._ws is None:
+            return 'null'
+        with self._enc_lock:
+            if self._raw_cache[0] != self.version:
+                self._raw_cache = (self.version, json.dumps(self._ws, ensure_ascii=False))
+            return self._raw_cache[1]
+
+    @raw.setter
+    def raw(self, value):
+        pass
+
+    def _load(self):
+        self._ws = self.sdb.export_except(HIST_KEYS)
+        self._idx = {}
+        self.version = int(self.sdb.meta('doc_version') or 0)
+        self.saved_at = int(self.sdb.meta('saved_at') or 0)
+        self.migrate_wa_history(self._ws)
+
+    def data(self):
+        """The working data (no bill history). Server code that changes it saves with write(), key by key."""
+        return json.loads(self.raw)
+
+    def hotel_id(self):
+        d = self._ws or {}
+        return str((d.get('settings') or {}).get('hotelId') or (d.get('auth') or {}).get('hotelId') or 'default').strip()
+
+    def check_pin(self, pin):
+        return SEC.check_pin(self._ws or {}, pin)
+
+    def has_users_or_pins(self):
+        return SEC.has_credentials(self._ws or {})
+
+    def public_raw(self):
+        with self._enc_lock:
+            if self._pub[0] != self.version:
+                self._pub = (self.version, json.dumps(SEC.public_view(self._ws or {}), ensure_ascii=False))
+            return self._pub[1]
+
+    def _index(self, k):
+        """id -> position in a working list; kept up to date by each save (rebuilt only if the list was replaced)."""
+        lst = self._ws.get(k)
+        ix = self._idx.get(k)
+        if ix is None or ix[0] is not lst or len(ix[1]) > len(lst):
+            ix = (lst, {x.get('id'): i for i, x in enumerate(lst) if isinstance(x, dict)})
+            self._idx[k] = ix
+        return ix[1]
+
+    def _kot_numbers(self):
+        """KOT number -> id of the KOTs kept in memory (cached until the KOTs change)."""
+        if getattr(self, '_kotno', None) is None or self._kotno[0] is not self._ws.get('kots'):
+            self._kotno = (self._ws.get('kots'), {x.get('no'): x.get('id') for x in self._ws.get('kots') or [] if isinstance(x, dict)})
+        return dict(self._kotno[1])
+
+    def _ws_record(self, k, rid):
+        lst = self._ws.get(k)
+        if not isinstance(lst, list):
+            return None
+        i = self._index(k).get(rid)
+        return lst[i] if i is not None else None
+
+    # ---------- history window and totals ----------
+    def hist_days(self):
+        try:
+            return max(7, min(400, int((self._ws.get('settings') or {}).get('histDays') or 35)))
+        except (TypeError, ValueError):
+            return 35
+
+    def window_from(self, days=None, today=None):
+        """First day of the recent-bills window. `today` = the device's date (its screens use its own clock)."""
+        days = days or self.hist_days()
+        base = time.time()
+        if today:
+            try:
+                base = time.mktime(time.strptime(today, '%Y-%m-%d')) + 43200
+            except ValueError:
+                pass
+        return time.strftime('%Y-%m-%d', time.localtime(base - (days - 1) * 86400))
+
+    def _warm_hist(self):
+        try:
+            self.hist(self.window_from())
+        except Exception as e:
+            self.log(f'history totals not prepared: {e!r}')
+
+    def hist(self, frm):
+        """Totals of the bills before `frm` (computed once per day, then kept up to date by every save)."""
+        with self._hist_lock:
+            h = self._hist.get(frm)
+            if h is not None:
+                return h
+        for _ in range(3):
+            v0 = self.version
+            h = self.sdb.history_totals(frm)
+            if self.version == v0:
+                break
+            # Saves during the count: if one touched an older bill, count again
+            with self.sdb.reader() as c:
+                ids = [r[0] for r in c.execute("SELECT DISTINCT rid FROM change_log WHERE k = 'bills' AND version > ?", (v0,))]
+                old = any(r[0] < frm for r in c.execute(f'SELECT date FROM bills WHERE id IN ({",".join("?" * len(ids))})', ids)) if ids else False
+            if not old:
+                break
+        with self._hist_lock:
+            for k in sorted(x for x in self._hist if x != frm)[:-2]:
+                self._hist.pop(k, None)   # at most 3 windows kept (the date moves once a day; devices' clocks differ)
+            self._hist.setdefault(frm, h)
+            return self._hist[frm]
+
+    def _hist_update(self, old, new):
+        """A saved bill older than a window changes the totals of that window: subtract its old part, add the new."""
+        with self._hist_lock:
+            if not self._hist:
+                return
+            for frm, h in self._hist.items():
+                phones = set()
+                for part, sign in ((_bill_part(old), -1), (_bill_part(new), 1)):
+                    if not part or not part['date'] or part['date'] >= frm:
+                        continue
+                    for sid, q in part['stock'].items():
+                        h['stock'][sid] = h['stock'].get(sid, 0) + sign * q
+                    if part['sale'] is not None:
+                        dd = h.setdefault('days', {}).setdefault(part['date'], [0, 0])
+                        dd[0] += sign
+                        dd[1] += sign * part['sale']
+                        if dd[0] <= 0:
+                            h['days'].pop(part['date'], None)
+                    if part['p']:
+                        phones.add(part['p']['phone'])
+                was = bool(old) and str(old.get('date') or '') < frm
+                now_in = bool(new) and str(new.get('date') or '') < frm
+                h['bills'] += int(now_in) - int(was)
+                if phones:
+                    # First / last visit and the name cannot be undone by subtraction: count these customers again
+                    fresh = self.sdb.cust_totals(frm, phones)
+                    for p in phones:
+                        if p in fresh:
+                            h['cust'][p] = fresh[p]
+                        else:
+                            h['cust'].pop(p, None)
+            self._hist_rev += 1
+
+    # ---------- what a device loads ----------
+    def db_payload(self, frm=None, full=False):
+        """JSON for GET /api/db: the working data (public view) with the bills of the window, or every bill."""
+        frm = frm or self.window_from()
+        # The working data as JSON text made under the lock, with its version: a save that lands meanwhile can
+        # never mix into this copy (the lists are changed in place after each commit)
+        with self._enc_lock:
+            pub_text = self.public_raw()
+            version, saved_at = self.version, self.saved_at
+        bills = self.sdb.export_window('0000-00-00' if full else frm)   # own read connection: billing is not paused
+        body_bills = json.dumps(bills, ensure_ascii=False)
+        bills = None
+        pub_text = pub_text.strip()
+        data_text = ('{"bills": ' + body_bills + '}') if pub_text in ('{}', 'null', '') else (pub_text[:-1] + ', "bills": ' + body_bills + '}')
+        if full:
+            self.stats['fullExports'] += 1
+            return ('{"version": %d, "savedAt": %d, "data": %s}' % (version, saved_at, data_text)).encode('utf-8')
+        self.stats['windowLoads'] += 1
+        h = self.hist(frm)
+        meta = {'engine': 'sqlite', 'win': {'from': frm, 'days': self.hist_days(), 'older': h['bills']}, 'histRev': self._hist_rev,
+                'kinds': {k: v for k, v in self.sdb.kinds().items() if k != 'secure'}, 'hist': h}
+        return ('{"version": %d, "savedAt": %d, "meta": %s, "data": %s}' % (version, saved_at, json.dumps(meta, ensure_ascii=False), data_text)).encode('utf-8')
+
+    def bill_count(self):
+        with self.sdb.reader() as c:
+            return c.execute('SELECT COUNT(*) FROM bills').fetchone()[0]
+
+    def write_full_json(self, f, public=False):
+        """The whole data (every bill) as a backup file, written in parts: memory stays flat at any size.
+        public=True: without credentials (what a device may download)."""
+        with self._enc_lock:
+            ws = copy.deepcopy(SEC.public_view(self._ws or {}) if public else self._ws or {})
+            version = self.version
+        keys = self.sdb.doc_keys()
+        f.write('{"version": %d, "savedAt": %d, "data": {' % (version, int(time.time() * 1000)))
+        first = True
+        for k in keys + [k for k in ws if k not in keys]:
+            if k not in ws and k not in HIST_KEYS:
+                continue
+            f.write(('' if first else ', ') + json.dumps(k) + ': ')
+            first = False
+            if k == 'bills':
+                f.write('[')
+                n = 0
+                for part in self.sdb.iter_bills(5000):
+                    for b in part:
+                        f.write((', ' if n else '') + json.dumps(b, ensure_ascii=False))
+                        n += 1
+                f.write(']')
+            else:
+                f.write(json.dumps(ws[k], ensure_ascii=False))
+        f.write('}}')
+
+    # ---------- server-side writes (WhatsApp records, licence, restore, ...) ----------
+    def write(self, data_obj, outbox=('doc', None)):
+        """Save what differs from the working data, key by key. Keys not given are kept (never deleted here).
+        A data object WITH bills is a whole replacement (restore / first upload)."""
+        if 'bills' in data_obj:
+            return self.replace_all(data_obj)
+        version, saved_at = self.version + 1, int(time.time() * 1000)
+        touched = []
+        with self.sdb.tx() as c:
+            for k, v in data_obj.items():
+                if k in self._ws and jeq(self._ws[k], v):
+                    continue
+                kind = SQ.SqliteDoc.kind_of(k, v)
+                self.sdb.set_value(c, k, kind, v, self._ws.get(k))
+                self.sdb.log_change(c, version, k, '')
+                touched.append(k)
+            if not touched:
+                return
+            self.sdb.set_version(c, version, saved_at)
+            c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', (outbox[0], outbox[1], version, json.dumps({'keys': touched}), saved_at))
+        with self._enc_lock:
+            for k in touched:
+                self._ws[k] = data_obj[k]
+            self.version, self.saved_at = version, saved_at
+        self._after_write()
+
+    def replace_all(self, doc):
+        """Whole replacement in one transaction (restore from a backup, first upload): every key rewritten."""
+        version, saved_at = self.version + 1, int(time.time() * 1000)
+        with self.sdb.tx() as c:
+            for k, kind in self.sdb.kinds().items():
+                self.sdb._clear_key(c, k, kind)
+            c.execute("DELETE FROM meta WHERE k IN ('doc_keys', 'doc_kinds')")
+            self.sdb.commit_document(c, {}, doc, version, saved_at)
+            self.sdb.log_change(c, version, '*', '')
+            c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', ('restore', None, version, '{}', saved_at))
+        with self._enc_lock:
+            self._ws = {k: v for k, v in doc.items() if k not in HIST_KEYS}
+            self._idx = {}
+            self.version, self.saved_at = version, saved_at
+        with self._hist_lock:
+            self._hist = {}
+            self._hist_rev += 1
+        self.stats['restores'] += 1
+        self._after_write()
+
+    def _after_write(self, keep_maxno=False):
+        if not keep_maxno:
+            self._maxno = None
+        if self.on_write:
+            self.on_write()
+        self._backup_soon()
+
+    BACKUP_IDLE = 45          # seconds without a save before the daily backup starts
+    BACKUP_MAX_WAIT = 1800    # ... but never later than this after it became due
+
+    def _backup_soon(self):
+        """One verified online backup per day, at most every 10 minutes, taken when the counter is quiet.
+        A backup reads the whole file in one snapshot (about 70 s at 365,000 bills); while it runs the write log
+        cannot be folded back, and the checkpoint after it stalled saves for about a second (measured). So it waits
+        for BACKUP_IDLE seconds without a save, at most BACKUP_MAX_WAIT, then shrinks the write log."""
+        self._last_save = time.time()
+        if os.environ.get('SETU_BACKUP') == 'off':
+            return
+        if getattr(self, '_backup_due', 0) or time.time() - getattr(self, '_last_copy', 0) < 600 or getattr(self, '_backing_up', False):
+            return
+        self._backup_due = time.time()
+        if getattr(self, '_backup_thread', None) is None:
+            self._backup_thread = threading.Thread(target=self._backup_loop, daemon=True)
+            self._backup_thread.start()
+
+    def _backup_loop(self):
+        while True:
+            time.sleep(5)
+            due = getattr(self, '_backup_due', 0)
+            if not due:
+                continue
+            now = time.time()
+            if now - self._last_save < self.BACKUP_IDLE and now - due < self.BACKUP_MAX_WAIT:
+                continue
+            self._backup_due, self._backing_up, self._last_copy = 0, True, now
+            try:
+                os.makedirs(self.backup_dir, exist_ok=True)
+                self.sdb.backup_to(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.sqlite.gz'), self.version, KEEP_BACKUPS)
+                self.backup_stats = {'at': int(time.time() * 1000), 'waitedSeconds': round(now - due), 'tookSeconds': round(time.time() - now, 1)}
+                with self.sdb.wlock:
+                    self.sdb.con().execute('PRAGMA wal_checkpoint(TRUNCATE)')
+            except Exception as e:
+                self.log(f'SQLITE BACKUP FAILED: {e!r}')
+            finally:
+                self._backing_up = False
+
+    # ---------- incremental saves from devices (POST /api/ops) ----------
+    def _cur(self, c, k, kind, ids):
+        """Stored records of a list by id: bills from the tables, the rest from memory."""
+        if k in HIST_KEYS:
+            return self.sdb.get_records(c, k, ids)
+        out = {}
+        for rid in ids:
+            r = self._ws_record(k, rid)
+            if r is not None:
+                out[rid] = r
+        return out
+
+    def apply_ops(self, body, role, elev=False):
+        """One device save: typed operations on records, map entries and small values, applied in ONE
+        transaction after the same security rules as the whole-document save. Returns (status, answer).
+        Caller holds self.lock."""
+        ops = copy.deepcopy(body.get('ops'))   # never share objects with the caller (or with memory)
+        opid = str(body.get('id') or '')[:120]
+        try:
+            bv = int(body.get('bv', -1))
+        except (TypeError, ValueError):
+            return 400, {'error': 'bad base version'}
+        if not isinstance(ops, list) or not ops:
+            return 400, {'error': 'ops required'}
+        con = self.sdb.con()
+        if opid:
+            with self.sdb.rlock():
+                done = con.execute("SELECT result FROM operation_idempotency WHERE key = ? AND op = 'ops'", (opid,)).fetchone()
+            if done:
+                out = json.loads(done[0] or '{}')
+                out['repeat'] = True
+                return 200, out
+        kinds = self.sdb.kinds()
+        rec, maps, whole = {}, {}, {}
+        n_rec = 0
+        conflicts = []     # (key, record id, reason, kept copy, other copy): stored, reported, never dropped silently
+        for c_ in body.get('conflicts') or []:
+            if isinstance(c_, dict) and isinstance(c_.get('k'), str):
+                conflicts.append((c_['k'], str(c_.get('id') or ''), str(c_.get('reason') or 'differing copies on the device')[:200], c_.get('kept'), c_.get('other')))
+        for op in ops:
+            if not isinstance(op, dict) or not isinstance(op.get('k'), str) or not op['k'] or len(op['k']) > 60:
+                return 400, {'error': 'bad op'}
+            k = op['k']
+            if k == 'secure':
+                continue                      # credential hashes come only from the server
+            if 'set' in op:
+                if k in HIST_KEYS:
+                    return 400, {'error': f'{k} are saved record by record'}
+                whole[k] = (op['set'], op.get('prev', MISSING) if 'prev' in op else MISSING)
+            elif 'up' in op or 'rm' in op:
+                up, rm, prev = op.get('up') or [], op.get('rm') or [], op.get('prev') or {}
+                if not isinstance(up, list) or not isinstance(rm, list) or not isinstance(prev, dict):
+                    return 400, {'error': 'bad record op'}
+                if k in WHOLE_ONLY:
+                    return 400, {'error': f'{k} is saved as a whole'}
+                if not all(isinstance(x, dict) and isinstance(x.get('id'), str) and x['id'] for x in up):
+                    return 400, {'error': f'{k}: every record needs an id'}
+                kind = kinds.get(k) or SQ.SqliteDoc.kind_of(k, up or [{'id': 'x'}])
+                if kind not in RECORD_KINDS:
+                    return 400, {'error': f'{k} is not a record list here ({kind})'}
+                e = rec.setdefault(k, {'kind': kind, 'up': {}, 'rm': set(), 'prev': {}})
+                for x in up:
+                    first = e['up'].get(x['id'])
+                    if first is not None:
+                        # The same record twice in one save: identical = one copy; different = first kept, other recorded
+                        if not jeq(first, x):
+                            conflicts.append((k, x['id'], 'same id twice in one save, different content', first, x))
+                        continue
+                    e['up'][x['id']] = x
+                    e['rm'].discard(x['id'])
+                for i in rm:
+                    e['rm'].add(str(i))
+                    e['up'].pop(str(i), None)
+                e['prev'].update({str(i): v for i, v in prev.items()})
+                n_rec += len(up) + len(rm)
+            elif 'mset' in op or 'mdel' in op:
+                ms, md, mp = op.get('mset') or {}, op.get('mdel') or [], op.get('mprev') or {}
+                if not isinstance(ms, dict) or not isinstance(md, list) or not isinstance(mp, dict):
+                    return 400, {'error': 'bad map op'}
+                kind = kinds.get(k) or SQ.SqliteDoc.kind_of(k, ms)
+                if kind not in MAP_KINDS:
+                    return 400, {'error': f'{k} is not a map here ({kind})'}
+                e = maps.setdefault(k, {'kind': kind, 'set': {}, 'del': set(), 'prev': {}})
+                for mk, v in ms.items():
+                    e['set'][str(mk)] = v
+                    e['del'].discard(str(mk))
+                for mk in md:
+                    e['del'].add(str(mk))
+                    e['set'].pop(str(mk), None)
+                e['prev'].update(mp)
+            else:
+                return 400, {'error': 'bad op'}
+        orig_up = {k: copy.deepcopy(e['up']) for k, e in rec.items()}
+        orig_touch = {k: list(e['up']) + sorted(e['rm']) for k, e in rec.items()}
+        orig_map = {k: (copy.deepcopy(e['set']), set(e['del'])) for k, e in maps.items()}
+        orig_whole = {k: copy.deepcopy(v[0]) for k, v in whole.items()}
+        if n_rec > MAX_OPS_RECORDS:
+            return 413, {'error': f'too many records in one save ({n_rec})'}
+        admin = role in ('admin', 'local') or elev
+        with self.sdb.rlock():
+            last = lambda k, rid='': SQ.SqliteDoc.last_change(con, k, rid)   # noqa: E731
+            # ---- 1. stored values, and three-way merge of what another device changed since this device's copy
+            old_v, new_v, cur_rec = {}, {}, {}
+            for k, e in rec.items():
+                ids = list(e['up']) + list(e['rm'])
+                cur = self._cur(con, k, e['kind'], ids)
+                cur_rec[k] = cur
+                old_v[k] = [copy.deepcopy(cur[i]) for i in ids if i in cur]
+                lst = []
+                for rid, mine in e['up'].items():
+                    theirs = cur.get(rid)
+                    if theirs is not None and rid in e['prev'] and last(k, rid) > bv:
+                        mine = copy.deepcopy(merge_node(e['prev'][rid], mine, theirs, 1))
+                    lst.append(mine)
+                for rid in list(e['rm']):
+                    theirs = cur.get(rid)
+                    if theirs is not None and last(k, rid) > bv and not jeq(e['prev'].get(rid, MISSING), theirs):
+                        e['rm'].discard(rid)          # another device changed it after this one read it: it stays
+                        lst.append(copy.deepcopy(theirs))
+                new_v[k] = lst
+            cur_map = {}
+            for k, e in maps.items():
+                cm = self._ws.get(k) if isinstance(self._ws.get(k), dict) else {}
+                cur_map[k] = cm
+                for mk, mine in list(e['set'].items()):
+                    if mk in cm and mk in e['prev'] and last(k, mk) > bv:
+                        e['set'][mk] = copy.deepcopy(merge_node(e['prev'][mk], mine, cm[mk], 1))
+                for mk in list(e['del']):
+                    if mk in cm and last(k, mk) > bv and not jeq(e['prev'].get(mk, MISSING), cm[mk]):
+                        e['del'].discard(mk)
+            for k, (v, prev) in list(whole.items()):
+                cur = self._ws.get(k, MISSING)
+                if k == 'seq':
+                    v = _seq_merge(v, cur if cur is not MISSING else {})
+                elif cur is not MISSING and prev is not MISSING and last(k) > bv:
+                    v = copy.deepcopy(merge_node(prev, v, cur, 0))
+                whole[k] = (v, prev)
+                if cur is not MISSING:
+                    old_v[k] = copy.deepcopy(cur)
+                new_v[k] = v
+            seq_cur = copy.deepcopy(self._ws.get('seq') or {})
+            old_v.setdefault('seq', copy.deepcopy(seq_cur))
+            new_v.setdefault('seq', copy.deepcopy(seq_cur))
+            # ---- 2. credentials: plain PINs become hashes (manager only); the stored hashes always stay
+            cfg = {k: (new_v[k] if k in new_v else copy.deepcopy(self._ws[k])) for k in ('settings', 'auth', 'staff') if k in new_v or k in self._ws}
+            SEC.absorb_secrets(cfg, {'secure': self._ws.get('secure')}, admin)
+            for k in ('settings', 'auth', 'staff', 'secure'):
+                if k in cfg and not jeq(cfg[k], self._ws.get(k, MISSING)):
+                    new_v[k] = cfg[k]
+                    old_v.setdefault(k, copy.deepcopy(self._ws.get(k)) if k in self._ws else None)
+                    if old_v[k] is None:
+                        del old_v[k]
+            # ---- 3. cashier / captain / kitchen limits (settings, logins, licence, past records, numbers)
+            given = set(new_v)
+            if not admin and 'audit' in rec and len(self._ws.get('audit') or []) >= 19000:
+                trimmed = rec['audit']['rm']
+                old_v['audit'] = [x for x in old_v.get('audit', []) if x.get('id') not in trimmed]
+            blocked = SEC.sanitize_write(role, old_v, new_v, elev)
+            for k in list(new_v):
+                if k not in given:
+                    del new_v[k]                  # a key this save did not touch is never written
+            if blocked:
+                self.log(f'BLOCKED by role {role}: ' + ', '.join(blocked[:20]))
+            # ---- 4. bills: split tenders, idempotency (also against bills already stored), numbers
+            dup = {}
+            if 'bills' in new_v:
+                try:
+                    self.clean_and_validate_bills(new_v, conflicts)
+                except ValueError as ve:
+                    return 400, {'error': str(ve)}
+                keep = []
+                for b in new_v['bills']:
+                    if b.get('id') not in cur_rec['bills'] and b.get('idemKey'):
+                        r = con.execute('SELECT id FROM bills WHERE idemKey = ? AND id <> ?', (b['idemKey'], b['id'])).fetchone()
+                        if r:
+                            stored = self.sdb.get_records(con, 'bills', [r[0]]).get(r[0])
+                            dup[b['id']] = stored
+                            # A retry of the same sale is fine; the same sale key with different money is a conflict
+                            if stored and any(not jeq(stored.get(f, MISSING), b.get(f, MISSING)) for f in FIN_FIELDS if f != 'no'):
+                                conflicts.append(('bills', b['id'], f'sale key {b["idemKey"]} already settled as bill #{stored.get("no")} with different amounts', stored, b))
+                            continue
+                    keep.append(b)
+                new_v['bills'] = keep
+            removed = {k: sorted(e['rm']) for k, e in rec.items()}
+            kept = SEC.guard_records(old_v, new_v, removed, admin)
+            if kept:
+                self.log(f'Kept confirmed records from a {role} save: ' + '; '.join(kept[:15]))
+            renum = {}
+            if 'bills' in new_v:
+                seq = new_v['seq'] if isinstance(new_v.get('seq'), dict) else {}
+                top = max(_num(seq.get('bill')), _num(seq_cur.get('bill')), self._max_bill_no())   # cached: no scan per save
+                batch = {}
+                for b in new_v['bills']:
+                    if b.get('id') in cur_rec['bills'] or b.get('imported'):
+                        continue
+                    no = _num(b.get('no'))
+                    if not no:
+                        continue
+                    # Number stored as a number or as text: both use the bills(no) index (CAST would read every bill)
+                    clash = batch.get(no) not in (None, b['id']) or con.execute(
+                        'SELECT 1 FROM bills WHERE no IN (?, ?, ?) AND COALESCE(imported, 0) = 0 AND id <> ? LIMIT 1', (no, float(no), str(no), b['id'])).fetchone()
+                    if clash:
+                        top += 1
+                        renum[b['id']] = top
+                        b['no'] = no = top
+                    batch[no] = b['id']
+                    top = max(top, no)
+                if top != _num(seq.get('bill')):
+                    seq['bill'] = top
+                    new_v['seq'] = seq
+            if 'kots' in new_v:
+                seq = new_v['seq'] if isinstance(new_v.get('seq'), dict) else {}
+                taken = self._kot_numbers()
+                for x in new_v['kots']:
+                    if x.get('id') in cur_rec['kots'] or x.get('no') is None:
+                        continue
+                    if taken.get(x['no'], x['id']) != x['id']:
+                        seq['kot'] = max(_num(seq.get('kot')), max([_num(v) for v in taken] + [0])) + 1
+                        renum['kot:' + x['id']] = seq['kot']
+                        x['no'] = seq['kot']
+                        new_v['seq'] = seq
+                    taken[x['no']] = x['id']
+        # ---- 5. the final writes: only what differs from what is stored
+        writes_rec, writes_map, writes_whole = {}, {}, {}
+        for k, e in rec.items():
+            final = {x['id']: x for x in new_v.get(k, []) if isinstance(x, dict) and x.get('id')}
+            cur = cur_rec[k]
+            ups = [x for rid, x in final.items() if rid not in cur or not jeq(cur[rid], x)]
+            rms = [rid for rid in cur if rid not in final]
+            if ups or rms:
+                writes_rec[k] = (e['kind'], ups, rms)
+        for k, e in maps.items():
+            cm = cur_map[k]
+            s_ = {mk: v for mk, v in e['set'].items() if mk not in cm or not jeq(cm[mk], v)}
+            d_ = [mk for mk in e['del'] if mk in cm]
+            if s_ or d_:
+                writes_map[k] = (e['kind'], s_, d_)
+        for k, v in new_v.items():
+            if k in rec:
+                continue
+            if k not in self._ws or not jeq(self._ws[k], v):
+                writes_whole[k] = v
+        # What the device must correct in its own copy: every touched record / entry / value whose stored
+        # result differs from what it sent (guards, merges, numbers, duplicates), plus values the server changed
+        fix = []
+        for k, e in rec.items():
+            final = {x['id']: x for x in new_v.get(k, []) if isinstance(x, dict) and x.get('id')}
+            for rid in [r for r in orig_touch[k] if r not in final and r in cur_rec[k] and r not in writes_rec.get(k, (0, 0, []))[2]]:
+                final[rid] = cur_rec[k][rid]          # not removed after all (stays as stored)
+            ups = [final[rid] for rid in orig_touch[k] if rid in final and not jeq(orig_up[k].get(rid, MISSING), final[rid])]
+            rms = [rid for rid in orig_touch[k] if rid not in final and rid in orig_up[k]]
+            if k == 'bills':
+                ups += [b for b in dup.values() if b]
+            if ups or rms:
+                fix.append({'k': k, 'up': ups, 'rm': rms})
+        for k, e in maps.items():
+            cm, (oset, odel) = cur_map[k], orig_map[k]
+            s_, d_ = writes_map.get(k, (None, {}, []))[1:]
+            final = {mk: cm[mk] for mk in set(oset) | odel if mk in cm}
+            final.update(s_)
+            for mk in d_:
+                final.pop(mk, None)
+            ms = {mk: v for mk, v in final.items() if not jeq(oset.get(mk, MISSING), v)}
+            md = [mk for mk in oset if mk not in final]
+            if ms or md:
+                fix.append({'k': k, 'mset': ms, 'mdel': md})
+        for k in set(whole) | set(writes_whole):
+            if k == 'secure' or k in rec:
+                continue
+            final = writes_whole[k] if k in writes_whole else self._ws.get(k, MISSING)
+            if final is not MISSING and not jeq(orig_whole.get(k, MISSING), final):
+                fix.append({'k': k, 'set': SEC.public_view({k: final}).get(k)})
+        if conflicts:
+            self._record_conflicts(conflicts, role)
+        if not (writes_rec or writes_map or writes_whole):
+            out = {'ok': True, 'version': self.version, 'savedAt': self.saved_at, 'unchanged': True}
+            if conflicts:
+                out['conflicts'] = [{'k': c_[0], 'id': c_[1], 'reason': c_[2]} for c_ in conflicts]
+            if fix or dup:
+                out.update(fix=fix, dup=dup, renumbered=renum, blocked=blocked)
+            return 200, out
+        # ---- 6. one transaction
+        version, now = self.version + 1, int(time.time() * 1000)
+        old_bills = {}
+        with self.sdb.tx() as c:
+            for k, (kind, ups, rms) in writes_rec.items():
+                if k not in kinds:
+                    self.sdb.register_key(c, k, kind)
+                cur = cur_rec[k]
+                for x in ups:
+                    self.sdb.upsert(c, k, kind, x, cur.get(x['id']))
+                    self.sdb.log_change(c, version, k, x['id'])
+                for rid in rms:
+                    self.sdb.remove(c, k, kind, rid, cur.get(rid))
+                    self.sdb.log_change(c, version, k, rid)
+                if k == 'bills':
+                    old_bills = {x['id']: cur.get(x['id']) for x in ups}
+                    old_bills.update({rid: cur.get(rid) for rid in rms})
+            for k, (kind, s_, d_) in writes_map.items():
+                if k not in kinds:
+                    self.sdb.register_key(c, k, kind)
+                for mk, v in s_.items():
+                    self.sdb.map_set(c, k, kind, mk, v)
+                    self.sdb.log_change(c, version, k, mk)
+                for mk in d_:
+                    self.sdb.map_del(c, k, kind, mk)
+                    self.sdb.log_change(c, version, k, mk)
+            for k, v in writes_whole.items():
+                kind = SQ.SqliteDoc.kind_of(k, v)
+                self.sdb.set_value(c, k, kind, v, self._ws.get(k))
+                self.sdb.log_change(c, version, k, '')
+            self.sdb.set_version(c, version, now)
+            summary = {'keys': sorted(set(writes_rec) | set(writes_map) | set(writes_whole)), 'records': sum(len(u) + len(r) for _, u, r in writes_rec.values()), 'op': opid}
+            c.execute('INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES (?, ?, ?, ?, ?)', ('ops', opid or None, version, json.dumps(summary), now))
+            out = {'ok': True, 'version': version, 'savedAt': now}
+            if conflicts:
+                out['conflicts'] = [{'k': c_[0], 'id': c_[1], 'reason': c_[2]} for c_ in conflicts]
+            if fix or dup or renum or blocked or kept:
+                out.update(fix=fix, dup=dup, renumbered=renum, blocked=blocked, kept=len(kept))
+            if opid:
+                c.execute('INSERT OR REPLACE INTO operation_idempotency VALUES (?, ?, ?, ?, ?, ?, ?)', (opid, 'ops', None, None, role, now, json.dumps(out, ensure_ascii=False)))
+            if version % 500 == 0:
+                self.sdb.prune_change_log(c)
+        # ---- 7. committed (WAL, synchronous=FULL): only now does memory move ahead
+        with self._enc_lock:
+            for k, (kind, ups, rms) in writes_rec.items():
+                if k in HIST_KEYS:
+                    continue
+                lst = self._ws.get(k)
+                if not isinstance(lst, list):
+                    lst = self._ws[k] = []
+                ix = self._index(k)
+                for x in ups:
+                    i = ix.get(x['id'])
+                    if i is None:
+                        lst.append(x)
+                        ix[x['id']] = len(lst) - 1
+                    else:
+                        lst[i] = x
+                if rms:
+                    gone = set(rms)
+                    lst[:] = [x for x in lst if not (isinstance(x, dict) and x.get('id') in gone)]
+                    self._idx.pop(k, None)          # positions moved: rebuilt on next use
+                if k == 'kots' and getattr(self, '_kotno', None):
+                    if rms:
+                        self._kotno = None
+                    else:
+                        for x in ups:
+                            self._kotno[1][x.get('no')] = x.get('id')
+            for k, (kind, s_, d_) in writes_map.items():
+                m = self._ws.get(k)
+                if not isinstance(m, dict):
+                    m = self._ws[k] = {}
+                m.update(s_)
+                for mk in d_:
+                    m.pop(mk, None)
+            for k, v in writes_whole.items():
+                self._ws[k] = v
+            self.version, self.saved_at = version, now
+        for bid, old in old_bills.items():
+            new = next((x for x in writes_rec.get('bills', (None, [], []))[1] if x.get('id') == bid), None)
+            self._hist_update(old, new)
+        if getattr(self, '_maxno', None) is not None:
+            nos = [int(_num(x.get('no'))) for x in writes_rec.get('bills', (None, [], []))[1] if not x.get('imported')]
+            self._maxno = max([self._maxno] + nos)
+            if writes_rec.get('bills', (None, [], []))[2]:
+                self._maxno = None          # a bill was removed: count again when next needed
+        self.stats['opsSaves'] += 1
+        self.stats['opsRecords'] += summary['records']
+        self._after_write(keep_maxno=True)
+        return 200, out
+
+    def _record_conflicts(self, conflicts, role):
+        now = int(time.time() * 1000)
+        with self.sdb.tx() as c:
+            for k, rid, reason, kept, other in conflicts:
+                c.execute('INSERT INTO sync_conflicts (at, k, rid, reason, kept, other, device) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                          (now, k, rid, reason, json.dumps(kept, ensure_ascii=False), json.dumps(other, ensure_ascii=False), role))
+        self.stats['conflicts'] = self.stats.get('conflicts', 0) + len(conflicts)
+        self.log(f'CONFLICT kept for review ({role}): ' + '; '.join(f'{k} {rid}: {reason}' for k, rid, reason, _, _ in conflicts[:10]))
+
+    # ---------- what changed since a version (GET /api/changes) ----------
+    def changes(self, since):
+        with self._enc_lock:
+            upto = self.version
+        with self.sdb.rlock():
+            con = self.sdb.con()
+            rows = self.sdb.changed_since(con, since, upto) if since >= 0 else None
+            if rows is None or len(rows) > 5000 or any(k == '*' for k, _, _ in rows):
+                self.stats['changeReloads'] += 1
+                return {'reload': True, 'version': self.version}
+            kinds = self.sdb.kinds()
+            groups = {}
+            for k, rid, _ in rows:
+                groups.setdefault(k, []).append(rid)
+            out = []
+            for k, rids in groups.items():
+                kind = kinds.get(k)
+                if '' in rids or kind not in RECORD_KINDS + MAP_KINDS:
+                    if k in self._ws and k != 'secure':
+                        out.append({'k': k, 'set': SEC.public_view({k: self._ws[k]}).get(k)})
+                    continue
+                if kind in RECORD_KINDS:
+                    cur = self._cur(con, k, kind, rids)
+                    out.append({'k': k, 'up': [cur[r] for r in rids if r in cur], 'rm': [r for r in rids if r not in cur]})
+                else:
+                    m = self._ws.get(k) if isinstance(self._ws.get(k), dict) else {}
+                    out.append({'k': k, 'mset': {r: m[r] for r in rids if r in m}, 'mdel': [r for r in rids if r not in m]})
+        self.stats['changeFeeds'] += 1
+        return {'version': max(upto, since), 'savedAt': self.saved_at, 'histRev': self._hist_rev, 'ops': out}
+
+    # ---------- native bill settle / cancel (one transaction each, through apply_ops) ----------
+    def _native_ok(self, *keys):
+        kinds = self.sdb.kinds()
+        want = {'bills': 'spec', 'stock': 'spec', 'audit': 'spec', 'seq': 'seq'}
+        # A key not stored yet (a new hotel's first bill) is fine: the first save registers it
+        return all(kinds.get(k) in (want[k], None) for k in keys) and kinds.get('kaccha', 'maptable') == 'maptable'
+
+    def settle_bill(self, payload):
+        """Settle one bill: number, rows, stock, KOT number, running order cleared, idempotency, outbox."""
+        key, bill = payload.get('idemKey'), payload.get('bill')
+        if not key or not isinstance(bill, dict):
+            return 400, {'error': 'idemKey and bill object are required'}
+        if not self._native_ok('bills', 'stock', 'seq'):
+            return 409, {'error': 'native settle not available for this data shape; save from the app'}
+        with self.lock:
+            con = self.sdb.con()
+            with self.sdb.rlock():
+                r = con.execute('SELECT id FROM bills WHERE idemKey = ?', (key,)).fetchone()
+                ex = self.sdb.get_records(con, 'bills', [r[0]]).get(r[0]) if r else None
+            if ex:
+                same = ex.get('table') == bill.get('table') and abs(float(ex.get('total') or 0) - float(bill.get('total') or 0)) < 0.01 and ex.get('mode') == bill.get('mode')
+                if same:
+                    return 200, {'ok': True, 'alreadySettled': True, 'bill': ex, 'version': self.version}
+                return 409, {'error': 'IDEMPOTENCY_PAYLOAD_MISMATCH', 'message': 'Idempotency key has already been used with a different bill payload'}
+            if bill.get('mode') == 'Split':
+                pays = bill.get('pays') or []
+                if not pays:
+                    return 400, {'error': 'SPLIT_TENDER_EMPTY', 'message': 'Split payment must have tender amounts'}
+                tsum = round(sum(float(p.get('amt') or 0) for p in pays if isinstance(p, dict)), 2)
+                if abs(tsum - round(float(bill.get('total') or 0), 2)) > 0.05:
+                    return 400, {'error': 'SPLIT_TENDER_MISMATCH', 'message': f'Split payment tender sum ({tsum}) does not match bill total ({bill.get("total")})'}
+            bill = copy.deepcopy(bill)
+            seq = copy.deepcopy(self._ws.get('seq') or {})
+            seq['bill'] = max(int(_num(seq.get('bill'))), self._max_bill_no()) + 1
+            seq['kot'] = int(_num(seq.get('kot'))) + 1
+            bill.update(no=seq['bill'], kot=seq['kot'], idemKey=key, paymentStatus='recorded')
+            bill.setdefault('id', 'srv' + secrets.token_hex(8))
+            bill.setdefault('date', time.strftime('%Y-%m-%d'))
+            bill.setdefault('time', time.strftime('%H:%M'))
+            if bill.get('mode') == 'UPI' or any(isinstance(p, dict) and p.get('mode') == 'UPI' for p in bill.get('pays') or []):
+                bill['upiVerified'] = False
+            ops = [{'k': 'bills', 'up': [bill]}, {'k': 'seq', 'set': seq}]
+            if not bill.get('mv'):
+                changed = {}
+                for u in bill.get('used') or []:
+                    it = self._ws_record('stock', u.get('sid'))
+                    if it is not None:
+                        it = copy.deepcopy(changed.get(it['id'], it))
+                        it['qty'] = round(float(it.get('qty') or 0) - float(u.get('qty') or 0), 3)
+                        changed[it['id']] = it
+                if changed:
+                    ops.append({'k': 'stock', 'up': list(changed.values())})
+            tbl = bill.get('table')
+            if tbl and tbl in (self._ws.get('kaccha') or {}):
+                ops.append({'k': 'kaccha', 'mdel': [tbl]})
+            code, res = self.apply_ops({'ops': ops, 'bv': self.version, 'id': 'settle:' + key}, 'local', True)
+            if code != 200:
+                return code, res
+            with self.sdb.rlock():
+                stored = self.sdb.get_records(con, 'bills', [bill['id']]).get(bill['id'], bill)
+            self._maxno = max(self._maxno or 0, int(_num(stored.get('no'))))
+            return 200, {'ok': True, 'alreadySettled': False, 'bill': stored, 'version': self.version}
+
+    def _max_bill_no(self):
+        # Highest finalized number ever stored (cached; any save resets it)
+        if getattr(self, '_maxno', None) is None:
+            with self.sdb.rlock():
+                self._maxno = int(self.sdb.con().execute('SELECT MAX(CAST(no AS INTEGER)) FROM bills WHERE COALESCE(imported, 0) = 0').fetchone()[0] or 0)
+        return self._maxno
+
+    def cancel_bill(self, payload, by='Manager'):
+        """Cancel a bill in one transaction: the record stays (cancelled), stock comes back once, audited."""
+        bid, key = payload.get('billId'), payload.get('idemKey')
+        if not bid or not key:
+            return 400, {'error': 'billId and idemKey are required'}
+        if not self._native_ok('bills', 'stock', 'audit'):
+            return 409, {'error': 'native cancel not available for this data shape; cancel from the app'}
+        with self.lock:
+            con = self.sdb.con()
+            with self.sdb.rlock():
+                done = con.execute("SELECT 1 FROM operation_idempotency WHERE key = ?", ('cancel:' + key,)).fetchone()
+                b = self.sdb.get_records(con, 'bills', [bid]).get(bid)
+            if done:
+                return 200, {'ok': True, 'alreadyDone': True, 'billId': bid, 'version': self.version}
+            if b is None:
+                return 404, {'error': 'bill not found'}
+            if b.get('cancelled'):
+                return 200, {'ok': True, 'alreadyCancelled': True, 'billId': bid, 'version': self.version}
+            b = copy.deepcopy(b)
+            b['cancelled'], b['cancelledBy'] = True, by
+            ops = [{'k': 'bills', 'up': [b]}]
+            if not b.get('mv'):
+                changed = {}
+                for u in b.get('used') or []:
+                    it = self._ws_record('stock', u.get('sid'))
+                    if it is not None:
+                        it = copy.deepcopy(changed.get(it['id'], it))
+                        it['qty'] = round(float(it.get('qty') or 0) + float(u.get('qty') or 0), 3)
+                        changed[it['id']] = it
+                if changed:
+                    ops.append({'k': 'stock', 'up': list(changed.values())})
+            now = int(time.time() * 1000)
+            ops.append({'k': 'audit', 'up': [{'id': 'srv' + secrets.token_hex(6), 'at': now, 'date': time.strftime('%Y-%m-%d'), 'time': time.strftime('%H:%M'), 'user': by, 'role': 'manager',
+                                              'action': 'Bill Cancel', 'detail': f'Bill #{b.get("no")} cancelled on the main counter', 'amount': b.get('total') or 0, 'ref': bid, 'approvedBy': by}]})
+            code, res = self.apply_ops({'ops': ops, 'bv': self.version, 'id': 'cancel:' + key}, 'local', True)
+            if code != 200:
+                return code, res
+            return 200, {'ok': True, 'billId': bid, 'version': self.version}
+
+    # ---------- paginated reads (indexed SQL; nothing loads all history) ----------
+    def query(self, name, q):
+        if name == 'bill-range':
+            # Whole bill records of a date range (the app's own reports and screens run on them), by pages.
+            # Own read connection: a long range never pauses billing.
+            frm, to = q.get('from') or '0000-00-00', q.get('to') or '9999-99-99'
+            lim = max(1, min(int(q.get('limit', 2000) or 2000), 5000))
+            after = int(q.get('after', -1) or -1)
+            n, rows, last = self.sdb.bill_page(frm, to, after, lim)
+            return {'count': n, 'after': last, 'rows': rows, 'more': len(rows) == lim, 'ptsAt': self._pts_at(rows)}
+        if name == 'hist':
+            frm = q.get('from') or self.window_from()
+            if not re.fullmatch(r'\d{4}-\d{2}-\d{2}', frm):
+                raise ValueError('from must be YYYY-MM-DD')
+            return {'histRev': self._hist_rev, 'hist': self.hist(frm)}
+        with self.sdb.rlock():
+            return self._query(name, q)
+
+    def _pts_at(self, rows):
+        """Loyalty balance right after each bill (the app's ptsBalAt: same customer, not cancelled, number <= this one),
+        for older bills a device loads (their earlier bills are not on the device)."""
+        out, cache = {}, {}
+        with self.sdb.reader() as c:
+            for b in rows:
+                if not (b.get('ptsEarned') or b.get('ptsUsed')):
+                    continue
+                p = SQ.norm_ph(b.get('phone'))
+                if len(p) != 10:
+                    continue
+                if p not in cache:
+                    lst = []
+                    for no, extra, canc, ph in c.execute('SELECT no, extra, is_cancelled, phone FROM bills WHERE phone LIKE ?', ('%' + p,)):
+                        if canc or SQ.norm_ph(ph) != p:
+                            continue
+                        ex = json.loads(extra) if extra and extra != '{}' else {}
+                        lst.append((SQ.jsnum(no), SQ.jsnum(ex.get('ptsEarned')) - SQ.jsnum(ex.get('ptsUsed'))))
+                    cache[p] = lst
+                no = SQ.jsnum(b.get('no'))
+                out[b['id']] = sum(v for n, v in cache[p] if n <= no)
+        return out
+
+    def _query(self, name, q):
+        con = self.sdb.con()
+        lim = max(1, min(int(q.get('limit', 100) or 100), 1000))
+        off = max(0, int(q.get('offset', 0) or 0))
+        frm, to = q.get('from') or '0000-00-00', q.get('to') or '9999-99-99'
+
+        def rows(sql, args, cols):
+            return [dict(zip(cols, r)) for r in con.execute(sql, args)]
+        if name == 'bill':
+            ids = [x for x in str(q.get('id') or '').split(',') if x][:200]
+            rows_ = list(self.sdb.get_records(con, 'bills', ids).values())
+            return {'rows': rows_, 'ptsAt': self._pts_at(rows_)}
+        if name == 'bill-find':
+            # Bill number, mobile or customer name, newest first (older bills not loaded on the device)
+            s = str(q.get('q') or '').strip()
+            if not s:
+                return {'rows': []}
+            if s.isdigit() and len(s) <= 7:
+                sql, args = 'WHERE id IN (SELECT id FROM bills WHERE CAST(no AS INTEGER) = ? ORDER BY ord DESC LIMIT 50)', (int(s),)
+            elif s.isdigit():
+                sql, args = 'WHERE id IN (SELECT id FROM bills WHERE phone LIKE ? ORDER BY ord DESC LIMIT 50)', ('%' + s[-10:],)
+            else:
+                sql, args = 'WHERE id IN (SELECT id FROM bills WHERE cust LIKE ? ORDER BY ord DESC LIMIT 50)', ('%' + s.replace('%', '') + '%',)
+            rows_ = self.sdb._export_rows(con, SQ.SPEC_BY_KEY['bills'], sql, args)
+            return {'rows': rows_, 'ptsAt': self._pts_at(rows_)}
+        if name == 'bills':
+            cols = ['id', 'no', 'date', 'time', 'table', 'channel', 'mode', 'total', 'cancelled', 'phone']
+            out = rows('SELECT id, no, date, time, "table", channel, mode, total, is_cancelled, phone FROM bills WHERE date BETWEEN ? AND ? ORDER BY date DESC, ord DESC LIMIT ? OFFSET ?', (frm, to, lim, off), cols)
+            total = con.execute('SELECT COUNT(*), COALESCE(SUM(CASE WHEN is_cancelled = 0 THEN total_p END), 0) FROM bills WHERE date BETWEEN ? AND ?', (frm, to)).fetchone()
+            return {'rows': out, 'count': total[0], 'sales_p': total[1]}
+        if name == 'daybook':
+            day = q.get('date') or time.strftime('%Y-%m-%d')
+            sales = dict(con.execute("""SELECT CASE WHEN p.synthetic = 1 THEN COALESCE(b.mode, 'Cash') ELSE p.mode END, SUM(p.amount_p) FROM bill_payments p JOIN bills b ON b.id = p.bill_id
+                                        WHERE b.date = ? AND b.is_cancelled = 0 AND (p.synthetic = 1 OR b.mode = 'Split') GROUP BY 1""", (day,)))
+            vouchers = rows('SELECT type, head, COUNT(*), SUM(amount_p) FROM vouchers WHERE date = ? GROUP BY type, head', (day,), ['type', 'head', 'count', 'amount_p'])
+            return {'date': day, 'sales_by_mode_p': sales, 'vouchers': vouchers}
+        if name == 'stock-history':
+            sid = q.get('sid', '')
+            out = rows('SELECT id, source, ref, qty, type, date, time FROM stock_movements WHERE sid = ? AND date BETWEEN ? AND ? ORDER BY date DESC, time DESC LIMIT ? OFFSET ?', (sid, frm, to, lim, off), ['id', 'source', 'ref', 'qty', 'type', 'date', 'time'])
+            bal = con.execute('SELECT qty FROM stock_balances WHERE sid = ?', (sid,)).fetchone()
+            return {'rows': out, 'balance': bal[0] if bal else 0}
+        if name == 'supplier-ledger':
+            party = str(q.get('party', '')).strip().lower()
+            out = rows("SELECT id, date, type, head, mode, amount, inv_id FROM vouchers WHERE LOWER(TRIM(COALESCE(party, ''))) = ? ORDER BY date DESC, ord DESC LIMIT ? OFFSET ?", (party, lim, off),
+                       ['id', 'date', 'type', 'head', 'mode', 'amount', 'inv_id'])
+            due = con.execute("""SELECT COALESCE(SUM(CASE WHEN (type = 'Purchase' OR (type = 'Expense' AND COALESCE(head, '') <> 'Supplier Payment')) AND mode = 'Credit' THEN amount_p
+                                 WHEN type = 'Expense' AND head = 'Supplier Payment' THEN -amount_p ELSE 0 END), 0) FROM vouchers WHERE LOWER(TRIM(COALESCE(party, ''))) = ?""", (party,)).fetchone()[0]
+            return {'rows': out, 'due_p': due}
+        if name == 'audit':
+            return {'rows': rows('SELECT id, at, date, action, user, amount, ref FROM audit_logs WHERE date BETWEEN ? AND ? ORDER BY ord DESC LIMIT ? OFFSET ?', (frm, to, lim, off), ['id', 'at', 'date', 'action', 'user', 'amount', 'ref'])}
+        if name == 'customer':
+            ph = q.get('phone', '')
+            out = rows('SELECT id, no, date, total, is_cancelled FROM bills WHERE phone = ? ORDER BY date DESC LIMIT ? OFFSET ?', (ph, lim, off), ['id', 'no', 'date', 'total', 'cancelled'])
+            agg = con.execute('SELECT COUNT(*), COALESCE(SUM(total_p), 0) FROM bills WHERE phone = ? AND is_cancelled = 0', (ph,)).fetchone()
+            return {'rows': out, 'bills': agg[0], 'spent_p': agg[1]}
+        if name == 'conflicts':
+            return {'open': con.execute('SELECT COUNT(*) FROM sync_conflicts WHERE resolved = 0').fetchone()[0],
+                    'rows': [dict(zip(('seq', 'at', 'k', 'id', 'reason', 'kept', 'other', 'device'), (r[0], r[1], r[2], r[3], r[4], json.loads(r[5] or 'null'), json.loads(r[6] or 'null'), r[7])))
+                             for r in con.execute('SELECT seq, at, k, rid, reason, kept, other, device FROM sync_conflicts WHERE resolved = 0 ORDER BY seq DESC LIMIT ? OFFSET ?', (lim, off))]}
+        if name == 'status':
+            p = self.sdb.path
+            size = lambda f: os.path.getsize(f) if os.path.exists(f) else 0   # noqa: E731
+            return {'engine': 'sqlite', 'file': os.path.basename(p), 'dbBytes': size(p), 'walBytes': size(p + '-wal'), 'version': self.version,
+                    'schema': self.sdb.meta('schema_version'), 'hotel': self.sdb.meta('hotel_id'), 'outboxPending': con.execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at IS NULL').fetchone()[0],
+                    'window': {'from': self.window_from(), 'days': self.hist_days()}, 'stats': dict(self.stats), 'rssMB': rss_mb(),
+                    'checkpoint': dict(getattr(self.sdb, 'ckpt_stats', None) or {'mode': 'inside commits (wal_autocheckpoint=1000)'}),
+                    'lastBackup': getattr(self, 'backup_stats', None),
+                    'conflictsOpen': con.execute('SELECT COUNT(*) FROM sync_conflicts WHERE resolved = 0').fetchone()[0],
+                    'backups': rows('SELECT file, at, bytes, bills, verified, note FROM backup_manifest ORDER BY at DESC LIMIT 10', (), ['file', 'at', 'bytes', 'bills', 'verified', 'note']),
+                    'cloudSync': self.sync_blocked}
+        return None
+
+
+def rss_mb():
+    """Resident memory of this process in MB (Linux /proc, Windows GetProcessMemoryInfo); None if unknown."""
+    try:
+        if os.name == 'nt':
+            import ctypes
+            from ctypes import wintypes
+
+            class PMC(ctypes.Structure):
+                _fields_ = [('cb', wintypes.DWORD), ('PageFaultCount', wintypes.DWORD), ('PeakWorkingSetSize', ctypes.c_size_t), ('WorkingSetSize', ctypes.c_size_t),
+                            ('QuotaPeakPagedPoolUsage', ctypes.c_size_t), ('QuotaPagedPoolUsage', ctypes.c_size_t), ('QuotaPeakNonPagedPoolUsage', ctypes.c_size_t),
+                            ('QuotaNonPagedPoolUsage', ctypes.c_size_t), ('PagefileUsage', ctypes.c_size_t), ('PeakPagefileUsage', ctypes.c_size_t)]
+            pmc = PMC()
+            pmc.cb = ctypes.sizeof(PMC)
+            ctypes.windll.psapi.GetProcessMemoryInfo(ctypes.windll.kernel32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
+            return round(pmc.WorkingSetSize / 1048576, 1)
+        with open('/proc/self/status') as f:
+            for line in f:
+                if line.startswith('VmRSS:'):
+                    return round(int(line.split()[1]) / 1024, 1)
+    except Exception:
+        return None
+    return None
 
 
 class CloudSync:
@@ -1678,6 +2717,10 @@ class CloudSync:
             self.wake.wait(5 if self.status.get('ok') is not False else 20)
             woken = self.wake.is_set()
             self.wake.clear()
+            if getattr(self.store, 'sync_blocked', None):
+                # Whole-database cloud sync would undo the incremental storage: off until Phase 3
+                self.status = {'ok': False, 'error': self.store.sync_blocked}
+                continue
             if not self.configured():
                 # Turned off by the owner ("enabled": false) = stay off
                 # Every save wakes this loop: try at most once a minute then, else every 30 minutes
@@ -1982,6 +3025,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return tok.get('role', '').lower()
                 elif isinstance(tok, str):
                     return tok.lower()
+                else:
+                    # A token this counter never issued (another hotel's, a deleted device's): refused, never ignored
+                    # in favour of the main-counter fallback below (TENANT-01)
+                    return None
 
             # Constrained bootstrap fallback:
             # Tokenless local access is allowed ONLY during bootstrap/setup (when database has no PINs or users configured),
@@ -2101,6 +3148,31 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             self.send_header('Content-Length', str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def send_full_db(self):
+            # Written in parts straight to the connection: memory stays flat with any number of bills
+            class _W:
+                def __init__(self, w):
+                    self.w, self.buf = w, []
+
+                def write(self, t):
+                    self.buf.append(t)
+                    if sum(len(x) for x in self.buf) > 1 << 20:
+                        self.flush()
+
+                def flush(self):
+                    if self.buf:
+                        self.w.write(''.join(self.buf).encode('utf-8'))
+                        self.buf = []
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Connection', 'close')
+            self.end_headers()
+            w = _W(self.wfile)
+            store.write_full_json(w, public=True)   # no credential hashes for a device
+            w.flush()
+            self.close_connection = True
 
         def send_db(self):
             # Never the credentials: devices get the public view (cached per version)
@@ -2304,9 +3376,53 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 credits = int(d.get('settings', {}).get('waCredits', 500))
                 total_sent = int(d.get('settings', {}).get('waTotalSent', 0))
                 return self.send_json(200, {'ok': True, 'credits': credits, 'totalSent': total_sent})
+            if path.startswith('/api/q/'):
+                # Paginated, indexed reads (SQLite engine only): history without loading every bill
+                if not hasattr(store, 'query'):
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
+                if path[7:] in ('status', 'conflicts') and self.role() not in ('local', 'admin'):
+                    return self.send_json(403, {'error': 'manager only'})
+                try:
+                    res = store.query(path[7:], qs)
+                except (ValueError, TypeError) as e:
+                    return self.send_json(400, {'error': str(e)})
+                return self.send_json(200, res) if res is not None else self.send_json(404, {'error': 'unknown query'})
             if path == '/api/version':
-                return self.send_json(200, {'version': store.version})
+                return self.send_json(200, {'version': store.version, **({'engine': 'sqlite'} if getattr(store, 'engine', '') == 'sqlite' else {})})
+            if path == '/api/changes':
+                # SQLite engine: only what changed since the device's version (never the whole data)
+                if getattr(store, 'engine', '') != 'sqlite':
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                if not self.role():
+                    return self.send_json(401, {'error': 'pin required'})
+                qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
+                try:
+                    since = int(qs.get('since', -1))
+                except ValueError:
+                    return self.send_json(400, {'error': 'since must be a number'})
+                return self.send_json(200, store.changes(since))
             if path == '/api/db':
+                if getattr(store, 'engine', '') == 'sqlite':
+                    qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
+                    if qs.get('full') == '1':
+                        # The whole data with every bill (backup download): Manager / main counter only, streamed
+                        if self.role() not in ('local', 'admin'):
+                            return self.send_json(403, {'error': 'Manager only'})
+                        return self.send_full_db()
+                    frm = qs.get('from') or None
+                    if frm and not re.fullmatch(r'\d{4}-\d{2}-\d{2}', frm):
+                        return self.send_json(400, {'error': 'from must be YYYY-MM-DD'})
+                    if not frm and re.fullmatch(r'\d{4}-\d{2}-\d{2}', qs.get('today') or ''):
+                        frm = store.window_from(today=qs['today'])
+                    body = store.db_payload(frm)       # recent bills + totals of older ones; billing is not paused
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('Content-Length', str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 with store.lock:
                     return self.send_db()
             if path == '/api/printer-health':
@@ -2731,6 +3847,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             if path in ('/api/cloud/restore', '/api/cloud/join'):
                 if not self.counter_ok() or not cloud:
                     return self.send_json(403, {'error': 'main counter only'})
+                if getattr(store, 'sync_blocked', None):
+                    # SQLite counter: whole-data cloud sync would undo incremental saves (Phase 3 dependency)
+                    return self.send_json(409, {'error': store.sync_blocked})
                 try:
                     body = self.read_json()
                     if path == '/api/cloud/restore':
@@ -3315,6 +4434,18 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     print_history.append({'at': int(time.time() * 1000), 'printer': printer, 'ok': False, 'error': str(e)[:200]})
                     del print_history[:-100]
                     return self.send_json(500, {'error': str(e)})
+            if path == '/api/bill/cancel':
+                role = self.role()
+                if role not in ('local', 'admin') and not self.elevated():
+                    return self.send_json(403, {'error': 'Manager approval needed'})
+                if not hasattr(store, 'cancel_bill'):
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                try:
+                    body = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                code, resp = store.cancel_bill(body, by='Main Counter' if role == 'local' else 'Manager')
+                return self.send_json(code, resp)
             if path == '/api/bill/settle':
                 role = self.role()
                 if not role:
@@ -3325,6 +4456,52 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(400, {'error': 'bad request'})
                 status_code, resp = store.settle_bill(body)
                 return self.send_json(status_code, resp)
+            if path == '/api/backup/save':
+                # SQLite engine, main counter: the whole data (every bill) as a JSON backup in Downloads\Setu, written in parts
+                if not hasattr(store, 'write_full_json'):
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                if not self.counter_ok() and self.role() != 'local':
+                    return self.send_json(403, {'error': 'main counter only'})
+                try:
+                    body = self.read_json()
+                except Exception:
+                    body = {}
+                name = str((body or {}).get('name') or 'setu-backup.json')
+                try:
+                    path = user_file_path(name if name.endswith('.json') else name + '.json')
+                    with open(path + '.part', 'w', encoding='utf-8') as f:
+                        store.write_full_json(f, public=True)
+                    os.replace(path + '.part', path)
+                    store.log(f'Full JSON backup saved to {path}')
+                    return self.send_json(200, {'ok': True, 'path': path})
+                except Exception as e:
+                    store.log(f'FULL BACKUP FAILED: {e!r}')
+                    return self.send_json(500, {'error': str(e)})
+            if path == '/api/ops':
+                # SQLite engine: a device saves only what changed (records, map entries, small values), one transaction
+                if getattr(store, 'engine', '') != 'sqlite':
+                    return self.send_json(404, {'error': 'available with the SQLite engine only'})
+                role = self.role()
+                if not role:
+                    return self.send_json(401, {'error': 'pin required'})
+                try:
+                    body = self.read_json()
+                except Exception:
+                    return self.send_json(400, {'error': 'bad request'})
+                if not isinstance(body, dict):
+                    return self.send_json(400, {'error': 'bad request'})
+                elev = self.elevated()
+                with store.lock:
+                    try:
+                        code, res = store.apply_ops(body, role, elev)
+                    except SQ.StoreError as e:
+                        return self.send_json(400, {'error': str(e)})
+                    except Exception as e:
+                        store.log(f'SAVE FAILED (ops) v{store.version + 1}: {e!r}')
+                        return self.send_json(500, {'error': 'save failed: ' + str(e)})
+                if code == 200 and elev and not res.get('repeat') and not res.get('unchanged'):
+                    store.elev.pop(self.headers.get('X-Setu-Elev', ''), None)   # one approval = one save
+                return self.send_json(code, res)
             if path == '/api/db':
                 role = self.role()
                 if not role:
@@ -3333,6 +4510,11 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     body = self.read_json()
                 except Exception:
                     return self.send_json(400, {'error': 'bad request'})
+                if getattr(store, 'engine', '') == 'sqlite' and not body.get('force') and store.version:
+                    # Normal saves on SQLite go through /api/ops; a whole upload here is an out-of-date page
+                    store.stats['legacyFullSaves'] += 1
+                    store.log(f'Whole-data save refused from a {role} device (out-of-date page); it must reload')
+                    return self.send_json(426, {'error': 'This screen is out of date. Reload Setu (press F5) to keep saving.', 'upgrade': True})
                 data = body.get('data')
                 if not isinstance(data, dict) or 'settings' not in data:
                     return self.send_json(400, {'error': 'invalid data'})
@@ -3362,6 +4544,23 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         store.clean_and_validate_bills(data)
                     except ValueError as ve:
                         return self.send_json(400, {'error': str(ve)})
+                    # Confirmed bills, vouchers and stock movements never vanish in a routine save
+                    kept = []
+                    if not force:
+                        kept = SEC.guard_records(old, data, body.get('removed'), role in ('admin', 'local') or elev)
+                        if kept:
+                            store.log(f'Kept confirmed records from a {role} save: ' + '; '.join(kept[:15]) + (f' (+{len(kept) - 15} more)' if len(kept) > 15 else ''))
+                    elif store.version:
+                        # Forced restore: allowed above for the main counter / a Manager only; always recorded
+                        before = len(old.get('bills') or []) if isinstance(old.get('bills'), list) else store.bill_count() if hasattr(store, 'bill_count') else 0
+                        after = len(data.get('bills') or []) if isinstance(data.get('bills'), list) else 0
+                        store.log(f'RESTORE by {role}{" (approved)" if elev else ""}: bills {before} -> {after}, version {store.version} replaced')
+                        if not isinstance(data.get('audit'), list):
+                            data['audit'] = []
+                        now = time.time()
+                        data['audit'].append({'id': 'restore-%d' % int(now * 1000), 'at': int(now * 1000), 'date': time.strftime('%Y-%m-%d'), 'time': time.strftime('%H:%M'),
+                                                  'user': 'Main Counter' if role == 'local' else role, 'role': role, 'action': 'Data Restore',
+                                                  'detail': f'Database replaced from a backup: bills {before} -> {after}', 'amount': 0, 'ref': '', 'approvedBy': 'approved' if elev else ''})
                     try:
                         store.write(data)
                     except Exception as e:
@@ -3370,7 +4569,7 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     if elev:
                         store.elev.pop(self.headers.get('X-Setu-Elev', ''), None)   # one approval = one save
                     out = {'version': store.version, 'savedAt': store.saved_at}
-                    if changed or blocked:
+                    if changed or blocked or kept:
                         out['changed'] = True          # the device pulls the stored copy again
                     if blocked:
                         out['blocked'] = blocked
@@ -3572,12 +4771,18 @@ class AutoBackup:
             name = 'Setu-Backup-' + time.strftime('%Y-%m-%d_%H%M') + ('-' + hotel if hotel else '') + '.json.gz'
             tmp = os.path.join(folder, name + '.tmp')
             try:
-                with self.store.lock:
-                    raw = self.store.raw
-                    version = self.store.version
-                doc = '{"version": %d, "savedAt": %d, "data": %s}' % (version, int(time.time() * 1000), raw)
-                with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=6) as f:
-                    f.write(doc)
+                full = getattr(self.store, 'write_full_json', None)
+                if full:
+                    # SQLite: every bill comes from the tables in parts (the server holds no bill history in memory)
+                    with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=6) as f:
+                        full(f)
+                else:
+                    with self.store.lock:
+                        raw = self.store.raw
+                        version = self.store.version
+                    doc = '{"version": %d, "savedAt": %d, "data": %s}' % (version, int(time.time() * 1000), raw)
+                    with gzip.open(tmp, 'wt', encoding='utf-8', compresslevel=6) as f:
+                        f.write(doc)
                 os.replace(tmp, os.path.join(folder, name))
                 arch = getattr(self.store, 'archive', None)
                 if arch:
@@ -3648,8 +4853,31 @@ def read_launch_key(data_dir):
         return ''
 
 
+def open_store(data_dir):
+    """JSON file (default) or SQLite: setu-storage.json {"engine": "sqlite"} is written only by a verified migration
+    (setu_migrate.py --cutover). SETU_STORAGE=sqlite (development / tests only) migrates a test folder first."""
+    flag = SQ.read_flag(data_dir)
+    if os.environ.get('SETU_STORAGE') == 'sqlite' and flag.get('engine') != 'sqlite' and os.path.exists(os.path.join(data_dir, 'setu-db.json')):
+        import setu_migrate
+        # Start once on the JSON file first, exactly like an installed counter (credential hashing etc.), then migrate
+        SetuStore(data_dir)
+        rep = setu_migrate.migrate(data_dir, cutover=True)
+        flag = SQ.read_flag(data_dir)
+        if rep.get('status') != 'MIGRATED':
+            print('SQLite migration did not complete:', rep.get('message'))
+    elif os.environ.get('SETU_STORAGE') == 'sqlite' and flag.get('engine') != 'sqlite' and not os.path.exists(os.path.join(data_dir, SQ.DB_FILE)):
+        # Development / tests only: a new empty test folder starts directly on SQLite (version 0 = first upload)
+        os.makedirs(data_dir, exist_ok=True)
+        SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE), create=True).close()
+        SQ.write_flag(data_dir, {'engine': 'sqlite', 'created': int(time.time() * 1000), 'note': 'empty test folder (SETU_STORAGE=sqlite)'})
+        flag = SQ.read_flag(data_dir)
+    if flag.get('engine') == 'sqlite':
+        return SqliteSetuStore(data_dir)
+    return SetuStore(data_dir)
+
+
 def start_server(base_dir, data_dir, port):
-    store = SetuStore(data_dir)
+    store = open_store(data_dir)
     # Per-launch secret: the Setu window gets it in its address (#launch=…); a web page on this PC cannot read it
     store.launch = secrets.token_urlsafe(32)
     try:
@@ -3667,6 +4895,7 @@ def start_server(base_dir, data_dir, port):
     store.log(f'Server start: port {port}, database version {store.version}')
     # Windows lets a second process bind a port with SO_REUSEADDR; two servers would split the data
     http.server.ThreadingHTTPServer.allow_reuse_address = os.name != 'nt'
+    http.server.ThreadingHTTPServer.request_queue_size = 128
     updater = Updater(store)
     store.media = MEDIA.MediaStore(data_dir)
     store.autobackup = AutoBackup(store)
@@ -3772,6 +5001,20 @@ def main():
                 time.sleep(3600)
         except KeyboardInterrupt:
             return
+
+
+def user_file_path(name):
+    """A free file name in Downloads\\Setu (never overwrites)."""
+    name = ''.join(c for c in os.path.basename(name) if c.isalnum() or c in '._- ()').strip(' .') or 'setu-file.txt'
+    home = os.path.expanduser('~')
+    root = next((d for d in (os.path.join(home, 'Downloads'), os.path.join(home, 'Documents')) if os.path.isdir(d)), home)
+    folder = os.path.join(root, 'Setu')
+    os.makedirs(folder, exist_ok=True)
+    stem, ext = os.path.splitext(name)
+    path, n = os.path.join(folder, name), 2
+    while os.path.exists(path):
+        path, n = os.path.join(folder, f'{stem} ({n}){ext}'), n + 1
+    return path
 
 
 def save_user_file(name, text):   # text: str, or bytes (PDF)

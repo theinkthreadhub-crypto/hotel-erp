@@ -1,0 +1,254 @@
+{
+ "label": "A-180d",
+ "billsPerDay": 200,
+ "days": 180,
+ "replicated": true,
+ "counts": {
+  "bills": 36000,
+  "kots": 1600,
+  "txns": 3645,
+  "moves": 300,
+  "audit": 5458
+ },
+ "keyBytes": {
+  "auth": 152,
+  "settings": 826,
+  "subscription": 131,
+  "menu": 19914,
+  "stock": 7106,
+  "staff": 1645,
+  "bills": 37563128,
+  "kots": 535886,
+  "txns": 1174051,
+  "moves": 48702,
+  "audit": 1311197,
+  "kaccha": 2,
+  "cash": 2,
+  "att": 26821,
+  "orders": 2,
+  "seq": 51,
+  "waMessages": 2,
+  "outlets": 2,
+  "reservations": 2,
+  "qrDone": 2,
+  "qrLog": 2,
+  "custList": 2,
+  "monthlySent": 2,
+  "salaryDays": 2,
+  "salarySheets": 2,
+  "assets": 2,
+  "gasLog": 2,
+  "expTpl": 2,
+  "stockAlias": 2,
+  "supAlias": 2,
+  "supInfo": 2,
+  "demoCleanupDone": 4,
+  "cnotes": 2,
+  "secure": 1569
+ },
+ "fileBytes": 40691642,
+ "gzipBytes": 4808439,
+ "gzipMs": 719,
+ "serverStartMs": 2491,
+ "getDbMs": 1701,
+ "getDbBytes": 45797447,
+ "pageLoadAndLoginMs": 6189,
+ "pageReady": 36000,
+ "app": {
+  "stockRecalcMs": 219,
+  "stringifyMs": 1315,
+  "heapMB": null,
+  "fullSaveMs": {
+   "n": 3,
+   "p50": 15693,
+   "p95": 17233,
+   "max": 17233
+  },
+  "finalizeBillMs": {
+   "n": 6,
+   "p50": 295,
+   "p95": 308,
+   "max": 308
+  },
+  "billSavedOnServerMs": {
+   "n": 6,
+   "p50": 14879,
+   "p95": 15189,
+   "max": 15189
+  }
+ },
+ "screens": {
+  "gateway": {
+   "n": 3,
+   "p50": 278,
+   "p95": 300,
+   "max": 300
+  },
+  "bills": {
+   "n": 3,
+   "p50": 34,
+   "p95": 35,
+   "max": 35
+  },
+  "daybook": {
+   "n": 3,
+   "p50": 47,
+   "p95": 176,
+   "max": 176
+  },
+  "cash": {
+   "n": 3,
+   "p50": 38,
+   "p95": 49,
+   "max": 49
+  },
+  "report": {
+   "n": 3,
+   "p50": 19,
+   "p95": 27,
+   "max": 27
+  },
+  "reports": {
+   "n": 3,
+   "p50": 17,
+   "p95": 23,
+   "max": 23
+  },
+  "stock": {
+   "n": 3,
+   "p50": 26,
+   "p95": 34,
+   "max": 34
+  },
+  "suppliers": {
+   "n": 3,
+   "p50": 5,
+   "p95": 15,
+   "max": 15
+  },
+  "purchase": {
+   "n": 3,
+   "p50": 11,
+   "p95": 17,
+   "max": 17
+  },
+  "expense": {
+   "n": 3,
+   "p50": 5,
+   "p95": 10,
+   "max": 10
+  },
+  "gst": {
+   "n": 3,
+   "p50": 21,
+   "p95": 26,
+   "max": 26
+  }
+ },
+ "pollInFlightBeforeOutage": {
+  "busy": false,
+  "dirty": false
+ },
+ "offState": {
+  "dirty": true,
+  "edits": 40,
+  "billsInPageWhileOffline": 36006,
+  "offlineBillsStillInPage": 0
+ },
+ "downloadsDuringTest": [],
+ "dataReplacedDuringOutage": [
+  {
+   "at": 1751630400000,
+   "billsIn": 36006,
+   "billsInPage": 36026,
+   "caller": "at srvPoll (hotel_erp.html:3304:9)"
+  },
+  {
+   "at": 1751630400000,
+   "billsIn": 36006,
+   "billsInPage": 36006,
+   "caller": "at srvPoll (hotel_erp.html:3304:9)"
+  }
+ ],
+ "outageServerLog": [
+  "2026-11-04 01:47:13 Server start: port 8497, database version 1",
+  ""
+ ],
+ "outageBills": [
+  {
+   "id": "mcoriio0oq901",
+   "no": 36007,
+   "idem": "idem_ord_Takeaway_1751630400000_mcoriio0d5fmr",
+   "date": "2025-07-04",
+   "onServerById": false,
+   "sameIdemOnServer": null
+  },
+  {
+   "id": "mcoriio0p8jih",
+   "no": 36008,
+   "idem": "idem_ord_Takeaway_1751630400000_mcoriio0rf2no",
+   "date": "2025-07-04",
+   "onServerById": false,
+   "sameIdemOnServer": null
+  },
+  {
+   "id": "mcoriio09ti19",
+   "no": 36009,
+   "idem": "idem_ord_Takeaway_1751630400000_mcoriio0ev782",
+   "date": "2025-07-04",
+   "onServerById": false,
+   "sameIdemOnServer": null
+  }
+ ],
+ "outageBillsFound": 0,
+ "outage": {
+  "billsMadeOffline": 20,
+  "queuedWhileOffline": true,
+  "resyncMs": 11569,
+  "serverBills": 36006,
+  "expected": 36026,
+  "duplicates": 0,
+  "pageAfter": {
+   "bills": 36006,
+   "dirty": false,
+   "version": -1,
+   "online": true
+  },
+  "trail": [
+   "POST /api/db 200",
+   "GET /api/version 200",
+   "GET /api/version 200",
+   "GET /api/db 200",
+   "GET /api/db 200",
+   "GET /api/version 200"
+  ]
+ },
+ "concurrency": {},
+ "concurrencyCheck": {
+  "settledBills": 0,
+  "unique": 0,
+  "uniqueNos": true
+ },
+ "backup": {
+  "file": "setu-2026-11-04.json",
+  "bytes": 45820393,
+  "restoreStatus": 200,
+  "restoreMs": 4163,
+  "restoredBills": 36000,
+  "backupBills": 36000
+ },
+ "serverRssMB": 1137,
+ "pageErrors": [],
+ "cloudSaveMemory": {
+  "file": "<out>/scale-A-180d/setu-db.json",
+  "dataMB": 38.8,
+  "heapForTextMB": 154.7,
+  "heapAtSaveMB": 463.8,
+  "workerLimitMB": 128,
+  "fits": false,
+  "keep": [
+   1,
+   true
+  ]
+ }
+}

@@ -1,0 +1,90 @@
+# Phase 2b (SQLite) verification on Windows: builds the real program and installer, then tests them with synthetic
+# data only. Development branch only. Publishes NOTHING: no release upload, no cloud deploy; results are a build
+# artifact and are printed in the log.
+name: SQLite 2b Windows verification
+
+on:
+  push:
+    branches: [feature/horeca-one-sqlite-phase2b]
+    paths:
+      - 'app_main.py'
+      - 'setu_*.py'
+      - 'hotel_erp.html'
+      - 'tools/db-benchmark/win_exe_test.py'
+      - 'tools/db-benchmark/p2b_bench.py'
+      - 'tools/db-benchmark/make_dataset.py'
+      - '.github/workflows/sqlite-2b-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read   # to download the current setu-latest installer for the upgrade test (read only)
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build and test tools
+        run: python -m pip install --upgrade pyinstaller pywebview certifi psutil
+
+      - name: Unit tests (SQLite engine and incremental saves)
+        run: |
+          python tests/sqlite_phase2_test.py
+          python tests/sqlite_phase2b_test.py
+
+      # Same build as build-exe.yml (keep flags in sync); version marked as a test build
+      - name: Build EXE
+        shell: cmd
+        run: |
+          python installer\stamp-version.py 1.0.9${{ github.run_number }}
+          python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "food;food" app_main.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: WhatsApp helper (installer content)
+        shell: pwsh
+        run: |
+          cd whatsapp
+          npm ci --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item (Get-Command node).Source node.exe
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile installer\MicrosoftEdgeWebview2Setup.exe
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=1.0.9${{ github.run_number }}" installer\setu-setup.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Current released installer (upgrade test; read only)
+        continue-on-error: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download setu-latest -p Setu-POS-Setup.exe -D old-installer
+          Get-ChildItem old-installer
+
+      - name: Windows tests (install, upgrade, migration, 10k / 100k / 365k, memory caps, power cut, backup, printers)
+        shell: pwsh
+        run: |
+          $old = if (Test-Path old-installer\Setu-POS-Setup.exe) { @('--old-installer', (Resolve-Path old-installer\Setu-POS-Setup.exe).Path) } else { @() }
+          python tools\db-benchmark\win_exe_test.py (Resolve-Path Output\Setu-POS-Setup.exe).Path "$env:RUNNER_TEMP\setu-2b" win-results.json @old --sizes 10000,100000,365000
+          Get-Content win-results.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sqlite-2b-windows-results
+          path: |
+            win-results.json
+            ${{ runner.temp }}/setu-2b/bench-*.json
+          retention-days: 30

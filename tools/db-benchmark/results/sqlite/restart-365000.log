@@ -1,0 +1,2 @@
+{"status": "MIGRATED", "message": "All checks passed. The counter now uses setu.sqlite; setu-db.json was left untouched.", "import_seconds": 280.33, "verify_seconds": 248.69, "db_bytes": 1442435072} wall 554.1 rss_mb 4626
+[]

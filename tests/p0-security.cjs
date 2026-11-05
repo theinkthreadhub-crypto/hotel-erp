@@ -220,9 +220,16 @@ function evilServer() {
         assert.equal(d.settings.adminPinSet, true); assert.ok(d.staff.every(s => s.hasPin === true));
       }
       for (const p of ['/api/hotel/info', '/api/ping', '/api/info', '/api/version']) noSecrets((await api(U, p, { headers: hdr(C) })).text, allSecrets);
-      // a 409 conflict reply carries the data too
-      const r = await api(U, '/api/db', { method: 'POST', headers: hdr(C), body: { baseVersion: -5, data: { settings: {} } } });
-      assert.equal(r.status, 409); noSecrets(r.text, allSecrets);
+      if (process.env.SETU_STORAGE === 'sqlite') {
+        // SQLite counter: no 409 conflict reply (saves merge per record); devices read the change feed instead
+        for (const p of ['/api/changes?since=0', '/api/changes?since=-1', '/api/db?today=2026-01-01']) {
+          const r = await api(U, p, { headers: hdr(C) }); assert.equal(r.status, 200, p); noSecrets(r.text, allSecrets);
+        }
+      } else {
+        // a 409 conflict reply carries the data too
+        const r = await api(U, '/api/db', { method: 'POST', headers: hdr(C), body: { baseVersion: -5, data: { settings: {} } } });
+        assert.equal(r.status, 409); noSecrets(r.text, allSecrets);
+      }
       return 'GET /api/db (cashier, captain, manager), 409 body, info/ping/version: no PIN, password or hash';
     });
 
@@ -345,7 +352,7 @@ function evilServer() {
       assert.ok(s.every(x => x.status === 200), s.map(x => x.status).join(','));
       const d = (await getDb(U, M)).data;
       const cc = d.bills.filter(b => String(b.id).startsWith('cc-'));
-      assert.equal(cc.length, 24, 'bills: ' + cc.length); assert.equal(new Set(cc.map(b => b.id)).size, 24);
+      assert.equal(cc.length, 24, "bills: " + cc.length + " kots: " + d.kots.filter(k => String(k.id).startsWith("kcc-")).length); assert.equal(new Set(cc.map(b => b.id)).size, 24);
       assert.equal(d.kots.filter(k => String(k.id).startsWith('kcc-')).length, 24);
       assert.equal(d.bills.filter(b => b.idemKey === 'idem-race').length, 1, 'one settled bill');
       return '24/24 bills, 24/24 KOTs, no duplicates; 6 simultaneous settles -> 1 bill';

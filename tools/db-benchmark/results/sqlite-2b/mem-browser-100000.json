@@ -1,0 +1,41 @@
+{
+ "folder": "mem100000",
+ "today": "2026-01-05",
+ "serverStartSeconds": 0.9,
+ "serverRssAtRestMB": 155,
+ "pageLoadSeconds": 3.9,
+ "afterLoad": {
+  "usedMB": 76,
+  "totalMB": 77,
+  "nodes": 2128,
+  "engine": "sqlite",
+  "windowFrom": "2025-12-02",
+  "billsOnPage": 36600,
+  "olderBillsOnCounter": 65000,
+  "stockItems": 60
+ },
+ "serverRssAfterLoadMB": 221,
+ "billSettle": {
+  "committed": true,
+  "ms": 325,
+  "status": "saved"
+ },
+ "olderMonthReport": {
+  "month": "2025-07",
+  "seconds": 0.2,
+  "olderBillsLoaded": 0,
+  "usedMB": 77,
+  "totalMB": 77,
+  "nodes": 2212
+ },
+ "serverRssPeakMB": 224,
+ "network": {
+  "wholeSaves": 0,
+  "fullLoads": 1,
+  "opsSaves": 2,
+  "opsBytes": 3462,
+  "dbBytes": 0
+ },
+ "pageErrors": [],
+ "pass": true
+}

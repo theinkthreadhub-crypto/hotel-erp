@@ -1,0 +1,163 @@
+{
+ "label": "sqlite-30d",
+ "days": 30,
+ "billsPerDay": 200,
+ "root": "hotel-erp",
+ "scenarios": {
+  "S1 load": {
+   "pass": true,
+   "loadMs": 3002,
+   "ms": 3026
+  },
+  "S2 outage + in-flight download": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "downloadsHeld": 1,
+   "ms": 27380
+  },
+  "S4 slow download after local work (online)": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "downloadsHeld": 3,
+   "ms": 33172
+  },
+  "S5 two devices + API at once": {
+   "confirmedBills": 50,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "ms": 9473
+  },
+  "S6 crash before sync, reopen": {
+   "confirmedBills": 20,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "stockMismatches": 0,
+   "sample": [],
+   "ms": 31978
+  },
+  "S7 repeated delivery (incremental save)": {
+   "confirmedBills": 1,
+   "lostBills": 0,
+   "lostVouchers": 0,
+   "lostStockMoves": 0,
+   "cancellationsLost": 0,
+   "cancelNotApplied": 0,
+   "duplicateBillIds": 0,
+   "reusedBillNumbers": 0,
+   "preexistingBillsLost": 0,
+   "splitErrors": 0,
+   "seqBehind": 0,
+   "pass": true,
+   "firstSave": 200,
+   "replayed": 200,
+   "replayFlag": true,
+   "sameVersion": true,
+   "wholeDataSave": 426,
+   "settleStatuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+   ],
+   "copiesOfRepeatedBill": 1,
+   "voucherCopies": 1,
+   "stockItem": "stk0",
+   "ms": 2467
+  },
+  "S8 saves that try to drop or overwrite confirmed records": {
+   "cashierSave": 200,
+   "managerSave": 200,
+   "billsDeleted": 0,
+   "vouchersDeleted": 0,
+   "confirmedBillChanged": false,
+   "unCancelled": false,
+   "preexistingBillsLost": 0,
+   "pass": true,
+   "ms": 1460
+  },
+  "S9 restore": {
+   "cashierRestore": 403,
+   "managerRestore": 200,
+   "restoredBills": 6111,
+   "backupBills": 6111,
+   "logged": true,
+   "audited": true,
+   "pass": true,
+   "ms": 7391
+  },
+  "N1 no whole-data save from pages": {
+   "pass": true,
+   "pageWholeSaves": 0,
+   "serverRefusedWholeSaves": 1,
+   "opsSaves": 16
+  }
+ },
+ "fileMB": 6.9,
+ "network": {
+  "wholeSaves": 0,
+  "fullLoads": 6,
+  "opsSaves": 16,
+  "changeFeeds": 8,
+  "opsBytes": 392983,
+  "wholeBytes": 0
+ },
+ "serverStats": {
+  "opsSaves": 22,
+  "opsRecords": 445,
+  "legacyFullSaves": 1,
+  "restores": 1,
+  "windowLoads": 25,
+  "fullExports": 0,
+  "changeFeeds": 4,
+  "changeReloads": 4
+ },
+ "serverRssMB": 245.9,
+ "allPass": true,
+ "serverLogTail": [
+  "2026-11-04 20:43:50 Kept confirmed records from a admin save: bill mk4ja5k0qlv1l-t199 stays cancelled",
+  "2026-11-04 20:43:53 RESTORE by admin: bills 6111 -> 6111, version 23 replaced"
+ ]
+}
