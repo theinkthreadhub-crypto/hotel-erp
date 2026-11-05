@@ -244,7 +244,7 @@ SPECS = [
 SPEC_BY_KEY = {s.key: s for s in SPECS}
 # Maps with their own table: key -> (table, key column)
 MAP_TABLES = {'kaccha': ('table_orders', 'tbl'), 'cash': ('cash_drawer_sessions', 'date'), 'salarySheets': ('salary_records', 'month')}
-CONFIG_KEYS = ('settings', 'auth', 'secure', 'subscription', 'saas')
+CONFIG_KEYS = ('settings', 'auth', 'secure', 'subscription', 'saas', 'vendor_notices')
 GUARDED_FOR_DELETE_LOG = ('bills',)
 
 
