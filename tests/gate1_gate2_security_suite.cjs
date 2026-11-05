@@ -209,10 +209,21 @@ async function api(path, options = {}) {
     // TC-SEC05: Gate-1 Hotel Auth with expired subscription
     // ===================================================================
     try {
-      // Temporarily write expired date to db
-      const curDb = JSON.parse(fs.readFileSync(path.join(TEST_DATA_DIR, 'setu-db.json'), 'utf8'));
-      curDb.data.auth.paidUntil = Date.now() - 86400000; // expired yesterday
-      fs.writeFileSync(path.join(TEST_DATA_DIR, 'setu-db.json'), JSON.stringify(curDb), 'utf8');
+      // Temporarily write expired date to db. JSON engine: edit the file; SQLite engine (it does not read that
+      // file): the same change saved by the main counter through the incremental save, then the same restart
+      const SQL = process.env.SETU_STORAGE === 'sqlite';
+      const setPaid = async until => {
+        const h = { 'X-Setu-Launch': fs.readFileSync(path.join(TEST_DATA_DIR, 'setu-launch.key'), 'utf8').trim() };   // the main counter's own window
+        const cur = (await api('/api/db', { headers: h })).json;
+        const r = await api('/api/ops', { method: 'POST', headers: h, body: { bv: cur.version, ops: [{ k: 'auth', set: { ...cur.data.auth, paidUntil: until } }] } });
+        assert.equal(r.status, 200, 'save paidUntil');
+      };
+      const curDb = SQL ? null : JSON.parse(fs.readFileSync(path.join(TEST_DATA_DIR, 'setu-db.json'), 'utf8'));
+      if (SQL) await setPaid(Date.now() - 86400000);
+      else {
+        curDb.data.auth.paidUntil = Date.now() - 86400000; // expired yesterday
+        fs.writeFileSync(path.join(TEST_DATA_DIR, 'setu-db.json'), JSON.stringify(curDb), 'utf8');
+      }
 
       // Stop & start server to reload db
       stopServer();
@@ -227,8 +238,11 @@ async function api(path, options = {}) {
       assert.ok(res.json.code === 'SUBSCRIPTION_EXPIRED' || res.json.error.toLowerCase().includes('expired'), 'Returned 402 SUBSCRIPTION_EXPIRED');
 
       // Restore active subscription
-      curDb.data.auth.paidUntil = Date.now() + 86400000 * 365;
-      fs.writeFileSync(path.join(TEST_DATA_DIR, 'setu-db.json'), JSON.stringify(curDb), 'utf8');
+      if (SQL) await setPaid(Date.now() + 86400000 * 365);
+      else {
+        curDb.data.auth.paidUntil = Date.now() + 86400000 * 365;
+        fs.writeFileSync(path.join(TEST_DATA_DIR, 'setu-db.json'), JSON.stringify(curDb), 'utf8');
+      }
       stopServer();
       await wait(1500);
       await startServer(TEST_DATA_DIR);

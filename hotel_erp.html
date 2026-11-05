@@ -6105,7 +6105,15 @@ const histOn = () => SRV.engine === 'sqlite' && !!SRV.win;
 const inWin = b => !histOn() || String((b && b.date) || '') >= SRV.win.from;
 const histCust = p => (histOn() && SRV.hist && SRV.hist.cust && SRV.hist.cust[p]) || null;
 const recId = x => isPlainObj(x) && typeof x.id === 'string' && x.id ? x.id : '';
-const okIds = v => Array.isArray(v) && v.every(recId) && new Set(v.map(recId)).size === v.length;
+const okIds = v => Array.isArray(v) && v.every(recId);
+// The same record twice in a list (an old offline merge, a replayed sync) is never valid: the first copy stays
+function dedupIds(v){
+  if(new Set(v.map(recId)).size === v.length) return v;
+  const seen = new Set();
+  const out = v.filter(x => !seen.has(x.id) && seen.add(x.id));
+  v.splice(0, v.length, ...out);
+  return v;
+}
 
 function opsShape(k, v, bv){
   if(k === 'staff' || k === 'seq' || k === 'secure') return 'set';
@@ -6122,6 +6130,7 @@ function buildOps(base, cur){
     if(k === 'secure') continue;
     const v = cur[k], bv = base[k], shape = opsShape(k, v, bv);
     if(shape === 'rec'){
+      dedupIds(v);
       const bm = new Map((bv || []).map(x => [x.id, x])), up = [], prev = {}, texts = {};
       for(const x of v){
         const s = JSON.stringify(x), b = bm.get(x.id);

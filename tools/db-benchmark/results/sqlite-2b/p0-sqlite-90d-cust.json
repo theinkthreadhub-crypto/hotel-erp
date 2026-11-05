@@ -6,8 +6,8 @@
  "scenarios": {
   "S1 load": {
    "pass": true,
-   "loadMs": 4746,
-   "ms": 4800
+   "loadMs": 1737,
+   "ms": 1745
   },
   "S2 outage + in-flight download": {
    "confirmedBills": 20,
@@ -25,7 +25,7 @@
    "stockMismatches": 0,
    "sample": [],
    "downloadsHeld": 1,
-   "ms": 69070
+   "ms": 65138
   },
   "S4 slow download after local work (online)": {
    "confirmedBills": 20,
@@ -42,8 +42,8 @@
    "pass": true,
    "stockMismatches": 0,
    "sample": [],
-   "downloadsHeld": 3,
-   "ms": 56770
+   "downloadsHeld": 2,
+   "ms": 48451
   },
   "S5 two devices + API at once": {
    "confirmedBills": 50,
@@ -58,7 +58,7 @@
    "splitErrors": 0,
    "seqBehind": 0,
    "pass": true,
-   "ms": 10283
+   "ms": 10510
   },
   "S6 crash before sync, reopen": {
    "confirmedBills": 20,
@@ -75,7 +75,7 @@
    "pass": true,
    "stockMismatches": 0,
    "sample": [],
-   "ms": 52556
+   "ms": 51943
   },
   "H1 page totals with older bills on the counter = full count": {
    "pass": true,
@@ -89,7 +89,7 @@
    "stockMismatches": 0,
    "loyaltyMismatches": 0,
    "walletMismatches": 0,
-   "ms": 23019
+   "ms": 23563
   },
   "H2 reports for older dates (loaded on request) = full data": {
    "pass": true,
@@ -98,7 +98,7 @@
    "olderBillsLoaded": 5200,
    "differing": [],
    "billsOnPage": 12310,
-   "ms": 21153
+   "ms": 20307
   },
   "S7 repeated delivery (incremental save)": {
    "confirmedBills": 1,
@@ -128,7 +128,7 @@
    "copiesOfRepeatedBill": 1,
    "voucherCopies": 1,
    "stockItem": "stk0",
-   "ms": 5676
+   "ms": 5914
   },
   "S8 saves that try to drop or overwrite confirmed records": {
    "cashierSave": 200,
@@ -139,7 +139,7 @@
    "unCancelled": false,
    "preexistingBillsLost": 0,
    "pass": true,
-   "ms": 3128
+   "ms": 3324
   },
   "S9 restore": {
    "cashierRestore": 403,
@@ -149,22 +149,22 @@
    "logged": true,
    "audited": true,
    "pass": true,
-   "ms": 16488
+   "ms": 16204
   },
   "N1 no whole-data save from pages": {
    "pass": true,
    "pageWholeSaves": 0,
    "serverRefusedWholeSaves": 1,
-   "opsSaves": 18
+   "opsSaves": 19
   }
  },
  "fileMB": 19.8,
  "network": {
   "wholeSaves": 0,
   "fullLoads": 6,
-  "opsSaves": 18,
+  "opsSaves": 19,
   "changeFeeds": 8,
-  "opsBytes": 473322,
+  "opsBytes": 516863,
   "wholeBytes": 0
  },
  "serverStats": {
@@ -177,10 +177,10 @@
   "changeFeeds": 4,
   "changeReloads": 4
  },
- "serverRssMB": 597.2,
+ "serverRssMB": 512.2,
  "allPass": true,
  "serverLogTail": [
-  "2026-11-05 01:31:49 Kept confirmed records from a admin save: bill mk0xjmo06j1dn-00 stays cancelled",
-  "2026-11-05 01:31:55 RESTORE by admin: bills 18111 -> 18111, version 23 replaced"
+  "2026-11-05 01:53:09 Kept confirmed records from a admin save: bill mk0xjmo06j1dn-00 stays cancelled",
+  "2026-11-05 01:53:15 RESTORE by admin: bills 18111 -> 18111, version 23 replaced"
  ]
 }

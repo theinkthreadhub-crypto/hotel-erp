@@ -1560,7 +1560,7 @@ class SqliteSetuStore(SetuStore):
     def _load(self):
         self._ws = self.sdb.export_except(HIST_KEYS)
         self._idx = {}
-        self.version = int(self.sdb.meta('doc_version') or 1)
+        self.version = int(self.sdb.meta('doc_version') or 0)
         self.saved_at = int(self.sdb.meta('saved_at') or 0)
         self.migrate_wa_history(self._ws)
 
@@ -1585,12 +1585,19 @@ class SqliteSetuStore(SetuStore):
             return self._pub[1]
 
     def _index(self, k):
+        """id -> position in a working list; kept up to date by each save (rebuilt only if the list was replaced)."""
         lst = self._ws.get(k)
         ix = self._idx.get(k)
-        if ix is None or ix[0] is not lst or ix[1] != len(lst):
-            ix = (lst, len(lst), {x.get('id'): i for i, x in enumerate(lst) if isinstance(x, dict)})
+        if ix is None or ix[0] is not lst or len(ix[1]) > len(lst):
+            ix = (lst, {x.get('id'): i for i, x in enumerate(lst) if isinstance(x, dict)})
             self._idx[k] = ix
-        return ix[2]
+        return ix[1]
+
+    def _kot_numbers(self):
+        """KOT number -> id of the KOTs kept in memory (cached until the KOTs change)."""
+        if getattr(self, '_kotno', None) is None or self._kotno[0] is not self._ws.get('kots'):
+            self._kotno = (self._ws.get('kots'), {x.get('no'): x.get('id') for x in self._ws.get('kots') or [] if isinstance(x, dict)})
+        return dict(self._kotno[1])
 
     def _ws_record(self, k, rid):
         lst = self._ws.get(k)
@@ -1683,26 +1690,24 @@ class SqliteSetuStore(SetuStore):
     def db_payload(self, frm=None, full=False):
         """JSON for GET /api/db: the working data (public view) with the bills of the window, or every bill."""
         frm = frm or self.window_from()
+        # The working data as JSON text made under the lock, with its version: a save that lands meanwhile can
+        # never mix into this copy (the lists are changed in place after each commit)
         with self._enc_lock:
-            pub = SEC.public_view(self._ws or {})
+            pub_text = self.public_raw()
             version, saved_at = self.version, self.saved_at
         bills = self.sdb.export_window('0000-00-00' if full else frm)   # own read connection: billing is not paused
-        keys = [k for k in self.sdb.doc_keys() if k in pub or k in HIST_KEYS]
-        data = {}
-        for k in keys:
-            data[k] = bills if k == 'bills' else pub[k]
-        for k in pub:
-            data.setdefault(k, pub[k])
-        if 'bills' not in data:
-            data['bills'] = bills
+        body_bills = json.dumps(bills, ensure_ascii=False)
+        bills = None
+        pub_text = pub_text.strip()
+        data_text = ('{"bills": ' + body_bills + '}') if pub_text in ('{}', 'null', '') else (pub_text[:-1] + ', "bills": ' + body_bills + '}')
         if full:
             self.stats['fullExports'] += 1
-            return ('{"version": %d, "savedAt": %d, "data": %s}' % (version, saved_at, json.dumps(data, ensure_ascii=False))).encode('utf-8')
+            return ('{"version": %d, "savedAt": %d, "data": %s}' % (version, saved_at, data_text)).encode('utf-8')
         self.stats['windowLoads'] += 1
         h = self.hist(frm)
         meta = {'engine': 'sqlite', 'win': {'from': frm, 'days': self.hist_days(), 'older': h['bills']}, 'histRev': self._hist_rev,
-                'kinds': self.sdb.kinds(), 'hist': h}
-        return ('{"version": %d, "savedAt": %d, "meta": %s, "data": %s}' % (version, saved_at, json.dumps(meta, ensure_ascii=False), json.dumps(data, ensure_ascii=False))).encode('utf-8')
+                'kinds': {k: v for k, v in self.sdb.kinds().items() if k != 'secure'}, 'hist': h}
+        return ('{"version": %d, "savedAt": %d, "meta": %s, "data": %s}' % (version, saved_at, json.dumps(meta, ensure_ascii=False), data_text)).encode('utf-8')
 
     def bill_count(self):
         with self.sdb.reader() as c:
@@ -1780,8 +1785,9 @@ class SqliteSetuStore(SetuStore):
         self.stats['restores'] += 1
         self._after_write()
 
-    def _after_write(self):
-        self._maxno = None
+    def _after_write(self, keep_maxno=False):
+        if not keep_maxno:
+            self._maxno = None
         if self.on_write:
             self.on_write()
         self._backup_soon()
@@ -1979,8 +1985,7 @@ class SqliteSetuStore(SetuStore):
             renum = {}
             if 'bills' in new_v:
                 seq = new_v['seq'] if isinstance(new_v.get('seq'), dict) else {}
-                top = max(_num(seq.get('bill')), _num(seq_cur.get('bill')),
-                          int(con.execute('SELECT COALESCE(MAX(CAST(no AS INTEGER)), 0) FROM bills WHERE COALESCE(imported, 0) = 0').fetchone()[0] or 0))
+                top = max(_num(seq.get('bill')), _num(seq_cur.get('bill')), self._max_bill_no())   # cached: no scan per save
                 batch = {}
                 for b in new_v['bills']:
                     if b.get('id') in cur_rec['bills'] or b.get('imported'):
@@ -1988,8 +1993,9 @@ class SqliteSetuStore(SetuStore):
                     no = _num(b.get('no'))
                     if not no:
                         continue
+                    # Number stored as a number or as text: both use the bills(no) index (CAST would read every bill)
                     clash = batch.get(no) not in (None, b['id']) or con.execute(
-                        'SELECT 1 FROM bills WHERE CAST(no AS INTEGER) = ? AND COALESCE(imported, 0) = 0 AND id <> ?', (no, b['id'])).fetchone()
+                        'SELECT 1 FROM bills WHERE no IN (?, ?, ?) AND COALESCE(imported, 0) = 0 AND id <> ? LIMIT 1', (no, float(no), str(no), b['id'])).fetchone()
                     if clash:
                         top += 1
                         renum[b['id']] = top
@@ -2001,7 +2007,7 @@ class SqliteSetuStore(SetuStore):
                     new_v['seq'] = seq
             if 'kots' in new_v:
                 seq = new_v['seq'] if isinstance(new_v.get('seq'), dict) else {}
-                taken = {x.get('no'): x.get('id') for x in self._ws.get('kots') or [] if isinstance(x, dict)}
+                taken = self._kot_numbers()
                 for x in new_v['kots']:
                     if x.get('id') in cur_rec['kots'] or x.get('no') is None:
                         continue
@@ -2125,7 +2131,13 @@ class SqliteSetuStore(SetuStore):
                 if rms:
                     gone = set(rms)
                     lst[:] = [x for x in lst if not (isinstance(x, dict) and x.get('id') in gone)]
-                self._idx.pop(k, None)
+                    self._idx.pop(k, None)          # positions moved: rebuilt on next use
+                if k == 'kots' and getattr(self, '_kotno', None):
+                    if rms:
+                        self._kotno = None
+                    else:
+                        for x in ups:
+                            self._kotno[1][x.get('no')] = x.get('id')
             for k, (kind, s_, d_) in writes_map.items():
                 m = self._ws.get(k)
                 if not isinstance(m, dict):
@@ -2139,9 +2151,14 @@ class SqliteSetuStore(SetuStore):
         for bid, old in old_bills.items():
             new = next((x for x in writes_rec.get('bills', (None, [], []))[1] if x.get('id') == bid), None)
             self._hist_update(old, new)
+        if getattr(self, '_maxno', None) is not None:
+            nos = [int(_num(x.get('no'))) for x in writes_rec.get('bills', (None, [], []))[1] if not x.get('imported')]
+            self._maxno = max([self._maxno] + nos)
+            if writes_rec.get('bills', (None, [], []))[2]:
+                self._maxno = None          # a bill was removed: count again when next needed
         self.stats['opsSaves'] += 1
         self.stats['opsRecords'] += summary['records']
-        self._after_write()
+        self._after_write(keep_maxno=True)
         return 200, out
 
     # ---------- what changed since a version (GET /api/changes) ----------
@@ -2178,7 +2195,8 @@ class SqliteSetuStore(SetuStore):
     def _native_ok(self, *keys):
         kinds = self.sdb.kinds()
         want = {'bills': 'spec', 'stock': 'spec', 'audit': 'spec', 'seq': 'seq'}
-        return all(kinds.get(k) == want[k] for k in keys) and kinds.get('kaccha', 'maptable') == 'maptable'
+        # A key not stored yet (a new hotel's first bill) is fine: the first save registers it
+        return all(kinds.get(k) in (want[k], None) for k in keys) and kinds.get('kaccha', 'maptable') == 'maptable'
 
     def settle_bill(self, payload):
         """Settle one bill: number, rows, stock, KOT number, running order cleared, idempotency, outbox."""
@@ -2943,6 +2961,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return tok.get('role', '').lower()
                 elif isinstance(tok, str):
                     return tok.lower()
+                else:
+                    # A token this counter never issued (another hotel's, a deleted device's): refused, never ignored
+                    # in favour of the main-counter fallback below (TENANT-01)
+                    return None
 
             # Constrained bootstrap fallback:
             # Tokenless local access is allowed ONLY during bootstrap/setup (when database has no PINs or users configured),
@@ -4776,6 +4798,12 @@ def open_store(data_dir):
         flag = SQ.read_flag(data_dir)
         if rep.get('status') != 'MIGRATED':
             print('SQLite migration did not complete:', rep.get('message'))
+    elif os.environ.get('SETU_STORAGE') == 'sqlite' and flag.get('engine') != 'sqlite' and not os.path.exists(os.path.join(data_dir, SQ.DB_FILE)):
+        # Development / tests only: a new empty test folder starts directly on SQLite (version 0 = first upload)
+        os.makedirs(data_dir, exist_ok=True)
+        SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE), create=True).close()
+        SQ.write_flag(data_dir, {'engine': 'sqlite', 'created': int(time.time() * 1000), 'note': 'empty test folder (SETU_STORAGE=sqlite)'})
+        flag = SQ.read_flag(data_dir)
     if flag.get('engine') == 'sqlite':
         return SqliteSetuStore(data_dir)
     return SetuStore(data_dir)
