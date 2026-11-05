@@ -2169,78 +2169,111 @@ class InboundSyncReceiver:
         }
 
     def _apply_qr_order(self, c, payload):
-        tbl = str(payload.get('table', '1')).strip()
-        items = payload.get('items', [])
-        order_id = str(payload.get('order_id', ''))
-        guest_name = str(payload.get('guest_name', '')).strip()
-        note = str(payload.get('note', '')).strip()
-
-        # A. Update table_orders (kaccha running order)
-        row = c.execute("SELECT data FROM table_orders WHERE tbl = ?", (tbl,)).fetchone()
-        t_data = json.loads(row[0]) if row and row[0] else {'cart': [], 'cust': '', 'note': '', 'qr': []}
-
-        cart = t_data.get('cart', [])
+        """Stage guest order for approval. NEVER add pending items to bill cart."""
+        order_id = str(payload.get('order_id') or '').strip()
+        tbl = str(payload.get('table') or '').strip()
+        items = payload.get('items')
+        if not order_id or len(order_id) > 90 or not tbl or len(tbl) > 90:
+            raise InboundApplyError('QR_ORDER_ID_OR_TABLE_INVALID')
+        if not isinstance(items, list) or not 1 <= len(items) <= 40:
+            raise InboundApplyError('QR_ORDER_ITEMS_INVALID')
+        clean_items = []
         for it in items:
-            mid = str(it.get('mid', ''))
-            qty = float(it.get('qty', 1))
-            name = str(it.get('name', ''))
+            if not isinstance(it, dict) or not str(it.get('mid') or ''):
+                raise InboundApplyError('QR_ORDER_ITEM_INVALID')
+            qty = float(it.get('qty', 0))
             price = float(it.get('price', 0))
-            found = False
-            for c_it in cart:
-                if str(c_it.get('mid', '')) == mid:
-                    c_it['qty'] = round(float(c_it.get('qty', 0)) + qty, 2)
-                    found = True
-                    break
-            if not found:
-                cart.append({'mid': mid, 'name': name, 'price': price, 'qty': qty})
-        t_data['cart'] = cart
+            if not 0 < qty <= 50 or not 0 <= price <= 1000000:
+                raise InboundApplyError('QR_ORDER_QUANTITY_OR_PRICE_INVALID')
+            clean_items.append({
+                'mid': str(it['mid'])[:90], 'name': str(it.get('name') or '')[:120],
+                'price': price, 'qty': qty
+            })
+        c.execute("""
+            INSERT OR IGNORE INTO inbound_qr_orders
+              (order_id, tbl, items_json, guest_name, note, status, kot_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', NULL, ?, ?)
+        """, (order_id, tbl, json.dumps(clean_items),
+              str(payload.get('guest_name') or '')[:80],
+              str(payload.get('note') or '')[:200],
+              int(payload.get('at') or time.time() * 1000),
+              int(time.time() * 1000)))
+        # No table_orders, KOT, bill, payment or inventory writes here.
 
-        if guest_name and not t_data.get('cust'):
-            t_data['cust'] = guest_name
+    def _apply_qr_status(self, c, payload):
+        """Accepted orders alone reach the running cart and kitchen ticket."""
+        order_id = str(payload.get('order_id') or '').strip()
+        state = str(payload.get('status') or '').lower()
+        if not order_id or state not in ('accepted', 'rejected'):
+            raise InboundApplyError('QR_STATUS_INVALID')
+        row = c.execute(
+            "SELECT tbl,items_json,guest_name,note,status,kot_id FROM inbound_qr_orders "
+            "WHERE order_id = ?", (order_id,)
+        ).fetchone()
+        if not row:
+            raise InboundApplyError('QR_STATUS_BEFORE_ORDER')
+        tbl, items_json, guest_name, note, current, kot_id = row
+        if current == state:
+            return  # Same decision delivered again; no double KOT/cart.
+        if current != 'pending':
+            raise InboundApplyError('QR_DECISION_ALREADY_FINAL')
+
+        now_ms = int(time.time() * 1000)
+        if state == 'rejected':
+            # Pending order never entered running cart, so waiter quantities
+            # and previously billed items remain unchanged.
+            c.execute(
+                "UPDATE inbound_qr_orders SET status='rejected', updated_at=? "
+                "WHERE order_id=? AND status='pending'", (now_ms, order_id)
+            )
+            return
+
+        items = json.loads(items_json)
+        old = c.execute("SELECT data FROM table_orders WHERE tbl = ?", (tbl,)).fetchone()
+        order = json.loads(old[0]) if old and old[0] else {
+            'cart': [], 'cust': '', 'note': '', 'qr': []
+        }
+        cart = list(order.get('cart') or [])
+        # Do not merge QR quantities with waiter-created lines. Provenance
+        # makes later removal/reconciliation possible without guessing.
+        for it in items:
+            cart.append({
+                **it, 'src': 'qr', 'qr_order_id': order_id
+            })
+        order['cart'] = cart
+        if guest_name and not order.get('cust'):
+            order['cust'] = guest_name
         if note:
-            existing_note = t_data.get('note', '')
-            t_data['note'] = (existing_note + ' | ' + note).strip(' |')
-
-        qr_list = t_data.get('qr', [])
-        if order_id and order_id not in qr_list:
-            qr_list.append(order_id)
-        t_data['qr'] = qr_list
-
+            order['note'] = (str(order.get('note') or '') + ' | ' + note).strip(' |')
+        qr_ids = list(order.get('qr') or [])
+        if order_id not in qr_ids:
+            qr_ids.append(order_id)
+        order['qr'] = qr_ids
         c.execute("""
             INSERT INTO table_orders (tbl, ord, data) VALUES (?, ?, ?)
-            ON CONFLICT(tbl) DO UPDATE SET data = excluded.data
-        """, (tbl, int(time.time() * 1000), json.dumps(t_data)))
+            ON CONFLICT(tbl) DO UPDATE SET data=excluded.data
+        """, (tbl, now_ms, json.dumps(order)))
 
-        # B. Insert KOT and KOT items
-        max_no = c.execute("SELECT COALESCE(MAX(CAST(no AS INTEGER)), 0) FROM kots").fetchone()[0]
-        kot_no = max_no + 1
-        now_ms = int(time.time() * 1000)
-        kot_id = f"kot_{now_ms}_{kot_no}"
-        now_date = datetime.now().strftime('%Y-%m-%d')
-        now_time = datetime.now().strftime('%H:%M:%S')
-        extra = json.dumps({'src': 'qr', 'qr': order_id, 'guest_name': guest_name})
-
+        kot_id = 'qrkot_' + hashlib.sha256(order_id.encode('utf-8')).hexdigest()[:24]
+        last_no = c.execute("SELECT COALESCE(MAX(CAST(no AS INTEGER)), 0) FROM kots").fetchone()[0]
+        kot_no = int(last_no) + 1
+        now = datetime.now()
         c.execute("""
             INSERT INTO kots (id, ord, no, date, time, "table", channel, status, arrays, extra)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (kot_id, now_ms, str(kot_no), now_date, now_time, tbl, 'Dine-In', 'pending', '', extra))
-
+            VALUES (?, ?, ?, ?, ?, ?, 'Dine-In', 'pending', '', ?)
+        """, (kot_id, now_ms, str(kot_no), now.strftime('%Y-%m-%d'),
+              now.strftime('%H:%M:%S'), tbl,
+              json.dumps({'src': 'qr', 'qr': order_id, 'guest_name': guest_name})))
         for idx, it in enumerate(items):
-            it_extra = json.dumps({'price': float(it.get('price', 0))})
             c.execute("""
                 INSERT INTO kot_items (kot_id, line, mid, name, qty, extra)
                 VALUES (?, ?, ?, ?, ?, ?)
-            """, (kot_id, idx, str(it.get('mid', '')), str(it.get('name', '')), float(it.get('qty', 1)), it_extra))
-
-    def _apply_qr_status(self, c, payload):
-        status = payload.get('status')
-        order_id = str(payload.get('order_id', ''))
-        if status == 'rejected':
-            rows = c.execute("SELECT id FROM kots WHERE extra LIKE ? AND status = 'pending'", (f'%"qr": "{order_id}"%',)).fetchall()
-            for r in rows:
-                c.execute("UPDATE kots SET status = 'cancelled' WHERE id = ?", (r[0],))
-                c.execute("INSERT INTO kot_status_history (kot_id, old_status, new_status, at) VALUES (?, 'pending', 'cancelled', ?)",
-                          (r[0], int(time.time() * 1000)))
+            """, (kot_id, idx, it['mid'], it['name'], it['qty'],
+                  json.dumps({'price': it['price'], 'qr_order_id': order_id})))
+        c.execute("""
+            UPDATE inbound_qr_orders SET status='accepted', kot_id=?, updated_at=?
+            WHERE order_id=? AND status='pending'
+        """, (kot_id, now_ms, order_id))
 
     def _apply_licence_update(self, c, payload):
         """Fail-closed cryptographic verification of installation-bound SETU keys."""
