@@ -10843,6 +10843,15 @@ function dashModern(){
   const kpi = (ico, label, val, sub, go_, cls) => `<div class="m-kpi" onclick="${go_}">${mIco(ico)}<span>${label}</span><b>${val}</b><small class="${cls || 'muted'}">${sub}</small></div>`;
   const tiles = dashTiles().slice(0, 14);
   return `<div class="m-dash">
+    ${SRV.cloud && window.cloudSyncStatus && window.cloudSyncStatus.warning ? `
+      <div style="margin-bottom:12px;padding:12px 16px;background:#fef2f2;border:1.5px solid #f87171;border-radius:12px;color:#991b1b;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:18px">⚠️</span>
+          <span>${esc(window.cloudSyncStatus.warning)}</span>
+        </div>
+        <button class="btn g sm" onclick="checkCloudSyncStatus().then(()=>scrGateway())" style="font-size:11px">Refresh Status</button>
+      </div>
+    ` : ''}
     <div class="m-hero"><div><h2>${hi}, ${esc(name)}!</h2><p>${new Date().toLocaleDateString('en-IN', {weekday: 'long', day: 'numeric', month: 'long'})} · ${s.bills.length} bills · ${money(s.sales)} sales today${k.length ? ` · ${k.length} tables running` : ''}</p></div>
       <div class="btns">${qrn ? `<button class="btn g" onclick="qrPanel()">QR orders (${qrn})</button>` : ''}<button class="btn g" onclick="go('online')">Zomato / Swiggy</button><button class="btn ok" onclick="go('bill')">New Bill [B]</button></div></div>
     <div class="m-kpis">
@@ -11325,8 +11334,21 @@ function scrSessions(){
   `;
 }
 
+async function checkCloudSyncStatus(){
+  if(!SRV.cloud || !SRV.on || !activeUser || !['admin', 'manager', 'owner'].includes(activeUser.role)) return;
+  try {
+    const res = await srvFetch('/api/reports/status');
+    if(res.status === 200){
+      window.cloudSyncStatus = await res.json();
+    }
+  } catch(e){}
+}
+
 function scrGateway(){
   if(SRV.on && !SRV.cloud && Date.now() - (waStatus.at || 0) > 60000){ waStatus.at = Date.now(); waStatus(); }
+  if(SRV.cloud && activeUser && ['admin', 'manager', 'owner'].includes(activeUser.role) && !window.cloudSyncStatus){
+    checkCloudSyncStatus().catch(()=>{});
+  }
   main.innerHTML = dashModern();
 }
 
@@ -17456,6 +17478,15 @@ const RPT_TABS = [['summary','Summary'],['daily','Day-wise'],['monthly','Month-w
 function scrReports(){
   if(rptTab === 'whatsapp'){ scrWaReports(); return; }
   const r = rptData()[rptTab]();
+  const syncBanner = (SRV.cloud && window.cloudSyncStatus && window.cloudSyncStatus.warning) ? `
+    <div style="background:#fef2f2;border:1.5px solid #f87171;border-radius:10px;padding:10px 14px;margin-bottom:12px;color:#991b1b;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span>⚠️</span>
+        <span>${esc(window.cloudSyncStatus.warning)}</span>
+      </div>
+      <span style="font-size:11px;font-weight:600;color:#7f1d1d">Sync: ${esc(window.cloudSyncStatus.sync_status || 'stale')}</span>
+    </div>
+  ` : '';
   main.innerHTML = `
   <div class="title">
     <span>Reports</span>
@@ -17464,6 +17495,7 @@ function scrReports(){
       To <input type="date" value="${rptTo}" onchange="rptTo=this.value;scrReports()">
     </span>
   </div>
+  ${syncBanner}
   <div class="cats" style="margin-bottom:8px">
     <button class="cat" onclick="rptFrom=rptTo=today();scrReports()">Today</button>
     <button class="cat" onclick="rptFrom=rptTo=addDays(today(),-1);scrReports()">Yesterday</button>

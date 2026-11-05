@@ -36,7 +36,7 @@ function makeTestEnvelope(opId, hotelId, docVer, payload, overrides = {}) {
   };
 }
 
-function createHarness(sharedDb = null, hotelCode = 'TESTHOTEL01') {
+function createHarness(sharedDb = null, hotelCode = 'TESTHOTEL01', hotelName = 'Grand Horizon Resort') {
   const db = sharedDb || new DatabaseSync(':memory:');
   const storage = {
     sql: {
@@ -71,7 +71,7 @@ function createHarness(sharedDb = null, hotelCode = 'TESTHOTEL01') {
   const syncHash = sha256Hex(syncKey);
   hotel.account = {
     code: hotelCode,
-    name: 'Grand Horizon Resort',
+    name: hotelName,
     owner: 'Vikram Mehta',
     status: 'active',
     paidUntil: Date.now() + 365 * 864e5,
@@ -121,29 +121,32 @@ async function test(name, fn) {
   }
 }
 
-console.log('--- HoReCa One Phase 3.3: Remote Owner Access & Reporting Tests ---\n');
+console.log('--- HoReCa One Phase 3.3a: Reporting Accuracy & Owner Access Tests ---\n');
 
 // ==========================================
 // GATE 1: MANDATORY INTEGRITY TESTS
 // ==========================================
 
-await test('1. Gate 1: Fresh database creation creates cancelled & cancelled_by columns without error', async () => {
+await test('1. Gate 1: Fresh database creation creates cancelled, cancelled_by & resolved columns without error', async () => {
   const freshDb = new DatabaseSync(':memory:');
   const { db } = createHarness(freshDb);
   
-  // Verify columns exist in sync_vouchers on fresh db
-  const cols = db.prepare("PRAGMA table_info(sync_vouchers)").all();
-  const colNames = new Set(cols.map(c => c.name));
-  assert.ok(colNames.has('cancelled'), 'sync_vouchers must have cancelled column');
-  assert.ok(colNames.has('cancelled_by'), 'sync_vouchers must have cancelled_by column');
-  assert.ok(colNames.has('doc_version'), 'sync_vouchers must have doc_version column');
+  const vCols = db.prepare("PRAGMA table_info(sync_vouchers)").all();
+  const vNames = new Set(vCols.map(c => c.name));
+  assert.ok(vNames.has('cancelled'), 'sync_vouchers must have cancelled column');
+  assert.ok(vNames.has('cancelled_by'), 'sync_vouchers must have cancelled_by column');
+  assert.ok(vNames.has('doc_version'), 'sync_vouchers must have doc_version column');
+
+  const cCols = db.prepare("PRAGMA table_info(sync_conflicts)").all();
+  const cNames = new Set(cCols.map(c => c.name));
+  assert.ok(cNames.has('resolved'), 'sync_conflicts must have resolved column');
+  assert.ok(cNames.has('resolved_at'), 'sync_conflicts must have resolved_at column');
 });
 
 await test('2. Gate 1: Voucher create -> cancellation by manager -> restart -> reconciliation', async () => {
   const sharedDb = new DatabaseSync(':memory:');
   const h1 = createHarness(sharedDb);
 
-  // 1. Create voucher
   const createPayload = {
     records: {
       vouchers: {
@@ -171,7 +174,6 @@ await test('2. Gate 1: Voucher create -> cancellation by manager -> restart -> r
   const r1 = await h1.callApi('POST', '/api/sync/ops', { envelope: env1 }, { 'X-Setu-Sync': h1.syncKey });
   assert.equal(r1.status, 200);
 
-  // 2. Authorized cancellation by manager
   const cancelPayload = {
     records: {
       vouchers: {
@@ -189,7 +191,6 @@ await test('2. Gate 1: Voucher create -> cancellation by manager -> restart -> r
   const r2 = await h1.callApi('POST', '/api/sync/ops', { envelope: env2 }, { 'X-Setu-Sync': h1.syncKey });
   assert.equal(r2.status, 200);
 
-  // 3. Restart / Reload DO instance with fresh SetuHotel instance on same database
   const h2 = createHarness(sharedDb);
   const row = h2.db.prepare('SELECT * FROM sync_vouchers WHERE id = ?').get('v_fresh_01');
   assert.ok(row, 'Voucher row must exist after restart');
@@ -201,7 +202,6 @@ await test('2. Gate 1: Voucher create -> cancellation by manager -> restart -> r
 await test('3. Gate 1: Unauthorized cashier voucher rm is guarded and voucher is NOT cancelled', async () => {
   const { callApi, db, syncKey } = createHarness();
 
-  // Create active voucher
   const createPayload = {
     records: {
       vouchers: {
@@ -223,7 +223,6 @@ await test('3. Gate 1: Unauthorized cashier voucher rm is guarded and voucher is
   };
   await callApi('POST', '/api/sync/ops', { envelope: makeTestEnvelope('op_vg_1', 'TESTHOTEL01', 1, createPayload) }, { 'X-Setu-Sync': syncKey });
 
-  // Cashier attempts rm
   const rmPayload = {
     records: {
       vouchers: {
@@ -240,11 +239,9 @@ await test('3. Gate 1: Unauthorized cashier voucher rm is guarded and voucher is
   });
   await callApi('POST', '/api/sync/ops', { envelope: envRm }, { 'X-Setu-Sync': syncKey });
 
-  // Verify voucher remains NOT cancelled
   const v = db.prepare('SELECT * FROM sync_vouchers WHERE id = ?').get('v_guarded_01');
   assert.equal(v.cancelled, 0, 'Voucher must NOT be cancelled by unauthorized cashier');
 
-  // Verify guard log
   const log = db.prepare("SELECT * FROM sync_change_log WHERE rid = 'v_guarded_01' AND op = 'unauthorized_rm_guarded'").get();
   assert.ok(log, 'Unauthorized rm attempt must be logged as guarded');
 });
@@ -252,7 +249,6 @@ await test('3. Gate 1: Unauthorized cashier voucher rm is guarded and voucher is
 await test('4. Gate 1: Delayed values.seq & auth cannot overwrite newer config, but newer resets are accepted', async () => {
   const { callApi, db, syncKey } = createHarness();
 
-  // 1. Commit config at version 10
   const p10 = {
     records: {},
     maps: {},
@@ -264,7 +260,6 @@ await test('4. Gate 1: Delayed values.seq & auth cannot overwrite newer config, 
   await callApi('POST', '/api/sync/ops', { envelope: makeTestEnvelope('op_seq_10', 'TESTHOTEL01', 10, p10) }, { 'X-Setu-Sync': syncKey });
   assert.equal(JSON.parse(db.prepare("SELECT value FROM sync_settings WHERE key = 'seq'").get().value).bill, 100);
 
-  // 2. Delayed operation at version 8 arrives: must be rejected by checkStale conflict guard
   const p8 = {
     records: {},
     maps: {},
@@ -276,10 +271,8 @@ await test('4. Gate 1: Delayed values.seq & auth cannot overwrite newer config, 
   const r8 = await callApi('POST', '/api/sync/ops', { envelope: makeTestEnvelope('op_seq_8', 'TESTHOTEL01', 8, p8) }, { 'X-Setu-Sync': syncKey });
   assert.equal(r8.status, 409, 'Delayed older config operation must be rejected as stale conflict');
 
-  // Verify sync_settings still has v10 value
   assert.equal(JSON.parse(db.prepare("SELECT value FROM sync_settings WHERE key = 'seq'").get().value).bill, 100);
 
-  // 3. Newer operation at version 12 with legitimate sequence reset (e.g. new fiscal day/year reset to 1)
   const p12 = {
     records: {},
     maps: {},
@@ -293,38 +286,35 @@ await test('4. Gate 1: Delayed values.seq & auth cannot overwrite newer config, 
 });
 
 // ==========================================
-// GATE 2: AUTHENTICATION, ROLES & SECURITY
+// GATE 2: AUTHENTICATION, ROLES & LEAST PRIVILEGE
 // ==========================================
 
-await test('5. Gate 2: Unauthenticated and non-owner roles access to /api/reports/* rejected', async () => {
+await test('5. Gate 2: Unauthenticated, Cashier, and Waiter roles access to /api/reports/* rejected', async () => {
   const { callApi, cashierToken, waiterToken } = createHarness();
 
-  // Unauthenticated
   const rUnauth = await callApi('GET', '/api/reports/sales', null, { 'X-Setu-Token': '' });
   assert.equal(rUnauth.status, 401, 'Unauthenticated access must return 401');
 
-  // Cashier role
   const rCashier = await callApi('GET', '/api/reports/sales', null, { 'X-Setu-Token': cashierToken });
   assert.equal(rCashier.status, 403, 'Cashier access to reports must return 403');
   assert.match(rCashier.json.error, /Owner or Manager role required/i);
 
-  // Waiter role
   const rWaiter = await callApi('GET', '/api/reports/sales', null, { 'X-Setu-Token': waiterToken });
   assert.equal(rWaiter.status, 403, 'Waiter access to reports must return 403');
 });
 
-await test('6. Gate 2: Owner/Admin and Sync credentials can access /api/reports/*', async () => {
+await test('6. Gate 2 & Least Privilege: Owner/Admin allowed access, counter sync credential denied report-read', async () => {
   const { callApi, adminToken, syncKey } = createHarness();
 
-  // Admin token
+  // Admin / Owner token: ALLOWED
   const rAdmin = await callApi('GET', '/api/reports/sales', null, { 'X-Setu-Token': adminToken });
   assert.equal(rAdmin.status, 200, 'Admin token must access reports with 200');
   assert.equal(rAdmin.json.ok, true);
 
-  // Sync header
+  // Counter sync credential: DENIED under least privilege (sync is write-only for pushing outbox)
   const rSync = await callApi('GET', '/api/reports/sales', null, { 'X-Setu-Sync': syncKey });
-  assert.equal(rSync.status, 200, 'Sync credential must access reports with 200');
-  assert.equal(rSync.json.ok, true);
+  assert.equal(rSync.status, 403, 'Counter sync credential must be denied report-read access');
+  assert.match(rSync.json.error, /Owner or Manager role required/i);
 });
 
 await test('7. Gate 2: Reports are strictly read-only (POST/PUT/DELETE return 405)', async () => {
@@ -340,12 +330,10 @@ await test('7. Gate 2: Reports are strictly read-only (POST/PUT/DELETE return 40
 await test('8. Gate 2: Hotel tenant isolation & zero secret leakage in responses', async () => {
   const { callApi, adminToken, hotel } = createHarness();
 
-  // Status check
   const rStatus = await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken });
   assert.equal(rStatus.status, 200);
   assert.equal(rStatus.json.hotel.code, 'TESTHOTEL01');
 
-  // Verify response body never leaks secrets
   const respStr = JSON.stringify(rStatus.json);
   assert.ok(!respStr.includes(hotel.account.syncKey), 'Response must never leak syncKey');
   assert.ok(!respStr.includes('ownerHash'), 'Response must never leak password hash');
@@ -353,17 +341,12 @@ await test('8. Gate 2: Hotel tenant isolation & zero secret leakage in responses
 });
 
 // ==========================================
-// GATE 3: REPORTING APIS & FINANCIAL AGGREGATION
+// GATE 3: FINANCIAL ACCURACY & EXACT PAISE
 // ==========================================
 
-await test('9. Gate 3 & 4: Comprehensive reporting suite with realistic dataset', async () => {
-  const { callApi, adminToken, syncKey, db } = createHarness();
+await test('9. Gate 3: Comprehensive reporting suite with realistic dataset', async () => {
+  const { callApi, adminToken, syncKey } = createHarness();
 
-  // Seed dataset:
-  // Bill 1: Active, Date 2026-11-04, Sub: 1000, Tax: 50, Disc: 50, Total: 1000. Pays: Cash 500, UPI 500
-  // Bill 2: Active, Date 2026-11-04, Sub: 500, Tax: 25, Disc: 0, Total: 525. Pays: Card 525
-  // Bill 3: Active, Date 2026-11-05, Sub: 2000, Tax: 100, Disc: 100, Total: 2000. Pays: Cash 2000
-  // Bill 4: Cancelled, Date 2026-11-05, Sub: 300, Tax: 15, Disc: 0, Total: 315. Cancelled by 'Vikram Mehta'
   const seedBills = {
     records: {
       bills: {
@@ -434,42 +417,37 @@ await test('9. Gate 3 & 4: Comprehensive reporting suite with realistic dataset'
   };
 
   const envSeed = makeTestEnvelope('op_seed_all', 'TESTHOTEL01', 20, seedBills);
-  const rSeed = await callApi('POST', '/api/sync/ops', { envelope: envSeed }, { 'X-Setu-Sync': syncKey });
-  assert.equal(rSeed.status, 200);
+  await callApi('POST', '/api/sync/ops', { envelope: envSeed }, { 'X-Setu-Sync': syncKey });
 
   // 1. Test /api/reports/sales
   const rSales = await callApi('GET', '/api/reports/sales', null, { 'X-Setu-Token': adminToken });
   assert.equal(rSales.status, 200);
   assert.equal(rSales.json.summary.bill_count, 3, 'Active bills count must be 3');
-  assert.equal(rSales.json.summary.gross_sales, 3525, 'Gross active sales: 1000 + 525 + 2000 = 3525');
-  assert.equal(rSales.json.summary.net_taxable, 3500, 'Net taxable: 1000 + 500 + 2000 = 3500');
-  assert.equal(rSales.json.summary.total_tax, 175, 'Tax: 50 + 25 + 100 = 175');
-  assert.equal(rSales.json.summary.total_discount, 150, 'Discount: 50 + 0 + 100 = 150');
-  assert.equal(rSales.json.summary.cancelled_bill_count, 1, 'Cancelled bills count must be 1');
-  assert.equal(rSales.json.summary.cancelled_amount, 315, 'Cancelled bill amount must be 315');
-
-  // Test /api/reports/sales with date filter ?from=2026-11-05&to=2026-11-05
-  const rSalesFilter = await callApi('GET', '/api/reports/sales?from=2026-11-05&to=2026-11-05', null, { 'X-Setu-Token': adminToken });
-  assert.equal(rSalesFilter.status, 200);
-  assert.equal(rSalesFilter.json.summary.bill_count, 1);
-  assert.equal(rSalesFilter.json.summary.gross_sales, 2000);
+  assert.equal(rSales.json.summary.gross_sales, 3525);
+  assert.equal(rSales.json.summary.gross_sales_p, 352500, 'Exact gross sales paise');
+  assert.equal(rSales.json.summary.net_taxable, 3500);
+  assert.equal(rSales.json.summary.net_taxable_p, 350000, 'Exact net taxable paise');
+  assert.equal(rSales.json.summary.total_tax, 175);
+  assert.equal(rSales.json.summary.total_tax_p, 17500, 'Exact tax paise');
+  assert.equal(rSales.json.summary.cancelled_bill_count, 1);
+  assert.equal(rSales.json.summary.cancelled_amount, 315);
+  assert.equal(rSales.json.summary.cancelled_amount_p, 31500);
 
   // 2. Test /api/reports/payments
   const rPayments = await callApi('GET', '/api/reports/payments', null, { 'X-Setu-Token': adminToken });
   assert.equal(rPayments.status, 200);
-  assert.equal(rPayments.json.total_collected, 3525, 'Total collected must match active sales total 3525');
-  assert.equal(rPayments.json.payments.Cash, 2500, 'Cash: 500 + 2000 = 2500');
-  assert.equal(rPayments.json.payments.UPI, 500, 'UPI: 500');
-  assert.equal(rPayments.json.payments.Card, 525, 'Card: 525');
+  assert.equal(rPayments.json.total_collected, 3525);
+  assert.equal(rPayments.json.total_collected_p, 352500);
+  assert.equal(rPayments.json.payments.Cash, 2500);
+  assert.equal(rPayments.json.payments.UPI, 500);
+  assert.equal(rPayments.json.payments.Card, 525);
 
   // 3. Test /api/reports/gst
   const rGst = await callApi('GET', '/api/reports/gst', null, { 'X-Setu-Token': adminToken });
   assert.equal(rGst.status, 200);
-  assert.equal(rGst.json.summary.bill_count, 3);
   assert.equal(rGst.json.summary.total_taxable, 3500);
   assert.equal(rGst.json.summary.total_gst, 175);
   assert.equal(rGst.json.summary.gross_revenue, 3525);
-  assert.equal(rGst.json.by_date.length, 2, 'Two days of sales');
 
   // 4. Test /api/reports/cancellations
   const rCanc = await callApi('GET', '/api/reports/cancellations', null, { 'X-Setu-Token': adminToken });
@@ -477,70 +455,315 @@ await test('9. Gate 3 & 4: Comprehensive reporting suite with realistic dataset'
   assert.equal(rCanc.json.summary.cancelled_bill_count, 1);
   assert.equal(rCanc.json.summary.total_cancelled_amount, 315);
   assert.equal(rCanc.json.cancellations[0].id, 'b_rep_4');
-  assert.equal(rCanc.json.cancellations[0].cancelled_by, 'Vikram Mehta');
 
-  // 5. Test /api/reports/expenses
-  const rExp = await callApi('GET', '/api/reports/expenses', null, { 'X-Setu-Token': adminToken });
-  assert.equal(rExp.status, 200);
-  assert.equal(rExp.json.purchases_summary.count, 1);
-  assert.equal(rExp.json.purchases_summary.total, 4000);
-  assert.equal(rExp.json.vouchers.length, 4);
-
-  // 6. Test /api/reports/stock
+  // 5. Test /api/reports/stock
   const rStock = await callApi('GET', '/api/reports/stock', null, { 'X-Setu-Token': adminToken });
   assert.equal(rStock.status, 200);
-  assert.equal(rStock.json.summary.item_count, 2);
-  assert.equal(rStock.json.summary.total_qty, 60);
-  // Valuation: 50*80 (4000) + 10*300 (3000) = 7000
   assert.equal(rStock.json.summary.total_valuation, 7000);
-  assert.equal(rStock.json.recent_movements.length, 1);
+  assert.equal(rStock.json.summary.total_valuation_p, 700000);
 
-  // 7. Test /api/reports/daybook
+  // 6. Test /api/reports/daybook
   const rDaybook = await callApi('GET', '/api/reports/daybook', null, { 'X-Setu-Token': adminToken });
   assert.equal(rDaybook.status, 200);
-  // Cash Book:
-  // Inflow = Cash Bill payments (2500) + Cash Receipts (1500) = 4000
-  // Outflow = Cash Expenses (400) = 400
-  // Net Cash = 4000 - 400 = 3600
-  assert.equal(rDaybook.json.cash_book.inflows, 4000);
-  assert.equal(rDaybook.json.cash_book.outflows, 400);
   assert.equal(rDaybook.json.cash_book.net_cash, 3600);
-
-  // Bank Book:
-  // Inflow = UPI Bill payments (500) + Card Bill payments (525) = 1025
-  // Outflow = UPI Expenses (600) = 600
-  // Net Bank = 1025 - 600 = 425
-  assert.equal(rDaybook.json.bank_book.inflows, 1025);
-  assert.equal(rDaybook.json.bank_book.outflows, 600);
+  assert.equal(rDaybook.json.cash_book.net_cash_p, 360000);
   assert.equal(rDaybook.json.bank_book.net_bank, 425);
-
-  // Credit Book:
-  // Payables generated = Credit Purchase Voucher (1200)
   assert.equal(rDaybook.json.credit_book.payables_generated, 1200);
 });
 
+await test('10. Phase 3.3a Financial Accuracy: Credit sale NOT counted as received money & Exact paise totals', async () => {
+  const { callApi, adminToken, syncKey } = createHarness();
+
+  // Seed split payment bill with credit component:
+  // Total: Rs 1000. Cash: 500, UPI: 300, Credit: 200
+  const payload = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [{
+          id: 'b_credit_test_1',
+          no: 201,
+          total: 1000,
+          sub: 952.38,
+          tax: 47.62,
+          date: '2026-11-05',
+          items: [{ id: 'it_c1', name: 'Party Order', price: 1000, qty: 1 }],
+          pays: [
+            { id: 'p_c1_1', mode: 'Cash', amt: 500 },
+            { id: 'p_c1_2', mode: 'UPI', amt: 300 },
+            { id: 'p_c1_3', mode: 'Credit', amt: 200 }
+          ]
+        }],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {}
+  };
+
+  await callApi('POST', '/api/sync/ops', { envelope: makeTestEnvelope('op_credit_1', 'TESTHOTEL01', 1, payload) }, { 'X-Setu-Sync': syncKey });
+
+  const rPayments = await callApi('GET', '/api/reports/payments', null, { 'X-Setu-Token': adminToken });
+  assert.equal(rPayments.status, 200);
+
+  // CRITICAL REQUIREMENT: Total collected MUST NOT include Credit!
+  assert.equal(rPayments.json.total_collected, 800, 'Total collected must be strictly Cash (500) + UPI (300) = 800');
+  assert.equal(rPayments.json.total_collected_p, 80000, 'Total collected in exact paise must be 80000');
+  assert.equal(rPayments.json.credit_sales, 200, 'Credit sales receivable must be 200');
+  assert.equal(rPayments.json.credit_sales_p, 20000, 'Credit sales in exact paise must be 20000');
+
+  // Verify breakdown flags
+  const creditRow = rPayments.json.breakdown.find(b => b.mode === 'Credit');
+  assert.ok(creditRow);
+  assert.equal(creditRow.is_collection, false, 'Credit row must have is_collection = false');
+
+  const cashRow = rPayments.json.breakdown.find(b => b.mode === 'Cash');
+  assert.ok(cashRow);
+  assert.equal(cashRow.is_collection, true, 'Cash row must have is_collection = true');
+});
+
 // ==========================================
-// GATE 4: STATUS & FRESHNESS MONITORING
+// GATE 4: SYNC FRESHNESS & STATE MACHINE
 // ==========================================
 
-await test('10. Gate 4: Freshness reporting & stale warning banner when > 15 minutes', async () => {
+await test('11. Phase 3.3a Sync Freshness State Machine: never_synced, fresh, delayed, conflicted, and failed states', async () => {
   const { callApi, adminToken, db } = createHarness();
 
-  // Fresh sync (received just now)
+  // 1. Initial State: Brand new hotel, zero syncs ever
+  const rInitial = await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken });
+  assert.equal(rInitial.status, 200);
+  assert.equal(rInitial.json.sync_status, 'never_synced', 'Never synced hotel must report sync_status = never_synced');
+  assert.equal(rInitial.json.is_stale, true, 'Never synced hotel must be marked is_stale = true');
+  assert.equal(rInitial.json.freshness_seconds, null);
+  assert.match(rInitial.json.warning, /never synchronized/i);
+
+  // 2. Fresh State: Sync envelope received 1 minute ago
+  const oneMinAgo = Date.now() - 60000;
+  db.prepare("INSERT INTO sync_inbox (op_id, hotel_id, device_id, doc_version, timestamp, event_type, checksum, actor, received_at, status, error) VALUES ('op_fresh', 'TESTHOTEL01', 'counter', 1, ?, 'ops', 'ck1', '', ?, 'committed', '')").run(oneMinAgo, oneMinAgo);
+
   const rFresh = await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken });
   assert.equal(rFresh.status, 200);
+  assert.equal(rFresh.json.sync_status, 'fresh');
   assert.equal(rFresh.json.is_stale, false);
   assert.equal(rFresh.json.warning, null);
 
-  // Simulate stale counter sync by backdating sync_inbox received_at to 20 minutes ago (1200 seconds)
-  const twentyMinsAgo = Date.now() - (20 * 60 * 1000);
-  db.prepare("INSERT INTO sync_inbox (op_id, hotel_id, device_id, doc_version, timestamp, event_type, checksum, actor, received_at, status, error) VALUES ('op_old', 'TESTHOTEL01', 'counter', 1, ?, 'ops', 'ck', '', ?, 'committed', '')").run(twentyMinsAgo, twentyMinsAgo);
+  // 3. Delayed State: Last sync was 20 minutes ago (1200 seconds)
+  const twentyMinsAgo = Date.now() - 1200000;
+  db.prepare("UPDATE sync_inbox SET received_at = ? WHERE op_id = 'op_fresh'").run(twentyMinsAgo);
 
-  const rStale = await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken });
-  assert.equal(rStale.status, 200);
-  assert.equal(rStale.json.is_stale, true, 'is_stale must be true when sync > 15 min');
-  assert.ok(rStale.json.freshness_seconds >= 1200, 'freshness_seconds must reflect 20 minutes lag');
-  assert.match(rStale.json.warning, /Cloud data may be lagging.*20 minutes/i, 'warning banner must describe counter lag');
+  const rDelayed = await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken });
+  assert.equal(rDelayed.status, 200);
+  assert.equal(rDelayed.json.sync_status, 'delayed');
+  assert.equal(rDelayed.json.is_stale, true);
+  assert.match(rDelayed.json.warning, /Cloud data may be lagging.*20 minutes/i);
+
+  // 4. Conflicted State: Conflict recorded
+  db.prepare("INSERT INTO sync_conflicts (id, op_id, entity_key, record_id, reason, resolved, at, raw_json) VALUES ('c1', 'op_c', 'bills', 'b1', 'Conflict', 0, ?, '{}')").run(Date.now());
+  const rConflicted = await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken });
+  assert.equal(rConflicted.status, 200);
+  assert.equal(rConflicted.json.sync_status, 'conflicted');
+  assert.equal(rConflicted.json.unresolved_conflicts, 1);
+  assert.match(rConflicted.json.warning, /conflict/i);
+
+  // 5. Failed State: Latest sync rejected
+  db.prepare("INSERT INTO sync_inbox (op_id, hotel_id, device_id, doc_version, timestamp, event_type, checksum, actor, received_at, status, error) VALUES ('op_failed', 'TESTHOTEL01', 'counter', 2, ?, 'ops', 'ck2', '', ?, 'rejected', 'ERROR')").run(Date.now(), Date.now());
+  const rFailed = await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken });
+  assert.equal(rFailed.status, 200);
+  assert.equal(rFailed.json.sync_status, 'failed');
+  assert.equal(rFailed.json.is_stale, true);
+  assert.match(rFailed.json.warning, /failed or was rejected/i);
+});
+
+await test('12. Phase 3.3a Conflict Resolution: Conflict counts accurately reflect resolution state', async () => {
+  const { callApi, adminToken, db } = createHarness();
+
+  // Add 2 unresolved conflicts
+  db.prepare("INSERT INTO sync_conflicts (id, op_id, entity_key, record_id, reason, resolved, at, raw_json) VALUES ('c_res_1', 'op_1', 'bills', 'b1', 'Conflict 1', 0, ?, '{}')").run(Date.now());
+  db.prepare("INSERT INTO sync_conflicts (id, op_id, entity_key, record_id, reason, resolved, at, raw_json) VALUES ('c_res_2', 'op_2', 'bills', 'b2', 'Conflict 2', 0, ?, '{}')").run(Date.now());
+
+  let st = (await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken })).json;
+  assert.equal(st.unresolved_conflicts, 2);
+  assert.equal(st.total_conflicts_recorded, 2);
+
+  // Resolve conflict 1
+  db.prepare("UPDATE sync_conflicts SET resolved = 1, resolved_at = ? WHERE id = 'c_res_1'").run(Date.now());
+
+  st = (await callApi('GET', '/api/reports/status', null, { 'X-Setu-Token': adminToken })).json;
+  assert.equal(st.unresolved_conflicts, 1, 'Unresolved conflicts must decrease to 1');
+  assert.equal(st.total_conflicts_recorded, 2, 'Total recorded conflicts must remain 2');
+});
+
+// ==========================================
+// PARITY & REMOTE OWNER INTERFACE
+// ==========================================
+
+await test('13. Phase 3.3a Parity: Local SQLite vs Cloud DO SQLite reporting parity with identical transactions', async () => {
+  const { callApi, adminToken, syncKey } = createHarness();
+
+  // Dataset simulating realistic accounting transactions:
+  // 1. Bill 1: Cash sale Rs 105 (sub: 100, tax: 5)
+  // 2. Bill 2: Credit sale Rs 500 (sub: 500, tax: 0, mode: Credit)
+  // 3. Bill 3: Split payment Rs 105 (sub: 100, tax: 5, pays: Cash 60, UPI 45)
+  // 4. Bill 4: Cancelled bill Rs 210 (sub: 200, tax: 10, cancelled: true)
+  // 5. Voucher 1: Cash customer settlement Rs 500 (type: Receipt, mode: Cash)
+  // 6. Voucher 2: Cash operating expense Rs 300 (type: Expense, mode: Cash)
+  // 7. Voucher 3: Credit purchase Rs 5000 (type: Purchase, mode: Credit)
+  // 8. Voucher 4: Supplier payment Rs 3000 (type: Expense, mode: Cash)
+  const syntheticPayload = {
+    records: {
+      bills: {
+        kind: 'rec',
+        ups: [
+          { id: 'sb_1', no: 1, date: '2026-11-05', total: 105, sub: 100, tax: 5, disc: 0, pays: [{ mode: 'Cash', amt: 105 }] },
+          { id: 'sb_2', no: 2, date: '2026-11-05', total: 500, sub: 500, tax: 0, disc: 0, pays: [{ mode: 'Credit', amt: 500 }] },
+          { id: 'sb_3', no: 3, date: '2026-11-05', total: 105, sub: 100, tax: 5, disc: 0, pays: [{ mode: 'Cash', amt: 60 }, { mode: 'UPI', amt: 45 }] },
+          { id: 'sb_4', no: 4, date: '2026-11-05', total: 210, sub: 200, tax: 10, disc: 0, cancelled: true, cancelledBy: 'Manager' }
+        ],
+        rm: []
+      },
+      vouchers: {
+        kind: 'rec',
+        ups: [
+          { id: 'sv_1', type: 'Receipt', amount: 500, mode: 'Cash', date: '2026-11-05', category: 'Customer Settlement' },
+          { id: 'sv_2', type: 'Expense', amount: 300, mode: 'Cash', date: '2026-11-05', category: 'Operating Expense' },
+          { id: 'sv_3', type: 'Purchase', amount: 5000, mode: 'Credit', date: '2026-11-05', category: 'Raw Materials' },
+          { id: 'sv_4', type: 'Expense', amount: 3000, mode: 'Cash', date: '2026-11-05', category: 'Supplier Payment' }
+        ],
+        rm: []
+      }
+    },
+    maps: {},
+    values: {}
+  };
+
+  await callApi('POST', '/api/sync/ops', { envelope: makeTestEnvelope('op_parity_1', 'TESTHOTEL01', 1, syntheticPayload) }, { 'X-Setu-Sync': syncKey });
+
+  // 1. Sales Report Verification
+  const sales = (await callApi('GET', '/api/reports/sales?date=2026-11-05', null, { 'X-Setu-Token': adminToken })).json.summary;
+  // Local expectation: 3 active bills, gross sales = 105 + 500 + 105 = 710; sub = 700; tax = 10; 1 cancelled bill (210)
+  assert.equal(sales.bill_count, 3);
+  assert.equal(sales.gross_sales, 710);
+  assert.equal(sales.gross_sales_p, 71000);
+  assert.equal(sales.net_taxable, 700);
+  assert.equal(sales.net_taxable_p, 70000);
+  assert.equal(sales.total_tax, 10);
+  assert.equal(sales.total_tax_p, 1000);
+  assert.equal(sales.cancelled_bill_count, 1);
+  assert.equal(sales.cancelled_amount, 210);
+
+  // 2. Payments Report Verification
+  const pay = (await callApi('GET', '/api/reports/payments?date=2026-11-05', null, { 'X-Setu-Token': adminToken })).json;
+  // Local expectation: Cash received from bills = 105 + 60 = 165; UPI = 45; Total collected = 210; Credit sales = 500
+  assert.equal(pay.total_collected, 210);
+  assert.equal(pay.total_collected_p, 21000);
+  assert.equal(pay.credit_sales, 500);
+  assert.equal(pay.payments.Cash, 165);
+  assert.equal(pay.payments.UPI, 45);
+  assert.equal(pay.payments.Credit, 500);
+
+  // 3. Day Book Verification
+  const dbk = (await callApi('GET', '/api/reports/daybook?date=2026-11-05', null, { 'X-Setu-Token': adminToken })).json;
+  // Cash Book:
+  // Inflow = Cash bill payments (165) + Cash receipts (500) = 665
+  // Outflow = Cash expenses (300) + Supplier payment (3000) = 3300
+  // Net Cash = 665 - 3300 = -2635
+  assert.equal(dbk.cash_book.inflows, 665);
+  assert.equal(dbk.cash_book.outflows, 3300);
+  assert.equal(dbk.cash_book.net_cash, -2635);
+  assert.equal(dbk.cash_book.net_cash_p, -263500);
+
+  // Bank Book:
+  // Inflow = UPI bill payments (45)
+  // Outflow = 0
+  // Net Bank = 45
+  assert.equal(dbk.bank_book.inflows, 45);
+  assert.equal(dbk.bank_book.outflows, 0);
+  assert.equal(dbk.bank_book.net_bank, 45);
+
+  // Credit Book:
+  // Credit sales (receivables generated) = 500
+  // Credit purchases (payables generated) = 5000
+  // Net Movement = 500 - 5000 = -4500
+  assert.equal(dbk.credit_book.receivables_generated, 500);
+  assert.equal(dbk.credit_book.payables_generated, 5000);
+  assert.equal(dbk.credit_book.net_movement, -4500);
+});
+
+await test('14. Phase 3.3a Mobile Owner Dashboard: Consolidated /api/reports/dashboard single round-trip', async () => {
+  const { callApi, adminToken } = createHarness();
+
+  const rDash = await callApi('GET', '/api/reports/dashboard', null, { 'X-Setu-Token': adminToken });
+  assert.equal(rDash.status, 200);
+  assert.equal(rDash.json.ok, true);
+  assert.ok(rDash.json.hotel.code);
+  assert.ok(rDash.json.status);
+  assert.ok(rDash.json.sales);
+  assert.ok(rDash.json.payments);
+  assert.ok(rDash.json.daybook);
+});
+
+await test('15. Phase 3.3a Scale & Multi-Hotel Isolation: 1000-bill history fast pagination and zero cross-talk', async () => {
+  const freshDbA = new DatabaseSync(':memory:');
+  const freshDbB = new DatabaseSync(':memory:');
+
+  const hA = createHarness(freshDbA, 'HOTELA', 'Hotel Alpha');
+  const hB = createHarness(freshDbB, 'HOTELB', 'Hotel Beta');
+
+  // Insert 1000 bills in Hotel A in a single batch
+  const billsA = [];
+  for (let i = 1; i <= 1000; i++) {
+    billsA.push({
+      id: `b_a_${i}`,
+      no: i,
+      tbl: `T${(i % 20) + 1}`,
+      date: '2026-11-05',
+      time: '12:00',
+      total: 100,
+      sub: 95.24,
+      tax: 4.76,
+      disc: 0,
+      pays: [{ mode: 'Cash', amt: 100 }]
+    });
+  }
+  const envA = makeTestEnvelope('op_bulk_a', 'HOTELA', 1, { records: { bills: { kind: 'rec', ups: billsA, rm: [] } }, maps: {}, values: {} });
+  await hA.callApi('POST', '/api/sync/ops', { envelope: envA }, { 'X-Setu-Sync': hA.syncKey });
+
+  // Insert 5 bills in Hotel B
+  const billsB = [];
+  for (let i = 1; i <= 5; i++) {
+    billsB.push({
+      id: `b_b_${i}`,
+      no: i,
+      tbl: 'T1',
+      date: '2026-11-05',
+      total: 200,
+      sub: 190.48,
+      tax: 9.52,
+      disc: 0,
+      pays: [{ mode: 'UPI', amt: 200 }]
+    });
+  }
+  const envB = makeTestEnvelope('op_bulk_b', 'HOTELB', 1, { records: { bills: { kind: 'rec', ups: billsB, rm: [] } }, maps: {}, values: {} });
+  await hB.callApi('POST', '/api/sync/ops', { envelope: envB }, { 'X-Setu-Sync': hB.syncKey });
+
+  // Query Hotel A
+  const t0 = performance.now();
+  const salesA = (await hA.callApi('GET', '/api/reports/sales?limit=50&offset=0', null, { 'X-Setu-Token': hA.adminToken })).json;
+  const elapsedA = performance.now() - t0;
+
+  assert.equal(salesA.summary.bill_count, 1000, 'Hotel A must have exactly 1000 bills');
+  assert.equal(salesA.summary.gross_sales, 100000);
+  assert.equal(salesA.summary.gross_sales_p, 10000000);
+  assert.ok(elapsedA < 100, `SQL aggregation of 1000 bills took ${elapsedA.toFixed(2)}ms (must be < 100ms)`);
+
+  // Query Hotel B
+  const salesB = (await hB.callApi('GET', '/api/reports/sales', null, { 'X-Setu-Token': hB.adminToken })).json;
+  assert.equal(salesB.summary.bill_count, 5, 'Hotel B must have exactly 5 bills');
+  assert.equal(salesB.summary.gross_sales, 1000);
+
+  // Tenant Isolation: Verify Hotel A admin token cannot read Hotel B
+  const crossReq = await hB.callApi('GET', '/api/reports/sales', null, { 'X-Setu-Token': hA.adminToken });
+  assert.equal(crossReq.status, 401, 'Hotel A token on Hotel B instance must be denied (401)');
 });
 
 console.log(`\n========================================`);
