@@ -169,6 +169,35 @@ class InboundSafety(unittest.TestCase):
             self.assertEqual(data["cart"], [{"mid":"coffee","qty":1,"price":40}])
             self.assertEqual(self.db.con().execute("SELECT COUNT(*) FROM kots").fetchone()[0],0)
 
+    def test_background_receiver_starts_and_stops_once(self):
+        dispatcher = S.OutboxSyncDispatcher(
+            store=self.db, url='https://test.invalid', hotel=self.hotel,
+            key='synthetic_key', enabled=True, poll_interval=0.05,
+            http_post_fn=lambda u, p, b, h: (200, json.dumps({'ok': True, 'results': []}))
+        )
+        dispatcher.inbound.http_get_fn = lambda u, p, h: (
+            200, json.dumps({'ok': True, 'hotel': self.hotel, 'events': []})
+        )
+        try:
+            dispatcher.start()
+            self.assertTrue(dispatcher.inbound._running)
+            dispatcher.start()
+            self.assertTrue(dispatcher.inbound._running)
+        finally:
+            dispatcher.stop(timeout=3)
+        self.assertFalse(dispatcher.inbound._running)
+
+    def test_disabled_dispatcher_never_starts_inbound(self):
+        dispatcher = S.OutboxSyncDispatcher(
+            store=self.db, url='https://test.invalid', hotel=self.hotel,
+            key='synthetic_key', enabled=False, poll_interval=0.05
+        )
+        try:
+            dispatcher.start()
+            self.assertFalse(dispatcher.inbound._running)
+        finally:
+            dispatcher.stop(timeout=3)
+
     def test_qr_accepted_exactly_one_kot(self):
         self.add_event("qr_order", {"order_id":"G2","table":"6",
             "items":[{"mid":"soup","qty":2,"price":60,"name":"Soup"}]})
