@@ -1439,17 +1439,21 @@ export class SetuHotel extends DurableObject {
         if(ex) ex.qty = Math.min(50, ex.qty + q); else lines.push({ mid: m.id, name: str(m.name, 80), price: +m.price || 0, qty: q });
       }
       if(!lines.length) return json(400, { error: 'Please add an item' });
-      hit.n++; this.kvSet('gip:' + ip, hit);
-      this.sql.exec(`INSERT INTO guestorder (id, tbl, items, note, name, status, at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-        'g' + id, tbl, JSON.stringify(lines), str(b.note, 200), str(b.name, 60), Date.now());
-      this.emitInboundEvent('qr_order', 'g' + id, {
-        order_id: 'g' + id,
-        table: tbl,
-        guest_name: str(b.name, 60),
-        items: lines,
-        note: str(b.note, 200),
-        total: lines.reduce((s, x) => s + (x.price * x.qty), 0),
-        at: Date.now()
+      // Persist guest order AND inbound change together: never create an
+      // un-deliverable QR order if the event write fails.
+      this.ctx.storage.transactionSync(() => {
+        hit.n++; this.kvSet('gip:' + ip, hit);
+        this.sql.exec(`INSERT INTO guestorder (id, tbl, items, note, name, status, at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+          'g' + id, tbl, JSON.stringify(lines), str(b.note, 200), str(b.name, 60), Date.now());
+        this.emitInboundEvent('qr_order', 'g' + id, {
+          order_id: 'g' + id,
+          table: tbl,
+          guest_name: str(b.name, 60),
+          items: lines,
+          note: str(b.note, 200),
+          total: lines.reduce((sum, x) => sum + (x.price * x.qty), 0),
+          at: Date.now()
+        });
       });
       return json(200, { id: 'g' + id, status: 'pending' });
     }
@@ -1509,14 +1513,16 @@ export class SetuHotel extends DurableObject {
       // First decision wins: the Durable Object runs one request at a time, so two staff cannot both accept
       if(o.status !== 'pending') return json(409, { error: 'already ' + o.status, status: o.status, by: o.by });
       const accept = b.action === 'accept';
-      this.sql.exec('UPDATE guestorder SET status = ?, by = ?, decided = ?, reason = ? WHERE id = ?',
-        accept ? 'accepted' : 'rejected', str(b.by, 60), Date.now(), accept ? '' : str(b.reason, 120), o.id);
-      this.emitInboundEvent('qr_status', o.id, {
-        order_id: o.id,
-        status: accept ? 'accepted' : 'rejected',
-        by: str(b.by, 60),
-        reason: accept ? '' : str(b.reason, 120),
-        at: Date.now()
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec('UPDATE guestorder SET status = ?, by = ?, decided = ?, reason = ? WHERE id = ?',
+          accept ? 'accepted' : 'rejected', str(b.by, 60), Date.now(), accept ? '' : str(b.reason, 120), o.id);
+        this.emitInboundEvent('qr_status', o.id, {
+          order_id: o.id,
+          status: accept ? 'accepted' : 'rejected',
+          by: str(b.by, 60),
+          reason: accept ? '' : str(b.reason, 120),
+          at: Date.now()
+        });
       });
       return json(200, { id: o.id, status: accept ? 'accepted' : 'rejected', order: { ...o, items: JSON.parse(o.items) } });
     }
@@ -2972,18 +2978,17 @@ export class SetuHotel extends DurableObject {
           'act_' + Date.now(), 'active', b.days || 365, Date.now(), b.key);
       }
       this.saveAccount();
-      this.emitInboundEvent('licence_update', b.key || ('lic_' + Date.now()), {
-        key: b.key || '',
-        plan: b.plan || 'active',
-        days: b.days || 365,
-        paid_until: this.account.paidUntil,
-        status: this.account.status,
-        lifetime: !!this.account.lifetime,
-        signature: b.signature || '',
-        hotel_id: this.account.code,
-        install_id: b.installId || '',
-        at: Date.now()
-      });
+      // Cloud status updates without a signed key do not grant offline
+      // counter licences. They must not produce an un-verifiable event.
+      if(b.key){
+        this.emitInboundEvent('licence_update', b.key, {
+          key: b.key, plan: b.plan || 'active', days: b.days || 365,
+          paid_until: this.account.paidUntil,
+          status: this.account.status, lifetime: !!this.account.lifetime,
+          hotel_id: this.account.code, install_id: b.installId || '',
+          at: Date.now()
+        });
+      }
       await regCall(this.env, '/update', {
         code: this.account.code,
         status: 'active',
