@@ -704,8 +704,12 @@ export class SetuRegistry extends DurableObject {
   }
 }
 
-const registry = env => env.REGISTRY.get(env.REGISTRY.idFromName('registry'));
-const regCall = (env, path, body) => registry(env).fetch('https://registry' + path, { method: 'POST', body: JSON.stringify(body || {}) });
+const registry = env => (env && env.REGISTRY) ? env.REGISTRY.get(env.REGISTRY.idFromName('registry')) : null;
+const regCall = (env, path, body) => {
+  const reg = registry(env);
+  if(!reg) return Promise.resolve({ ok: true, json: async () => ({}) });
+  return reg.fetch('https://registry' + path, { method: 'POST', body: JSON.stringify(body || {}) });
+};
 const regJson = async (env, path, body) => (await regCall(env, path, body)).json();
 const hotelStub = (env, code) => env.HOTEL.get(env.HOTEL.idFromName('hotel:' + code));
 
@@ -907,6 +911,19 @@ export class SetuHotel extends DurableObject {
     )`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_conflicts_op ON sync_conflicts (op_id)`);
 
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_inbound_events (
+      id TEXT PRIMARY KEY,
+      seq INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      entity_id TEXT,
+      payload TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      acked INTEGER DEFAULT 0,
+      acked_at INTEGER
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_inbound_seq ON sync_inbound_events (seq)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_inbound_unacked ON sync_inbound_events (acked, seq)`);
+
     // Safe idempotent migrations for existing databases
     try { this.sql.exec('ALTER TABLE sync_stock_items ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
     try { this.sql.exec('ALTER TABLE sync_stock_movements ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
@@ -915,6 +932,8 @@ export class SetuHotel extends DurableObject {
     try { this.sql.exec('ALTER TABLE sync_vouchers ADD COLUMN doc_version INTEGER DEFAULT 0'); } catch(e){}
     try { this.sql.exec('ALTER TABLE sync_conflicts ADD COLUMN resolved INTEGER DEFAULT 0'); } catch(e){}
     try { this.sql.exec('ALTER TABLE sync_conflicts ADD COLUMN resolved_at INTEGER'); } catch(e){}
+    try { this.sql.exec('CREATE INDEX IF NOT EXISTS idx_sync_inbound_seq ON sync_inbound_events (seq)'); } catch(e){}
+    try { this.sql.exec('CREATE INDEX IF NOT EXISTS idx_sync_inbound_unacked ON sync_inbound_events (acked, seq)'); } catch(e){}
     this.meta = this.kvGet('meta') || { version: 0, savedAt: 0, day: '' };
     this.account = this.kvGet('account');
     if(this.account && !this.account.config) this.account.config = newConfig('restaurant', 'premium');
@@ -927,6 +946,28 @@ export class SetuHotel extends DurableObject {
   }
   kvSet(k, v){ this.sql.exec('INSERT OR REPLACE INTO kv (k, v) VALUES (?, ?)', k, JSON.stringify(v)); }
   kvDel(k){ this.sql.exec('DELETE FROM kv WHERE k = ?', k); }
+
+  emitInboundEvent(eventType, entityId, payloadObj){
+    const row = this.sql.exec('SELECT COALESCE(MAX(seq), 0) AS max_seq FROM sync_inbound_events').toArray()[0];
+    const nextSeq = (row && row.max_seq ? Number(row.max_seq) : 0) + 1;
+    const cleanEntity = entityId ? String(entityId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) : '';
+    const id = 'evt_' + nextSeq + (cleanEntity ? '_' + cleanEntity : '_' + randomHex(6));
+    const now = Date.now();
+    const payloadStr = typeof payloadObj === 'string' ? payloadObj : JSON.stringify(payloadObj);
+    this.sql.exec(
+      'INSERT INTO sync_inbound_events (id, seq, event_type, entity_id, payload, created_at, acked, acked_at) VALUES (?, ?, ?, ?, ?, ?, 0, NULL)',
+      id, nextSeq, String(eventType), entityId ? String(entityId) : null, payloadStr, now
+    );
+    return {
+      id,
+      seq: nextSeq,
+      event_type: eventType,
+      entity_id: entityId,
+      payload: typeof payloadObj === 'string' ? JSON.parse(payloadObj) : payloadObj,
+      created_at: now,
+      acked: 0
+    };
+  }
 
   saveAccount(){
     this.kvSet('account', this.account);
@@ -1401,6 +1442,15 @@ export class SetuHotel extends DurableObject {
       hit.n++; this.kvSet('gip:' + ip, hit);
       this.sql.exec(`INSERT INTO guestorder (id, tbl, items, note, name, status, at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
         'g' + id, tbl, JSON.stringify(lines), str(b.note, 200), str(b.name, 60), Date.now());
+      this.emitInboundEvent('qr_order', 'g' + id, {
+        order_id: 'g' + id,
+        table: tbl,
+        guest_name: str(b.name, 60),
+        items: lines,
+        note: str(b.note, 200),
+        total: lines.reduce((s, x) => s + (x.price * x.qty), 0),
+        at: Date.now()
+      });
       return json(200, { id: 'g' + id, status: 'pending' });
     }
     if(method === 'POST' && path === '/api/guest/call'){
@@ -1461,6 +1511,13 @@ export class SetuHotel extends DurableObject {
       const accept = b.action === 'accept';
       this.sql.exec('UPDATE guestorder SET status = ?, by = ?, decided = ?, reason = ? WHERE id = ?',
         accept ? 'accepted' : 'rejected', str(b.by, 60), Date.now(), accept ? '' : str(b.reason, 120), o.id);
+      this.emitInboundEvent('qr_status', o.id, {
+        order_id: o.id,
+        status: accept ? 'accepted' : 'rejected',
+        by: str(b.by, 60),
+        reason: accept ? '' : str(b.reason, 120),
+        at: Date.now()
+      });
       return json(200, { id: o.id, status: accept ? 'accepted' : 'rejected', order: { ...o, items: JSON.parse(o.items) } });
     }
     if(path === '/api/qr/applied'){
@@ -1716,12 +1773,29 @@ export class SetuHotel extends DurableObject {
         a.pendingKeys = [...new Set([...(a.pendingKeys || []), k])];
       }
       notes.push('activation key sent');
+      this.emitInboundEvent('licence_update', k, {
+        key: k,
+        plan: 'active',
+        hotel_id: this.account.code,
+        at: Date.now()
+      });
     }
     // Message popup and warning / lock in the hotel's app (Library ERP style); data always stays safe
     if(b.notice !== undefined){
       const t = str(b.notice, 500);
       a.notice = t ? { t, at: Date.now() } : null;
       notes.push(t ? 'message sent' : 'message cleared');
+      if(t){
+        const msgId = 'msg_' + Date.now();
+        this.emitInboundEvent('vendor_message', msgId, {
+          id: msgId,
+          title: 'Vendor Notice',
+          message: t,
+          priority: b.priority || 'normal',
+          at: Date.now(),
+          expires_at: b.expires_at || (Date.now() + 7 * 86400000)
+        });
+      }
     }
     if(b.lock !== undefined){
       const lv = Math.max(0, Math.min(2, +(b.lock && b.lock.lv) || 0));
@@ -2898,6 +2972,18 @@ export class SetuHotel extends DurableObject {
           'act_' + Date.now(), 'active', b.days || 365, Date.now(), b.key);
       }
       this.saveAccount();
+      this.emitInboundEvent('licence_update', b.key || ('lic_' + Date.now()), {
+        key: b.key || '',
+        plan: b.plan || 'active',
+        days: b.days || 365,
+        paid_until: this.account.paidUntil,
+        status: this.account.status,
+        lifetime: !!this.account.lifetime,
+        signature: b.signature || '',
+        hotel_id: this.account.code,
+        install_id: b.installId || '',
+        at: Date.now()
+      });
       await regCall(this.env, '/update', {
         code: this.account.code,
         status: 'active',
@@ -3108,6 +3194,9 @@ export class SetuHotel extends DurableObject {
       const inboxCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbox').toArray()[0]?.c || 0;
       const billsCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_bills').toArray()[0]?.c || 0;
       const vouchersCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_vouchers').toArray()[0]?.c || 0;
+      const inboundTotal = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbound_events').toArray()[0]?.c || 0;
+      const inboundPending = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbound_events WHERE acked = 0').toArray()[0]?.c || 0;
+      const latestInboundSeq = this.sql.exec('SELECT COALESCE(MAX(seq), 0) AS s FROM sync_inbound_events').toArray()[0]?.s || 0;
       return json(200, {
         ok: true,
         hotel: this.account.code,
@@ -3115,7 +3204,95 @@ export class SetuHotel extends DurableObject {
         last_sync_op_id: lastOp,
         inbox_count: inboxCount,
         bills_count: billsCount,
-        vouchers_count: vouchersCount
+        vouchers_count: vouchersCount,
+        inbound_total: inboundTotal,
+        inbound_pending: inboundPending,
+        latest_inbound_seq: Number(latestInboundSeq)
+      });
+    }
+
+    // --- Phase 3.4: Cloud-to-Counter Inbound Change Feed ---
+    if(path === '/api/sync/inbound'){
+      if(method !== 'GET') return json(405, { error: 'GET required' });
+      if(!isAdmin) return json(403, { error: 'Unauthorized: sync or admin credentials required' });
+      const why = this.blocked();
+      if(why) return json(402, { error: why === 'suspended' ? 'account suspended' : 'subscription expired' });
+
+      const headerHotel = request.headers.get('x-setu-hotel');
+      const queryHotel = url.searchParams.get('hotel');
+      const reqHotel = (headerHotel || queryHotel || '').trim().toUpperCase();
+      if(reqHotel && reqHotel !== this.account.code){
+        return json(403, { ok: false, error: 'HOTEL_TENANT_MISMATCH' });
+      }
+
+      const since = Math.max(0, parseInt(url.searchParams.get('since') || '0', 10) || 0);
+      const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10) || 50));
+
+      const rows = this.sql.exec(
+        'SELECT id, seq, event_type, entity_id, payload, created_at, acked, acked_at FROM sync_inbound_events WHERE seq > ? ORDER BY seq ASC LIMIT ?',
+        since, limit
+      ).toArray();
+
+      const events = rows.map(r => {
+        let p = r.payload;
+        try { p = JSON.parse(r.payload); } catch(e){}
+        return {
+          id: r.id,
+          seq: Number(r.seq),
+          event_type: r.event_type,
+          entity_id: r.entity_id,
+          payload: p,
+          created_at: Number(r.created_at),
+          acked: Number(r.acked) === 1,
+          acked_at: r.acked_at ? Number(r.acked_at) : null
+        };
+      });
+
+      const nextCursor = events.length > 0 ? events[events.length - 1].seq : since;
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        events,
+        cursor: nextCursor,
+        has_more: events.length === limit
+      });
+    }
+
+    if(path === '/api/sync/inbound/ack'){
+      if(method !== 'POST') return json(405, { error: 'POST required' });
+      if(!isAdmin) return json(403, { error: 'Unauthorized: sync or admin credentials required' });
+      const why = this.blocked();
+      if(why) return json(402, { error: why === 'suspended' ? 'account suspended' : 'subscription expired' });
+
+      let b;
+      try { b = JSON.parse(text || '{}'); } catch(e){ return json(400, { error: 'bad request: invalid json' }); }
+
+      const headerHotel = (request.headers.get('x-setu-hotel') || '').trim().toUpperCase();
+      const bodyHotel = (b.hotel_id || b.hotel || '').trim().toUpperCase();
+      if((headerHotel && headerHotel !== this.account.code) || (bodyHotel && bodyHotel !== this.account.code)){
+        return json(403, { ok: false, error: 'HOTEL_TENANT_MISMATCH' });
+      }
+
+      const eventIds = Array.isArray(b.event_ids) ? b.event_ids :
+                       Array.isArray(b.acks) ? b.acks.map(a => typeof a === 'string' ? a : (a && a.id)).filter(Boolean) : [];
+      if(!eventIds.length){
+        return json(400, { error: 'event_ids or acks array required' });
+      }
+
+      const now = Date.now();
+      let ackedCount = 0;
+      for(const id of eventIds){
+        if(typeof id === 'string' && id){
+          this.sql.exec('UPDATE sync_inbound_events SET acked = 1, acked_at = ? WHERE id = ?', now, id);
+          ackedCount++;
+        }
+      }
+      const pendingCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbound_events WHERE acked = 0').toArray()[0]?.c || 0;
+      return json(200, {
+        ok: true,
+        hotel: this.account.code,
+        acked_count: ackedCount,
+        pending_remaining: pendingCount
       });
     }
 

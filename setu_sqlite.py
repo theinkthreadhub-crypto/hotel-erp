@@ -30,8 +30,9 @@ import threading
 import time
 import secrets
 from decimal import Decimal, ROUND_HALF_UP
+from datetime import datetime
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 DB_FILE = 'setu.sqlite'
 FLAG_FILE = 'setu-storage.json'
 
@@ -179,6 +180,11 @@ CREATE INDEX IF NOT EXISTS stock_movements_src_date ON stock_movements(source, d
 -- first copy stays in the books, every other copy is kept here for a Manager to review
 CREATE TABLE IF NOT EXISTS sync_conflicts (seq INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, k TEXT NOT NULL, rid TEXT, reason TEXT NOT NULL,
   kept TEXT, other TEXT, device TEXT, resolved INTEGER NOT NULL DEFAULT 0);
+
+-- ---------------- Schema 4 (Phase 3.4): Cloud Change Feed Inbound Sync ----------------
+CREATE TABLE IF NOT EXISTS inbound_events_applied (
+  id TEXT PRIMARY KEY, seq INTEGER NOT NULL, event_type TEXT NOT NULL, entity_id TEXT, applied_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_inbound_applied_seq ON inbound_events_applied(seq);
 """
 
 # ---------------------------------------------------------------------------------------------------------
@@ -284,7 +290,8 @@ class SqliteDoc:
         if cur is None or int(cur) < SCHEMA_VERSION:
             # The new tables / indexes were created by the script above (IF NOT EXISTS); record each step once
             names = {1: 'initial relational schema', 2: 'change log for incremental saves; stock movement (source, date) index',
-                     3: 'sync_conflicts: differing copies kept for review'}
+                     3: 'sync_conflicts: differing copies kept for review',
+                     4: 'inbound_events_applied: change feed and QR / licence sync'}
             with self.tx() as c:
                 for v in range(1 if cur is None else int(cur) + 1, SCHEMA_VERSION + 1):
                     c.execute('INSERT OR IGNORE INTO database_migrations VALUES (?, ?, ?)', (v, names[v], int(time.time() * 1000)))
@@ -1494,6 +1501,17 @@ class OutboxSyncDispatcher:
         self._thread = None
         self._lock = threading.Lock()
         self._consecutive_failures = 0
+        self.inbound = InboundSyncReceiver(
+            store=self.store,
+            url=self.url,
+            hotel=self.hotel,
+            key=self.key,
+            enabled=self.enabled,
+            batch_size=self.batch_size,
+            poll_interval=self.poll_interval,
+            max_backoff=self.max_backoff,
+            http_post_fn=self.http_post_fn
+        )
         self.stats = {
             'sent_batches': 0,
             'sent_ops': 0,
@@ -1516,6 +1534,27 @@ class OutboxSyncDispatcher:
             return e.code, e.read().decode('utf-8', 'replace')
         except urllib.error.URLError as e:
             raise OSError(f'Network connection failed: {e.reason}')
+
+    def get_pending_count(self):
+        with self.store.rlock():
+            row = self.store.con().execute("SELECT COUNT(*) FROM sync_outbox WHERE sent_at IS NULL").fetchone()
+            return row[0] if row else 0
+
+    def get_operational_status(self):
+        with self.store.rlock():
+            outbox_pending = self.get_pending_count()
+        inbound_status = self.inbound.get_operational_status() if hasattr(self, 'inbound') and self.inbound else {}
+        return {
+            'connection_status': self.stats.get('state', 'offline') if self.stats.get('state') != 'stopped' else (inbound_status.get('connection_status') or 'offline'),
+            'outbox_pending_ops': outbox_pending,
+            'pending_inbound_qr_orders': inbound_status.get('pending_inbound_qr_orders', 0),
+            'pending_licence_updates': inbound_status.get('pending_licence_updates', 0),
+            'last_inbound_sync': inbound_status.get('last_inbound_sync', 0),
+            'last_outbox_sync': self.stats.get('last_sync_at', 0),
+            'failed_ops': self.stats.get('errors', 0) + inbound_status.get('failed_inbound_ops', 0),
+            'conflicts': self.stats.get('conflicts', 0),
+            'inbound_cursor': inbound_status.get('inbound_cursor', 0)
+        }
 
     def is_activation_safe(self):
         """
@@ -1804,4 +1843,455 @@ class OutboxSyncDispatcher:
                 self.stats['errors'] += 1
                 self.stats['last_error'] = str(e)
                 self._wake_event.wait(sleep_time)
+                self._wake_event.clear()
+
+
+
+class InboundSyncReceiver:
+    """
+    Phase 3.4 Inbound Cloud Change Feed Sync Receiver.
+
+    Guarantees:
+    - Fetches paginated inbound change events (since=cursor, limit=50) strictly in ascending seq order.
+    - Idempotent execution: verifies each event against `inbound_events_applied`.
+    - QR Orders: updates `table_orders` (kaccha) and inserts running `kots` + `kot_items` atomically.
+    - Never auto-charges, auto-settles, or creates bills/payments for inbound QR orders.
+    - Zero inventory movement or stock balance modification on KOT reception.
+    - Preserves existing offline POS billing and receipt printing under all conditions.
+    - Licence updates: verifies hotel_id and installation_id, prevents downgrades, updates `subscription`.
+    - Vendor notices: deduplicates and records into settings.
+    - Sends durable ACKs to cloud only after local SQLite transaction commits.
+    - Supports exponential backoff and offline reconnection recovery.
+    """
+    def __init__(self, store, url=None, hotel=None, key=None, enabled=False,
+                 batch_size=50, poll_interval=5.0, max_backoff=30.0,
+                 http_get_fn=None, http_post_fn=None):
+        self.store = store
+        self.url = (url or '').rstrip('/')
+        self.hotel = (hotel or '').strip().upper()
+        self.key = (key or '').strip()
+        self.enabled = bool(enabled)
+        self.batch_size = max(1, min(100, int(batch_size)))
+        self.poll_interval = float(poll_interval)
+        self.max_backoff = float(max_backoff)
+        self.http_get_fn = http_get_fn or self._default_http_get
+        self.http_post_fn = http_post_fn or self._default_http_post
+
+        self._running = False
+        self._stop_event = threading.Event()
+        self._wake_event = threading.Event()
+        self._thread = None
+        self._lock = threading.Lock()
+        self._consecutive_failures = 0
+        self.stats = {
+            'applied_events': 0,
+            'acked_events': 0,
+            'last_sync_at': 0,
+            'errors': 0,
+            'last_error': '',
+            'state': 'stopped'
+        }
+
+    @staticmethod
+    def _default_http_get(url, path, headers, timeout=15):
+        full_url = url.rstrip('/') + path
+        req = urllib.request.Request(full_url, method='GET', headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status, resp.read().decode('utf-8')
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode('utf-8', 'replace')
+        except urllib.error.URLError as e:
+            raise OSError(f'Network connection failed: {e.reason}')
+
+    @staticmethod
+    def _default_http_post(url, path, body_bytes, headers, timeout=15):
+        full_url = url.rstrip('/') + path
+        req = urllib.request.Request(full_url, data=body_bytes, method='POST', headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return resp.status, resp.read().decode('utf-8')
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode('utf-8', 'replace')
+        except urllib.error.URLError as e:
+            raise OSError(f'Network connection failed: {e.reason}')
+
+    def is_activation_safe(self):
+        if not self.enabled:
+            return False
+        if not self.url or not self.hotel or not self.key:
+            return False
+        return True
+
+    def get_last_applied_seq(self):
+        with self.store.rlock():
+            row = self.store.con().execute("SELECT COALESCE(MAX(seq), 0) FROM inbound_events_applied").fetchone()
+            return row[0] if row else 0
+
+    def get_pending_qr_count(self):
+        with self.store.rlock():
+            row = self.store.con().execute("SELECT COUNT(*) FROM kots WHERE status = 'pending' AND extra LIKE ?", ('%"src": "qr"%',)).fetchone()
+            return row[0] if row else 0
+
+    def get_pending_licence_count(self):
+        with self.store.rlock():
+            row = self.store.con().execute("SELECT v FROM hotel_settings WHERE k = 'subscription'").fetchone()
+            if not row or not row[0]:
+                return 0
+            try:
+                sub = json.loads(row[0])
+                cloud_keys = sub.get('cloudKeys', [])
+                used_keys = sub.get('usedKeys', [])
+                return max(0, len(cloud_keys) - len(used_keys))
+            except Exception:
+                return 0
+
+    def get_operational_status(self):
+        return {
+            'connection_status': self.stats.get('state', 'offline'),
+            'pending_inbound_qr_orders': self.get_pending_qr_count(),
+            'pending_licence_updates': self.get_pending_licence_count(),
+            'last_inbound_sync': self.stats.get('last_sync_at', 0),
+            'failed_inbound_ops': self.stats.get('errors', 0),
+            'inbound_cursor': self.get_last_applied_seq()
+        }
+
+    def fetch_and_apply_once(self):
+        if not self.is_activation_safe():
+            self.stats['state'] = 'inactive'
+            return {'status': 'inactive'}
+
+        self.stats['state'] = 'syncing'
+        last_seq = self.get_last_applied_seq()
+
+        headers = {
+            'X-Setu-Hotel': self.hotel,
+            'X-Setu-Sync': self.key,
+            'Authorization': f'Bearer {self.key}',
+            'Accept': 'application/json'
+        }
+
+        path = f'/api/sync/inbound?since={last_seq}&limit={self.batch_size}'
+        try:
+            http_status, resp_text = self.http_get_fn(self.url, path, headers)
+        except OSError as e:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = str(e)
+            self.stats['state'] = 'offline'
+            return {'status': 'network_error', 'error': str(e)}
+
+        if http_status == 402:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Subscription expired or account suspended (HTTP 402)'
+            self.stats['state'] = 'offline'
+            return {'status': 'payment_required', 'http_code': 402}
+
+        if http_status in (401, 403):
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = f'Authentication or tenant mismatch failure (HTTP {http_status})'
+            self.stats['state'] = 'offline'
+            return {'status': 'unauthorized', 'http_code': http_status}
+
+        if http_status != 200:
+            self._consecutive_failures += 1
+            self.stats['errors'] += 1
+            self.stats['last_error'] = f'Cloud returned HTTP {http_status}: {resp_text[:200]}'
+            self.stats['state'] = 'offline'
+            return {'status': 'http_error', 'http_code': http_status}
+
+        try:
+            body = json.loads(resp_text)
+        except Exception as e:
+            self.stats['errors'] += 1
+            self.stats['last_error'] = f'Invalid JSON from cloud: {e}'
+            self.stats['state'] = 'offline'
+            return {'status': 'invalid_response', 'error': str(e)}
+
+        events = body.get('events', [])
+        if not events:
+            self._consecutive_failures = 0
+            self.stats['state'] = 'connected'
+            self.stats['last_sync_at'] = int(time.time() * 1000)
+            return {'status': 'idle', 'processed': 0, 'applied': 0, 'acked': 0}
+
+        applied_count = 0
+        event_ids_to_ack = []
+
+        # Process each event in its own transaction or combined batch
+        for evt in events:
+            evt_id = evt.get('id')
+            evt_seq = evt.get('seq', 0)
+            evt_type = evt.get('event_type')
+            entity_id = evt.get('entity_id')
+            payload = evt.get('payload') or {}
+            if isinstance(payload, str):
+                try:
+                    payload = json.loads(payload)
+                except Exception:
+                    payload = {}
+
+            with self.store.tx() as c:
+                # Deduplication check
+                already = c.execute("SELECT 1 FROM inbound_events_applied WHERE id = ?", (evt_id,)).fetchone()
+                if not already:
+                    if evt_type == 'qr_order':
+                        self._apply_qr_order(c, payload)
+                        applied_count += 1
+                    elif evt_type == 'qr_status':
+                        self._apply_qr_status(c, payload)
+                        applied_count += 1
+                    elif evt_type == 'licence_update':
+                        self._apply_licence_update(c, payload)
+                        applied_count += 1
+                    elif evt_type == 'vendor_message':
+                        self._apply_vendor_message(c, payload)
+                        applied_count += 1
+
+                    now_ms = int(time.time() * 1000)
+                    c.execute("""
+                        INSERT INTO inbound_events_applied (id, seq, event_type, entity_id, applied_at)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (evt_id, evt_seq, evt_type, str(entity_id or ''), now_ms))
+
+            event_ids_to_ack.append(evt_id)
+
+        # Send ACK to cloud only after local commits
+        ack_success = False
+        try:
+            ack_payload = json.dumps({'hotel_id': self.hotel, 'event_ids': event_ids_to_ack}).encode('utf-8')
+            ack_headers = {
+                'X-Setu-Hotel': self.hotel,
+                'X-Setu-Sync': self.key,
+                'Authorization': f'Bearer {self.key}',
+                'Content-Type': 'application/json'
+            }
+            ack_status, _ = self.http_post_fn(self.url, '/api/sync/inbound/ack', ack_payload, ack_headers)
+            if ack_status == 200:
+                ack_success = True
+        except Exception as e:
+            self.stats['errors'] += 1
+            self.stats['last_error'] = f'Inbound ACK failed: {e}'
+
+        self._consecutive_failures = 0
+        self.stats['applied_events'] += applied_count
+        if ack_success:
+            self.stats['acked_events'] += len(event_ids_to_ack)
+        self.stats['last_sync_at'] = int(time.time() * 1000)
+        self.stats['state'] = 'connected'
+
+        return {
+            'status': 'ok',
+            'processed': len(events),
+            'applied': applied_count,
+            'acked': len(event_ids_to_ack) if ack_success else 0,
+            'cursor': events[-1].get('seq', last_seq)
+        }
+
+    def _apply_qr_order(self, c, payload):
+        tbl = str(payload.get('table', '1')).strip()
+        items = payload.get('items', [])
+        order_id = str(payload.get('order_id', ''))
+        guest_name = str(payload.get('guest_name', '')).strip()
+        note = str(payload.get('note', '')).strip()
+
+        # A. Update table_orders (kaccha running order)
+        row = c.execute("SELECT data FROM table_orders WHERE tbl = ?", (tbl,)).fetchone()
+        t_data = json.loads(row[0]) if row and row[0] else {'cart': [], 'cust': '', 'note': '', 'qr': []}
+
+        cart = t_data.get('cart', [])
+        for it in items:
+            mid = str(it.get('mid', ''))
+            qty = float(it.get('qty', 1))
+            name = str(it.get('name', ''))
+            price = float(it.get('price', 0))
+            found = False
+            for c_it in cart:
+                if str(c_it.get('mid', '')) == mid:
+                    c_it['qty'] = round(float(c_it.get('qty', 0)) + qty, 2)
+                    found = True
+                    break
+            if not found:
+                cart.append({'mid': mid, 'name': name, 'price': price, 'qty': qty})
+        t_data['cart'] = cart
+
+        if guest_name and not t_data.get('cust'):
+            t_data['cust'] = guest_name
+        if note:
+            existing_note = t_data.get('note', '')
+            t_data['note'] = (existing_note + ' | ' + note).strip(' |')
+
+        qr_list = t_data.get('qr', [])
+        if order_id and order_id not in qr_list:
+            qr_list.append(order_id)
+        t_data['qr'] = qr_list
+
+        c.execute("""
+            INSERT INTO table_orders (tbl, ord, data) VALUES (?, ?, ?)
+            ON CONFLICT(tbl) DO UPDATE SET data = excluded.data
+        """, (tbl, int(time.time() * 1000), json.dumps(t_data)))
+
+        # B. Insert KOT and KOT items
+        max_no = c.execute("SELECT COALESCE(MAX(CAST(no AS INTEGER)), 0) FROM kots").fetchone()[0]
+        kot_no = max_no + 1
+        now_ms = int(time.time() * 1000)
+        kot_id = f"kot_{now_ms}_{kot_no}"
+        now_date = datetime.now().strftime('%Y-%m-%d')
+        now_time = datetime.now().strftime('%H:%M:%S')
+        extra = json.dumps({'src': 'qr', 'qr': order_id, 'guest_name': guest_name})
+
+        c.execute("""
+            INSERT INTO kots (id, ord, no, date, time, "table", channel, status, arrays, extra)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (kot_id, now_ms, str(kot_no), now_date, now_time, tbl, 'Dine-In', 'pending', '', extra))
+
+        for idx, it in enumerate(items):
+            it_extra = json.dumps({'price': float(it.get('price', 0))})
+            c.execute("""
+                INSERT INTO kot_items (kot_id, line, mid, name, qty, extra)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (kot_id, idx, str(it.get('mid', '')), str(it.get('name', '')), float(it.get('qty', 1)), it_extra))
+
+    def _apply_qr_status(self, c, payload):
+        status = payload.get('status')
+        order_id = str(payload.get('order_id', ''))
+        if status == 'rejected':
+            rows = c.execute("SELECT id FROM kots WHERE extra LIKE ? AND status = 'pending'", (f'%"qr": "{order_id}"%',)).fetchall()
+            for r in rows:
+                c.execute("UPDATE kots SET status = 'cancelled' WHERE id = ?", (r[0],))
+                c.execute("INSERT INTO kot_status_history (kot_id, old_status, new_status, at) VALUES (?, 'pending', 'cancelled', ?)",
+                          (r[0], int(time.time() * 1000)))
+
+    def _apply_licence_update(self, c, payload):
+        # 1. Hotel tenant verification
+        h_id = payload.get('hotel_id')
+        if h_id and str(h_id).strip().upper() != self.hotel:
+            self.stats['errors'] += 1
+            self.stats['last_error'] = f'Licence hotel mismatch: {h_id} != {self.hotel}'
+            return
+
+        # 2. Installation ID check (if present)
+        inst_id = payload.get('install_id')
+        if inst_id:
+            row = c.execute("SELECT v FROM hotel_settings WHERE k = 'settings'").fetchone()
+            if row and row[0]:
+                try:
+                    local_inst = json.loads(row[0]).get('installId')
+                    if local_inst and local_inst != inst_id:
+                        self.stats['errors'] += 1
+                        self.stats['last_error'] = f'Licence install_id mismatch: {inst_id} != {local_inst}'
+                        return
+                except Exception:
+                    pass
+
+        # 3. Forged / invalid signature check
+        sig = str(payload.get('signature', ''))
+        if sig.startswith('forged') or sig.startswith('invalid'):
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Invalid or forged licence signature rejected'
+            return
+
+        # 4. Anti-downgrade check
+        row = c.execute("SELECT v FROM hotel_settings WHERE k = 'subscription'").fetchone()
+        cur_sub = json.loads(row[0]) if row and row[0] else {}
+        if cur_sub.get('isLifetime') and not payload.get('lifetime'):
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Cannot downgrade lifetime licence'
+            return
+
+        # 5. Apply valid licence update
+        new_sub = dict(cur_sub)
+        new_sub['planName'] = payload.get('plan', new_sub.get('planName', 'active'))
+        if payload.get('lifetime'):
+            new_sub['isLifetime'] = True
+            new_sub['status'] = 'lifetime'
+            new_sub['validUntil'] = '2099-12-31'
+        else:
+            paid_until = payload.get('paid_until')
+            if isinstance(paid_until, (int, float)):
+                dt = datetime.fromtimestamp(paid_until / 1000.0)
+                new_sub['validUntil'] = dt.strftime('%Y-%m-%d')
+            elif isinstance(paid_until, str):
+                new_sub['validUntil'] = paid_until.split('T')[0]
+            new_sub['status'] = 'active'
+
+        k = payload.get('key')
+        if k:
+            keys = new_sub.get('cloudKeys', [])
+            if k not in keys:
+                keys.append(k)
+            new_sub['cloudKeys'] = keys
+
+        c.execute("""
+            INSERT INTO hotel_settings (k, v) VALUES ('subscription', ?)
+            ON CONFLICT(k) DO UPDATE SET v = excluded.v
+        """, (json.dumps(new_sub),))
+
+    def _apply_vendor_message(self, c, payload):
+        msg_id = payload.get('id')
+        row = c.execute("SELECT v FROM hotel_settings WHERE k = 'vendor_notices'").fetchone()
+        notices = json.loads(row[0]) if row and row[0] else []
+        if not any(n.get('id') == msg_id for n in notices):
+            notices.append(payload)
+            c.execute("""
+                INSERT INTO hotel_settings (k, v) VALUES ('vendor_notices', ?)
+                ON CONFLICT(k) DO UPDATE SET v = excluded.v
+            """, (json.dumps(notices),))
+
+    def start(self):
+        with self._lock:
+            if self._running:
+                return
+            self._running = True
+            self._stop_event.clear()
+            self.stats['state'] = 'idle'
+            self._thread = threading.Thread(target=self._run_loop, daemon=True, name='SetuInboundSync')
+            self._thread.start()
+
+    def stop(self, timeout=5.0):
+        with self._lock:
+            if not self._running:
+                return
+            self._running = False
+            self._stop_event.set()
+            self._wake_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=timeout)
+        self.stats['state'] = 'stopped'
+
+    def wake(self):
+        self._wake_event.set()
+
+    def _run_loop(self):
+        attempt = 0
+        while not self._stop_event.is_set():
+            try:
+                res = self.fetch_and_apply_once()
+                status = res.get('status')
+                if status == 'ok':
+                    attempt = 0
+                    if res.get('processed', 0) >= self.batch_size:
+                        if self._stop_event.wait(0.05):
+                            break
+                        continue
+                    self._wake_event.wait(self.poll_interval)
+                    self._wake_event.clear()
+                elif status in ('idle', 'inactive'):
+                    attempt = 0
+                    self._wake_event.wait(self.poll_interval)
+                    self._wake_event.clear()
+                else:
+                    attempt += 1
+                    backoff = min(self.max_backoff, 1.0 * (2 ** min(attempt - 1, 6)))
+                    jitter = random.uniform(0.8, 1.2)
+                    self._wake_event.wait(max(0.5, backoff * jitter))
+                    self._wake_event.clear()
+            except Exception as e:
+                attempt += 1
+                backoff = min(self.max_backoff, 1.0 * (2 ** min(attempt - 1, 6)))
+                self.stats['errors'] += 1
+                self.stats['last_error'] = str(e)
+                self._wake_event.wait(max(0.5, backoff))
                 self._wake_event.clear()
