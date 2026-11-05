@@ -1527,9 +1527,23 @@ export class SetuHotel extends DurableObject {
       return json(200, { id: o.id, status: accept ? 'accepted' : 'rejected', order: { ...o, items: JSON.parse(o.items) } });
     }
     if(path === '/api/qr/applied'){
-      // The accepted order is now in the table's running order with this KOT
-      this.sql.exec(`UPDATE guestorder SET status = 'done', kot = ? WHERE id = ? AND status = 'accepted'`, str(b.kot, 20), String(b.id || ''));
-      return json(200, { ok: true });
+      // Idempotent cloud confirmation of the exact order/KOT pair. Never
+      // return an unconditional OK for a nonexistent or rejected order.
+      const id = str(b.id, 90), kot = str(b.kot, 20);
+      if(!id || !kot) return json(400, {ok:false,error:'ORDER_AND_KOT_REQUIRED'});
+      const o = this.sql.exec('SELECT id,status,kot FROM guestorder WHERE id = ?', id).toArray()[0];
+      if(!o) return json(404, {ok:false,error:'QR_ORDER_NOT_FOUND'});
+      if(o.status === 'done' && String(o.kot) === kot){
+        return json(200, {ok:true,id,kot,already_applied:true});
+      }
+      if(o.status !== 'accepted'){
+        return json(409, {ok:false,error:'QR_ORDER_NOT_ACCEPTED',status:o.status});
+      }
+      this.sql.exec(
+        "UPDATE guestorder SET status='done', kot=? WHERE id=? AND status='accepted'",
+        kot, id
+      );
+      return json(200, {ok:true,id,kot,already_applied:false});
     }
     if(path === '/api/qr/call'){
       this.sql.exec('UPDATE guestcall SET done = 1, by = ? WHERE id = ?', str(b.by, 60), String(b.id || ''));
