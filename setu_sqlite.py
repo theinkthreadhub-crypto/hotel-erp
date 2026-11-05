@@ -29,6 +29,7 @@ import sqlite3
 import threading
 import time
 import secrets
+from contextlib import nullcontext
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
 from horeca_license_verify import verify_signed_license, InvalidLicence, TRUSTED_PUBLIC_KEYS
@@ -1893,6 +1894,8 @@ class InboundSyncReceiver:
                  batch_size=50, poll_interval=5.0, max_backoff=30.0,
                  http_get_fn=None, http_post_fn=None):
         # SqliteSetuStore (live counter) wraps SqliteDoc (tests).
+        # Keep the wrapper to publish committed inbound changes to LAN clients.
+        self.live_store = store if hasattr(store, '_reload_after_inbound') else None
         self.store = getattr(store, 'sdb', store)
         self.url = (url or '').rstrip('/')
         self.hotel = (hotel or '').strip().upper()
@@ -2117,37 +2120,67 @@ class InboundSyncReceiver:
                 if not isinstance(payload, dict):
                     raise InboundApplyError('INVALID_EVENT_PAYLOAD')
 
-                with self.store.tx() as c:
-                    existing = c.execute(
-                        "SELECT seq FROM inbound_events_applied WHERE id = ?", (evt_id,)
-                    ).fetchone()
-                    if existing:
-                        if int(existing[0]) != evt_seq:
-                            raise InboundApplyError('REPLAYED_EVENT_ID_NEW_SEQUENCE')
-                    else:
-                        if evt_type == 'qr_order':
-                            self._apply_qr_order(c, payload)
-                        elif evt_type == 'qr_status':
-                            self._apply_qr_status(c, payload)
-                        elif evt_type == 'licence_update':
-                            self._apply_licence_update(c, payload)
-                        elif evt_type == 'vendor_message':
-                            self._apply_vendor_message(c, payload)
-                        c.execute(
-                            "INSERT INTO inbound_events_applied"
-                            "(id,seq,event_type,entity_id,applied_at,acked_at) "
-                            "VALUES(?,?,?,?,?,NULL)",
-                            (evt_id, evt_seq, evt_type, str(evt.get('entity_id') or ''),
-                             int(time.time() * 1000))
-                        )
-                        applied_count += 1
-                    changed = c.execute(
-                        "UPDATE inbound_cursor_state SET seq=? "
-                        "WHERE name='inbound' AND seq=?",
-                        (evt_seq, last_seq)
-                    ).rowcount
-                    if changed != 1:
-                        raise InboundApplyError('CONCURRENT_INBOUND_CURSOR_CHANGE')
+                # Counter writes hold store.lock before SqliteDoc.wlock. Use
+                # the same lock order to prevent an outbound edit overwriting
+                # a cloud event while server memory is being refreshed.
+                app_lock = self.live_store.lock if self.live_store else nullcontext()
+                with app_lock:
+                    dirty_keys = []
+                    with self.store.tx() as c:
+                        existing = c.execute(
+                            "SELECT seq FROM inbound_events_applied WHERE id = ?", (evt_id,)
+                        ).fetchone()
+                        if existing:
+                            if int(existing[0]) != evt_seq:
+                                raise InboundApplyError('REPLAYED_EVENT_ID_NEW_SEQUENCE')
+                        else:
+                            if evt_type == 'qr_order':
+                                self._apply_qr_order(c, payload)
+                                # Pending QR orders have their own review endpoint.
+                            elif evt_type == 'qr_status':
+                                self._apply_qr_status(c, payload)
+                                ordrow = c.execute(
+                                    "SELECT tbl,status,kot_id FROM inbound_qr_orders WHERE order_id=?",
+                                    (str(payload.get('order_id') or ''),)
+                                ).fetchone()
+                                if ordrow and ordrow[1] == 'accepted':
+                                    dirty_keys = [
+                                        ('kaccha', ordrow[0]), ('kots', ordrow[2]), ('seq', '')
+                                    ]
+                            elif evt_type == 'licence_update':
+                                self._apply_licence_update(c, payload)
+                                dirty_keys = [('subscription', '')]
+                            elif evt_type == 'vendor_message':
+                                self._apply_vendor_message(c, payload)
+                                dirty_keys = [('vendor_notices', '')]
+                            now_ms = int(time.time() * 1000)
+                            # Phase 2b LAN /api/changes uses doc_version as its
+                            # notification clock. Update it atomically with the
+                            # inbound business data AND durable applied marker.
+                            next_version = int(self.store.meta('doc_version') or 0) + 1
+                            self.store.set_version(c, next_version, now_ms)
+                            if dirty_keys:
+                                for key, rid in dirty_keys:
+                                    self.store.log_change(c, next_version, key, rid)
+                            else:
+                                self.store.log_change(c, next_version, 'inbound_qr', '')
+                            c.execute(
+                                "INSERT INTO inbound_events_applied"
+                                "(id,seq,event_type,entity_id,applied_at,acked_at) "
+                                "VALUES(?,?,?,?,?,NULL)",
+                                (evt_id, evt_seq, evt_type, str(evt.get('entity_id') or ''),
+                                 now_ms)
+                            )
+                            applied_count += 1
+                        changed = c.execute(
+                            "UPDATE inbound_cursor_state SET seq=? "
+                            "WHERE name='inbound' AND seq=?",
+                            (evt_seq, last_seq)
+                        ).rowcount
+                        if changed != 1:
+                            raise InboundApplyError('CONCURRENT_INBOUND_CURSOR_CHANGE')
+                    if self.live_store and not existing:
+                        self.live_store._reload_after_inbound()
                 last_seq = evt_seq
             except (InboundApplyError, ValueError, TypeError) as exc:
                 self._record_inbound_failure(evt_id, evt_seq, str(exc))
@@ -2372,10 +2405,7 @@ class InboundSyncReceiver:
             new_sub['status'] = 'active'
         keys.append(key)
         new_sub['cloudKeys'] = keys
-        c.execute("""
-            INSERT INTO hotel_settings (k, v) VALUES ('subscription', ?)
-            ON CONFLICT(k) DO UPDATE SET v = excluded.v
-        """, (json.dumps(new_sub),))
+        self.store.set_value(c, 'subscription', 'setting', new_sub, cur_sub)
 
     def _apply_vendor_message(self, c, payload):
         msg_id = payload.get('id')
@@ -2383,10 +2413,7 @@ class InboundSyncReceiver:
         notices = json.loads(row[0]) if row and row[0] else []
         if not any(n.get('id') == msg_id for n in notices):
             notices.append(payload)
-            c.execute("""
-                INSERT INTO hotel_settings (k, v) VALUES ('vendor_notices', ?)
-                ON CONFLICT(k) DO UPDATE SET v = excluded.v
-            """, (json.dumps(notices),))
+            self.store.set_value(c, 'vendor_notices', 'extlist', notices, notices[:-1])
 
     def start(self):
         with self._lock:
