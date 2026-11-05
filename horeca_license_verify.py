@@ -50,6 +50,11 @@ def verify_signed_license(key, install_id, *, public_keys=TRUSTED_PUBLIC_KEYS, n
         raise InvalidLicence("invalid signed SETU key encoding") from exc
     if len(raw) != 77:
         raise InvalidLicence("invalid signed SETU key length")
+    # Base32 final character has unused padding bits; noncanonical changes
+    # must be rejected even if they decode to the same 77 bytes.
+    canonical = base64.b32encode(raw).decode("ascii").rstrip("=")
+    if canonical != text[4:]:
+        raise InvalidLicence("noncanonical signed SETU key encoding")
     payload, sig = raw[:13], raw[13:]
     if payload[0] != 1 or payload[1] not in (1, 2, 3, 5):
         raise InvalidLicence("unsupported inbound licence key type")
