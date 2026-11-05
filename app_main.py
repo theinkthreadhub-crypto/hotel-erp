@@ -1798,6 +1798,26 @@ class SqliteSetuStore(SetuStore):
         with self.sdb.tx() as c:
             self.sdb.record_conflict(c, k, rid, reason, kept=kept, other=other, device=device, now=now)
 
+    def _reload_after_inbound(self):
+        """Refresh LAN-visible data after an inbound SQLite commit.
+
+        Caller must hold self.lock (same lock ordering as apply_ops).
+        Never append the inbound transaction to the outbound cloud queue:
+        doing so would create a QR echo loop.
+        """
+        fresh = self.sdb.export_except(HIST_KEYS)
+        version = int(self.sdb.meta('doc_version') or 0)
+        saved_at = int(self.sdb.meta('saved_at') or 0)
+        with self._enc_lock:
+            self._ws = fresh
+            self._idx = {}
+            self._kotno = None
+            self._raw_cache = (None, 'null')
+            self._pub = (None, 'null')
+            self.version = version
+            self.saved_at = saved_at
+        self._after_write(keep_maxno=True)
+
     def start_cloud_sync(self, url, hotel, key, enabled=False, batch_size=50, poll_interval=5.0):
         if getattr(self, 'dispatcher', None):
             self.dispatcher.stop()
@@ -2434,6 +2454,39 @@ class SqliteSetuStore(SetuStore):
 
     # ---------- paginated reads (indexed SQL; nothing loads all history) ----------
     def query(self, name, q):
+        if name == 'inbound-qr':
+            # A bounded, local-first staff review queue; pending QR orders
+            # remain separate from the billable running table cart.
+            state = str(q.get('status') or 'pending').strip().lower()
+            if state not in ('pending', 'accepted', 'rejected', 'all'):
+                raise ValueError('status must be pending, accepted, rejected or all')
+            limit = max(1, min(int(q.get('limit') or 50), 100))
+            offset = max(0, int(q.get('offset') or 0))
+            where = '' if state == 'all' else ' WHERE status = ?'
+            args = () if state == 'all' else (state,)
+            with self.sdb.rlock():
+                c = self.sdb.con()
+                count = c.execute(
+                    'SELECT COUNT(*) FROM inbound_qr_orders' + where, args
+                ).fetchone()[0]
+                rows = c.execute(
+                    'SELECT order_id,tbl,items_json,guest_name,note,status,kot_id,created_at,updated_at '
+                    'FROM inbound_qr_orders' + where +
+                    ' ORDER BY created_at DESC,order_id DESC LIMIT ? OFFSET ?',
+                    args + (limit, offset)
+                ).fetchall()
+            return {
+                'count': count, 'status': state,
+                'rows': [
+                    {
+                        'order_id': r[0], 'table': r[1],
+                        'items': json.loads(r[2]), 'guest_name': r[3],
+                        'note': r[4], 'status': r[5], 'kot_id': r[6],
+                        'created_at': r[7], 'updated_at': r[8]
+                    }
+                    for r in rows
+                ]
+            }
         if name == 'bill-range':
             # Whole bill records of a date range (the app's own reports and screens run on them), by pages.
             # Own read connection: a long range never pauses billing.
@@ -3457,6 +3510,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
                 if path[7:] in ('status', 'conflicts') and self.role() not in ('local', 'admin'):
                     return self.send_json(403, {'error': 'manager only'})
+                if path[7:] == 'inbound-qr' and not self.role():
+                    return self.send_json(401, {'error': 'staff login required'})
                 try:
                     res = store.query(path[7:], qs)
                 except (ValueError, TypeError) as e:
