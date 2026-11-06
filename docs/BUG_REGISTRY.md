@@ -194,3 +194,4 @@
   - Fails closed immediately if the target directory already contains an existing database file; forces migration/restoration into a clean, empty directory.
 - **Regression Tests:**
   `tests/phase35c_backup_restore_test.py` (5 QA test scenarios).
+

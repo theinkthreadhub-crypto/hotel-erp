@@ -189,3 +189,4 @@ Use this 17-dimension checklist when starting any new software application (Scho
 ### 17. Operational Cost & Documentation Discipline
 - [ ] Are cloud infrastructure costs minimal and budgeted (e.g., Cloudflare Workers + Durable Objects within free or standard tiers)?
 - [ ] Are canonical engineering documents (`MASTER_CHECKLIST.md`, `CHANGE_LEDGER.md`, `BUG_REGISTRY.md`, `TECH_DEBT_REGISTER.md`, `ENGINEERING_PLAYBOOK.md`, `AI_HANDOVER.md`) maintained on every commit?
+

@@ -131,3 +131,4 @@ The software is functionally complete in simulation but **NOT YET RELEASE-READY*
    - Update `docs/MASTER_CHECKLIST.md`, `docs/CHANGE_LEDGER.md`, and `docs/BUG_REGISTRY.md` with any subsequent change.
 3. **PR Merge Preparation:**
    - Retain [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9); do NOT merge into `feature/horeca-one-phase3-cloud-sync` until physical gates clear.
+

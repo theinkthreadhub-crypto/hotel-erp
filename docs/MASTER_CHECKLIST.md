@@ -94,3 +94,4 @@
 1. **Single-Writer Rule:** Exactly one AI assistant or human engineer may hold write locks on `feature/horeca-one-phase34a-safety` at any time.
 2. **Never Merge to Main:** `main` is strictly protected. Merges require manual user authorization and 100% passed physical gates.
 3. **No In-Place Production Overwrite:** Never enable cloud sync on existing live hotel databases without explicit opt-in and verified local backups.
+

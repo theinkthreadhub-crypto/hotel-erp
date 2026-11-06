@@ -104,3 +104,4 @@
 - **Impact:** WhatsApp notification delays if the gateway process hangs silently.
 - **Proposed Remediation:**
   Conduct a 48-hour continuous stability test on the WhatsApp gateway process; verify watchdog heartbeat ping and automatic restart routines.
+
