@@ -1026,7 +1026,13 @@ class SqliteDoc:
         if not valid_acks:
             return 0
 
-        pending = con.execute("SELECT seq, ref, payload FROM sync_outbox WHERE sent_at IS NULL").fetchall()
+        # Only the rows of the acknowledged ops (ref = op_id, indexed); never the whole pending queue (BUG-0012)
+        ids = list(valid_acks)
+        pending = []
+        for i in range(0, len(ids), 500):
+            part = ids[i:i + 500]
+            pending += con.execute(f"SELECT seq, ref, payload FROM sync_outbox WHERE sent_at IS NULL AND ref IN ({','.join('?' * len(part))})",
+                                   part).fetchall()
         matched = []
         for seq, ref, p_str in pending:
             try:
@@ -1847,11 +1853,18 @@ class OutboxSyncDispatcher:
         if doc_hotel and doc_hotel.strip().upper() != self.hotel:
             return False, f'Hotel identity mismatch: database belongs to {doc_hotel}, configured for {self.hotel}.'
 
+        # Rows never change format once queued, so only rows newer than the last clean check are read (BUG-0012:
+        # reading every pending payload on each cycle grew memory and held the read lock for seconds in a long outage).
         with sdb.rlock():
-            pending_raw = sdb.con().execute("SELECT payload FROM sync_outbox WHERE sent_at IS NULL").fetchall()
-            for (p_raw,) in pending_raw:
+            cur = sdb.con().execute("SELECT seq, payload FROM sync_outbox WHERE sent_at IS NULL AND seq > ? ORDER BY seq",
+                                    (getattr(self, '_legacy_clear_seq', 0),))
+            last = None
+            for seq, p_raw in cur:
                 if is_legacy_outbox(p_raw):
                     return False, 'Unresolved legacy summary outbox records found. Baseline migration must be reconciled before Phase 3 activation.'
+                last = seq
+            if last is not None:
+                self._legacy_clear_seq = last
 
         return True, 'OK'
 

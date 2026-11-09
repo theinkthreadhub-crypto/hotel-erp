@@ -120,11 +120,11 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
 - OUTAGE_RESULT (2026-11-09, this container, commit `04f3070`): **PASS, 1.667 h completed (6,001.9 s of a requested 100 min) — NOT 24 h.** `--minutes 100 --sample 300 --bill-every 2` against a dead cloud, then recovery to a local `wrangler dev` hotel. 2,997 bills settled, 0 lost, 0 settle errors; 2,997 pending in the outbox, 0 marked sent while offline; 265 cloud POST and 203 GET attempts (backoff, no busy loop); threads stable (max 3); settle latency median 2.04 ms, p99 5.07 ms, max 342.44 ms; RSS 29.7 → 39.1 MB (second-half slope 4.85 MB/h — not yet separated from SQLite page-cache fill as the DB grows; a 24 h run must show whether it flattens). Recovery: outbox drained in 10.0 s — 2,996 acked, 1 held for Manager review (the post-migration envelope carrying a non-whitelisted module, i.e. BUG-0010).
 
 ### Phase 3.5d hardening local execution (Linux cloud container, 2026-11-09)
-- `tests/phase35d_bug0010_test.py`: 10/10 PASS
+- `tests/phase35d_bug0010_test.py`: 12/12 PASS (incl. BUG-0012 backlog tests; both fail on the pre-fix code)
 - `tests/secret_scan_test.py`: 2/2 PASS (no credential in tracked files after the fix)
 - `tests/phase35d_local_e2e.py` (real Miniflare Worker): 10/10 PASS, two consecutive runs
 - Regression re-run: phase34a 9/9, phase35 6/6, phase35c 5/5, test_horeca_one_ui 11/11, inbound 15/15, outbox 9/9, sqlite_phase2b 17/17, dispatcher 17/17, sqlite_phase2 14/14, phase35b 7/7, guard-records 11/11, accounting 29/29, cloud inbound 13/13, ingestion 19/19, reports 15/15, ESC/POS 16/16; `node --check cloud/src/worker.js` OK.
-- MEMORY_CHECK: pending (accelerated outage run in progress at commit time)
+- MEMORY_CHECK: pending (post-BUG-0012 cache-cap run in progress at commit time)
 
 ### Verified GitHub Actions CI
 - **Pre-reconciliation exact-commit CI:** [PR run 42202360784](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202360784) and [push run 42202351285](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202351285) both succeeded, each with 4/4 jobs, for SHA `6b2720d664fe745cc8625a52339ccf9287aedf80`. This evidence does not automatically certify any later documentation commits.

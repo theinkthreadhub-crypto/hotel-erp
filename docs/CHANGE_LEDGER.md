@@ -276,3 +276,15 @@
 - **Scope / Files:** `tests/phase35d_local_e2e.py` (test_01/03/05 updated for BUG-0010; test_07–test_10 new), `tests/phase35d_outage_stress.py` (samples database size and Python object count), `.github/workflows/phase34a-safety.yml` (new safety step; `py_compile` covers `app_main.py`, `tools/replay_held_ops.py`), `docs/RUNBOOK_24H_OUTAGE.md`
 - **Verification / Tests:** see `docs/AI_HANDOVER.md` §4.
 
+---
+
+### CHG-0021: Sync Cycle Work Independent of Outbox Backlog (BUG-0012)
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d hardening follow-up commit (`git log -- setu_sqlite.py`)
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Bug Fix / Performance / Memory
+- **Scope / Files:** `setu_sqlite.py` (`OutboxSyncDispatcher.is_activation_safe`, `SqliteDoc.ack_outbox`), `tests/phase35d_bug0010_test.py`
+- **Previous Behavior:** every sync cycle parsed every pending outbox payload; every ack batch rescanned the whole pending queue.
+- **New Behavior:** incremental legacy check (`_legacy_clear_seq`); ack reads only the acknowledged op ids. Exact (op_id, hotel, checksum) verification unchanged.
+- **Verification / Tests:** see BUG-0012 and `docs/AI_HANDOVER.md` §4.
+

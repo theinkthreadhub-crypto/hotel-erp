@@ -90,6 +90,11 @@
   - Anything ambiguous (payload mismatch, stale record, another tenant, unknown format) goes to a review list. Original held rows and conflict records stay as audit history.
   - After recovery, reconcile counts and totals (integer minor units) between local and cloud.
 
+- **`SYNC-007: Per-Cycle Work Never Scales With the Backlog`** (from BUG-0012)
+  - A background sync loop must read a bounded page (LIMIT) or only rows newer than its last checkpoint; never `fetchall()` the whole pending queue on every cycle, and never under a lock the till also needs.
+  - Acknowledgement updates select rows by their indexed id, not by scanning the queue.
+  - Soak tests sample process memory against database size: memory that keeps rising after the database cache is full is a defect to trace (measure the database library's own memory and the language heap separately before blaming either).
+
 ---
 
 ### 4. Architecture & Offline-First Operation (`ARCH-xxx`)

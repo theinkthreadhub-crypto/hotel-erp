@@ -172,6 +172,55 @@ class HeldOpRecovery(Base):
         self.assertIn({'section': 'records', 'k': 'bills', 'why': '1 record(s) superseded by a later op'}, item['dropped'])
 
 
+class OutboxBacklogScale(Base):
+    """BUG-0012: work per sync cycle must not grow with the size of the pending queue (long cloud outage)."""
+    N = 20000
+
+    def queue_backlog(self):
+        env = S.make_sync_envelope('x', 'UNIT10', 'd', 1, 1, writes_whole={'seq': {'bill': 1}})
+        with self.store.sdb.tx() as c:
+            c.executemany("INSERT INTO sync_outbox (op, ref, doc_version, payload, at) VALUES ('ops', ?, ?, ?, 1)",
+                          [(f'bk{i}', i + 1, json.dumps(dict(env, op_id=f'bk{i}', doc_version=i + 1))) for i in range(self.N)])
+
+    def test_activation_check_reads_only_new_rows(self):
+        self.queue_backlog()
+        disp = S.OutboxSyncDispatcher(self.store, url='http://127.0.0.1:9', hotel='UNIT10', key='k', enabled=True)
+        calls = []
+        real = S.is_legacy_outbox
+        S.is_legacy_outbox = lambda p: calls.append(1) or real(p)
+        try:
+            self.assertEqual(disp.is_activation_safe(), (True, 'OK'))
+            first = len(calls)
+            self.assertEqual(disp.is_activation_safe(), (True, 'OK'))
+            self.assertEqual(len(calls), first, 'second check re-read the whole queue')
+            with self.store.sdb.tx() as c:
+                S.SqliteDoc.append_outbox(c, 'legacy', 'leg1', 1, {'summary': 'old format'})
+            self.assertFalse(disp.is_activation_safe()[0], 'a new legacy row is still detected')
+            self.assertEqual(len(calls) - first, 1)
+        finally:
+            S.is_legacy_outbox = real
+        self.assertGreaterEqual(first, self.N)
+
+    def test_ack_touches_only_acknowledged_rows_and_backlog_drains(self):
+        self.queue_backlog()
+        import time
+
+        def ack_all(url, path, body, headers, timeout=15):
+            batch = json.loads(body)['batch']
+            return 200, json.dumps({'results': {e['op_id']: {'status': 'committed', 'op_id': e['op_id'], 'hotel_id': e['hotel_id'],
+                                                              'checksum': e['integrity']['checksum']} for e in batch}})
+        disp = S.OutboxSyncDispatcher(self.store, url='http://cloud.invalid', hotel='UNIT10', key='k', enabled=True,
+                                      batch_size=200, http_post_fn=ack_all)
+        t0 = time.time()
+        while disp.dispatch_once().get('processed'):
+            pass
+        took = time.time() - t0
+        con = self.store.sdb.con()
+        self.assertEqual(con.execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at IS NULL').fetchone()[0], 0)
+        self.assertEqual(con.execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at > 0').fetchone()[0], self.N)
+        self.assertLess(took, 10, f'draining {self.N} ops took {took:.1f} s (quadratic rescans?)')
+
+
 class EmailKeyConfiguration(Base):
     def test_no_literal_default_and_file_or_env_config(self):
         self.assertEqual(A.resend_api_key(), '')

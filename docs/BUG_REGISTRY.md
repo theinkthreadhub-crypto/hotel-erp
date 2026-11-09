@@ -20,6 +20,7 @@
 | **BUG-0009** | Permanently Rejected Sync Op Starves the Outbox (Head-of-Line Block) | **P1 (High)** | RESOLVED | Phase 3.5d commit (see CHG-0014) | `tests/phase35d_local_e2e.py` (test_05) |
 | **BUG-0010** | Saves With Non-Ingested Modules (incl. First Bill After Migration) Never Reach the Cloud | **P1 (High)** | RESOLVED | Phase 3.5d hardening commit (see CHG-0017, CHG-0018) | `tests/phase35d_bug0010_test.py`, `tests/phase35d_local_e2e.py` test_01, test_07–test_10 |
 | **BUG-0011** | Text-Mode Receipt Lines Wider Than 58 mm Paper (Hotel Name, Footer) | P2 (Medium) | RESOLVED | Phase 3.5d commit (see CHG-0015) | `tests/phase35d_escpos_test.mjs` |
+| **BUG-0012** | Each Sync Cycle Re-Read the Whole Pending Outbox (Memory Growth, Settle Stalls, Quadratic Recovery in Long Outages) | **P1 (High)** | RESOLVED | Phase 3.5d hardening follow-up commit (see CHG-0021) | `tests/phase35d_bug0010_test.py` (`OutboxBacklogScale`) |
 
 ---
 
@@ -233,4 +234,12 @@
 - **Symptoms:** On 58 mm (32 columns) text mode, a double-width hotel name over 16 characters (e.g. 23 chars = 46 columns) and the fixed footer "Powered by Aghanya Devanya Enterprises" (38 chars) exceeded the paper width; the printer breaks such lines at the physical edge, mid-word.
 - **Permanent Fix:** `center()` word-wraps any centred line longer than the paper; a big line that does not fit at double width prints double height, normal width. Lines that already fit are byte-identical to before. Graphic (raster, default) mode is unchanged.
 - **Regression Test:** `tests/phase35d_escpos_test.mjs` asserts every decoded text line fits 32 / 48 columns.
+
+### BUG-0012: Each Sync Cycle Re-Read the Whole Pending Outbox
+- **Severity:** P1 — High (no data loss; counter memory and pauses grow during a long cloud outage, and recovery after it slows quadratically)
+- **Component:** `setu_sqlite.py` (`OutboxSyncDispatcher.is_activation_safe`, `SqliteDoc.ack_outbox`)
+- **Discovered In:** Phase 3.5d hardening memory investigation (2026-11-09). An accelerated outage run (337,614 synthetic bills in 20 min, no cloud) grew RSS linearly to 420 MB, about 1 MB per 1,000 pending ops, past the 64 MB SQLite cache cap, with one settle taking 2.4 s. The same bills settled without the sync threads plateaued at 99.6 MB once SQLite's own memory reached its 66.7 MB cap (measured with `sqlite3_memory_used`; Python heap flat under `tracemalloc`).
+- **Root Cause:** `is_activation_safe()` runs before every dispatch cycle and did `SELECT payload FROM sync_outbox WHERE sent_at IS NULL` + `fetchall()` + a JSON parse of every row, under the read lock; `ack_outbox()` did the same full scan for every acknowledged batch. Work and peak memory per cycle were O(pending), and draining a backlog was O(pending²).
+- **Permanent Fix:** the legacy-format check reads only rows queued after the last clean check (rows never change format once queued); `ack_outbox` reads only the rows of the acknowledged op ids (`ref`, indexed) and still verifies op_id + hotel + checksum on each. No behaviour change for normal queues.
+- **Regression Tests:** `tests/phase35d_bug0010_test.py` `OutboxBacklogScale` with 20,000 pending ops: a second activation check reads no old row (fails on the old code: 40,000 reads instead of 20,000), and the backlog drains with exact acks in under 10 s (old code: 17.1 s).
 
