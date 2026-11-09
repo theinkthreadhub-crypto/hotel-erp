@@ -134,7 +134,9 @@
 
 ### TD-0012: Full 24-Hour Outage Run Not Yet Executed
 - **Description:** `tests/phase35d_outage_stress.py --hours 24` is ready and reproducible; this environment's background-job limit (2 h) allowed only a shorter run (see AI_HANDOVER §4 for the completed duration and results). A 24 h run needs a machine that stays up (e.g. the Gate C Windows PC).
-- **Completed so far:** 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s, 1 op held = BUG-0010). Open question for the 24 h run: RSS rose 29.7 → 39.1 MB (4.85 MB/h in the second half); confirm it plateaus (SQLite cache, 64 MB cap) and is not a leak.
+- **Completed so far:** 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s, 1 op held = BUG-0010, now recoverable with `tools/replay_held_ops.py`).
+- **Memory question answered by accelerated runs (bill count, not time):** the RSS rise came from BUG-0012 (every sync cycle re-read the whole pending outbox), not from SQLite or Python. After the fix, 203,175 pending bills: RSS plateaus at ~104–110 MB once the 64 MB SQLite cache is full. Details: AI_HANDOVER §4 `MEMORY_CHECK`.
+- **Still open:** the wall-clock 24 h run (`docs/RUNBOOK_24H_OUTAGE.md`) on a commit that includes the BUG-0012 fix.
 
 ### TD-0013: Business Modules the Worker Does Not Ingest Stay Counter-Only
 - **Classification:** **CONFIRMED** (BUG-0010 module policy, `LOCAL_ONLY_MODULES` reason `not_ingested`).

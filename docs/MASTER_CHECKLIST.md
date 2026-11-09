@@ -10,7 +10,7 @@
 
 ## 0. Milestone & Release Gate Summary (counts reconciled 2026-11-09)
 
-- **Development milestones:** **44 total** = **43 completed / verified by referenced commits and tests** + **1 open (3.5d.3: 24 h outage run not yet completed)**. These are milestone checkboxes, NOT release gates.
+- **Development milestones:** **45 total** = **44 completed / verified by referenced commits and tests** + **1 open (3.5d.3: 24 h outage run not yet completed)**. These are milestone checkboxes, NOT release gates.
 - **Owner action outside the milestones:** revoke/rotate the leaked Resend e-mail key (TD-0011). Not verifiable from the repository; not done until the owner confirms.
 - **Release gates:** **5 total** = **1 automated CI gate passed (A)** + **4 release gates blocked (B–E)**.
 - **Completion is scoped to the stated automated evidence.** Passing automated tests does not clear physical printer, legacy Windows migration, live phone, or production tenant-isolation signoff.
@@ -84,12 +84,13 @@
 ### Phase 3.5d: Local Network E2E & ESC/POS Byte Stream Verification
 - [x] **3.5d.1 Isolated Cloudflare Worker to Counter E2E Harness:** `tests/phase35d_local_e2e.py`: Miniflare Worker + real Python SQLite counter over HTTP loopback, no mocks; 6/6 PASS locally (2 consecutive runs). Found and fixed BUG-0009; found BUG-0010 (resolved in 3.5d.4).
 - [x] **3.5d.2 ESC/POS Byte Stream Verifier:** `tests/phase35d_escpos_test.mjs`: decodes the real 58/80 mm receipt, KOT and estimate bytes (text and raster), cutter, drawer, duplicate-copy, double-press and failure paths; 16/16 PASS. Found and fixed BUG-0011. **Software only — not physical printer validation (Gate B stays BLOCKED).**
-- [ ] **3.5d.3 Cloud Downtime Stress Run (24 h):** harness `tests/phase35d_outage_stress.py` ready and reproducible; CI runs a 2-minute smoke. **24 h NOT completed** in this environment: longest run 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s; see AI_HANDOVER §4). Stays open until a full 24 h run passes. Runbook: `docs/RUNBOOK_24H_OUTAGE.md`.
+- [ ] **3.5d.3 Cloud Downtime Stress Run (24 h):** harness `tests/phase35d_outage_stress.py` ready and reproducible; CI runs a 2-minute smoke. **24 h NOT completed** in this environment: longest wall-clock run 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s); accelerated runs up to 337,614 bills found and fixed BUG-0012 (memory now plateaus ~110 MB); see AI_HANDOVER §4. Stays open until a full 24 h run passes. Runbook: `docs/RUNBOOK_24H_OUTAGE.md`.
 
 ### Phase 3.5d Hardening: BUG-0010, Held-Op Recovery, Secret Configuration
 - [x] **3.5d.4 Versioned Cloud Sync Module Policy (BUG-0010):** one save = one op; only Worker-ingestible modules in the payload; local-only and unknown keys kept locally (unknown ones reported in `sync_unclassified`); recursive credential scrub. `tests/phase35d_bug0010_test.py` 10/10, `tests/phase35d_local_e2e.py` 10/10 (real Worker).
 - [x] **3.5d.5 Held-Op Review & Replay Tool:** `tools/replay_held_ops.py` (dry run default, same op identity, ambiguous ops to review, idempotent) with counter/cloud totals reconciliation; synthetic recovery of the outage-run case verified against the real Worker (E2E test_08).
 - [x] **3.5d.6 E-mail Key Out of Source + Secret Scan (TD-0011 code part):** env var / data-folder file only, safe 503 without a key, CI secret scan. **Key rotation by the owner still pending (not verified).**
+- [x] **3.5d.7 Sync Cycle Independent of Backlog (BUG-0012):** incremental legacy check, ack by op id; 20,000-op backlog regression tests; memory plateau verified to 203,175 pending bills.
 
 ---
 
