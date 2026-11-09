@@ -163,7 +163,7 @@
 
 ### CHG-0012: Permanent Engineering Memory & Quality System Documentation
 - **Date:** 2026-11-06
-- **Commit SHA:** Pending
+- **Commit SHA:** `c1930c6cd40c148749293c3af119b226fd949270` (initial six-document system; subsequent line-ending normalization at `6b2720d664fe745cc8625a52339ccf9287aedf80`)
 - **Author/AI:** Antigravity AI Engine
 - **Category:** Documentation / Quality Governance
 - **Scope / Files:** `docs/MASTER_CHECKLIST.md`, `docs/CHANGE_LEDGER.md`, `docs/BUG_REGISTRY.md`, `docs/TECH_DEBT_REGISTER.md`, `docs/ENGINEERING_PLAYBOOK.md`, `docs/AI_HANDOVER.md`
@@ -173,3 +173,17 @@
 - **Risks & Side Effects:** Documentation must be maintained systematically upon every subsequent commit.
 - **Verification / Tests:** Cross-referenced against 100% verified Git commit SHAs and automated test suites.
 
+
+---
+
+### CHG-0013: Documentation Count, CI Reference & Canonical Handover Reconciliation
+- **Date:** 2026-11-09
+- **Commit SHAs (preceding file revisions):** `4513d06042847eb861a555b1f979805dfe866d25` (master checklist), `9b5a958a1cdd4ff62aec9c5aade27e6c2dc41408` (canonical handover), `2ff0a625658a0b11827c293ff9d409b90881a705` (historical handoff annotation). This entry's own publishing commit is discoverable via `git log -- docs/CHANGE_LEDGER.md`; avoid recursively updating a ledger to embed its own SHA.
+- **Engineer/AI:** ChatGPT via connected GitHub
+- **Category:** Documentation / Governance Accuracy
+- **Scope / Files:** `docs/MASTER_CHECKLIST.md`, `docs/AI_HANDOVER.md`, `docs/AI-HANDOFF.md`, `docs/CHANGE_LEDGER.md`
+- **Previous Behavior:** Reported 31 tracked tasks despite 38 completed and 3 planned milestone checkboxes; referenced an outdated branch HEAD and older CI run as if current; both `AI-HANDOFF.md` and `AI_HANDOVER.md` appeared to be live handovers; the original governance rollout record had a pending SHA.
+- **New Behavior:** Distinguishes 38 completed milestones, 3 planned milestones and 5 release gates (1 passed, 4 blocked); records exact-SHA historical CI success at `6b2720d` (GitHub Actions PR run `42202360784`, push run `42202351285`), and explicitly requires fresh remote HEAD/CI verification for later commits. `AI_HANDOVER.md` is the single live handover; `AI-HANDOFF.md` remains preserved as a labeled historical log. CHG-0012 now links the governance rollout commit `c1930c6`.
+- **Why Required:** Prevent AI handoff drift, false CI provenance, duplicate live documentation and incorrect progress reporting when development moves between AI tools.
+- **Risks & Side Effects:** Documentation-only. Current or later commit CI success must be checked separately; previous CI runs do not automatically certify later changes.
+- **Verification / Tests:** Compared current remote branch/PR refs, source file checkbox counts (38 checked + 3 unchecked), GitHub Actions exact commit results, and file IDs. No application logic, schema, merge or production deployment changed.
