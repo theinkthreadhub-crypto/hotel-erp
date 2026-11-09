@@ -53,6 +53,10 @@ jobs:
         run: |
           node --loader ./tests/cf_loader.mjs tests/cloud_sync_ingestion_test.mjs
           node --loader ./tests/cf_loader.mjs tests/cloud_reports_test.mjs
+      - name: Phase 3.5d ESC/POS byte-stream validation (software only, no printer)
+        run: node tests/phase35d_escpos_test.mjs
+      - name: Phase 3.5d short cloud-outage stress (2 minutes; the 24 h run is manual)
+        run: python tests/phase35d_outage_stress.py --minutes 2 --sample 30 --bill-every 0.5
 
   chromium-browser-qa:
     name: Chromium desktop/mobile QR + print template QA
@@ -171,3 +175,10 @@ jobs:
             exit 1
           fi
           echo "Local Wrangler startup PASS: HTTP $status"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Phase 3.5d real HTTP loopback E2E (local Worker <-> SQLite counter, synthetic hotels)
+        run: |
+          python -m pip install 'cryptography>=42,<48'
+          SETU_REQUIRE_WRANGLER=1 python tests/phase35d_local_e2e.py

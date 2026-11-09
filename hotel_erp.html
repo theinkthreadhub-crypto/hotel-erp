@@ -12751,7 +12751,20 @@ class EscPos {
   bold(on){ return this.raw(0x1b, 0x45, on ? 1 : 0); }
   // big = double width + height (short text only); 'tall' = double height, same width (safe for full lines)
   size(big){ return this.raw(0x1d, 0x21, big === 'tall' ? 0x01 : big ? 0x11 : 0x00); }
-  center(t, big){ this.align('center'); if(big) this.size(true).bold(true); this.line(t); if(big) this.size(false).bold(false); return this.align('left'); }
+  center(t, big){
+    this.align('center');
+    // A centred line longer than the paper is word-wrapped instead of being broken mid-word by the printer.
+    // Double width fits only cols / 2 characters: a longer big line (e.g. the hotel name on 58 mm) prints double
+    // height, normal width
+    const n = asciiSafe(t).length;
+    if(n * (big ? 2 : 1) > this.cols){
+      if(big) this.size('tall').bold(true);
+      this.wrap(t, this.cols).forEach(l => this.line(l));
+      if(big) this.size(false).bold(false);
+      return this.align('left');
+    }
+    if(big) this.size(true).bold(true); this.line(t); if(big) this.size(false).bold(false); return this.align('left');
+  }
   hr(c = '-'){ return this.line(c.repeat(this.cols)); }
   lr(l, r){ l = asciiSafe(l); r = asciiSafe(r); const w = this.cols - r.length - 1; return this.line((l.length > w ? l.slice(0, w) : l).padEnd(w) + ' ' + r); }
   // Word wrap; only words longer than the column are cut

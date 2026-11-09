@@ -1774,7 +1774,10 @@ class OutboxSyncDispatcher:
                     continue
             elif status == 'rejected':
                 err = op_res.get('error')
-                if err in ('CONFLICT_OP_ID_PAYLOAD_MISMATCH', 'CONFLICT_STALE_RECORD'):
+                # Permanent rejections are held for Manager review (payload kept, sent_at < 0). Left pending, an
+                # unsupported-module op would be resent forever and, at the head of the queue, starve every
+                # later bill (BUG-35D-01, shown by tests/phase35d_local_e2e.py).
+                if err in ('CONFLICT_OP_ID_PAYLOAD_MISMATCH', 'CONFLICT_STALE_RECORD', 'UNSUPPORTED_BUSINESS_MODULE'):
                     conflicts.append({'op_id': op_id, 'reason': err, 'payload': env})
 
         # 5. Persist acknowledgments and conflicts atomically in local SQLite

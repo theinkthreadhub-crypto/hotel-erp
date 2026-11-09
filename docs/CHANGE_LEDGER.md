@@ -187,3 +187,44 @@
 - **Why Required:** Prevent AI handoff drift, false CI provenance, duplicate live documentation and incorrect progress reporting when development moves between AI tools.
 - **Risks & Side Effects:** Documentation-only. Current or later commit CI success must be checked separately; previous CI runs do not automatically certify later changes.
 - **Verification / Tests:** Compared current remote branch/PR refs, source file checkbox counts (38 checked + 3 unchecked), GitHub Actions exact commit results, and file IDs. No application logic, schema, merge or production deployment changed.
+
+---
+
+### CHG-0014: Permanent `UNSUPPORTED_BUSINESS_MODULE` Rejections Held for Review (BUG-0009)
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d implementation commit (discoverable via `git log -- setu_sqlite.py`; not self-embedded, per CHG-0013)
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Bug Fix / Sync Reliability
+- **Scope / Files:** `setu_sqlite.py` (`OutboxSyncDispatcher.dispatch_once`, one condition)
+- **Previous Behavior:** An op the Worker rejected as `UNSUPPORTED_BUSINESS_MODULE` stayed pending and was resent forever; `batch_size` such ops at the queue head stopped every later bill from syncing.
+- **New Behavior:** The op goes through the existing quarantine path (`sync_conflicts` with full payload, outbox row `sent_at < 0`); later ops continue.
+- **Why Required:** Demonstrated by the real loopback E2E (`tests/phase35d_local_e2e.py` test_05 fails with the fix reverted).
+- **Risks & Side Effects:** The held op is not retried automatically if the Worker later learns that module; it remains in `sync_conflicts` for review. The underlying gap is BUG-0010 (open).
+- **Verification / Tests:** `tests/phase35d_local_e2e.py` 6/6; `tests/sync_phase3_dispatcher_test.py` 17/17; `tests/sync_phase3_outbox_test.py` 9/9.
+
+---
+
+### CHG-0015: Text-Mode Receipt Centred Lines Wrapped to Paper Width (BUG-0011)
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d implementation commit (`git log -- hotel_erp.html`)
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Bug Fix / Printing Layout
+- **Scope / Files:** `hotel_erp.html` (`EscPos.center` only)
+- **Previous Behavior:** Centred lines longer than the paper (58 mm double-width hotel name over 16 chars; 38-char footer) were broken mid-word by the printer.
+- **New Behavior:** Such lines are word-wrapped; a big line that cannot fit at double width prints double height, normal width. Lines that already fit produce identical bytes. Graphic mode (default) unchanged.
+- **Verification / Tests:** `tests/phase35d_escpos_test.mjs` 16/16; `tests/phase35c_browser_e2e.mjs` 2/2 (real Chromium, local run); physical printer NOT tested (Gate B).
+
+---
+
+### CHG-0016: Phase 3.5d Test Harnesses and CI Steps
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d implementation commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Testing / CI
+- **Scope / Files:** `tests/phase35d_local_e2e.py`, `tests/phase35d_escpos_test.mjs`, `tests/phase35d_outage_stress.py`, `.github/workflows/phase34a-safety.yml`
+- **New Behavior:**
+  - Real HTTP loopback E2E: `wrangler dev --local` (Miniflare) + real `SqliteSetuStore`, `OutboxSyncDispatcher`, `InboundSyncReceiver`; synthetic hotels via a test-only `ADMIN_KEY`, temporary persistence. In CI it runs in the Wrangler job with `SETU_REQUIRE_WRANGLER=1`, so a missing Worker fails instead of skipping.
+  - ESC/POS byte-stream decoder over the shipped `EscPos` / `RasterPos` / `escBill` / `escKot` / `escKaccha` / `sendToPrinter` / `printBill`.
+  - Outage stress harness with configurable duration; CI runs a 2-minute smoke, the 24 h run is manual.
+- **Risks & Side Effects:** CI time +~3 minutes. No production URL, key or data is used.
+

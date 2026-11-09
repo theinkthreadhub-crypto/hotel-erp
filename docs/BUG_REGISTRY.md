@@ -17,6 +17,9 @@
 | **BUG-0006** | Mock Inbound License Verification String Prefix Bypass | **P0 (Critical)** | RESOLVED | Commit `957e6e5` | `tests/phase34a_safety_test.py` |
 | **BUG-0007** | Inbound QR Orders Clobbering Unsent Waiter Cart & Premature Billing | **P1 (High)** | RESOLVED | Commit `643c286` | `tests/phase35_counter_integration_test.py` |
 | **BUG-0008** | In-Place Live Database Overwrite & Unchecked Backup Restore | **P0 (Critical)** | RESOLVED | Commit `580f425` | `tests/phase35c_backup_restore_test.py` |
+| **BUG-0009** | Permanently Rejected Sync Op Starves the Outbox (Head-of-Line Block) | **P1 (High)** | RESOLVED | Phase 3.5d commit (see CHG-0014) | `tests/phase35d_local_e2e.py` (test_05) |
+| **BUG-0010** | Saves With Non-Ingested Modules (incl. First Bill After Migration) Never Reach the Cloud | **P1 (High)** | **OPEN — needs product decision** | — | `tests/phase35d_local_e2e.py` (test_01, test_05 record current behaviour) |
+| **BUG-0011** | Text-Mode Receipt Lines Wider Than 58 mm Paper (Hotel Name, Footer) | P2 (Medium) | RESOLVED | Phase 3.5d commit (see CHG-0015) | `tests/phase35d_escpos_test.mjs` |
 
 ---
 
@@ -194,4 +197,31 @@
   - Fails closed immediately if the target directory already contains an existing database file; forces migration/restoration into a clean, empty directory.
 - **Regression Tests:**
   `tests/phase35c_backup_restore_test.py` (5 QA test scenarios).
+
+---
+
+### BUG-0009: Permanently Rejected Sync Op Starves the Outbox (Head-of-Line Block)
+- **Severity:** P1 — High (cloud reports silently stop updating; no data loss on the counter)
+- **Component:** `setu_sqlite.py` (`OutboxSyncDispatcher.dispatch_once`)
+- **Discovered In:** Phase 3.5d.1 real HTTP loopback E2E against the local Worker (2026-11-09). Unit tests with a mocked cloud never returned this error.
+- **Symptoms:** The Worker answers `status: rejected, error: UNSUPPORTED_BUSINESS_MODULE` for an op containing a module it does not ingest (e.g. a `menu` edit). The dispatcher only quarantined `CONFLICT_OP_ID_PAYLOAD_MISMATCH` / `CONFLICT_STALE_RECORD`, so the op stayed pending and was resent on every cycle. Pending rows are read oldest first with `LIMIT batch_size`: once `batch_size` such ops sat at the head of the queue, no later bill was ever sent again.
+- **Reproduction:** `tests/phase35d_local_e2e.py` test_05 with `batch_size=2`: three menu saves, then a bill. Before the fix: 4 ops left pending, 0 new bills in the cloud.
+- **Root Cause:** Permanent rejection treated as "unconfirmed, retry later".
+- **Permanent Fix:** `UNSUPPORTED_BUSINESS_MODULE` joins the existing quarantine path (SYNC-001): the payload is kept in `sync_conflicts` for Manager review and the outbox row is held (`sent_at < 0`), so the stream continues. Verified by re-running test_05 with the fix reverted (fails) and restored (passes).
+
+### BUG-0010: Saves With Non-Ingested Modules (incl. First Bill After Migration) Never Reach the Cloud
+- **Severity:** P1 — High (owner cloud reports can miss a bill) — **OPEN**
+- **Component:** counter envelopes (`app_main.py` `apply_ops` → `make_sync_envelope`) vs Worker `SUPPORTED_*_MODULES` whitelist (`cloud/src/worker.js` ~line 1912)
+- **Discovered In:** Phase 3.5d.1 loopback E2E (2026-11-09).
+- **Symptoms:** One op carries every key written in that save. The first save after a migration also writes the credential flags (`staff[].hasPin`), so the first settled bill's envelope includes `values.staff` and is rejected as a whole; the bill is on the counter but not in the cloud. Any device save that touches `menu`, `staff`, `custList`, etc. is also rejected. No secrets are in the envelope (checked: no PBKDF2 hashes).
+- **Current Behaviour (after BUG-0009 fix):** such ops are held for review in `sync_conflicts` instead of looping; the counter keeps the data.
+- **Decision Needed (not changed without approval):** (a) counter splits each save into a cloud-ingestible op (financial keys) plus local-only keys; or (b) the Worker commits supported modules and reports the skipped keys; or (c) the Worker ingests the missing modules. Option (a) keeps the Worker whitelist strict and is the recommendation.
+
+### BUG-0011: Text-Mode Receipt Lines Wider Than 58 mm Paper
+- **Severity:** P2 — Medium (printout broken mid-word; no data impact)
+- **Component:** `hotel_erp.html` `EscPos.center`
+- **Discovered In:** Phase 3.5d.2 ESC/POS byte-stream decoder (2026-11-09).
+- **Symptoms:** On 58 mm (32 columns) text mode, a double-width hotel name over 16 characters (e.g. 23 chars = 46 columns) and the fixed footer "Powered by Aghanya Devanya Enterprises" (38 chars) exceeded the paper width; the printer breaks such lines at the physical edge, mid-word.
+- **Permanent Fix:** `center()` word-wraps any centred line longer than the paper; a big line that does not fit at double width prints double height, normal width. Lines that already fit are byte-identical to before. Graphic (raster, default) mode is unchanged.
+- **Regression Test:** `tests/phase35d_escpos_test.mjs` asserts every decoded text line fits 32 / 48 columns.
 

@@ -16,6 +16,11 @@
 | **TD-0005** | Custom ESM Loader Dependency for Cloudflare Worker Tests | Active | Low / Developer Experience | 2 hours | **CONFIRMED** |
 | **TD-0006** | Monolithic Single-File POS Frontend (`hotel_erp.html`) | Active | Medium / Maintainability | 12 hours | **CONFIRMED** |
 | **TD-0007** | Baileys WhatsApp Gateway Node Service Process Isolation | Active | Low / Operational Complexity | 4 hours | **SUSPECTED** |
+| **TD-0008** | Phase 3 Counter QR Menu Depends on Legacy Whole-Document `/api/db` Upload | Active | High / Architectural Drift | 6 hours | **CONFIRMED** |
+| **TD-0009** | Double-Width KOT Item Lines Not Wrapped (Text Mode) | Active | Low / Print Layout | 1 hour | **CONFIRMED** |
+| **TD-0010** | Raster (Graphic) Receipts Validated Structurally Only | Active | Medium / Test Coverage | Physical Gate B | **CONFIRMED** |
+| **TD-0011** | Hard-Coded Default `RESEND_API_KEY` in `app_main.py` | Active | **High / Security (SEC-001)** | 1 hour + key rotation | **CONFIRMED** |
+| **TD-0012** | Full 24-Hour Outage Run Not Yet Executed | Active | Medium / Release Evidence | 24 h machine time | **CONFIRMED** |
 
 ---
 
@@ -104,4 +109,27 @@
 - **Impact:** WhatsApp notification delays if the gateway process hangs silently.
 - **Proposed Remediation:**
   Conduct a 48-hour continuous stability test on the WhatsApp gateway process; verify watchdog heartbeat ping and automatic restart routines.
+
+---
+
+### TD-0008: Phase 3 Counter QR Menu Depends on Legacy Whole-Document `/api/db` Upload
+- **Classification:** **CONFIRMED** (Phase 3.5d.1 loopback E2E)
+- **Affected Files:** `cloud/src/worker.js` (`guest()` reads `this.data()`), Phase 3 ingestion whitelist
+- **Description:** The guest QR menu and prices come from the hotel's legacy whole document in the Durable Object. Phase 3 ingestion does not accept `menu`, so a SQLite counter syncing only through `/api/sync/ops` has no menu in the cloud. The E2E test seeds `settings` + `menu` through the existing `/api/db` upload as a fixture.
+- **Remediation:** Decide with BUG-0010: ingest `menu` (and `stock` alias for out-of-stock hiding) through Phase 3, then stop relying on `/api/db`.
+
+### TD-0009: Double-Width KOT Item Lines Not Wrapped (Text Mode)
+- **Classification:** **CONFIRMED** (`tests/phase35d_escpos_test.mjs` prints the count)
+- **Description:** `escKot` prints item lines at double width without wrapping; a long dish name exceeds 16 / 24 characters and the printer wraps it mid-word. Kitchen readability only; quantities and names are not lost.
+- **Remediation:** Wrap KOT item lines at `cols / 2` with a hanging indent; confirm on the physical printer (Gate B).
+
+### TD-0010: Raster (Graphic) Receipts Validated Structurally Only
+- **Description:** Node has no canvas; the test checks the `GS v 0` band headers (384 / 576 dots, ≤200 rows), payload lengths, cut and drawer order, and that no text bytes are sent. Glyph rendering of Hindi and ₹ can only be checked on paper (Gate B runbook).
+
+### TD-0011: Hard-Coded Default `RESEND_API_KEY` in `app_main.py`
+- **Description:** `app_main.py` line 67 falls back to a literal `re_...` API key when the environment variable is unset. It is in Git history and in every built EXE. Violates SEC-001.
+- **Remediation:** Owner rotates the key in the Resend dashboard; remove the literal default (empty fallback, email features off until configured). Not changed in 3.5d because removal changes behaviour of a shipped feature and needs the owner's decision and key rotation first.
+
+### TD-0012: Full 24-Hour Outage Run Not Yet Executed
+- **Description:** `tests/phase35d_outage_stress.py --hours 24` is ready and reproducible; this environment's background-job limit (2 h) allowed only a shorter run (see AI_HANDOVER §4 for the completed duration and results). A 24 h run needs a machine that stays up (e.g. the Gate C Windows PC).
 

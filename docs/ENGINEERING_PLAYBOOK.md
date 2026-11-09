@@ -66,6 +66,11 @@
   - Network I/O and cloud synchronization dispatchers must **never** execute while holding an active database write transaction lock.
   - Transactions must commit locally in SQLite first; the background dispatcher pulls unacknowledged records asynchronously to avoid blocking local point-of-sale checkout during network latency or cloud outages.
 
+- **`SYNC-004: Permanent Rejections Never Block the Queue`** (from BUG-0009)
+  - Every server error code must be classified as *retry later* (network, 5xx, auth, payment) or *permanent* (unsupported module, payload mismatch, stale record).
+  - A permanent rejection is held for review with its full payload and removed from the send queue at once. An op that can never succeed must not stay at the head of an ordered queue.
+  - When a new rejection code is added on the server, the client classification and a loopback test must be updated in the same change.
+
 ---
 
 ### 4. Architecture & Offline-First Operation (`ARCH-xxx`)
@@ -93,6 +98,13 @@
 - **`TEST-002: Multi-Platform CI Coverage`**
   - Software running on customer premises must be tested against target operating environments (Windows EXE, Linux runners, Chromium browser viewports) in automated CI.
   - Mocked network environments must be supplemented with end-to-end loopback tests exercising genuine HTTP request/response serialization.
+
+- **`TEST-003: Hardware Output Is Verified as Bytes, Then on Paper`** (from BUG-0011)
+  - Printer output is decoded byte by byte in CI: only known commands, every text line within the paper width (32 columns at 58 mm, 48 at 80 mm), exactly one cut, drawer only on a first cash print.
+  - Byte-level tests never count as physical printer validation; the physical gate stays open until a person checks the paper.
+
+- **`TEST-004: Long-Run Evidence States Its Real Duration`**
+  - A soak or outage test reports the duration it actually completed. A shorter run is never presented as evidence for a longer requirement.
 
 ---
 

@@ -1,6 +1,6 @@
 # HoReCa One — Master Development Checklist
 
-**Last Updated:** 2026-11-09  
+**Last Updated:** 2026-11-09 (Phase 3.5d)  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Active Development Branch:** `feature/horeca-one-phase34a-safety`  
 **Active PR:** [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9) targeting `feature/horeca-one-phase3-cloud-sync`  
@@ -10,7 +10,7 @@
 
 ## 0. Milestone & Release Gate Summary (counts reconciled 2026-11-09)
 
-- **Development milestones:** **41 total** = **38 completed / verified by previously referenced commits and tests** + **3 planned Phase 3.5d**. These are milestone checkboxes, NOT release gates.
+- **Development milestones:** **41 total** = **40 completed / verified by referenced commits and tests** + **1 open (3.5d.3: 24 h outage run not yet completed)**. These are milestone checkboxes, NOT release gates.
 - **Release gates:** **5 total** = **1 automated CI gate passed (A)** + **4 release gates blocked (B–E)**.
 - **Completion is scoped to the stated automated evidence.** Passing automated tests does not clear physical printer, legacy Windows migration, live phone, or production tenant-isolation signoff.
 - **Exact pre-reconciliation commit CI evidence:** GitHub Actions [PR run 42202360784](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202360784) and [push run 42202351285](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202351285) both completed successfully with all four jobs for commit `6b2720d664fe745cc8625a52339ccf9287aedf80`. These runs do NOT validate subsequent documentation commits. Recheck the latest SHA's status when resuming development.
@@ -81,9 +81,9 @@
 ## 2. Planned & Upcoming Milestones
 
 ### Phase 3.5d: Local Network E2E & ESC/POS Byte Stream Verification
-- [ ] **3.5d.1 Isolated Cloudflare Worker to Counter E2E Harness:** Automated test script running Miniflare Worker + local Python counter over real HTTP loopback without mocks.
-- [ ] **3.5d.2 ESC/POS Byte Stream Verifier:** Software harness intercepting raw printer byte stream to validate thermal printer escape codes, line breaks, bold headers, and cutter triggers.
-- [ ] **3.5d.3 Cloud Downtime Stress Run:** 24-hour synthetic offline resilience run asserting zero outbox memory leaks or thread starvation.
+- [x] **3.5d.1 Isolated Cloudflare Worker to Counter E2E Harness:** `tests/phase35d_local_e2e.py`: Miniflare Worker + real Python SQLite counter over HTTP loopback, no mocks; 6/6 PASS locally (2 consecutive runs). Found and fixed BUG-0009; found BUG-0010 (open).
+- [x] **3.5d.2 ESC/POS Byte Stream Verifier:** `tests/phase35d_escpos_test.mjs`: decodes the real 58/80 mm receipt, KOT and estimate bytes (text and raster), cutter, drawer, duplicate-copy, double-press and failure paths; 16/16 PASS. Found and fixed BUG-0011. **Software only — not physical printer validation (Gate B stays BLOCKED).**
+- [ ] **3.5d.3 Cloud Downtime Stress Run (24 h):** harness `tests/phase35d_outage_stress.py` ready and reproducible; CI runs a 2-minute smoke. **24 h NOT completed** in this environment (see AI_HANDOVER §4 for the actual completed duration). Stays open until a full 24 h run passes.
 
 ---
 

@@ -1,6 +1,6 @@
 # HoReCa One — Permanent AI Handover Specification
 
-**Document Version:** 3.5c-handover-v2 (governance accuracy update)  
+**Document Version:** 3.5d-handover-v1  
 **Last Documentation Audit:** 2026-11-09  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Single Source of Truth:** GitHub commit history and verified CI runs, NOT conversational summaries.
@@ -16,7 +16,8 @@
 - **Last fully observed pre-audit branch SHA:** `6b2720d664fe745cc8625a52339ccf9287aedf80` (2026-11-09 audit snapshot; **not** an automatically updated HEAD). Documentation correction commits after this snapshot are recorded in the Git history.
 - **Current HEAD is dynamic:** always fetch origin and inspect the branch and Draft PR #9's head SHA immediately before new work. Never assume the literal snapshot SHA above is still current.
 - **Local working tree/stashes:** GitHub cannot establish an engineer's local working-tree cleanliness or uncommitted files. Each active writer must verify locally with `git status --short`, `git stash list`, and `git worktree list` before editing.
-- **Milestone summary:** 38 previously marked completed, 3 planned for Phase 3.5d; 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Milestone summary:** 40 completed, 1 open (3.5d.3: full 24 h outage run); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Phase 3.5d start point:** `0bca9c738bec1bccd042b1c474ad8f9a8343daf8`, CI green on that SHA (runs `42583532643` and `42583538039`, 4/4 jobs each).
 
 ---
 
@@ -78,6 +79,12 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
   - Mandatory empty target directory assertion (refuses to overwrite live database).
   - Headless Chromium desktop/mobile QR review and 58mm/80mm receipt layout assertions in CI.
 
+- **Phase 3.5d (Loopback E2E, ESC/POS bytes, outage harness):**
+  - Real HTTP loopback E2E between `wrangler dev --local` and the real SQLite counter (`tests/phase35d_local_e2e.py`).
+  - ESC/POS byte-stream decoder over the shipped print builders (`tests/phase35d_escpos_test.mjs`).
+  - Reproducible outage stress harness (`tests/phase35d_outage_stress.py`).
+  - Fixed BUG-0009 (rejected op starved the outbox) and BUG-0011 (58 mm overflow). **BUG-0010 open** (saves with non-ingested modules, including the first bill after migration, are held on the counter and never reach the cloud): needs a product decision, see `docs/BUG_REGISTRY.md`.
+
 ---
 
 ## 4. Empirical Test Verification Proof
@@ -97,6 +104,13 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
 - `tests/cloud_sync_ingestion_test.mjs` (via `cf_loader`): 19/19 PASS
 - `tests/cloud_reports_test.mjs` (via `cf_loader`): 15/15 PASS
 - `tests/phase35b_native_qr_ui_test.mjs`: 7/7 PASS
+
+### Phase 3.5d local execution (Linux cloud container, 2026-11-09)
+- `tests/phase35d_local_e2e.py` (real Miniflare Worker): 6/6 PASS (two consecutive runs; test_05 FAILS with the BUG-0009 fix reverted)
+- `tests/phase35d_escpos_test.mjs`: 16/16 PASS (software bytes only)
+- `tests/phase35d_outage_stress.py`: 1-minute smoke PASS; longer run: see `OUTAGE_RESULT` below
+- Regression re-run after the changes: phase34a 9/9, phase35 6/6, phase35c 5/5, test_horeca_one_ui 11/11, inbound 15/15, outbox 9/9, sqlite_phase2b 17/17, dispatcher 17/17, sqlite_phase2 14/14, phase35b 7/7, guard-records 11/11, accounting 29/29, cloud inbound 13/13, ingestion 19/19, reports 15/15, phase35c Chromium 2/2.
+- OUTAGE_RESULT: pending (run in progress at commit time)
 
 ### Verified GitHub Actions CI
 - **Pre-reconciliation exact-commit CI:** [PR run 42202360784](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202360784) and [push run 42202351285](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202351285) both succeeded, each with 4/4 jobs, for SHA `6b2720d664fe745cc8625a52339ccf9287aedf80`. This evidence does not automatically certify any later documentation commits.
@@ -128,9 +142,10 @@ Important cloud/offline and QR workflows have automated coverage, but this is **
 
 ## 6. Next Immediate Development Steps
 
-1. **Phase 3.5d Implementation:**
-   - Build automated isolated Miniflare Worker to Counter HTTP loopback test script (`tests/phase35d_local_e2e.py`).
-   - Implement ESC/POS raw byte-stream emulator to verify thermal print sequences programmatically.
+1. **Decide BUG-0010** (recommended: the counter splits each save into a cloud-ingestible financial op plus local-only keys), then add `menu` to Phase 3 sync (TD-0008).
+2. **Run the full 24 h outage test** on a machine that stays up: `python tests/phase35d_outage_stress.py --hours 24 --json outage-24h.json` (TD-0012, milestone 3.5d.3).
+3. **Rotate and remove the hard-coded `RESEND_API_KEY` default** (TD-0011, owner action first).
+4. **Physical Gate B printer runbook** using the byte-level expectations in `tests/phase35d_escpos_test.mjs`.
 2. **Maintain Documentation Discipline:**
    - Update `docs/MASTER_CHECKLIST.md`, `docs/CHANGE_LEDGER.md`, and `docs/BUG_REGISTRY.md` with any subsequent change.
 3. **PR Merge Preparation:**
