@@ -1,7 +1,7 @@
 # HoReCa One — Permanent AI Handover Specification
 
-**Document Version:** 3.5c-handover-v1  
-**Last Verified Checkpoint:** 2026-11-06  
+**Document Version:** 3.5c-handover-v2 (governance accuracy update)  
+**Last Documentation Audit:** 2026-11-09  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Single Source of Truth:** GitHub commit history and verified CI runs, NOT conversational summaries.
 
@@ -13,8 +13,10 @@
 - **Base Integration Branch:** `feature/horeca-one-phase3-cloud-sync` (Commit `c560c9925d0542717121616edd2e849fbc4ffdfe`)
 - **Protected Release Branch:** `main` (Strictly frozen; zero Phase 3 code merged to `main`)
 - **Active Draft Pull Request:** [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9) (`feature/horeca-one-phase34a-safety` $\to$ `feature/horeca-one-phase3-cloud-sync`)
-- **Verified Head Commit:** `a6db86e9270e599d1469e7714243eb201986429f`
-- **Working Tree Status:** Clean; zero uncommitted modifications, zero git stashes.
+- **Last fully observed pre-audit branch SHA:** `6b2720d664fe745cc8625a52339ccf9287aedf80` (2026-11-09 audit snapshot; **not** an automatically updated HEAD). Documentation correction commits after this snapshot are recorded in the Git history.
+- **Current HEAD is dynamic:** always fetch origin and inspect the branch and Draft PR #9's head SHA immediately before new work. Never assume the literal snapshot SHA above is still current.
+- **Local working tree/stashes:** GitHub cannot establish an engineer's local working-tree cleanliness or uncommitted files. Each active writer must verify locally with `git status --short`, `git stash list`, and `git worktree list` before editing.
+- **Milestone summary:** 38 previously marked completed, 3 planned for Phase 3.5d; 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
 
 ---
 
@@ -97,7 +99,9 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
 - `tests/phase35b_native_qr_ui_test.mjs`: 7/7 PASS
 
 ### Verified GitHub Actions CI
-- **Run `42064908710` (All 4 parallel jobs green):**
+- **Pre-reconciliation exact-commit CI:** [PR run 42202360784](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202360784) and [push run 42202351285](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202351285) both succeeded, each with 4/4 jobs, for SHA `6b2720d664fe745cc8625a52339ccf9287aedf80`. This evidence does not automatically certify any later documentation commits.
+- **Earlier regression CI:** Run `42064908710` was successful on an earlier SHA and reports 171/171 tests. Treat this as historical test evidence, not proof that those exact 171 tests were run at every later SHA.
+- **Earlier run `42064908710` jobs (all 4 green):**
   1. `safety`: 171/171 Linux/Node/Python unit & integration tests PASS.
   2. `chromium-browser-qa`: Headless Chromium desktop & mobile QR clicks and print-template layout PASS.
   3. `windows-counter-smoke`: Windows PyInstaller EXE build, SQLite HTTP boot, and `/api/ping` PASS.
@@ -107,7 +111,7 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
 
 ## 5. Active Release Blockers (Physical Hardware Gates)
 
-The software is functionally complete in simulation but **NOT YET RELEASE-READY** for production customer deployment due to physical hardware requirements:
+Important cloud/offline and QR workflows have automated coverage, but this is **NOT A CLAIM OF FULL FUNCTIONAL COMPLETENESS OR PRODUCTION READINESS**. Physical and production-environment verification remains outstanding:
 
 1. **Gate B — Physical Thermal Printer Hardware QA:**
    - Real 58mm & 80mm ESC/POS USB and LAN printers must be tested.
