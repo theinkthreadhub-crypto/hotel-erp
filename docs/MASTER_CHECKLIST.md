@@ -1,10 +1,20 @@
 # HoReCa One — Master Development Checklist
 
-**Last Updated:** 2026-11-06  
+**Last Updated:** 2026-11-09  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Active Development Branch:** `feature/horeca-one-phase34a-safety`  
 **Active PR:** [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9) targeting `feature/horeca-one-phase3-cloud-sync`  
-**Verified Base Commit:** `a6db86e9270e599d1469e7714243eb201986429f`  
+**Audit reference branch HEAD (2026-11-09 pre-reconciliation snapshot):** `6b2720d664fe745cc8625a52339ccf9287aedf80` — this is a historical snapshot, not a live branch pointer. Always check GitHub for the current HEAD.  
+
+---
+
+## 0. Milestone & Release Gate Summary (counts reconciled 2026-11-09)
+
+- **Development milestones:** **41 total** = **38 completed / verified by previously referenced commits and tests** + **3 planned Phase 3.5d**. These are milestone checkboxes, NOT release gates.
+- **Release gates:** **5 total** = **1 automated CI gate passed (A)** + **4 release gates blocked (B–E)**.
+- **Completion is scoped to the stated automated evidence.** Passing automated tests does not clear physical printer, legacy Windows migration, live phone, or production tenant-isolation signoff.
+- **Exact pre-reconciliation commit CI evidence:** GitHub Actions [PR run 42202360784](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202360784) and [push run 42202351285](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202351285) both completed successfully with all four jobs for commit `6b2720d664fe745cc8625a52339ccf9287aedf80`. These runs do NOT validate subsequent documentation commits. Recheck the latest SHA's status when resuming development.
+- **No production approval:** Draft PR #9 remains unmerged; B–E gates remain blocked.
 
 ---
 
@@ -77,11 +87,11 @@
 
 ---
 
-## 3. Release Blocking Verification Gates
+## 3. Release Verification Gates (tracked separately from development milestones)
 
 | Gate | Scope | Status | Blocker Reason / Prerequisites |
 |---|---|---|---|
-| **Gate A** | Automated CI (Unit, Integration, Syntax, Windows EXE Smoke) | **PASSED** | CI Run `42064908710` passed all 4 parallel jobs (171 tests). |
+| **Gate A** | Automated CI (Unit, Integration, Syntax, Windows EXE Smoke) | **PASSED** | CI runs `42202360784` (PR) and `42202351285` (push) passed all 4 jobs each at audited commit `6b2720d`. Earlier run `42064908710` reported 171 tests at an earlier commit; its success must not be attributed to newer commits. |
 | **Gate B** | Physical Thermal Printer Hardware QA | **BLOCKED** | Requires physical 58mm and 80mm ESC/POS USB/LAN hardware to verify paper cut, Hindi/Unicode glyphs, and double-press resilience. |
 | **Gate C** | Low-RAM Windows Client & Real Backup Upgrade | **BLOCKED** | Requires physical 4GB RAM Windows machine to verify memory ceiling (<250MB) and migration of 100k+ historical bill database. |
 | **Gate D** | Physical Guest Phone Live QR Order Flow | **BLOCKED** | Requires actual smartphone scanning generated QR table tag connected to live Cloudflare Worker routing to counter. |
