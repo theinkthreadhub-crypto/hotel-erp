@@ -108,6 +108,10 @@ class WorkerCounterLoopback(unittest.TestCase):
     def setUp(self):
         # One counter per cloud hotel (as in a real install): the cloud keeps a monotonic version checkpoint
         self.code, self.key = self.new_hotel('A')
+        # Owner session for the read-only cloud reports, opened while the new hotel still accepts the set password
+        s, j = http(self.base, 'POST', '/api/login', {'pin': 'Loop@Test2026x'}, {'X-Setu-Hotel': self.code})
+        self.assertEqual(s, 200, j)
+        self._tok = j['token']
         d = sample_doc(3)
         d['settings']['hotelId'] = d['auth']['hotelId'] = self.code
         self.tag = os.urandom(4).hex()   # bill ids unique across tests (one cloud hotel is shared)
@@ -137,6 +141,31 @@ class WorkerCounterLoopback(unittest.TestCase):
                 break
         return last
 
+    def queue_legacy_op(self, op_id, extra_values, base=None):
+        """Queues an op as a counter WITHOUT the BUG-0010 policy built it: extra non-ingested values in the payload."""
+        env = json.loads(json.dumps(base)) if base else S.make_sync_envelope(op_id, self.code, 'counter_local', self.store.version + 1000,
+                                                                            int(time.time() * 1000), writes_whole={'seq': {'bill': 1}})
+        env['payload']['values'].update(extra_values)
+        canon = json.dumps(env['payload'], sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+        env['integrity']['checksum'] = 'sha256:' + __import__('hashlib').sha256(canon.encode()).hexdigest()
+        env['integrity']['keys'] = sorted(set(env['integrity']['keys']) | set(extra_values))
+        env.pop('sync_policy', None)
+        with self.store.sdb.tx() as c:
+            return S.SqliteDoc.append_outbox(c, 'ops', env['op_id'], env['doc_version'], env)
+
+    def owner_sales(self):
+        """Owner-side cloud sales report (read-only), the figure the reconciliation compares with the counter."""
+        s, j = http(self.base, 'GET', '/api/reports/sales', None, {'X-Setu-Hotel': self.code, 'X-Setu-Token': self._tok})
+        self.assertEqual(s, 200, j)
+        return j['summary']
+
+    def assert_reconciled(self):
+        local = S.local_synced_bill_totals(self.store.sdb)
+        cloud = self.owner_sales()
+        for k in ('bill_count', 'gross_sales_p', 'cancelled_bill_count', 'cancelled_amount_p'):
+            self.assertEqual(cloud[k], local[k], f'{k}: cloud {cloud[k]} vs counter {local[k]}')
+        return local
+
     def settle(self, i, total=105):
         code, r = self.store.settle_bill({'idemKey': f'idem-{self.tag}-{i}', 'bill': bill(f'{self.tag}-{i}', total)})
         self.assertEqual(code, 200, r)
@@ -154,9 +183,9 @@ class WorkerCounterLoopback(unittest.TestCase):
         st = self.state()
         acked = self.store.sdb.con().execute("SELECT COUNT(*) FROM sync_outbox WHERE sent_at > 0").fetchone()[0]
         held = self.store.sdb.con().execute("SELECT COUNT(*) FROM sync_outbox WHERE sent_at < 0").fetchone()[0]
-        self.assertGreaterEqual(acked, 4)
-        self.assertEqual(st['bills_count'] - before, acked, 'cloud stored exactly the acknowledged bills')
-        self.assertEqual(acked + held, 5)
+        self.assertEqual(held, 0, 'BUG-0010: the first bill after migration is no longer held')
+        self.assertEqual(acked, 5)
+        self.assertEqual(st['bills_count'] - before, 5, 'cloud stored exactly the acknowledged bills')
 
     def test_02_resend_of_committed_op_is_idempotent(self):
         self.settle(0)
@@ -187,8 +216,8 @@ class WorkerCounterLoopback(unittest.TestCase):
         before = self.state()['bills_count']
         self.drain()
         self.assertEqual(self.pending(), 0)
-        acked = self.store.sdb.con().execute("SELECT COUNT(*) FROM sync_outbox WHERE sent_at > 0").fetchone()[0]
-        self.assertEqual(self.state()['bills_count'] - before, acked)
+        self.assertEqual(self.state()['bills_count'] - before, 4, 'every bill made offline reached the cloud once')
+        self.assert_reconciled()
 
     def test_04_wrong_key_and_other_hotel_refused(self):
         self.settle(0)
@@ -205,8 +234,9 @@ class WorkerCounterLoopback(unittest.TestCase):
         self.assertEqual(self.pending(), n, 'refused requests change nothing on the counter')
 
     def test_05_rejected_module_never_blocks_later_bills(self):
-        # A save of a module the cloud does not ingest (menu) is rejected permanently. It must not sit at the head
-        # of the queue forever and starve every later bill (batch_size 2 makes the starvation visible quickly).
+        # BUG-0009: an op the Worker rejects permanently must not sit at the head of the queue and starve every later
+        # bill (batch_size 2 makes the starvation visible quickly). Since BUG-0010 the counter no longer builds such
+        # ops, so three are queued the way a pre-3.5d-hardening counter (or a future unclassified module) would.
         self.settle(0)
         self.drain()
         self.disp.batch_size = 2
@@ -216,6 +246,9 @@ class WorkerCounterLoopback(unittest.TestCase):
                 menu[0] = dict(menu[0], price=120 + i)
                 code, r = self.store.apply_ops({'bv': self.store.version, 'ops': [{'k': 'menu', 'up': [menu[0]]}]}, 'local')
             self.assertEqual(code, 200, r)
+        self.assertEqual(self.pending(), 0, 'BUG-0010: a menu-only save queues nothing for the cloud')
+        for i in range(3):
+            self.queue_legacy_op(f'legacy-menu-{self.tag}-{i}', {'menu': [{'id': 'm1', 'price': 130 + i}]})
         r = self.settle(1)
         before = self.state()['bills_count']
         self.drain(rounds=6)
@@ -223,6 +256,121 @@ class WorkerCounterLoopback(unittest.TestCase):
         self.assertEqual(self.state()['bills_count'] - before, 1, 'the bill after the rejected saves reached the cloud')
         held = self.store.sdb.con().execute("SELECT COUNT(*) FROM sync_conflicts WHERE reason = 'UNSUPPORTED_BUSINESS_MODULE'").fetchone()[0]
         self.assertGreaterEqual(held, 3, 'each rejected save is kept for Manager review with its payload')
+
+    # ---------------------------------------------------------------- BUG-0010: module policy, recovery, retries
+    def test_07_first_bill_mixed_save_and_unknown_module(self):
+        self.settle(0)                                                         # first save after migration (staff flags)
+        env = json.loads(self.store.sdb.con().execute('SELECT payload FROM sync_outbox ORDER BY seq LIMIT 1').fetchone()[0])
+        self.assertIn('bills', env['payload']['records'])
+        self.assertNotIn('staff', env['payload']['values'])
+        self.assertIn('staff', env['sync_policy']['local_only'])
+        with self.store.lock:
+            d = self.store.data()
+            menu0 = dict(d['menu'][0], price=333)
+            v = {'id': f'v-{self.tag}', 'type': 'Expense', 'date': '2026-11-09', 'head': 'Gas', 'amount': 250, 'mode': 'Cash'}
+            code, r = self.store.apply_ops({'bv': self.store.version, 'ops': [
+                {'k': 'menu', 'up': [menu0]}, {'k': 'custList', 'up': [{'id': 'c-' + self.tag, 'phone': '9000000001', 'name': 'Guest'}]},
+                {'k': 'txns', 'up': [v]}, {'k': 'zzFutureModule', 'up': [{'id': 'z1', 'x': 1}]}]}, 'local')
+        self.assertEqual(code, 200, r)
+        rows = self.store.sdb.con().execute('SELECT payload FROM sync_outbox ORDER BY seq').fetchall()
+        self.assertEqual(len(rows), 2, 'one save = one op, never split')
+        mixed = json.loads(rows[1][0])
+        self.assertEqual(mixed['integrity']['keys'], ['txns'])
+        self.assertEqual(mixed['sync_policy']['local_only'], ['custList', 'menu'])
+        self.assertEqual(mixed['unclassified'], [{'k': 'zzFutureModule', 'section': 'records'}])
+        with self.store.lock:
+            self.assertEqual(self.store.data()['menu'][0]['price'], 333, 'local-only data saved in the same local transaction')
+            self.assertTrue(any(x.get('id') == 'z1' for x in self.store.data().get('zzFutureModule') or []), 'unknown module kept locally')
+        diag = self.store.sdb.con().execute("SELECT section, count, reason FROM sync_unclassified WHERE k = 'zzFutureModule'").fetchone()
+        self.assertEqual(diag[:2], ('records', 1))
+        self.assertIn('LOCAL_ONLY_MODULES', diag[2])
+        before = self.state()
+        self.drain()
+        after = self.state()
+        self.assertEqual(self.pending(), 0)
+        self.assertEqual(self.store.sdb.con().execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at < 0').fetchone()[0], 0, 'nothing held')
+        self.assertEqual(after['bills_count'] - before['bills_count'], 1)
+        self.assertEqual(after['vouchers_count'] - before['vouchers_count'], 1, 'the voucher in the mixed save reached the cloud')
+        self.assert_reconciled()
+
+    def test_08_held_financial_op_replayed_and_reconciled(self):
+        # The 1.667 h outage run held the first bill after migration (values.staff). Recreate that state, recover it.
+        self.settle(0)
+        first = json.loads(self.store.sdb.con().execute('SELECT payload FROM sync_outbox ORDER BY seq LIMIT 1').fetchone()[0])
+        with self.store.sdb.tx() as c:
+            c.execute('DELETE FROM sync_outbox')   # synthetic counter: swap the op for what the pre-fix counter queued
+        self.queue_legacy_op(first['op_id'], {'staff': [{'id': 's1', 'name': 'Ravi', 'role': 'Chef', 'hasPin': False}]}, base=first)
+        for i in range(1, 5):
+            self.settle(i)
+        self.drain()
+        held = self.store.sdb.con().execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at < 0').fetchone()[0]
+        self.assertEqual(held, 1, 'reproduced: the first bill is held as UNSUPPORTED_BUSINESS_MODULE')
+        self.assertEqual(self.owner_sales()['bill_count'], 4, 'cloud is missing one bill before recovery')
+
+        plan = S.plan_held_op_replay(self.store.sdb)
+        self.assertEqual(len(plan['replay']), 1, plan)
+        item = plan['replay'][0]
+        self.assertEqual(item['op_id'], first['op_id'], 'original transaction identity kept')
+        self.assertEqual(item['envelope']['doc_version'], first['doc_version'])
+        self.assertEqual(item['bills'], [f'lb-{self.tag}-0'])
+        self.assertNotIn('staff', item['envelope']['payload']['values'])
+        self.assertIn({'section': 'values', 'k': 'seq', 'why': 'superseded by a later op'}, item['dropped'])
+        self.assertEqual(plan['needs_review'], [])
+        queued = S.apply_held_op_replay(self.store.sdb, plan)
+        self.assertEqual(len(queued), 1)
+        self.assertEqual(S.apply_held_op_replay(self.store.sdb, S.plan_held_op_replay(self.store.sdb)), [], 'second apply queues nothing')
+        self.drain()
+        self.assertEqual(self.pending(), 0)
+        con = self.store.sdb.con()
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM sync_outbox WHERE op = 'replay' AND sent_at > 0").fetchone()[0], 1, 'exact ack')
+        self.assertEqual(con.execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at < 0').fetchone()[0], 1, 'held row kept as history')
+        self.assertEqual(con.execute("SELECT COUNT(*) FROM sync_conflicts WHERE rid = ? AND reason = 'UNSUPPORTED_BUSINESS_MODULE'",
+                                     (first['op_id'],)).fetchone()[0], 1, 'original conflict record kept')
+        local = self.assert_reconciled()
+        self.assertEqual(local['bill_count'], 5)
+        # A resend of the replayed op is a duplicate, never a second bill
+        env = json.loads(con.execute("SELECT payload FROM sync_outbox WHERE op = 'replay'").fetchone()[0])
+        s, j = http(self.base, 'POST', '/api/sync/ops', {'batch': [env]}, self.h())
+        self.assertEqual((s, j['results'][env['op_id']].get('duplicate')), (200, True), j)
+        self.assertEqual(self.owner_sales()['bill_count'], 5)
+
+    def test_09_replay_never_crosses_tenants_or_guesses(self):
+        self.settle(0)
+        first = json.loads(self.store.sdb.con().execute('SELECT payload FROM sync_outbox ORDER BY seq LIMIT 1').fetchone()[0])
+        code_b, _ = self.hotels['B']
+        with self.store.sdb.tx() as c:
+            c.execute('DELETE FROM sync_outbox')
+            for n, (reason, hotel) in enumerate([('UNSUPPORTED_BUSINESS_MODULE', code_b), ('CONFLICT_STALE_RECORD', self.code)]):
+                e = dict(first, op_id=f'{first["op_id"]}-{n}', hotel_id=hotel)
+                c.execute("INSERT INTO sync_outbox (op, ref, doc_version, payload, at, sent_at) VALUES ('ops', ?, ?, ?, 1, -1)",
+                          (e['op_id'], e['doc_version'], json.dumps(e)))
+                S.SqliteDoc.record_conflict(c, 'ops', e['op_id'], reason, other=e)
+        plan = S.plan_held_op_replay(self.store.sdb)
+        self.assertEqual(plan['replay'], [])
+        self.assertEqual(len(plan['needs_review']), 2, plan['needs_review'])
+        self.assertEqual(S.apply_held_op_replay(self.store.sdb, plan), [])
+
+    def test_10_lost_ack_and_restart_during_sync(self):
+        for i in range(3):
+            self.settle(i)
+        before = self.state()['bills_count']
+
+        def post_then_lose_reply(url, path, body, headers, timeout=15):
+            S.OutboxSyncDispatcher._default_http_post(url, path, body, headers, timeout)   # the cloud commits ...
+            raise OSError('connection reset before the reply arrived')                    # ... the ack is lost
+        lossy = S.OutboxSyncDispatcher(self.store, url=self.base, hotel=self.code, key=self.key, enabled=True, http_post_fn=post_then_lose_reply)
+        self.assertEqual(lossy.dispatch_once()['status'], 'network_error')
+        self.assertEqual(self.pending(), 3, 'unacknowledged ops stay pending')
+        self.assertEqual(self.state()['bills_count'] - before, 3)
+        # Restart: close the counter, open the same database again with a fresh dispatcher
+        self.store.sdb.close()
+        self.store = A.SqliteSetuStore(self.dir)
+        self.disp = S.OutboxSyncDispatcher(self.store, url=self.base, hotel=self.code, key=self.key, enabled=True)
+        self.assertEqual(self.pending(), 3, 'pending ops survive the restart')
+        self.drain()
+        self.assertEqual(self.pending(), 0, 'retried ops acknowledged as duplicates with the exact checksum')
+        self.assertEqual(self.state()['bills_count'] - before, 3, 'no duplicate bills')
+        self.assert_reconciled()
 
     # ---------------------------------------------------------------- inbound: Worker -> counter (QR)
     def test_06_guest_qr_order_reaches_counter_review_queue_once(self):

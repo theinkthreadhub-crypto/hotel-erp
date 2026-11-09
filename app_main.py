@@ -64,14 +64,35 @@ KEEP_BACKUPS = 60              # daily backup files kept
 print_lock = threading.Lock()  # one print job at a time keeps receipts from interleaving
 
 # ---------------- Resend Email Service for Password & PIN Recovery ----------------
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_VTatW35W_E1D5xCB7XBJ4shqzsVo7cagp')
+# The API key is configuration, never source code (SEC-001, TD-0011). It comes from the RESEND_API_KEY environment
+# variable or from a one-line file "email-service.key" in the counter's data folder (outside Git, outside the EXE).
+# Without a key only the e-mail password-recovery feature is unavailable; billing and every other feature work.
+RESEND_KEY_FILE = 'email-service.key'
+
+
+def resend_api_key(data_dir=None):
+    key = os.environ.get('RESEND_API_KEY', '').strip()
+    if key or not data_dir:
+        return key
+    try:
+        with open(os.path.join(data_dir, RESEND_KEY_FILE), encoding='utf-8') as f:
+            return f.read().strip()
+    except OSError:
+        return ''
+
+
+class EmailNotConfigured(RuntimeError):
+    pass
+
+
 RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'Aghanya Devanya Security <security@inkthreadhub.in>')
 RESEND_REPLY_TO = os.environ.get('RESEND_REPLY_TO', 'theinkthreadhub@gmail.com')
 
 
-def send_resend_email(to_email, subject, html, reply_to=None):
-    if not RESEND_API_KEY:
-        raise ValueError('Resend API Key is not configured')
+def send_resend_email(to_email, subject, html, reply_to=None, data_dir=None):
+    api_key = resend_api_key(data_dir)
+    if not api_key:
+        raise EmailNotConfigured('Email service is not configured on this counter')
 
     def _do_send(from_addr):
         url = 'https://api.resend.com/emails'
@@ -84,7 +105,7 @@ def send_resend_email(to_email, subject, html, reply_to=None):
         if reply_to or RESEND_REPLY_TO:
             payload['reply_to'] = reply_to or RESEND_REPLY_TO
         headers = {
-            'Authorization': f'Bearer {RESEND_API_KEY}',
+            'Authorization': f'Bearer {api_key}',
             'Content-Type': 'application/json',
             'User-Agent': 'AghanyaDevanya-HotelERP/2.0 (Windows NT 10.0; Win64; x64)'
         }
@@ -1779,7 +1800,7 @@ class SqliteSetuStore(SetuStore):
                 actor={'role': 'server', 'elevated': True},
                 writes_whole=changed_values
             )
-            SQ.SqliteDoc.append_outbox(c, outbox[0], outbox[1] or envelope['op_id'], version, envelope, saved_at)
+            SQ.SqliteDoc.enqueue_envelope(c, outbox[0], envelope, saved_at)
         with self._enc_lock:
             for k in touched:
                 self._ws[k] = data_obj[k]
@@ -1857,7 +1878,7 @@ class SqliteSetuStore(SetuStore):
                 actor={'role': 'manager', 'elevated': True},
                 writes_whole={k: v for k, v in doc.items() if k not in HIST_KEYS}
             )
-            SQ.SqliteDoc.append_outbox(c, 'restore', envelope['op_id'], version, envelope, saved_at)
+            SQ.SqliteDoc.enqueue_envelope(c, 'restore', envelope, saved_at)
         with self._enc_lock:
             self._ws = {k: v for k, v in doc.items() if k not in HIST_KEYS}
             self._idx = {}
@@ -2243,7 +2264,7 @@ class SqliteSetuStore(SetuStore):
                 writes_whole=writes_whole,
                 conflicts=conflicts
             )
-            SQ.SqliteDoc.append_outbox(c, 'ops', op_id_val, version, envelope, now)
+            SQ.SqliteDoc.enqueue_envelope(c, 'ops', envelope, now)
             if getattr(self, 'dispatcher', None) and getattr(self.dispatcher, '_running', False):
                 self.dispatcher.wake()
             out = {'ok': True, 'version': version, 'savedAt': now}
@@ -3655,7 +3676,11 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 hotel_name = st.get('name') or 'Aghanya Devanya Hotel ERP'
                 email_html = render_forgot_password_email(hotel_name, expected_hid, otp)
                 try:
-                    send_resend_email(target_email, f"Aghanya Devanya ERP - Password Reset OTP: {otp}", email_html)
+                    send_resend_email(target_email, f"Aghanya Devanya ERP - Password Reset OTP: {otp}", email_html, data_dir=store.dir)
+                except EmailNotConfigured:
+                    store.reset_otps.pop(target_email.lower(), None)
+                    store.log('Password recovery e-mail requested, but the e-mail service is not configured (RESEND_API_KEY).')
+                    return self.send_json(503, {'error': 'Email password recovery is not set up on this counter. Please contact support.'})
                 except Exception as e:
                     store.log(f'Resend email send error: {e}')
                     return self.send_json(500, {'error': f'Failed to send email via Resend: {e}'})

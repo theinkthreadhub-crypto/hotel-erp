@@ -1,6 +1,6 @@
 # HoReCa One — Permanent AI Handover Specification
 
-**Document Version:** 3.5d-handover-v1  
+**Document Version:** 3.5d-handover-v2  
 **Last Documentation Audit:** 2026-11-09  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Single Source of Truth:** GitHub commit history and verified CI runs, NOT conversational summaries.
@@ -16,7 +16,8 @@
 - **Last fully observed pre-audit branch SHA:** `6b2720d664fe745cc8625a52339ccf9287aedf80` (2026-11-09 audit snapshot; **not** an automatically updated HEAD). Documentation correction commits after this snapshot are recorded in the Git history.
 - **Current HEAD is dynamic:** always fetch origin and inspect the branch and Draft PR #9's head SHA immediately before new work. Never assume the literal snapshot SHA above is still current.
 - **Local working tree/stashes:** GitHub cannot establish an engineer's local working-tree cleanliness or uncommitted files. Each active writer must verify locally with `git status --short`, `git stash list`, and `git worktree list` before editing.
-- **Milestone summary:** 40 completed, 1 open (3.5d.3: full 24 h outage run); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Milestone summary:** 43 completed, 1 open (3.5d.3: full 24 h outage run); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Phase 3.5d hardening start point:** `921e720d068bf0f819ca7ff20bf896a8c39e1df3`, CI green on that SHA (push run `42619736467`, PR run `42619747819`, 4/4 jobs each).
 - **Phase 3.5d start point:** `0bca9c738bec1bccd042b1c474ad8f9a8343daf8`, CI green on that SHA (runs `42583532643` and `42583538039`, 4/4 jobs each).
 
 ---
@@ -83,7 +84,13 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
   - Real HTTP loopback E2E between `wrangler dev --local` and the real SQLite counter (`tests/phase35d_local_e2e.py`).
   - ESC/POS byte-stream decoder over the shipped print builders (`tests/phase35d_escpos_test.mjs`).
   - Reproducible outage stress harness (`tests/phase35d_outage_stress.py`).
-  - Fixed BUG-0009 (rejected op starved the outbox) and BUG-0011 (58 mm overflow). **BUG-0010 open** (saves with non-ingested modules, including the first bill after migration, are held on the counter and never reach the cloud): needs a product decision, see `docs/BUG_REGISTRY.md`.
+  - Fixed BUG-0009 (rejected op starved the outbox) and BUG-0011 (58 mm overflow).
+
+- **Phase 3.5d hardening (BUG-0010, recovery, secrets):**
+  - BUG-0010 resolved with a versioned module policy (`SYNC_MODULE_POLICY_VERSION = 1`, `setu_sqlite.py`): one save = one op, cloud payload limited to the Worker whitelist, local-only keys kept locally, unknown keys reported in `sync_unclassified`. Worker unchanged.
+  - Held-op recovery: `tools/replay_held_ops.py` (dry run by default; `--apply --i-have-a-backup`). Never run it automatically on a customer database.
+  - TD-0011: no literal e-mail key in code; `RESEND_API_KEY` env var or `email-service.key` in the data folder; CI secret scan. **The owner must revoke/rotate the old key at Resend; not verified.**
+  - New debt TD-0013: business modules the Worker does not ingest yet (`cnotes`, `cash`, `menu`, ...) stay counter-only.
 
 ---
 
@@ -111,6 +118,13 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
 - `tests/phase35d_outage_stress.py`: 1-minute smoke PASS; longer run: see `OUTAGE_RESULT` below
 - Regression re-run after the changes: phase34a 9/9, phase35 6/6, phase35c 5/5, test_horeca_one_ui 11/11, inbound 15/15, outbox 9/9, sqlite_phase2b 17/17, dispatcher 17/17, sqlite_phase2 14/14, phase35b 7/7, guard-records 11/11, accounting 29/29, cloud inbound 13/13, ingestion 19/19, reports 15/15, phase35c Chromium 2/2.
 - OUTAGE_RESULT (2026-11-09, this container, commit `04f3070`): **PASS, 1.667 h completed (6,001.9 s of a requested 100 min) — NOT 24 h.** `--minutes 100 --sample 300 --bill-every 2` against a dead cloud, then recovery to a local `wrangler dev` hotel. 2,997 bills settled, 0 lost, 0 settle errors; 2,997 pending in the outbox, 0 marked sent while offline; 265 cloud POST and 203 GET attempts (backoff, no busy loop); threads stable (max 3); settle latency median 2.04 ms, p99 5.07 ms, max 342.44 ms; RSS 29.7 → 39.1 MB (second-half slope 4.85 MB/h — not yet separated from SQLite page-cache fill as the DB grows; a 24 h run must show whether it flattens). Recovery: outbox drained in 10.0 s — 2,996 acked, 1 held for Manager review (the post-migration envelope carrying a non-whitelisted module, i.e. BUG-0010).
+
+### Phase 3.5d hardening local execution (Linux cloud container, 2026-11-09)
+- `tests/phase35d_bug0010_test.py`: 10/10 PASS
+- `tests/secret_scan_test.py`: 2/2 PASS (no credential in tracked files after the fix)
+- `tests/phase35d_local_e2e.py` (real Miniflare Worker): 10/10 PASS, two consecutive runs
+- Regression re-run: phase34a 9/9, phase35 6/6, phase35c 5/5, test_horeca_one_ui 11/11, inbound 15/15, outbox 9/9, sqlite_phase2b 17/17, dispatcher 17/17, sqlite_phase2 14/14, phase35b 7/7, guard-records 11/11, accounting 29/29, cloud inbound 13/13, ingestion 19/19, reports 15/15, ESC/POS 16/16; `node --check cloud/src/worker.js` OK.
+- MEMORY_CHECK: pending (accelerated outage run in progress at commit time)
 
 ### Verified GitHub Actions CI
 - **Pre-reconciliation exact-commit CI:** [PR run 42202360784](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202360784) and [push run 42202351285](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202351285) both succeeded, each with 4/4 jobs, for SHA `6b2720d664fe745cc8625a52339ccf9287aedf80`. This evidence does not automatically certify any later documentation commits.
@@ -142,9 +156,9 @@ Important cloud/offline and QR workflows have automated coverage, but this is **
 
 ## 6. Next Immediate Development Steps
 
-1. **Decide BUG-0010** (recommended: the counter splits each save into a cloud-ingestible financial op plus local-only keys), then add `menu` to Phase 3 sync (TD-0008).
-2. **Run the full 24 h outage test** on a machine that stays up: `python tests/phase35d_outage_stress.py --hours 24 --json outage-24h.json` (TD-0012, milestone 3.5d.3).
-3. **Rotate and remove the hard-coded `RESEND_API_KEY` default** (TD-0011, owner action first).
+1. **Owner: revoke/rotate the old Resend key** and install the new one via `RESEND_API_KEY` or `email-service.key` (TD-0011).
+2. **Run the full 24 h outage test** on stable hardware per `docs/RUNBOOK_24H_OUTAGE.md` (TD-0012, milestone 3.5d.3).
+3. **Ingest `cnotes` (credit notes) and `menu` in the Worker** and move them to `CLOUD_SYNC_MODULES` (TD-0013, TD-0008).
 4. **Physical Gate B printer runbook** using the byte-level expectations in `tests/phase35d_escpos_test.mjs`.
 2. **Maintain Documentation Discipline:**
    - Update `docs/MASTER_CHECKLIST.md`, `docs/CHANGE_LEDGER.md`, and `docs/BUG_REGISTRY.md` with any subsequent change.

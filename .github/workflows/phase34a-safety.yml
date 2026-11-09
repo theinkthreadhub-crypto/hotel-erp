@@ -22,7 +22,7 @@ jobs:
         run: python -m pip install 'cryptography>=42,<48'
       - name: Syntax check
         run: |
-          python -m py_compile setu_sqlite.py horeca_license_verify.py tests/phase34a_safety_test.py
+          python -m py_compile setu_sqlite.py app_main.py horeca_license_verify.py tests/phase34a_safety_test.py tools/replay_held_ops.py
           node --check cloud/src/worker.js
       - name: Phase 3.4a security tests
         run: python tests/phase34a_safety_test.py
@@ -53,6 +53,10 @@ jobs:
         run: |
           node --loader ./tests/cf_loader.mjs tests/cloud_sync_ingestion_test.mjs
           node --loader ./tests/cf_loader.mjs tests/cloud_reports_test.mjs
+      - name: Phase 3.5d hardening (BUG-0010 module policy, held-op recovery, e-mail key config) and secret scan
+        run: |
+          python tests/phase35d_bug0010_test.py
+          python tests/secret_scan_test.py
       - name: Phase 3.5d ESC/POS byte-stream validation (software only, no printer)
         run: node tests/phase35d_escpos_test.mjs
       - name: Phase 3.5d short cloud-outage stress (2 minutes; the 24 h run is manual)

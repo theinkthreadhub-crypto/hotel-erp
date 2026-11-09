@@ -228,3 +228,51 @@
   - Outage stress harness with configurable duration; CI runs a 2-minute smoke, the 24 h run is manual.
 - **Risks & Side Effects:** CI time +~3 minutes. No production URL, key or data is used.
 
+---
+
+### CHG-0017: Versioned Cloud Sync Module Policy (BUG-0010)
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d hardening commit (`git log -- setu_sqlite.py`; not self-embedded, per CHG-0013)
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Bug Fix / Sync Reliability / Security
+- **Scope / Files:** `setu_sqlite.py` (`SYNC_MODULE_POLICY_VERSION`, `CLOUD_SYNC_MODULES`, `LOCAL_ONLY_MODULES`, `classify_sync_key`, `_scrub_secrets`, `make_sync_envelope`, `SqliteDoc.enqueue_envelope`, table `sync_unclassified`), `app_main.py` (3 call sites: `write`, `replace_all`, `apply_ops`)
+- **Previous Behavior:** Every key a save wrote went into its cloud op; any non-ingested key (staff, menu, custList, ...) made the Worker reject the whole op, including the bill in it.
+- **New Behavior:** One save = one op with the same op_id / doc_version; its payload holds only cloud-ingestible modules. Local-only keys stay in the local transaction (listed in `sync_policy.local_only`). Unknown keys are saved locally, kept out of the envelope and recorded in `sync_unclassified`. A save with only local keys queues nothing. `settings` / `auth` scrubbed recursively. Worker unchanged (strict whitelist kept).
+- **Why Required:** BUG-0010; the 1.667 h outage run left one financial op (the first bill after migration) held.
+- **Risks & Side Effects:** Additive table (`CREATE TABLE IF NOT EXISTS`, no schema-version bump; older databases gain it on open). Non-ingested business modules stay counter-only (TD-0013). Existing pending outbox rows are sent unchanged. A whole-database restore writes record modules (stock, txns, ...) as whole values, which the Worker ingests only as records: those keys are now reported in `sync_unclassified` and left out (before, the whole restore op was rejected).
+- **Verification / Tests:** `tests/phase35d_bug0010_test.py` 10/10; `tests/phase35d_local_e2e.py` 10/10 (real Worker).
+
+---
+
+### CHG-0018: Held Sync Op Review and Replay Tool (BUG-0010 recovery)
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d hardening commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Data Recovery Tooling
+- **Scope / Files:** `setu_sqlite.py` (`plan_held_op_replay`, `apply_held_op_replay`, `local_synced_bill_totals`), `tools/replay_held_ops.py`
+- **New Behavior:** Dry run by default; `--apply` requires `--i-have-a-backup`. Only ops held as `UNSUPPORTED_BUSINESS_MODULE` for this counter's own hotel are replayed: same op_id, hotel_id and doc_version, cloud-ingestible part only; records / values already carried by a later non-held op are left out (newer state; the older one would be refused as stale). Everything else (payload mismatch, stale record, other hotel, legacy format) is listed under `needs_review` and never replayed. Held rows and their conflict records are kept as history; the conflict is marked resolved with a `REPLAYED_CLOUD_PART (BUG-0010)` audit row. Idempotent. Never runs automatically.
+- **Verification / Tests:** `tests/phase35d_bug0010_test.py` (dry run unchanged, identity, idempotency, superseded record); `tests/phase35d_local_e2e.py` test_08 (held bill reaches the real Worker, counter and owner cloud sales report match, resend is a duplicate) and test_09 (tenant mismatch and stale ops go to review).
+
+---
+
+### CHG-0019: E-mail Service Key Moved to Configuration; Secret Scan in CI (TD-0011)
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d hardening commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Security
+- **Scope / Files:** `app_main.py` (`resend_api_key`, `EmailNotConfigured`, `send_resend_email`, `/api/auth/forgot-password/send`), `.gitignore`, `tests/secret_scan_test.py`
+- **Previous Behavior:** A literal Resend API key was the default when `RESEND_API_KEY` was unset.
+- **New Behavior:** Key from the environment variable or `email-service.key` in the data folder only. Missing key: the password-recovery e-mail endpoint answers 503 ("Email password recovery is not set up on this counter. Please contact support.") and discards the unsent OTP; nothing else is affected. The secret scan fails CI on provider key formats, private-key material and non-empty secret defaults, and never prints the matched value.
+- **Risks & Side Effects:** Counters without a configured key lose e-mail password recovery until the owner installs the rotated key. **Key rotation is an owner action and is NOT verified.**
+- **Verification / Tests:** `tests/phase35d_bug0010_test.py` (EmailKeyConfiguration, 2 tests incl. a real HTTP request); `tests/secret_scan_test.py` 2/2.
+
+---
+
+### CHG-0020: Phase 3.5d Hardening Tests, CI Steps, Outage Sampling and 24 h Runbook
+- **Date:** 2026-11-09
+- **Commit SHA:** Phase 3.5d hardening commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Testing / CI / Documentation
+- **Scope / Files:** `tests/phase35d_local_e2e.py` (test_01/03/05 updated for BUG-0010; test_07–test_10 new), `tests/phase35d_outage_stress.py` (samples database size and Python object count), `.github/workflows/phase34a-safety.yml` (new safety step; `py_compile` covers `app_main.py`, `tools/replay_held_ops.py`), `docs/RUNBOOK_24H_OUTAGE.md`
+- **Verification / Tests:** see `docs/AI_HANDOVER.md` §4.
+

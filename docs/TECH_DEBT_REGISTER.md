@@ -19,8 +19,9 @@
 | **TD-0008** | Phase 3 Counter QR Menu Depends on Legacy Whole-Document `/api/db` Upload | Active | High / Architectural Drift | 6 hours | **CONFIRMED** |
 | **TD-0009** | Double-Width KOT Item Lines Not Wrapped (Text Mode) | Active | Low / Print Layout | 1 hour | **CONFIRMED** |
 | **TD-0010** | Raster (Graphic) Receipts Validated Structurally Only | Active | Medium / Test Coverage | Physical Gate B | **CONFIRMED** |
-| **TD-0011** | Hard-Coded Default `RESEND_API_KEY` in `app_main.py` | Active | **High / Security (SEC-001)** | 1 hour + key rotation | **CONFIRMED** |
+| **TD-0011** | Hard-Coded Default `RESEND_API_KEY` in `app_main.py` | Code fixed; **key rotation PENDING (owner)** | **High / Security (SEC-001)** | Owner: revoke key at provider | **CONFIRMED** |
 | **TD-0012** | Full 24-Hour Outage Run Not Yet Executed | Active | Medium / Release Evidence | 24 h machine time | **CONFIRMED** |
+| **TD-0013** | Business Modules the Worker Does Not Ingest Stay Counter-Only (`menu`, `cnotes`, `cash`, `custList`, ...) | Active | Medium / Cloud Report Completeness | Worker + policy change per module | **CONFIRMED** |
 
 ---
 
@@ -127,10 +128,16 @@
 - **Description:** Node has no canvas; the test checks the `GS v 0` band headers (384 / 576 dots, ≤200 rows), payload lengths, cut and drawer order, and that no text bytes are sent. Glyph rendering of Hindi and ₹ can only be checked on paper (Gate B runbook).
 
 ### TD-0011: Hard-Coded Default `RESEND_API_KEY` in `app_main.py`
-- **Description:** `app_main.py` line 67 falls back to a literal `re_...` API key when the environment variable is unset. It is in Git history and in every built EXE. Violates SEC-001.
-- **Remediation:** Owner rotates the key in the Resend dashboard; remove the literal default (empty fallback, email features off until configured). Not changed in 3.5d because removal changes behaviour of a shipped feature and needs the owner's decision and key rotation first.
+- **Description:** `app_main.py` fell back to a literal Resend API key when the environment variable was unset. It is in Git history and in every EXE built before the fix. Violates SEC-001.
+- **Code remediation (Phase 3.5d hardening, CHG-0019):** the literal is removed. The key comes from the `RESEND_API_KEY` environment variable or a one-line `email-service.key` file in the counter's data folder (git-ignored, never in the EXE). Without a key only e-mail password recovery answers 503 with a professional message; billing and every other feature work (`tests/phase35d_bug0010_test.py`). `tests/secret_scan_test.py` (CI) fails on any provider key format or non-empty secret default in tracked files.
+- **Still open — owner action:** the old key must be **revoked/rotated in the Resend dashboard** and the new key installed through the environment variable or `email-service.key`. Rotation is NOT verified by this repository; do not mark it done without the owner's confirmation. Removing the literal from Git history would need a history rewrite, which is forbidden on this branch; revocation makes the leaked value useless instead.
 
 ### TD-0012: Full 24-Hour Outage Run Not Yet Executed
 - **Description:** `tests/phase35d_outage_stress.py --hours 24` is ready and reproducible; this environment's background-job limit (2 h) allowed only a shorter run (see AI_HANDOVER §4 for the completed duration and results). A 24 h run needs a machine that stays up (e.g. the Gate C Windows PC).
 - **Completed so far:** 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s, 1 op held = BUG-0010). Open question for the 24 h run: RSS rose 29.7 → 39.1 MB (4.85 MB/h in the second half); confirm it plateaus (SQLite cache, 64 MB cap) and is not a leak.
+
+### TD-0013: Business Modules the Worker Does Not Ingest Stay Counter-Only
+- **Classification:** **CONFIRMED** (BUG-0010 module policy, `LOCAL_ONLY_MODULES` reason `not_ingested`).
+- **Description:** Since BUG-0010 these keys are saved locally and backed up, but never sent through Phase 3 sync: `menu`, `cnotes` (credit notes, financial), `cash` (cash-counter openings), `custList`, `att`, `salaryDays`, `salarySheets`, `reservations`, `assets`, `gasLog`, `onlineOrders`, `qrOrders`, `qrDone`, `qrLog`, `audit`, `expTpl`, `supAlias`, `stockAlias`, `supInfo`, `outlets`. Cloud owner reports therefore do not include credit notes or cash-counter openings.
+- **Remediation:** per module, add Worker ingestion (relational table + report), move the key from `LOCAL_ONLY_MODULES` to `CLOUD_SYNC_MODULES` in the same change, extend the drift test and a loopback test. Priority: `cnotes`, then `menu` (also closes TD-0008).
 

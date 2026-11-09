@@ -18,7 +18,7 @@
 | **BUG-0007** | Inbound QR Orders Clobbering Unsent Waiter Cart & Premature Billing | **P1 (High)** | RESOLVED | Commit `643c286` | `tests/phase35_counter_integration_test.py` |
 | **BUG-0008** | In-Place Live Database Overwrite & Unchecked Backup Restore | **P0 (Critical)** | RESOLVED | Commit `580f425` | `tests/phase35c_backup_restore_test.py` |
 | **BUG-0009** | Permanently Rejected Sync Op Starves the Outbox (Head-of-Line Block) | **P1 (High)** | RESOLVED | Phase 3.5d commit (see CHG-0014) | `tests/phase35d_local_e2e.py` (test_05) |
-| **BUG-0010** | Saves With Non-Ingested Modules (incl. First Bill After Migration) Never Reach the Cloud | **P1 (High)** | **OPEN — needs product decision** | — | `tests/phase35d_local_e2e.py` (test_01, test_05 record current behaviour) |
+| **BUG-0010** | Saves With Non-Ingested Modules (incl. First Bill After Migration) Never Reach the Cloud | **P1 (High)** | RESOLVED | Phase 3.5d hardening commit (see CHG-0017, CHG-0018) | `tests/phase35d_bug0010_test.py`, `tests/phase35d_local_e2e.py` test_01, test_07–test_10 |
 | **BUG-0011** | Text-Mode Receipt Lines Wider Than 58 mm Paper (Hotel Name, Footer) | P2 (Medium) | RESOLVED | Phase 3.5d commit (see CHG-0015) | `tests/phase35d_escpos_test.mjs` |
 
 ---
@@ -210,12 +210,21 @@
 - **Permanent Fix:** `UNSUPPORTED_BUSINESS_MODULE` joins the existing quarantine path (SYNC-001): the payload is kept in `sync_conflicts` for Manager review and the outbox row is held (`sent_at < 0`), so the stream continues. Verified by re-running test_05 with the fix reverted (fails) and restored (passes).
 
 ### BUG-0010: Saves With Non-Ingested Modules (incl. First Bill After Migration) Never Reach the Cloud
-- **Severity:** P1 — High (owner cloud reports can miss a bill) — **OPEN**
-- **Component:** counter envelopes (`app_main.py` `apply_ops` → `make_sync_envelope`) vs Worker `SUPPORTED_*_MODULES` whitelist (`cloud/src/worker.js` ~line 1912)
-- **Discovered In:** Phase 3.5d.1 loopback E2E (2026-11-09).
-- **Symptoms:** One op carries every key written in that save. The first save after a migration also writes the credential flags (`staff[].hasPin`), so the first settled bill's envelope includes `values.staff` and is rejected as a whole; the bill is on the counter but not in the cloud. Any device save that touches `menu`, `staff`, `custList`, etc. is also rejected. No secrets are in the envelope (checked: no PBKDF2 hashes).
-- **Current Behaviour (after BUG-0009 fix):** such ops are held for review in `sync_conflicts` instead of looping; the counter keeps the data.
-- **Decision Needed (not changed without approval):** (a) counter splits each save into a cloud-ingestible op (financial keys) plus local-only keys; or (b) the Worker commits supported modules and reports the skipped keys; or (c) the Worker ingests the missing modules. Option (a) keeps the Worker whitelist strict and is the recommendation.
+- **Severity:** P1 — High (owner cloud reports missed bills; no counter data loss) — **RESOLVED**
+- **Component:** `setu_sqlite.py` (`make_sync_envelope`, new `enqueue_envelope`), `app_main.py` (the three envelope call sites) vs Worker `SUPPORTED_*_MODULES` (`cloud/src/worker.js` `handleSyncOps`)
+- **Discovered In:** Phase 3.5d.1 loopback E2E (2026-11-09); reproduced in the 1.667 h outage run (2,997 bills, 1 held).
+- **Symptoms:** One op carried every key written in that save. The first save after a migration also writes the credential flags (`values.staff`), so the first settled bill's op was rejected as a whole (`UNSUPPORTED_BUSINESS_MODULE`) and held on the counter; the cloud never received that bill. Any save touching `menu`, `staff`, `custList`, etc. was rejected the same way.
+- **Root Cause:** The counter had no definition of which data keys the cloud ingests. `make_sync_envelope` copied every written key into the payload, while the Worker (correctly) refuses a whole envelope that contains any key outside its whitelist. The secret filter was also only one level deep for `settings` / `auth`.
+- **Atomicity analysis (before the fix):** Splitting a save into two cloud ops (financial + local) was rejected: two ops would need two `op_id`s / versions, the second could fail after the first committed, and the Worker's per-record `doc_version` staleness check would make their order matter. The local-only part never needs to reach the cloud, so the fix keeps ONE op per save and only leaves keys out of its payload. The local SQLite transaction still writes every key; the outbox row is written in that same transaction.
+- **Permanent Fix:** Versioned module policy `SYNC_MODULE_POLICY_VERSION = 1` in `setu_sqlite.py`:
+  - `CLOUD_SYNC_MODULES` mirrors the Worker whitelist section by section (records / maps / values); a test fails if they drift.
+  - `LOCAL_ONLY_MODULES` lists every other known key with a reason (`private` or `not_ingested`).
+  - A key in neither (or a cloud key written in the wrong section) is kept locally, left out of the envelope and recorded in the new `sync_unclassified` table with an actionable reason; never silently dropped.
+  - `settings` / `auth` values are scrubbed recursively (pin, pass, hash, secret, key, otp; plus token for auth).
+  - A save that writes only local keys queues nothing.
+  - The envelope lists what was kept local in `sync_policy.local_only` (outside the checksummed payload; the Worker ignores it). The Worker is unchanged.
+- **Recovery of already-held ops:** `tools/replay_held_ops.py` (see CHG-0018).
+- **Regression Tests:** `tests/phase35d_bug0010_test.py` (10 tests) and `tests/phase35d_local_e2e.py` test_01 (first bill after migration is acked, none held), test_07 (mixed financial + local save + unknown module), test_08 (held op replay + cloud/counter totals), test_09 (other tenant / stale held ops go to review), test_10 (lost ACK and restart: no duplicate bills).
 
 ### BUG-0011: Text-Mode Receipt Lines Wider Than 58 mm Paper
 - **Severity:** P2 — Medium (printout broken mid-word; no data impact)

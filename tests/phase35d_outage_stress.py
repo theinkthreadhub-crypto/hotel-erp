@@ -15,6 +15,7 @@ pointed at the cloud at the end and must drain every pending op.
 The report states the ACTUAL completed duration. A shorter run is not evidence for 24 hours.
 """
 import argparse
+import gc
 import json
 import os
 import statistics
@@ -63,6 +64,7 @@ def run(seconds, bill_every, sample, hotel, recover_url, key, poll, max_backoff)
     d = sample_doc(20)
     d['settings']['hotelId'] = d['auth']['hotelId'] = hotel
     store = A.SqliteSetuStore(migrated(tmp, d))
+    dbf = store.sdb.path
     attempts = {'post': 0, 'get': 0}
 
     def post(url, path, body, headers, timeout=15):
@@ -96,7 +98,9 @@ def run(seconds, bill_every, sample, hotel, recover_url, key, poll, max_backoff)
             now = time.time()
             if now >= next_sample:
                 pend = store.sdb.con().execute('SELECT COUNT(*) FROM sync_outbox WHERE sent_at IS NULL').fetchone()[0]
-                samples.append({'t': round(now - t0, 1), 'rssMB': round(rss_mb() or 0, 1), 'threads': threading.active_count(),
+                db_mb = sum(os.path.getsize(p) for p in (dbf, dbf + '-wal') if os.path.exists(p)) / 1048576
+                samples.append({'t': round(now - t0, 1), 'rssMB': round(rss_mb() or 0, 1), 'dbMB': round(db_mb, 2),
+                                'pyObjects': len(gc.get_objects()), 'threads': threading.active_count(),
                                 'pending': pend, 'bills': made, 'posts': attempts['post'], 'gets': attempts['get'],
                                 'dispatcherAlive': bool(disp._thread and disp._thread.is_alive()), 'state': disp.stats.get('state')})
                 print(json.dumps(samples[-1]), flush=True)
@@ -133,6 +137,11 @@ def run(seconds, bill_every, sample, hotel, recover_url, key, poll, max_backoff)
         'cloudPostAttempts': attempts['post'], 'cloudGetAttempts': attempts['get'],
         'rssStartMB': samples[0]['rssMB'] if samples else None, 'rssEndMB': samples[-1]['rssMB'] if samples else None,
         'rssSlopeSecondHalfMBperHour': slope_per_hour(half),
+        # RSS that tracks dbMB (SQLite page cache, capped at 64 MB) while pyObjects stays flat is cache fill, not a
+        # Python leak; pyObjects growing with bills would point at the Python side.
+        'dbMBEnd': samples[-1]['dbMB'] if samples else None,
+        'pyObjectsStart': samples[0]['pyObjects'] if samples else None, 'pyObjectsEnd': samples[-1]['pyObjects'] if samples else None,
+        'pyObjectsSlopeSecondHalfPerHour': slope_per_hour([(s['t'], s['pyObjects']) for s in samples[len(samples) // 2:]]),
         'threadsStart': base_threads, 'threadsMax': max((s['threads'] for s in samples), default=None),
         'dispatcherAliveAtEnd': all(s['dispatcherAlive'] for s in samples[-1:]),
         'settleLatencyMs': {'median': round(statistics.median(lat), 2), 'p99': round(lat_sorted[int(len(lat) * 0.99) - 1], 2), 'max': round(lat_sorted[-1], 2)} if lat else None,

@@ -20,6 +20,7 @@ Not here (Phase 3): cloud incremental sync. The outbox is written so Phase 3 can
 import gzip
 import hashlib
 import json
+import math
 import random
 import urllib.request
 import urllib.error
@@ -182,6 +183,10 @@ CREATE INDEX IF NOT EXISTS stock_movements_src_date ON stock_movements(source, d
 -- first copy stays in the books, every other copy is kept here for a Manager to review
 CREATE TABLE IF NOT EXISTS sync_conflicts (seq INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, k TEXT NOT NULL, rid TEXT, reason TEXT NOT NULL,
   kept TEXT, other TEXT, device TEXT, resolved INTEGER NOT NULL DEFAULT 0);
+-- Phase 3.5d (BUG-0010): data keys a save wrote that SYNC_MODULE_POLICY does not classify. The data itself is saved
+-- locally as usual; it is not sent to the cloud until a developer classifies the key (one row per key and section).
+CREATE TABLE IF NOT EXISTS sync_unclassified (k TEXT NOT NULL, section TEXT NOT NULL, reason TEXT NOT NULL, first_at INTEGER NOT NULL,
+  last_at INTEGER NOT NULL, last_op TEXT, count INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (k, section));
 
 -- ---------------- Schema 4 (Phase 3.4): Cloud Change Feed Inbound Sync ----------------
 CREATE TABLE IF NOT EXISTS inbound_events_applied (
@@ -950,6 +955,26 @@ class SqliteDoc:
                   (str(op), str(ref) if ref else None, int(doc_version), p_str, int(at)))
         return cur.lastrowid
 
+    @staticmethod
+    def enqueue_envelope(c, op, envelope, at=None):
+        """Queues a save's cloud envelope inside the save's own transaction (BUG-0010).
+        Keys the policy does not classify are recorded in sync_unclassified (the data is already saved locally).
+        A save that wrote only local keys queues nothing: there is nothing the cloud may receive."""
+        at = int(at if at is not None else time.time() * 1000)
+        op_id = envelope.get('op_id')
+        for u in envelope.get('unclassified') or ():
+            other = [sec for sec, keys in CLOUD_SYNC_MODULES.items() if u['k'] in keys]
+            why = (f"cloud module '{u['k']}' was written as {u['section']}, but the Worker ingests it only as {'/'.join(other)}"
+                   if other else f"key '{u['k']}' ({u['section']}) is not in SYNC_MODULE_POLICY v{SYNC_MODULE_POLICY_VERSION}")
+            c.execute(
+                "INSERT INTO sync_unclassified (k, section, reason, first_at, last_at, last_op, count) VALUES (?, ?, ?, ?, ?, ?, 1) "
+                "ON CONFLICT(k, section) DO UPDATE SET last_at = excluded.last_at, last_op = excluded.last_op, count = count + 1",
+                (u['k'], u['section'], why + ": saved on the counter, not sent to the cloud. Classify it in "
+                 "CLOUD_SYNC_MODULES (with Worker support) or LOCAL_ONLY_MODULES in setu_sqlite.py.", at, at, op_id))
+        if not (envelope.get('integrity') or {}).get('keys'):
+            return None
+        return SqliteDoc.append_outbox(c, op, op_id, envelope['doc_version'], envelope, at)
+
     def get_pending_outbox(self, con=None, limit=100, include_legacy=True):
         if con is None:
             con = self.con()
@@ -1383,6 +1408,50 @@ def _normalize_numbers(obj):
     return obj
 
 
+# ---------------- Cloud sync module policy (BUG-0010) ----------------
+# Every data key a save writes is classified here. Only CLOUD_SYNC_MODULES go into the cloud envelope; it mirrors the
+# Worker whitelist (cloud/src/worker.js handleSyncOps, SUPPORTED_*_MODULES) exactly, section by section, and
+# tests/phase35d_bug0010_test.py fails if the two drift. One save stays ONE op (one op_id, one doc_version): the
+# envelope only leaves out local keys, so a bill and its stock / seq changes still reach the cloud atomically.
+# A key in neither table is kept locally, left out of the envelope and recorded in sync_unclassified.
+SYNC_MODULE_POLICY_VERSION = 1
+CLOUD_SYNC_MODULES = {
+    'records': frozenset({'bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders'}),
+    'maps': frozenset({'tables', 'kaccha'}),
+    'values': frozenset({'settings', 'seq', 'auth'}),
+}
+# reason 'private': must never leave the counter. 'not_ingested': business data the Worker cannot ingest yet
+# (TD-0008 / TD-0013); kept on the counter and in counter backups until a Worker change adds it to CLOUD_SYNC_MODULES.
+LOCAL_ONLY_MODULES = {
+    'secure': 'private', 'staff': 'private', 'sessions': 'private', 'subscription': 'private', 'saas': 'private',
+    'wa': 'private', 'waMessages': 'private', 'errSync': 'private', 'demoCleanupDone': 'private', 'monthlySent': 'private',
+    'menu': 'not_ingested', 'custList': 'not_ingested', 'cnotes': 'not_ingested', 'cash': 'not_ingested',
+    'att': 'not_ingested', 'salaryDays': 'not_ingested', 'salarySheets': 'not_ingested', 'reservations': 'not_ingested',
+    'assets': 'not_ingested', 'gasLog': 'not_ingested', 'onlineOrders': 'not_ingested', 'qrOrders': 'not_ingested',
+    'qrDone': 'not_ingested', 'qrLog': 'not_ingested', 'audit': 'not_ingested', 'expTpl': 'not_ingested',
+    'supAlias': 'not_ingested', 'stockAlias': 'not_ingested', 'supInfo': 'not_ingested', 'outlets': 'not_ingested',
+}
+_SECRET_WORDS = ('pin', 'pass', 'hash', 'secret', 'key', 'otp')
+
+
+def classify_sync_key(section, k):
+    """'cloud', 'local' or 'unclassified' for a key written in an envelope section ('records' / 'maps' / 'values')."""
+    if k in CLOUD_SYNC_MODULES.get(section, ()):
+        return 'cloud'
+    if k in LOCAL_ONLY_MODULES:
+        return 'local'
+    return 'unclassified'
+
+
+def _scrub_secrets(v, words=_SECRET_WORDS):
+    """Drops, at any depth, every field whose name looks like a credential (settings / auth values)."""
+    if isinstance(v, dict):
+        return {k: _scrub_secrets(x, words) for k, x in v.items() if not any(w in str(k).lower() for w in words)}
+    if isinstance(v, list):
+        return [_scrub_secrets(x, words) for x in v]
+    return v
+
+
 def make_sync_envelope(
     op_id,
     hotel_id,
@@ -1404,8 +1473,20 @@ def make_sync_envelope(
     """
     clean_rec = {}
     total_records = 0
+    local_keys, unclassified = set(), []
+
+    def _cloud(section, k):
+        cls = classify_sync_key(section, k)
+        if cls == 'local':
+            local_keys.add(k)
+        elif cls == 'unclassified':
+            unclassified.append({'k': str(k), 'section': section})
+        return cls == 'cloud'
+
     if writes_rec:
         for k, val in writes_rec.items():
+            if not _cloud('records', k):
+                continue
             if isinstance(val, (list, tuple)) and len(val) == 3:
                 kind, ups, rms = val
             elif isinstance(val, dict):
@@ -1434,6 +1515,8 @@ def make_sync_envelope(
     clean_map = {}
     if writes_map:
         for k, val in writes_map.items():
+            if not _cloud('maps', k):
+                continue
             if isinstance(val, (list, tuple)) and len(val) == 3:
                 kind, s_, d_ = val
             elif isinstance(val, dict):
@@ -1451,12 +1534,12 @@ def make_sync_envelope(
     clean_values = {}
     if writes_whole:
         for k, v in writes_whole.items():
-            if k in ('secure', 'adminPin', 'password', 'token'):
+            if not _cloud('values', k):
                 continue
             if k == 'settings' and isinstance(v, dict):
-                clean_values[k] = {sk: sv for sk, sv in v.items() if not any(x in sk.lower() for x in ('pin', 'pass', 'hash', 'secret', 'key'))}
+                clean_values[k] = _scrub_secrets(v)
             elif k == 'auth' and isinstance(v, dict):
-                clean_values[k] = {ak: av for ak, av in v.items() if not any(x in ak.lower() for x in ('pin', 'pass', 'hash', 'secret'))}
+                clean_values[k] = _scrub_secrets(v, _SECRET_WORDS + ('token',))
             else:
                 clean_values[k] = v
 
@@ -1501,10 +1584,159 @@ def make_sync_envelope(
             'checksum': f'sha256:{checksum}',
             'record_count': total_records,
             'keys': sorted(set(clean_rec) | set(clean_map) | set(clean_values))
-        }
+        },
+        # Outside the checksummed payload; the Worker ignores both. local_only lists what this save kept on the counter.
+        'sync_policy': {'version': SYNC_MODULE_POLICY_VERSION, 'local_only': sorted(local_keys)},
     }
+    if unclassified:
+        envelope['unclassified'] = unclassified
     return envelope
 
+
+
+def _later_outbox_entities(con, after_seq):
+    """Records and whole keys carried by outbox rows queued after `after_seq` that are not held (sent or pending)."""
+    recs, keys = set(), set()
+    for (raw,) in con.execute("SELECT payload FROM sync_outbox WHERE seq > ? AND (sent_at IS NULL OR sent_at > 0)", (after_seq,)):
+        try:
+            p = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        recs |= get_envelope_entities(p)
+        pl = p.get('payload') or {}
+        keys |= {('values', k) for k in (pl.get('values') or {})}
+    return recs, keys
+
+
+def plan_held_op_replay(sdb):
+    """Read-only plan for outbox ops held after a cloud rejection (BUG-0010 recovery). Nothing is changed.
+
+    An op held only because it carried a module the Worker does not ingest is rebuilt with the SAME op_id,
+    hotel_id and doc_version and only its cloud-ingestible part (SYNC_MODULE_POLICY). A record or whole value
+    that a later, non-held op already carries is left out: the later op holds the newer state, and sending the
+    older one would be refused as stale. Anything else (payload mismatch, stale record, another hotel, legacy
+    format) is listed under needs_review and never replayed automatically."""
+    con = sdb.con()
+    hotel = str(sdb.meta('hotel_id') or '').strip().upper()
+    plan = {'policy_version': SYNC_MODULE_POLICY_VERSION, 'hotel_id': hotel, 'replay': [], 'needs_review': [], 'nothing_to_send': [],
+            'already_replayed': []}
+    held = con.execute("SELECT seq, ref, payload FROM sync_outbox WHERE sent_at < 0 ORDER BY seq").fetchall()
+    for seq, ref, raw in held:
+        item = {'outbox_seq': seq, 'op_id': ref}
+        try:
+            env = json.loads(raw or '{}')
+        except ValueError:
+            env = {}
+        op_id = str(env.get('op_id') or ref or '')
+        item['op_id'] = op_id
+        conflict = con.execute("SELECT seq, reason, resolved FROM sync_conflicts WHERE rid = ? ORDER BY seq LIMIT 1", (op_id,)).fetchone()
+        item['reason'] = conflict[1] if conflict else None
+        if con.execute("SELECT 1 FROM sync_outbox WHERE ref = ? AND op = 'replay' AND seq > ?", (op_id, seq)).fetchone():
+            plan['already_replayed'].append(item)
+            continue
+        if env.get('envelope_version') != 1 or not op_id:
+            plan['needs_review'].append(dict(item, why='not a Phase 3 envelope'))
+            continue
+        if str(env.get('hotel_id') or '').strip().upper() != hotel:
+            plan['needs_review'].append(dict(item, why=f"envelope hotel {env.get('hotel_id')!r} is not this counter's hotel {hotel!r}"))
+            continue
+        if item['reason'] != 'UNSUPPORTED_BUSINESS_MODULE':
+            plan['needs_review'].append(dict(item, why=f"held for {item['reason']!r}: needs a person to compare the counter and cloud copies"))
+            continue
+        later_recs, later_keys = _later_outbox_entities(con, seq)
+        pl = env.get('payload') or {}
+        new_pl, dropped = {'records': {}, 'maps': {}, 'values': {}}, []
+        for section in ('records', 'maps', 'values'):
+            for k, v in (pl.get(section) or {}).items():
+                cls = classify_sync_key(section, k)
+                if cls != 'cloud':
+                    dropped.append({'section': section, 'k': k, 'why': 'local_only' if cls == 'local' else 'unclassified'})
+                    continue
+                if section == 'records':
+                    ups = [r for r in v.get('ups') or [] if not (isinstance(r, dict) and (k, str(r.get('id'))) in later_recs)]
+                    rms = [x for x in v.get('rm') or [] if (k, str(x)) not in later_recs]
+                    gone = len(v.get('ups') or []) + len(v.get('rm') or []) - len(ups) - len(rms)
+                    if gone:
+                        dropped.append({'section': section, 'k': k, 'why': f'{gone} record(s) superseded by a later op'})
+                    if ups or rms:
+                        new_pl['records'][k] = {'kind': v.get('kind', 'rec'), 'ups': ups, 'rm': rms}
+                elif section == 'maps':
+                    st = {mk: mv for mk, mv in (v.get('set') or {}).items() if (k, str(mk)) not in later_recs}
+                    dl = [mk for mk in v.get('del') or [] if (k, str(mk)) not in later_recs]
+                    if len(st) + len(dl) < len(v.get('set') or {}) + len(v.get('del') or []):
+                        dropped.append({'section': section, 'k': k, 'why': 'entries superseded by a later op'})
+                    if st or dl:
+                        new_pl['maps'][k] = {'kind': v.get('kind', 'map'), 'set': st, 'del': dl}
+                elif ('values', k) in later_keys:
+                    dropped.append({'section': section, 'k': k, 'why': 'superseded by a later op'})
+                else:
+                    new_pl['values'][k] = v
+        item['dropped'] = dropped
+        keys = sorted(set(new_pl['records']) | set(new_pl['maps']) | set(new_pl['values']))
+        if not keys:
+            plan['nothing_to_send'].append(item)
+            continue
+        new_pl = _normalize_numbers(new_pl)
+        checksum = hashlib.sha256(json.dumps(new_pl, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode('utf-8')).hexdigest()
+        new_env = {k: v for k, v in env.items() if k not in ('payload', 'integrity', 'sync_policy', 'unclassified', 'replay_of')}
+        new_env.update(payload=new_pl,
+                       integrity={'checksum': f'sha256:{checksum}', 'keys': keys,
+                                  'record_count': sum(len(r['ups']) + len(r['rm']) for r in new_pl['records'].values())},
+                       sync_policy={'version': SYNC_MODULE_POLICY_VERSION, 'local_only': sorted(d['k'] for d in dropped if d['why'] == 'local_only')},
+                       replay_of={'outbox_seq': seq, 'original_checksum': (env.get('integrity') or {}).get('checksum')})
+        item.update(envelope=new_env, bills=[str(b.get('id')) for b in new_pl['records'].get('bills', {}).get('ups', [])])
+        plan['replay'].append(item)
+    return plan
+
+
+def apply_held_op_replay(sdb, plan, now=None):
+    """Queues the planned replays in one local transaction. The held rows and their sync_conflicts rows stay as
+    they were (audit history); each conflict is marked resolved and a 'REPLAYED' audit row points to the new outbox
+    row. The dispatcher then sends them like any op and marks them sent only on an exact (op_id, hotel, checksum)
+    ack. Running it twice queues nothing new (already_replayed)."""
+    now = int(now if now is not None else time.time() * 1000)
+    queued = []
+    with sdb.tx() as c:
+        for item in plan.get('replay') or ():
+            op_id = item['op_id']
+            if c.execute("SELECT 1 FROM sync_outbox WHERE ref = ? AND op = 'replay' AND seq > ?", (op_id, item['outbox_seq'])).fetchone():
+                continue
+            env = item['envelope']
+            new_seq = SqliteDoc.append_outbox(c, 'replay', op_id, env['doc_version'], env, now)
+            c.execute("UPDATE sync_conflicts SET resolved = 1 WHERE rid = ? AND resolved = 0", (op_id,))
+            c.execute("INSERT INTO sync_conflicts (at, k, rid, reason, kept, other, device, resolved) VALUES (?, 'replay', ?, ?, ?, ?, ?, 1)",
+                      (now, op_id, 'REPLAYED_CLOUD_PART (BUG-0010)', json.dumps({'outbox_seq': new_seq, 'checksum': env['integrity']['checksum']}),
+                       json.dumps({'held_outbox_seq': item['outbox_seq'], 'dropped': item.get('dropped')}, ensure_ascii=False),
+                       env.get('device_id') or 'counter'))
+            queued.append({'op_id': op_id, 'outbox_seq': new_seq})
+    return queued
+
+
+def local_synced_bill_totals(sdb):
+    """Counter-side totals for the bills that went into any Phase 3 envelope (what the cloud should hold),
+    in paise, with the same rounding as the Worker's sales report."""
+    con = sdb.con()
+    ids = set()
+    for (raw,) in con.execute("SELECT payload FROM sync_outbox"):
+        try:
+            p = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        if p.get('envelope_version') == 1:
+            ids |= {str(b.get('id')) for b in (((p.get('payload') or {}).get('records') or {}).get('bills') or {}).get('ups') or [] if isinstance(b, dict)}
+    out = {'bill_count': 0, 'gross_sales_p': 0, 'cancelled_bill_count': 0, 'cancelled_amount_p': 0, 'ids': sorted(ids)}
+    for i in range(0, len(ids), 500):
+        part = sorted(ids)[i:i + 500]
+        for total, canc in con.execute(f"SELECT total, is_cancelled FROM bills WHERE id IN ({','.join('?' * len(part))})", part):
+            x = float(total or 0) * 100
+            p_ = int(math.floor(abs(x) + 0.5)) * (1 if x >= 0 else -1)   # SQLite ROUND(): half away from zero
+            if canc:
+                out['cancelled_bill_count'] += 1
+                out['cancelled_amount_p'] += p_
+            else:
+                out['bill_count'] += 1
+                out['gross_sales_p'] += p_
+    return out
 
 
 class OutboxSyncDispatcher:

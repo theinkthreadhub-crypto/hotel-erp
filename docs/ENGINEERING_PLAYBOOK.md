@@ -18,6 +18,11 @@
   - Every incoming API request, sync packet, or database query must validate the tenant identifier (`hotel_id`, `school_id`, `org_id`).
   - Cryptographic token validity (JWT/HMAC signature) is **insufficient** on its own; the server must explicitly assert `assert token.tenant_id == node.tenant_id`. Cross-tenant requests must immediately fail closed with `403 Forbidden`.
 
+- **`SEC-004: Credentials Are Configuration, Never Code`** (from TD-0011)
+  - API keys, tokens and passwords come from environment variables, an OS secret store, or a local config file excluded from Git and from build artifacts. Never a literal default in code (`os.environ.get('X_API_KEY', '<literal>')` is forbidden).
+  - A missing credential disables only the feature that needs it, with a clear message; core operations (billing, admissions, dispensing) never depend on it.
+  - CI runs a secret scan over every tracked file that reports file and line only, never the value. A leaked key is revoked at the provider first; removing it from the code does not make it safe.
+
 - **`SEC-003: Cryptographic Rigor in Licensing & Signatures`**
   - Never implement security checks using mock string prefixes (e.g., checking if a signature starts with `"forged"` or `"invalid"`).
   - All offline license updates, software activations, or permission delegations must use standard asymmetric cryptographic primitives (e.g., ECDSA over NIST P-256 with SHA-256 or Ed25519) with pinned public keys and hardware-machine binding.
@@ -70,6 +75,20 @@
   - Every server error code must be classified as *retry later* (network, 5xx, auth, payment) or *permanent* (unsupported module, payload mismatch, stale record).
   - A permanent rejection is held for review with its full payload and removed from the send queue at once. An op that can never succeed must not stay at the head of an ordered queue.
   - When a new rejection code is added on the server, the client classification and a loopback test must be updated in the same change.
+
+- **`SYNC-005: Every Synced Key Has an Explicit, Versioned Classification`** (from BUG-0010)
+  - Keep one policy table on the client: *cloud* (mirrors the server whitelist exactly, per section), *local-only* (with a reason: private / not ingested yet). A test compares the client table with the server whitelist.
+  - One local save stays ONE sync op (one id, one version). Leave local-only keys out of its payload; never split a financial save into several cloud ops, because a partial commit or reordering breaks atomicity.
+  - The local transaction always writes everything; the outbox row is written in the same transaction.
+  - An unknown key is never dropped silently: keep it locally, keep it out of the cloud payload, and record it in a diagnostics table with the fix ("classify it in ...").
+  - Scrub credentials recursively from every value that is synced.
+  - Applies to School ERP (fee receipts vs attendance / staff), Pharmacy ERP (sales and stock batches vs prescriptions / patient data) and Retail POS (invoices and stock vs loyalty / device settings) in the same way.
+
+- **`SYNC-006: Held Ops Are Recovered by Review, Never by Guessing`** (from BUG-0010 recovery)
+  - Recovery tools are dry-run by default and need an explicit apply flag and a backup.
+  - Replay keeps the original op id, tenant and version; drops records a later op already carries; sends only what the server ingests; and is idempotent.
+  - Anything ambiguous (payload mismatch, stale record, another tenant, unknown format) goes to a review list. Original held rows and conflict records stay as audit history.
+  - After recovery, reconcile counts and totals (integer minor units) between local and cloud.
 
 ---
 
