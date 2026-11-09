@@ -132,4 +132,5 @@
 
 ### TD-0012: Full 24-Hour Outage Run Not Yet Executed
 - **Description:** `tests/phase35d_outage_stress.py --hours 24` is ready and reproducible; this environment's background-job limit (2 h) allowed only a shorter run (see AI_HANDOVER §4 for the completed duration and results). A 24 h run needs a machine that stays up (e.g. the Gate C Windows PC).
+- **Completed so far:** 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s, 1 op held = BUG-0010). Open question for the 24 h run: RSS rose 29.7 → 39.1 MB (4.85 MB/h in the second half); confirm it plateaus (SQLite cache, 64 MB cap) and is not a leak.
 

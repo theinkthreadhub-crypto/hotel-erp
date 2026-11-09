@@ -83,7 +83,7 @@
 ### Phase 3.5d: Local Network E2E & ESC/POS Byte Stream Verification
 - [x] **3.5d.1 Isolated Cloudflare Worker to Counter E2E Harness:** `tests/phase35d_local_e2e.py`: Miniflare Worker + real Python SQLite counter over HTTP loopback, no mocks; 6/6 PASS locally (2 consecutive runs). Found and fixed BUG-0009; found BUG-0010 (open).
 - [x] **3.5d.2 ESC/POS Byte Stream Verifier:** `tests/phase35d_escpos_test.mjs`: decodes the real 58/80 mm receipt, KOT and estimate bytes (text and raster), cutter, drawer, duplicate-copy, double-press and failure paths; 16/16 PASS. Found and fixed BUG-0011. **Software only — not physical printer validation (Gate B stays BLOCKED).**
-- [ ] **3.5d.3 Cloud Downtime Stress Run (24 h):** harness `tests/phase35d_outage_stress.py` ready and reproducible; CI runs a 2-minute smoke. **24 h NOT completed** in this environment (see AI_HANDOVER §4 for the actual completed duration). Stays open until a full 24 h run passes.
+- [ ] **3.5d.3 Cloud Downtime Stress Run (24 h):** harness `tests/phase35d_outage_stress.py` ready and reproducible; CI runs a 2-minute smoke. **24 h NOT completed** in this environment: longest run 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s; see AI_HANDOVER §4). Stays open until a full 24 h run passes.
 
 ---
 
