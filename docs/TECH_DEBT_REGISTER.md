@@ -22,9 +22,13 @@
 | **TD-0011** | Hard-Coded Default `RESEND_API_KEY` in `app_main.py` | Code fixed; **key rotation PENDING (owner)** | **High / Security (SEC-001)** | Owner: revoke key at provider | **CONFIRMED** |
 | **TD-0012** | Full 24-Hour Outage Run Not Yet Executed | Active | Medium / Release Evidence | 24 h machine time | **CONFIRMED** |
 | **TD-0013** | Business Modules the Worker Does Not Ingest Stay Counter-Only (`menu`, `cash`, `custList`, ...; `cnotes` done in 3.5e) | Active | Medium / Cloud Report Completeness | Worker + policy change per module | **CONFIRMED** |
-| **TD-0014** | Cloud GST Report Uses Bill `sub` (Before Discount) as Taxable Value | Active | Medium / Report Accuracy | 2 hours | **CONFIRMED** |
+| **TD-0014** | Cloud GST Report Uses Bill `sub` (Before Discount) as Taxable Value | **Resolved (BUG-0021)** | Medium / Report Accuracy | — | **CONFIRMED** |
 | **TD-0015** | No Credit-Note Cancellation / Reversal Workflow | Active | Medium / Product Gap | Product decision + 4 hours | **CONFIRMED** |
-| **TD-0016** | Cloud Expense Report Groups by `category`, the App Stores `head` | Active | Low / Report Detail | 1 hour | **CONFIRMED** |
+| **TD-0016** | Cloud Expense Report Groups by `category`, the App Stores `head` | **Resolved (CHG-0026)** | Low / Report Detail | — | **CONFIRMED** |
+| **TD-0017** | Legacy JSON Store (v1.0 Default) Rewrites the Whole Database on Every Save | Active | **High / Performance at Scale** | Controlled SQLite migration per site | **CONFIRMED (measured)** |
+| **TD-0018** | Production Publishing (setu-latest + Cloud Deploy) Gated on a Session Branch Name | Active | High / Release Control | Owner decision | **CONFIRMED** |
+| **TD-0019** | Hotel IDs `HOTEL` + 4 Digits (9,000 Values) and a Distinct "Not Found" Answer | Active | Medium / Enumeration | 2 hours | **CONFIRMED** |
+| **TD-0020** | Fresh Install Seeds `adminPin: '1234'` | Active | Medium / Security | Product decision (onboarding) | **CONFIRMED** |
 
 ---
 
@@ -156,3 +160,17 @@
 
 ### TD-0016: Cloud Expense Report Groups by `category`, the App Stores `head`
 - **Description:** `sync_vouchers.category` is filled from `v.category`, while the app writes the expense head in `v.head`, so `by_category` shows everything as "General". 3.5e reads `raw_json.head` only to keep 'Customer Refund' out of expenses.
+
+### TD-0017: Legacy JSON Store Rewrites the Whole Database on Every Save
+- **Evidence (2026-11-10, Linux container, `SetuStore.write`):** 5,000 bills = 2.1 MB file, one save 31 ms; 50,000 bills = 21 MB, 316 ms; 150,000 bills = 63 MB, 965 ms. Linear in database size, on the request path. Slower on the 4 GB Windows target (Gate C).
+- **Decision for v1.0:** JSON stays the default (no silent engine change on customer PCs). Large or long-running hotels move to SQLite only through the verified, opt-in migration (`setu_migrate.py --cutover`, backup first) after Gate C; SQLite keeps the save cost flat (Phase 2b benchmarks).
+
+### TD-0018: Production Publishing Gated on a Session Branch Name
+- **Description:** in `build-exe.yml`, both the `setu-latest` release upload and the `publish-cloud` deploy run only when `github.ref_name == 'ccr-89eaafa4-mxbfj2'`, a branch from an earlier session. Builds on `main` and feature branches publish nothing. The production release branch must be an explicit owner decision (e.g. `main` + manual approval / environment protection). Not changed in this audit.
+
+### TD-0019: Hotel ID Space and Enumeration
+- **Description:** `/api/hotel/register` creates `HOTEL` + 4 random digits (9,000 IDs); `/api/hotel/login` answers "Hotel ID not found" for unknown IDs, so valid IDs can be listed. Passwords stay protected by the new lock (BUG-0017); the IDs are not secret, but a larger space and a uniform answer are better.
+
+### TD-0020: Fresh Install Seeds `adminPin: '1234'`
+- **Description:** `seed()` in `hotel_erp.html` starts a new database with admin PIN 1234 (flagged weak; the cloud refuses weak PINs online). Forcing a PIN at first start changes onboarding; needs a product decision.
+

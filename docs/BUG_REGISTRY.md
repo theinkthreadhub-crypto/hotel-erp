@@ -24,6 +24,12 @@
 | **BUG-0013** | Day Book Read `c.mode` but Credit Notes Store `c.refund`: Every Credit Note Shown as a Credit Adjustment | P2 (Medium) | RESOLVED | Phase 3.5e commit (see CHG-0023) | `tests/run_accounting_p0_suite.cjs` (35e.1, 35e.2) |
 | **BUG-0014** | A Bill With a Credit Note Could Be Cancelled: Sale Removed and Credit Note Deducted Again | **P1 (High)** | RESOLVED | Phase 3.5e commit (see CHG-0023) | `tests/run_accounting_p0_suite.cjs` (35e.3, 35e.4), `tests/phase35e_credit_note_unit_test.py`, `tests/phase35e_credit_note_e2e.py` test_03 |
 | **BUG-0015** | `SAME_VERSION_MUTATION_CONFLICT` Not Classified as Permanent: Op Would Be Resent Forever | P2 (Medium, latent) | RESOLVED | Phase 3.5e commit (see CHG-0022) | `tests/phase35e_credit_note_unit_test.py` (Worker code drift check) |
+| **BUG-0016** | Staff / Cashier PIN Accepted by the Owner Cloud Login: Admin Token + Hotel Sync Key Returned | **P0 (Critical)** | RESOLVED | Commercial hardening commit (see CHG-0024) | `tests/commercial_security_e2e.py` test_02 |
+| **BUG-0017** | `/api/hotel/login`: No Wrong-Try Limit, Username Never Checked (cloud and counter offline fallback) | **P1 (High)** | RESOLVED | CHG-0024 | `tests/commercial_security_e2e.py` test_03, test_04; `tests/commercial_security_unit_test.py` |
+| **BUG-0018** | `isWeak()` Held a Control Character Instead of `\1`; `/api/hotel/register` Accepted Any 4-Character Password | **P1 (High)** | RESOLVED | CHG-0024 | `tests/commercial_security_e2e.py` test_05, test_06 |
+| **BUG-0019** | Counter Hotel Register / Activate / Login Called a Missing `store.save()`: Nothing Saved, Cloud Never Linked, Error Swallowed | **P1 (High)** | RESOLVED | CHG-0025 | `tests/commercial_security_unit_test.py` (both storage engines) |
+| **BUG-0020** | Built-In Default Admin Passwords: '1234' / '0000' Accepted by the App (Gate 1, offline hotel login); '1234' Set After Activation | **P1 (High)** | RESOLVED | CHG-0025 | `tests/commercial_security_unit_test.py` (`NoBuiltInPasswords`) |
+| **BUG-0021** | Cloud Sales / GST Taxable Value Summed the Bill `sub` (Before Discount, Inclusive of GST) — was TD-0014 | P1 (High) | RESOLVED | CHG-0026 | `tests/commercial_finance_e2e.py`, `tests/cloud_reports_test.mjs` |
 
 ---
 
@@ -268,4 +274,44 @@
 - **Discovered In:** Phase 3.5e review of Worker rejection codes (2026-11-10).
 - **Symptoms:** The Worker returns `SAME_VERSION_MUTATION_CONFLICT` for a different record at an equal version; the dispatcher did not hold it, so it would be resent on every cycle.
 - **Permanent Fix:** one `PERMANENT_SYNC_REJECTIONS` set (now also the three credit-note codes); a test parses the Worker's rejection codes and fails if any is missing from the set.
+
+### BUG-0016: Staff / Cashier PIN Accepted by the Owner Cloud Login
+- **Severity:** P0 — Critical (privilege escalation; any staff member could take over the hotel's cloud account and counter link)
+- **Component:** `cloud/src/worker.js` `/internal/auth` (behind `POST /api/hotel/login`)
+- **Discovered In:** Commercial release audit (2026-11-10). Reproduced against the real local Worker: a cashier PIN and a captain PIN each returned HTTP 200 with `role: admin`, an admin token and the hotel's `syncKey`.
+- **Root Cause:** after the owner password failed, the route fell back to `checkPin()`, which matches every staff PIN, and always issued an admin token plus the Sync Key.
+- **Permanent Fix:** the route accepts only the owner password or the owner-level master slots (`SEC.checkMaster`: owner password, manager admin PIN), never a staff PIN. Staff keep signing in at `/api/login` (their own role, no Sync Key) — verified.
+- **Regression Test:** `tests/commercial_security_e2e.py` test_02 (fails on the old Worker), test_01 (owner and admin PIN still work).
+
+### BUG-0017: `/api/hotel/login` Without Wrong-Try Limit; Username Never Checked
+- **Severity:** P1 — High (online brute force of the owner password; the username field was decorative)
+- **Component:** `cloud/src/worker.js` (`hotelLogin`, `/internal/auth`), `app_main.py` (`/api/hotel/login` offline fallback)
+- **Permanent Fix:** the Worker uses the same per-IP and per-hotel lock as `/api/login` (5 wrong tries per IP / 40 per hotel per 15 min); the counter's offline fallback uses `pin_guard`. The username must be empty, `owner` / `admin` / `manager`, or the account's owner name, phone or e-mail. A weak owner password is refused online with `WEAK_PASSWORD` (same policy as `/api/login` and counter restore).
+- **Regression Tests:** `tests/commercial_security_e2e.py` test_03, test_04; `tests/commercial_security_unit_test.py` offline tests (JSON and SQLite stores).
+
+### BUG-0018: `isWeak()` Control Character; Weaker Registration Policy
+- **Severity:** P1 — High
+- **Component:** `cloud/src/worker.js` (`isWeak`, `hotelRegister`, `signupInput`)
+- **Root Cause:** the repeated-character regex contained byte `0x01` where `\1` was meant, so `2222`, `777777` etc. passed as strong; `/api/hotel/register` only required 4 characters while `signupInput` required 6 and not weak.
+- **Permanent Fix:** `/^(.)\1+$/`; one `passwordProblem()` rule (≥ 6 characters, not weak) for sign-up and registration. Existing passwords are not rejected at rest; a weak one is asked to be changed when it is used online.
+- **Regression Tests:** `tests/commercial_security_e2e.py` test_05, test_06.
+
+### BUG-0019: Counter Hotel Handlers Called a Missing `store.save()`
+- **Severity:** P1 — High (silent: hotel identity not saved on the counter, cloud link never configured after register / activate / login)
+- **Component:** `app_main.py` (`/api/hotel/register`, `/api/hotel/activate`, `/api/hotel/login`)
+- **Root Cause:** neither store class had `save()`; the `AttributeError` was caught by `except Exception: pass`, which also skipped `cloud.set_config(...)` placed after it.
+- **Permanent Fix:** `SetuStore.save()` writes only the hotel-identity keys (`settings`, `auth`, `secure`) onto a fresh copy under the store lock; handler failures are logged to `setu-server.log`. Because saving now works, an existing owner password is no longer replaced by the password that passed the cloud check (it may be the manager PIN); a new / formatted PC still takes it.
+- **Regression Tests:** `tests/commercial_security_unit_test.py` (`test_cloud_login_is_saved_on_the_counter`, `test_new_pc_takes_owner_password_from_cloud_login`, `test_cloud_login_never_replaces_existing_owner_password`) on both storage engines; the first two fail on the old code.
+
+### BUG-0020: Built-In Default Admin Passwords in the App
+- **Severity:** P1 — High (on a browser / device holding the data, '1234' or '0000' unlocked Gate 1 and the offline hotel login with the admin role)
+- **Component:** `hotel_erp.html` (`handleAdminGate1Unlock`, offline branch of the hotel access login, activation completion)
+- **Permanent Fix:** only the hotel's own stored password / admin PIN is accepted locally; the "Default Admin PIN: 1234" hint is removed; after activation the typed registration password is used, never a default (a reload in between keeps the existing one).
+- **Regression Test:** `tests/commercial_security_unit_test.py` `NoBuiltInPasswords` (fails on the old app).
+
+### BUG-0021: Cloud Taxable Value Before Discount (was TD-0014)
+- **Severity:** P1 — High (owner GST figures too high with discounts or GST-inclusive prices)
+- **Component:** `cloud/src/worker.js` reports `sales` (`net_taxable_p`) and `gst` (`total_taxable_p`, by date)
+- **Permanent Fix:** sum the bill's own `taxable` from its stored payload (`raw_json`), falling back to `sub - disc` for older rows. Read-only report change: no migration.
+- **Regression Tests:** `tests/commercial_finance_e2e.py` (discount, inclusive and zero-rated bills: cloud = counter = 223,333 paise; fails on the old Worker); `tests/cloud_reports_test.mjs` expectation corrected from 3,500 (the bug) to 3,350.
 

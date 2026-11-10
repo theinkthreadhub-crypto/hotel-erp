@@ -325,3 +325,47 @@
 - **Risks & Side Effects:** For existing tenants the cloud expense total drops by any refund vouchers already synced (correct per the counter's own P&L). For data where a bill was cancelled after its credit note, local GSTR-1 / summary / Day Book no longer deduct that note (they previously double-reduced). No stored record is rewritten.
 - **Verification / Tests:** `tests/run_accounting_p0_suite.cjs` 33/33 (4 new, 3 fail on the old code); E2E parity in every `tests/phase35e_credit_note_e2e.py` test.
 
+---
+
+### CHG-0024: Cloud Owner Login Hardened (BUG-0016, BUG-0017, BUG-0018)
+- **Date:** 2026-11-10
+- **Commit SHA:** commercial hardening commit (`git log -- cloud/src/worker.js`; not self-embedded, per CHG-0013)
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Security P0
+- **Scope / Files:** `cloud/src/worker.js` (`/internal/auth`, `hotelLogin`, `isWeak`, `passwordProblem`, `signupInput`, `hotelRegister`), `app_main.py` (`/api/hotel/login` offline lock)
+- **New Behavior:** owner sign-in accepts only owner-level secrets; staff PINs are refused there (staff use `/api/login`); per-IP / per-hotel wrong-try lock; username checked; weak owner password refused online; one password policy for sign-up and registration; repeated-character PINs are weak.
+- **Risks & Side Effects:** an owner whose cloud password is weak must change it on the counter (or ask the vendor to reset it) before signing in online; a user typing an unrecognised username gets the generic "invalid" message. Staff login unchanged. **Not deployed** — the production Worker still runs the old code until the owner deploys.
+- **Verification / Tests:** `tests/commercial_security_e2e.py` 6/6 (5 fail on the old Worker).
+
+---
+
+### CHG-0025: Counter Hotel Handlers Save Again; No Built-In Passwords (BUG-0019, BUG-0020)
+- **Date:** 2026-11-10
+- **Commit SHA:** commercial hardening commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Bug Fix / Security
+- **Scope / Files:** `app_main.py` (`SetuStore.save`, handler logging, owner-password guard), `hotel_erp.html` (Gate 1, offline hotel login, activation; `sw.js` cache `setu-pos-v100`), `cloud/static/hotel_erp.html` removed (stale, unserved copy: `copy-assets.mjs` publishes the root file)
+- **Verification / Tests:** `tests/commercial_security_unit_test.py` 9/9 on both storage engines (6 fail / error on the old code).
+
+---
+
+### CHG-0026: Cloud Taxable Value and Expense Heads (BUG-0021 / TD-0014, TD-0016)
+- **Date:** 2026-11-10
+- **Commit SHA:** commercial hardening commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Financial Reporting
+- **Scope / Files:** `cloud/src/worker.js` (sales / GST taxable expression; voucher `category` from `head`, `note` from `desc`; `by_category` falls back to `raw_json.head` for older rows), `tests/cloud_reports_test.mjs` (expectation corrected)
+- **Migration:** none (reads `raw_json`); existing rows report correctly at once.
+- **Verification / Tests:** `tests/commercial_finance_e2e.py` 2/2 (both fail on the old Worker); `tests/cloud_reports_test.mjs` 15/15.
+
+---
+
+### CHG-0027: Release-Candidate Build, Installer Text, Upgrade Test, Storage Decision
+- **Date:** 2026-11-10
+- **Commit SHA:** commercial hardening commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Release Engineering
+- **Scope / Files:** `.github/workflows/build-exe.yml` (this branch builds the EXE + installer as workflow artifacts; publishing stays gated on the existing branch condition, so nothing is published), `installer/setu-setup.iss` (three Hinglish strings → professional English; AppId, paths, data folder unchanged), `tests/commercial_upgrade_test.py`, `.github/workflows/phase34a-safety.yml` (new suites)
+- **Storage decision (v1.0):** legacy JSON is the supported default; SQLite only through the verified per-site migration; no automatic engine change (TD-0017).
+- **Verification / Tests:** `tests/commercial_upgrade_test.py` 2/2; manual old-code (`8707b00`) → new-code open of the same synthetic folder: 0 keys changed, business data identical, still JSON, no SQLite file.
+

@@ -33,7 +33,7 @@ CloseApplications=force
 RestartApplications=no
 
 [Tasks]
-Name: "desktopicon"; Description: "Desktop par Setu POS ka icon banayein"; GroupDescription: "Shortcuts:"
+Name: "desktopicon"; Description: "Create a Setu POS icon on the desktop"; GroupDescription: "Shortcuts:"
 
 [Files]
 Source: "..\dist\Aghanya-Devanya-Hotel-ERP.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -53,8 +53,8 @@ Name: "{group}\Uninstall Setu POS"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\Setu POS"; Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Microsoft WebView2 install ho raha hai (internet chahiye)..."; Check: NeedsWebView2; Flags: waituntilterminated
-Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Description: "Setu POS abhi kholein"; Flags: nowait postinstall skipifsilent
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 (requires an internet connection)..."; Check: NeedsWebView2; Flags: waituntilterminated
+Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Description: "Open Setu POS now"; Flags: nowait postinstall skipifsilent
 ; Update from inside Setu (silent install): start Setu again by itself
 Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Flags: nowait; Check: WizardSilent
 

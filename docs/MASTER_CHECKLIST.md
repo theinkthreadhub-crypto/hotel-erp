@@ -1,6 +1,6 @@
 # HoReCa One — Master Development Checklist
 
-**Last Updated:** 2026-11-10 (Phase 3.5e)  
+**Last Updated:** 2026-11-10 (Commercial release hardening)  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Active Development Branch:** `feature/horeca-one-phase34a-safety`  
 **Active PR:** [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9) targeting `feature/horeca-one-phase3-cloud-sync`  
@@ -10,7 +10,7 @@
 
 ## 0. Milestone & Release Gate Summary (counts reconciled 2026-11-09)
 
-- **Development milestones:** **51 total** = **49 completed / verified by referenced commits and tests** + **2 open (3.5d.3: 24 h outage run not yet completed; 3.5e.6: menu synchronization, separate phase)**. These are milestone checkboxes, NOT release gates.
+- **Development milestones:** **56 total** = **54 completed / verified by referenced commits and tests** + **2 open (3.5d.3: 24 h outage run not yet completed; 3.5e.6: menu synchronization, separate phase)**. These are milestone checkboxes, NOT release gates.
 - **Owner action outside the milestones:** revoke/rotate the leaked Resend e-mail key (TD-0011). Not verifiable from the repository; not done until the owner confirms.
 - **Release gates:** **5 total** = **1 automated CI gate passed (A)** + **4 release gates blocked (B–E)**.
 - **Completion is scoped to the stated automated evidence.** Passing automated tests does not clear physical printer, legacy Windows migration, live phone, or production tenant-isolation signoff.
@@ -99,6 +99,30 @@
 - [x] **3.5e.4 Owner Report Parity:** sales / GST / credit-note register / expenses; counter and cloud totals equal in every E2E scenario.
 - [x] **3.5e.5 Double-Reduction Guard (BUG-0014) and Day Book Fix (BUG-0013).**
 - [ ] **3.5e.6 Menu Synchronization (TD-0013 / TD-0008):** pending, separate phase.
+
+### Commercial Release Hardening (v1.0 candidate)
+- [x] **CR.1 Owner cloud login security:** staff PINs refused, lock, username, weak passwords, one policy (BUG-0016/17/18). Not yet deployed to production.
+- [x] **CR.2 Counter hotel handlers save and link again; no built-in passwords** (BUG-0019, BUG-0020).
+- [x] **CR.3 Cloud GST taxable value and expense heads** (BUG-0021 / TD-0014, TD-0016). TD-0015 (credit-note reversal) waits for an approved design.
+- [x] **CR.4 v1.0 storage decision:** legacy JSON default, SQLite opt-in per site through verified migration (TD-0017).
+- [x] **CR.5 Release-candidate build + installer text + existing-customer upgrade test** (artifact only, nothing published).
+
+## 2b. Commercial Launch Checklist (v1.0)
+
+| # | Item | Status |
+|---|---|---|
+| 1 | Automated CI on the exact release commit (4 jobs + RC EXE / installer build) | See AI_HANDOVER §4 for the run ids |
+| 2 | Security P0 fixes deployed to the production Worker | **PENDING — owner deploy** |
+| 3 | Old Resend e-mail key revoked / rotated (TD-0011) | **PENDING — owner** |
+| 4 | Production publish branch and approval decided (TD-0018) | **PENDING — owner** |
+| 5 | Physical 58/80 mm printers (Gate B) | **BLOCKED — hardware** |
+| 6 | 4 GB Windows PC: install, upgrade over an existing install, 100k-bill database, JSON save time (Gate C, TD-0017) | **BLOCKED — hardware** |
+| 7 | Live phone QR order (Gate D) | **BLOCKED — hardware** |
+| 8 | Production tenant isolation sign-off (Gate E) | **BLOCKED** (after 5–7) |
+| 9 | 24 h outage run on stable hardware (3.5d.3) | **PENDING** |
+| 10 | RC installer: install, uninstall (data folder kept), update while running, WebView2 on a PC without it | **REQUIRES PHYSICAL WINDOWS PC** |
+| 11 | Rollback: re-run the previous installer over the RC; data folder untouched | **REQUIRES PHYSICAL WINDOWS PC** |
+| 12 | Merge Draft PR #9 | **NOT AUTHORIZED** |
 
 ---
 

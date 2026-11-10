@@ -425,8 +425,9 @@ await test('9. Gate 3: Comprehensive reporting suite with realistic dataset', as
   assert.equal(rSales.json.summary.bill_count, 3, 'Active bills count must be 3');
   assert.equal(rSales.json.summary.gross_sales, 3525);
   assert.equal(rSales.json.summary.gross_sales_p, 352500, 'Exact gross sales paise');
-  assert.equal(rSales.json.summary.net_taxable, 3500);
-  assert.equal(rSales.json.summary.net_taxable_p, 350000, 'Exact net taxable paise');
+  // Taxable value is after discount, as on the counter (TD-0014): 950 + 500 + 1900. It was 3500 (sub before discount).
+  assert.equal(rSales.json.summary.net_taxable, 3350);
+  assert.equal(rSales.json.summary.net_taxable_p, 335000, 'Exact net taxable paise');
   assert.equal(rSales.json.summary.total_tax, 175);
   assert.equal(rSales.json.summary.total_tax_p, 17500, 'Exact tax paise');
   assert.equal(rSales.json.summary.cancelled_bill_count, 1);
@@ -445,7 +446,8 @@ await test('9. Gate 3: Comprehensive reporting suite with realistic dataset', as
   // 3. Test /api/reports/gst
   const rGst = await callApi('GET', '/api/reports/gst', null, { 'X-Setu-Token': adminToken });
   assert.equal(rGst.status, 200);
-  assert.equal(rGst.json.summary.total_taxable, 3500);
+  assert.equal(rGst.json.summary.total_taxable, 3350);
+  assert.equal(rGst.json.summary.total_taxable_p, 335000, 'GST taxable value after discount, exact paise');
   assert.equal(rGst.json.summary.total_gst, 175);
   assert.equal(rGst.json.summary.gross_revenue, 3525);
 

@@ -79,7 +79,9 @@ const enc = s => new TextEncoder().encode(s);
 const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
 const istDay = (ms = Date.now()) => new Date(ms + 330 * 60000).toISOString().slice(0, 10);
 // Same rule as the app (changeOwnerPass): short, listed, or one repeated character
-const isWeak = pin => String(pin).length < 4 || WEAK_PINS.has(String(pin).toLowerCase()) || /^(.)+$/.test(String(pin));
+const isWeak = pin => String(pin).length < 4 || WEAK_PINS.has(String(pin).toLowerCase()) || /^(.)\1+$/.test(String(pin));
+// One rule for every owner / manager password the cloud creates or changes (sign-up, registration, password change)
+const passwordProblem = pw => (String(pw).length < 6 || isWeak(pw)) ? 'Password must be at least 6 characters and not too simple' : '';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 function sameText(a, b){
@@ -2210,7 +2212,7 @@ export class SetuHotel extends DurableObject {
             if(vid){
               this.sql.exec(
                 `INSERT OR REPLACE INTO sync_vouchers (id, type, amount, party, mode, date, time, category, note, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                vid, String(v.type || 'Expense'), +v.amount || 0, String(v.party || ''), String(v.mode || 'Cash'), String(v.date || ''), String(v.time || ''), String(v.category || ''), String(v.note || ''), env.doc_version, now, JSON.stringify(v)
+                vid, String(v.type || 'Expense'), +v.amount || 0, String(v.party || ''), String(v.mode || 'Cash'), String(v.date || ''), String(v.time || ''), String(v.category || v.head || ''), String(v.note || v.desc || ''), env.doc_version, now, JSON.stringify(v)
               );
               this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'ups', ?)`, env.doc_version, vid, now);
             }
@@ -2570,7 +2572,7 @@ export class SetuHotel extends DurableObject {
       const activeRow = this.sql.exec(
         `SELECT COUNT(*) AS bill_count,
                 COALESCE(SUM(CAST(ROUND(total * 100) AS INTEGER)), 0) AS gross_sales_p,
-                COALESCE(SUM(CAST(ROUND(sub * 100) AS INTEGER)), 0) AS net_taxable_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(raw_json, '$.taxable'), sub - COALESCE(disc, 0)) * 100) AS INTEGER)), 0) AS net_taxable_p,
                 COALESCE(SUM(CAST(ROUND(tax * 100) AS INTEGER)), 0) AS total_tax_p,
                 COALESCE(SUM(CAST(ROUND(disc * 100) AS INTEGER)), 0) AS total_discount_p
          FROM sync_bills WHERE cancelled = 0 ${range.whereSql}`,
@@ -2594,7 +2596,7 @@ export class SetuHotel extends DurableObject {
       const dailyRows = this.sql.exec(
         `SELECT date, COUNT(*) AS bill_count,
                 COALESCE(SUM(CAST(ROUND(total * 100) AS INTEGER)), 0) AS gross_sales_p,
-                COALESCE(SUM(CAST(ROUND(sub * 100) AS INTEGER)), 0) AS net_taxable_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(raw_json, '$.taxable'), sub - COALESCE(disc, 0)) * 100) AS INTEGER)), 0) AS net_taxable_p,
                 COALESCE(SUM(CAST(ROUND(tax * 100) AS INTEGER)), 0) AS tax_p,
                 COALESCE(SUM(CAST(ROUND(disc * 100) AS INTEGER)), 0) AS discount_p
          FROM sync_bills WHERE cancelled = 0 ${range.whereSql} GROUP BY date ORDER BY date ASC LIMIT ? OFFSET ?`,
@@ -2703,12 +2705,14 @@ export class SetuHotel extends DurableObject {
     }
 
     // 4. GST Summary Report
+    // Taxable value = the bill's own `taxable` (after discount; net of GST for inclusive prices), as on the counter's
+    // GST report (TD-0014). Older rows without it fall back to sub - disc. Read from raw_json: no migration needed.
     if(subpath === 'gst'){
       const range = parseDateRange('b.date');
       const bWhere = range.clauses.length ? ' AND ' + range.clauses.join(' AND ') : '';
       const totalRow = this.sql.exec(
         `SELECT COUNT(*) AS bill_count,
-                COALESCE(SUM(CAST(ROUND(b.sub * 100) AS INTEGER)), 0) AS taxable_amount_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(b.raw_json, '$.taxable'), b.sub - COALESCE(b.disc, 0)) * 100) AS INTEGER)), 0) AS taxable_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.tax * 100) AS INTEGER)), 0) AS gst_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.total * 100) AS INTEGER)), 0) AS gross_amount_p
          FROM sync_bills b WHERE b.cancelled = 0 ${bWhere}`,
@@ -2723,7 +2727,7 @@ export class SetuHotel extends DurableObject {
 
       const dailyRows = this.sql.exec(
         `SELECT b.date, COUNT(*) AS bill_count,
-                COALESCE(SUM(CAST(ROUND(b.sub * 100) AS INTEGER)), 0) AS taxable_amount_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(b.raw_json, '$.taxable'), b.sub - COALESCE(b.disc, 0)) * 100) AS INTEGER)), 0) AS taxable_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.tax * 100) AS INTEGER)), 0) AS gst_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.total * 100) AS INTEGER)), 0) AS gross_amount_p
          FROM sync_bills b WHERE b.cancelled = 0 ${bWhere} GROUP BY b.date ORDER BY b.date ASC LIMIT ? OFFSET ?`,
@@ -2845,10 +2849,10 @@ export class SetuHotel extends DurableObject {
       ).toArray();
 
       const catRows = this.sql.exec(
-        `SELECT category, COUNT(*) AS count,
+        `SELECT COALESCE(NULLIF(category, ''), json_extract(raw_json, '$.head'), '') AS category, COUNT(*) AS count,
                 COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) AS total_amount_p
          FROM sync_vouchers WHERE cancelled = 0 ${range.whereSql}${typeClause}
-         GROUP BY category ORDER BY total_amount_p DESC`,
+         GROUP BY 1 ORDER BY total_amount_p DESC`,
         ...queryParams
       ).toArray();
 
@@ -3183,18 +3187,35 @@ export class SetuHotel extends DurableObject {
       if(!this.account) return json(404, { error: 'Hotel not found' });
       const b = body();
       const pw = String(b.password || '');
+      // Owner sign-in only. It returns an admin token AND the hotel's Sync Key, so a staff / cashier PIN must never pass
+      // here (staff sign in with their PIN at /api/login, which gives their own role and no Sync Key). Same wrong-try
+      // lock as /api/login; the caller's IP comes from the public route (internal paths are not reachable from outside).
+      const ip = String(b.ip || 'unknown'), now0 = Date.now();
+      const fails = this.kvGet('fail:' + ip) || { n: 0, at: now0 }, all = this.kvGet('fail:*') || { n: 0, at: now0 };
+      if(now0 - fails.at > FAIL_WINDOW){ fails.n = 0; fails.at = now0; }
+      if(now0 - all.at > FAIL_WINDOW){ all.n = 0; all.at = now0; }
+      if(fails.n >= FAIL_LIMIT || all.n >= GLOBAL_FAIL_LIMIT) return json(429, { error: 'Too many wrong tries. Please try again in 15 minutes.' });
+      const a = this.account, user = String(b.username || '').trim().toLowerCase();
+      const userOk = !user || ['owner', 'admin', 'manager'].includes(user) ||
+        [a.owner, a.phone, a.email].some(x => x && String(x).trim().toLowerCase() === user);
       let found = false;
-      if(pw && await this.ownerMatches(pw)){
-        found = true;
+      if(userOk && pw){
+        if(await this.ownerMatches(pw)) found = true;
+        else {
+          await this.ensureSecure();
+          let d = {};
+          try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+          found = await SEC.checkMaster(d, pw);       // owner password / manager admin PIN slots only, never staff PINs
+        }
       }
       if(!found){
-        await this.ensureSecure();
-        const pinMatch = await this.checkPin(pw);
-        if(pinMatch) found = true;
-      }
-      if(!found){
+        fails.n++; all.n++;
+        this.kvSet('fail:' + ip, fails);
+        this.kvSet('fail:*', all);
         return json(401, { error: 'Invalid Hotel ID, Username, or Password.' });
       }
+      if(isWeak(pw)) return json(403, { error: 'The owner password is too simple. Change it in Settings on the counter, or ask the vendor to reset it.', code: 'WEAK_PASSWORD' });
+      this.kvDel('fail:' + ip);
 
       if(this.account.status === 'pending'){
         return json(403, {
@@ -3226,7 +3247,7 @@ export class SetuHotel extends DurableObject {
         });
       }
 
-      const token = this.newToken('admin', this.account.owner || b.username || 'Admin');
+      const token = this.newToken('admin', this.account.owner || 'Admin');
       const paidUntil = (this.account.paidUntil && this.account.paidUntil > Date.now())
         ? this.account.paidUntil
         : (this.account.status === 'active' ? (Date.now() + 365 * DAY) : (this.account.paidUntil || (Date.now() + 30 * DAY)));
@@ -4208,7 +4229,7 @@ function signupInput(b){
   if(out.name.length < 2 || !out.owner) return { error: 'Please enter the hotel and owner names' };
   if(out.phone.length !== 10) return { error: 'Please enter a 10-digit mobile number' };
   if(out.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) return { error: 'Invalid email address' };
-  if(out.password.length < 6 || isWeak(out.password)) return { error: 'Password must be at least 6 characters and not too simple' };
+  if(passwordProblem(out.password)) return { error: passwordProblem(out.password) };
   return out;
 }
 
@@ -4244,7 +4265,7 @@ async function hotelRegister(request, env){
   if(hotelName.length < 2) return json(400, { error: 'Hotel Name must be at least 2 characters.' });
   if(ownerName.length < 2) return json(400, { error: 'Owner Name must be at least 2 characters.' });
   if(phone.length < 10) return json(400, { error: 'Valid 10-digit mobile number is required.' });
-  if(password.length < 4) return json(400, { error: 'Password must be at least 4 characters.' });
+  if(passwordProblem(password)) return json(400, { error: passwordProblem(password) });
 
   // Generate unique immutable Hotel ID (HOTEL + 4 numeric digits)
   let hotelId = '';
@@ -4377,7 +4398,7 @@ async function hotelLogin(request, env){
   let b;
   try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
   const hotelId = String(b.hotelId || '').trim().toUpperCase();
-  const username = String(b.username || 'owner').trim();
+  const username = String(b.username || 'owner').trim().slice(0, 100);
   const password = String(b.password || '').trim();
 
   if(!hotelId) return json(400, { error: 'Please enter Hotel ID.' });
@@ -4391,7 +4412,7 @@ async function hotelLogin(request, env){
   const stub = hotelStub(env, hotelId);
   const authRes = await stub.fetch('https://hotel/internal/auth', {
     method: 'POST',
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, password, ip: request.headers.get('CF-Connecting-IP') || 'unknown' })
   });
 
   const j = await authRes.json().catch(() => ({}));

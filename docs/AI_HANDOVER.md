@@ -1,6 +1,6 @@
 # HoReCa One — Permanent AI Handover Specification
 
-**Document Version:** 3.5e-handover-v1  
+**Document Version:** commercial-rc-handover-v1  
 **Last Documentation Audit:** 2026-11-09  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Single Source of Truth:** GitHub commit history and verified CI runs, NOT conversational summaries.
@@ -16,7 +16,9 @@
 - **Last fully observed pre-audit branch SHA:** `6b2720d664fe745cc8625a52339ccf9287aedf80` (2026-11-09 audit snapshot; **not** an automatically updated HEAD). Documentation correction commits after this snapshot are recorded in the Git history.
 - **Current HEAD is dynamic:** always fetch origin and inspect the branch and Draft PR #9's head SHA immediately before new work. Never assume the literal snapshot SHA above is still current.
 - **Local working tree/stashes:** GitHub cannot establish an engineer's local working-tree cleanliness or uncommitted files. Each active writer must verify locally with `git status --short`, `git stash list`, and `git worktree list` before editing.
-- **Milestone summary:** 49 completed, 2 open (3.5d.3: full 24 h outage run; 3.5e.6: menu sync); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Milestone summary:** 54 completed, 2 open (3.5d.3: full 24 h outage run; 3.5e.6: menu sync); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Commercial hardening start point:** `8707b003cb5f870da3798783709f830e387eb3f1`, CI green (push run `42774561776`, PR run `42774567893`).
+- **v1.0 storage:** legacy JSON (`setu-db.json`) is the supported default; SQLite only after the verified per-site migration (`setu_migrate.py --cutover`). `SETU_STORAGE=sqlite` is for development / tests only. Never switch a customer PC silently.
 - **Phase 3.5e start point:** `a367824ffb667dd9f4484bea965e3122fdb98391`, CI green (push run `42651168270`, PR run `42651185047`, 4/4 jobs each).
 - **Phase 3.5d hardening start point:** `921e720d068bf0f819ca7ff20bf896a8c39e1df3`, CI green on that SHA (push run `42619736467`, PR run `42619747819`, 4/4 jobs each).
 - **Phase 3.5d start point:** `0bca9c738bec1bccd042b1c474ad8f9a8343daf8`, CI green on that SHA (runs `42583532643` and `42583538039`, 4/4 jobs each).
@@ -99,6 +101,12 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
   - Fixed BUG-0013 (Day Book read the wrong field), BUG-0014 (cancel after credit note double-reduced sales/GST), BUG-0015 (one permanent code missing).
   - Menu synchronization stays a separate pending task (3.5e.6).
 
+- **Commercial release hardening (v1.0 candidate):**
+  - Security: BUG-0016 (P0, staff PIN → admin token + Sync Key at the owner cloud login), BUG-0017 (no lock, username unchecked), BUG-0018 (`isWeak` control character, weak registration rule), BUG-0020 (built-in '1234' / '0000' in the app) — fixed and tested. **The production Worker is not deployed**: the fixes are live only after the owner deploys.
+  - BUG-0019: the counter's hotel register / activate / login called a missing `store.save()`; now saves and links, failures logged.
+  - Finance: BUG-0021 (cloud taxable value), TD-0016 (expense heads) fixed; TD-0015 waits for a design.
+  - Release: this branch builds an RC EXE + installer as workflow artifacts only; installer text in English; upgrade test of an existing customer folder.
+
 ---
 
 ## 4. Empirical Test Verification Proof
@@ -143,6 +151,13 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
 - `tests/run_accounting_p0_suite.cjs`: 33/33 PASS (4 new; 35e.2, 35e.3, 35e.4 fail on the pre-3.5e `hotel_erp.html`)
 - Regression: phase34a 9/9, phase35 6/6, phase35c 5/5, test_horeca_one_ui 11/11, inbound 15/15, outbox 9/9, sqlite_phase2b 17/17, dispatcher 17/17, sqlite_phase2 14/14, bug0010 12/12 (incl. BUG-0012 backlog tests), secret scan 2/2, phase35b 7/7, guard-records 11/11, cloud inbound 13/13, ingestion 19/19, reports 15/15, ESC/POS 16/16, phase35d loopback E2E 10/10; syntax checks OK.
 - Memory / performance after 3.5e: 1-minute outage smoke at 0.01 s/bill = 5,163 bills, PASS, 0 lost, RSS 29.8 → 37.9 MB, settle p99 3.57 ms. No new full-outbox scan (dispatcher path unchanged; `local_synced_credit_note_totals` is a reconciliation helper, never called by the sync loop).
+
+### Commercial hardening local execution (Linux cloud container, 2026-11-10)
+- New: `tests/commercial_security_e2e.py` 6/6 (real Worker; 5 fail on the old Worker), `tests/commercial_security_unit_test.py` 9/9 (JSON + SQLite stores; 6 fail/error on the old code), `tests/commercial_finance_e2e.py` 2/2 (both fail on the old Worker), `tests/commercial_upgrade_test.py` 2/2.
+- Regression: phase34a 9/9, phase35 6/6, phase35c 5/5, UI 11/11, inbound 15/15, outbox 9/9, sqlite_phase2b 17/17, dispatcher 17/17, sqlite_phase2 14/14, bug0010 12/12, phase35e unit 6/6, secret scan 2/2, phase35b 7/7, guard-records 11/11, accounting 33/33, cloud inbound 13/13, ingestion 19/19, reports 15/15, ESC/POS 16/16, phase35d E2E 10/10, phase35e E2E 7/7; 1-minute outage smoke PASS.
+- Old-code (`8707b00`) → new-code open of a synthetic customer folder: 0 keys changed; still JSON; no SQLite file.
+- Measured JSON save cost (TD-0017): 31 ms @ 5k bills, 316 ms @ 50k, 965 ms @ 150k.
+- NOT RUN here (require a physical Windows PC): installer install / uninstall / update-while-running / WebView2 bootstrap / rollback; physical printers.
 
 ### Verified GitHub Actions CI
 - **Phase 3.5d hardening:** `affb476` (BUG-0010, replay tool, TD-0011): push run `42639446648` and PR run `42639455491`, 4/4 jobs each (safety incl. new hardening + secret-scan step; Wrangler job incl. loopback E2E 10 tests; Chromium; Windows EXE). `4caec0c` (BUG-0012): push run `42649311390` and PR run `42649325878`, 4/4 jobs each. Later docs-only commits: check their own runs.

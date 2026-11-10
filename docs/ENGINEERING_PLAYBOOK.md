@@ -23,6 +23,17 @@
   - A missing credential disables only the feature that needs it, with a clear message; core operations (billing, admissions, dispensing) never depend on it.
   - CI runs a secret scan over every tracked file that reports file and line only, never the value. A leaked key is revoked at the provider first; removing it from the code does not make it safe.
 
+- **`SEC-005: A Route That Returns Owner Secrets Accepts Only Owner Credentials`** (from BUG-0016)
+  - Any endpoint that issues an owner/admin token, a sync key, an API key or a licence must verify an owner-level secret only. It must never fall back to a generic "any valid PIN" check.
+  - Staff sign-in is a separate route that returns the staff member's own role and no secrets.
+  - Every credential route has the same wrong-try lock (per IP and per tenant).
+  - Test it with every staff role PIN as a negative case.
+
+- **`SEC-006: No Built-In Passwords, One Password Policy`** (from BUG-0018, BUG-0020)
+  - No literal fallback password (`'1234'`, `'0000'`, `'admin'`) is ever accepted or set by code, and no default PIN is shown in the UI.
+  - One `passwordProblem()` rule is shared by sign-up, registration and password change.
+  - Weak-password checks are covered by tests with repeated characters: a regex typo there fails silently.
+
 - **`SEC-003: Cryptographic Rigor in Licensing & Signatures`**
   - Never implement security checks using mock string prefixes (e.g., checking if a signature starts with `"forged"` or `"invalid"`).
   - All offline license updates, software activations, or permission delegations must use standard asymmetric cryptographic primitives (e.g., ECDSA over NIST P-256 with SHA-256 or Ed25519) with pinned public keys and hardware-machine binding.
@@ -135,6 +146,11 @@
 - **`TEST-003: Hardware Output Is Verified as Bytes, Then on Paper`** (from BUG-0011)
   - Printer output is decoded byte by byte in CI: only known commands, every text line within the paper width (32 columns at 58 mm, 48 at 80 mm), exactly one cut, drawer only on a first cash print.
   - Byte-level tests never count as physical printer validation; the physical gate stays open until a person checks the paper.
+
+- **`TEST-005: No Silent Catch Around Persistence or Linking`** (from BUG-0019)
+  - `except Exception: pass` around a save, a cloud link or a licence write hides missing methods and real failures (a non-existent `store.save()` went unnoticed).
+  - Log the failure where support can see it, and cover each handler with a test that checks the data was actually stored, on every storage engine.
+  - Old-versus-new checks swap files with care: restore the exact final snapshot and re-run the full suite afterwards.
 
 - **`TEST-004: Long-Run Evidence States Its Real Duration`**
   - A soak or outage test reports the duration it actually completed. A shorter run is never presented as evidence for a longer requirement.

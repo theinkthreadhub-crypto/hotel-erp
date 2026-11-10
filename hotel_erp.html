@@ -7111,7 +7111,6 @@ function promptAdminForGate1(targetView){
           <button type="button" class="btn g" style="width:100%;font-size:12px;padding:8px;font-weight:600;color:#059669" onclick="closeModal(); switchHotelDirect();">
             ← Switch Hotel / Return to Hotel Login
           </button>
-          <div style="font-size:10.5px;color:#94a3b8;margin-top:4px">Default Admin PIN: <b>1234</b></div>
         </div>
       </form>
     </div>
@@ -7150,7 +7149,8 @@ async function handleAdminGate1Unlock(e, targetView){
     // 2. Check local fallback credentials
     if(!verified){
       const localPw = (D.auth && D.auth.password) || (D.settings && D.settings.adminPin) || '';
-      if(pass === localPw || pass === D.settings.adminPin || pass === '1234' || pass === '0000'){
+      // No built-in default passwords: only the hotel's own password / admin PIN (when this device holds it)
+      if(localPw && pass === localPw){
         verified = true;
       }
     }
@@ -7477,7 +7477,7 @@ async function handleGate1Submit(e){
     // Local offline check if already saved
     const localHid = (D.settings && D.settings.hotelId) || (D.auth && D.auth.hotelId) || '';
     const localPw = (D.auth && D.auth.password) || (D.settings && D.settings.adminPin) || '';
-    if(hid.toUpperCase() === localHid.toUpperCase() && (pass === localPw || pass === '1234' || pass === '0000')){
+    if(localPw && hid.toUpperCase() === localHid.toUpperCase() && pass === localPw){
       activeUser = {
         name: (D.auth && D.auth.ownerName) || 'Owner',
         role: 'admin',
@@ -23766,7 +23766,8 @@ async function handleNewHotelActivate(e){
       lsSet(TOKEN_KEY, j.token);
     }
 
-    const regPw = window._pendingHotelReg?.password || '1234';
+    // The password typed at registration; never a built-in default (a reload in between keeps the existing one)
+    const regPw = window._pendingHotelReg?.password || '';
     const gate1Data = {
       hotelId: hotelId,
       hotelName: window._pendingHotelReg?.hotelName || j.hotelName || hotelId,
@@ -23780,14 +23781,14 @@ async function handleNewHotelActivate(e){
     if(!D.auth) D.auth = {};
     D.auth.isRegistered = true;
     D.auth.hotelId = hotelId;
-    D.auth.password = regPw;
+    if(regPw) D.auth.password = regPw;
     D.auth.userId = window._pendingHotelReg?.username || 'owner';
     D.auth.ownerName = window._pendingHotelReg?.ownerName || j.hotelName || 'Owner';
     D.auth.status = 'active';
 
     if(!D.settings) D.settings = {};
     D.settings.hotelId = hotelId;
-    D.settings.adminPin = regPw;
+    if(regPw) D.settings.adminPin = regPw;
     if(window._pendingHotelReg?.hotelName) D.settings.name = window._pendingHotelReg.hotelName;
 
     if(!D.subscription) D.subscription = {};

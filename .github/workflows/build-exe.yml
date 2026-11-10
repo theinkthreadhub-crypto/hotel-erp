@@ -9,6 +9,9 @@ on:
       - feat/horeca-one-premium-22-modules
       - feat/horeca-one-v3-reference-accurate
       - main
+      # Release-candidate builds (installer as a workflow artifact only). Publishing to setu-latest and Hotel Setu Cloud
+      # stays limited to the branch named in the two `if:` lines below; this branch never publishes.
+      - feature/horeca-one-phase34a-safety
     paths:
       - 'app_main.py'
       - 'setu_*.py'

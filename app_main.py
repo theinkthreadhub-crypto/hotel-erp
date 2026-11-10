@@ -561,6 +561,20 @@ class SetuStore:
         except Exception:
             pass
 
+    # Keys the hotel registration / activation / login handlers may change on the counter
+    IDENTITY_KEYS = ('settings', 'auth', 'secure')
+
+    def save(self, data_obj):
+        """Saves only the hotel-identity keys of data_obj onto a fresh copy taken under the lock (BUG: the handlers called a
+        save() that did not exist, so the AttributeError was swallowed and nothing was saved or linked). Other keys are
+        never written from the caller's older copy, so a device's save in between cannot be lost."""
+        with self.lock:
+            cur = self.data()
+            for k in self.IDENTITY_KEYS:
+                if k in data_obj:
+                    cur[k] = data_obj[k]
+            self.write(cur)
+
     def write(self, data_obj):
         # Nothing changes in memory until the file is safely on disk, so a failed
         # write can never leave the server "ahead" of what survives a restart.
@@ -3784,8 +3798,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         auth['status'] = 'pending'
                         auth['isRegistered'] = True
                         store.save(d)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        store.log(f'Hotel registration / activation: saving on the counter failed: {e}')
                 return self.send_json(status, res)
 
             if path == '/api/hotel/activate':
@@ -3805,8 +3819,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         store.save(d)
                         if cloud and res.get('syncKey'):
                             cloud.set_config(DEFAULT_CLOUD_URL, res['hotelId'], res['syncKey'], True)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        store.log(f'Hotel registration / activation: saving on the counter failed: {e}')
                 return self.send_json(status, res)
 
             if path == '/api/hotel/login':
@@ -3836,7 +3850,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                             auth['ownerName'] = cloud_res.get('owner') or username
                             auth['status'] = 'active'
                             auth['isRegistered'] = True
-                            sec['owner'] = SEC.hash_secret(password)
+                            # A new / formatted PC takes the owner password from the cloud login. An existing owner
+                            # password is never replaced by whatever passed the cloud check (it may be the manager PIN).
+                            if not sec.get('owner'):
+                                sec['owner'] = SEC.hash_secret(password)
                             store.save(d)
                             if cloud and cloud_res.get('syncKey'):
                                 cloud.set_config(DEFAULT_CLOUD_URL, cloud_res['hotelId'], cloud_res['syncKey'], True)
@@ -3844,8 +3861,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                                     cloud.restore(cloud_res['hotelId'], password)
                                 except Exception:
                                     pass
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            store.log(f'Hotel login: saving the hotel on the counter / linking the cloud failed: {e}')
                         token = store.add_token('admin', hotel_id=cloud_res['hotelId'], name=cloud_res.get('owner') or username)
                         cloud_res['token'] = token
                     return self.send_json(status, cloud_res)
@@ -3858,9 +3875,16 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not local_hid or (hotel_id and hotel_id != local_hid):
                     return self.send_json(503, {'error': 'Offline: Hotel ID not found locally. Initial login requires an active internet connection.'})
 
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many wrong tries. Try again in {wait // 60 + 1} minutes.'})
                 found = store.check_pin(password)
                 if not found:
+                    store.pin_guard(ip, False)
+                    time.sleep(1)
                     return self.send_json(401, {'error': 'Invalid Hotel ID, Username, or Password (offline mode).'})
+                store.pin_guard(ip, True)
 
                 role, name = found
                 token = store.add_token(role, hotel_id=local_hid, name=name)
