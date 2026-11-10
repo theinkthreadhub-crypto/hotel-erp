@@ -56,6 +56,7 @@ jobs:
       - name: Phase 3.5d hardening (BUG-0010 module policy, held-op recovery, e-mail key config) and secret scan
         run: |
           python tests/phase35d_bug0010_test.py
+          python tests/phase35e_credit_note_unit_test.py
           python tests/secret_scan_test.py
       - name: Phase 3.5d ESC/POS byte-stream validation (software only, no printer)
         run: node tests/phase35d_escpos_test.mjs
@@ -186,3 +187,4 @@ jobs:
         run: |
           python -m pip install 'cryptography>=42,<48'
           SETU_REQUIRE_WRANGLER=1 python tests/phase35d_local_e2e.py
+          SETU_REQUIRE_WRANGLER=1 python tests/phase35e_credit_note_e2e.py

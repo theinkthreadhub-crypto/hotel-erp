@@ -1,6 +1,6 @@
 # HoReCa One — Master Development Checklist
 
-**Last Updated:** 2026-11-09 (Phase 3.5d hardening)  
+**Last Updated:** 2026-11-10 (Phase 3.5e)  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Active Development Branch:** `feature/horeca-one-phase34a-safety`  
 **Active PR:** [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9) targeting `feature/horeca-one-phase3-cloud-sync`  
@@ -10,7 +10,7 @@
 
 ## 0. Milestone & Release Gate Summary (counts reconciled 2026-11-09)
 
-- **Development milestones:** **45 total** = **44 completed / verified by referenced commits and tests** + **1 open (3.5d.3: 24 h outage run not yet completed)**. These are milestone checkboxes, NOT release gates.
+- **Development milestones:** **51 total** = **49 completed / verified by referenced commits and tests** + **2 open (3.5d.3: 24 h outage run not yet completed; 3.5e.6: menu synchronization, separate phase)**. These are milestone checkboxes, NOT release gates.
 - **Owner action outside the milestones:** revoke/rotate the leaked Resend e-mail key (TD-0011). Not verifiable from the repository; not done until the owner confirms.
 - **Release gates:** **5 total** = **1 automated CI gate passed (A)** + **4 release gates blocked (B–E)**.
 - **Completion is scoped to the stated automated evidence.** Passing automated tests does not clear physical printer, legacy Windows migration, live phone, or production tenant-isolation signoff.
@@ -91,6 +91,14 @@
 - [x] **3.5d.5 Held-Op Review & Replay Tool:** `tools/replay_held_ops.py` (dry run default, same op identity, ambiguous ops to review, idempotent) with counter/cloud totals reconciliation; synthetic recovery of the outage-run case verified against the real Worker (E2E test_08).
 - [x] **3.5d.6 E-mail Key Out of Source + Secret Scan (TD-0011 code part):** env var / data-folder file only, safe 503 without a key, CI secret scan. **Key rotation by the owner still pending (not verified).**
 - [x] **3.5d.7 Sync Cycle Independent of Backlog (BUG-0012):** incremental legacy check, ack by op id; 20,000-op backlog regression tests; memory plateau verified to 203,175 pending bills.
+
+### Phase 3.5e: Credit Note Cloud Sync & Financial Reporting Integrity
+- [x] **3.5e.1 Existing Credit-Note Behaviour Documented:** creation, refund voucher, GST (`cnCalc`), reports; gaps recorded (BUG-0013, BUG-0014, TD-0014, TD-0015, TD-0016).
+- [x] **3.5e.2 Worker Credit-Note Ingestion:** `sync_credit_notes` (integer paise, original ids and bill reference), validation, immutability, stale / duplicate / out-of-order handling, additive migration.
+- [x] **3.5e.3 Sync Policy v2:** `cnotes` moved to `CLOUD_SYNC_MODULES` after ingestion and tests; menu stays local (separate pending task).
+- [x] **3.5e.4 Owner Report Parity:** sales / GST / credit-note register / expenses; counter and cloud totals equal in every E2E scenario.
+- [x] **3.5e.5 Double-Reduction Guard (BUG-0014) and Day Book Fix (BUG-0013).**
+- [ ] **3.5e.6 Menu Synchronization (TD-0013 / TD-0008):** pending, separate phase.
 
 ---
 

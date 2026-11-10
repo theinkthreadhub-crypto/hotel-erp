@@ -64,8 +64,8 @@ def bill(i, total=105):
             'sub': 100, 'tax': 5, 'total': total, 'date': '2026-11-09', 'time': '12:00', 'used': []}
 
 
-@unittest.skipUnless(os.path.exists(WRANGLER), 'cloud/node_modules missing: run npm ci in cloud/ (SKIPPED, not passed)')
-class WorkerCounterLoopback(unittest.TestCase):
+class LoopbackBase(unittest.TestCase):
+    """Starts one local Worker (Miniflare) per test class; shared by the Phase 3.5d and 3.5e loopback suites."""
     @classmethod
     def setUpClass(cls):
         cls.tmp = tempfile.mkdtemp(prefix='horeca-35d-')
@@ -73,10 +73,15 @@ class WorkerCounterLoopback(unittest.TestCase):
         cls.base = f'http://127.0.0.1:{cls.port}'
         subprocess.run(['node', 'scripts/copy-assets.mjs'], cwd=CLOUD, check=True, stdout=subprocess.DEVNULL)
         cls.log = open(os.path.join(cls.tmp, 'wrangler.log'), 'w')
+        cls.addClassCleanup(cls._stop)
+        cls._start_worker()
+        cls.hotels = {'B': cls.new_hotel('B')}
+
+    @classmethod
+    def _start_worker(cls):
         cls.proc = subprocess.Popen([WRANGLER, 'dev', '--local', '--port', str(cls.port), '--ip', '127.0.0.1', '--log-level', 'error',
                                      '--persist-to', os.path.join(cls.tmp, 'state'), '--var', f'ADMIN_KEY:{ADMIN_KEY}'],
                                     cwd=CLOUD, stdout=cls.log, stderr=subprocess.STDOUT)
-        cls.addClassCleanup(cls._stop)
         for _ in range(90):
             try:
                 if http(cls.base, 'GET', '/api/ping', timeout=3)[0] in (200, 400, 404):
@@ -85,7 +90,23 @@ class WorkerCounterLoopback(unittest.TestCase):
                 time.sleep(1)
         else:
             raise RuntimeError('local Worker did not start: ' + open(os.path.join(cls.tmp, 'wrangler.log')).read()[-2000:])
-        cls.hotels = {'B': cls.new_hotel('B')}
+
+    @classmethod
+    def restart_worker(cls):
+        """Stops the Worker process and starts it again on the same persisted state (a Worker / Durable Object restart)."""
+        cls.proc.terminate()
+        try:
+            cls.proc.wait(10)
+        except subprocess.TimeoutExpired:
+            cls.proc.kill()
+            cls.proc.wait(10)
+        for _ in range(30):
+            try:
+                http(cls.base, 'GET', '/api/ping', timeout=1)
+                time.sleep(0.5)
+            except OSError:
+                break
+        cls._start_worker()
 
     @classmethod
     def new_hotel(cls, tag):
@@ -171,6 +192,10 @@ class WorkerCounterLoopback(unittest.TestCase):
         self.assertEqual(code, 200, r)
         return r
 
+
+
+@unittest.skipUnless(os.path.exists(WRANGLER), 'cloud/node_modules missing: run npm ci in cloud/ (SKIPPED, not passed)')
+class WorkerCounterLoopback(LoopbackBase):
     # ---------------------------------------------------------------- outbound: counter -> Worker
     def test_01_bills_reach_worker_over_http_with_exact_acks(self):
         self.assertEqual(self.disp.is_activation_safe(), (True, 'OK'))

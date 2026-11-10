@@ -288,3 +288,40 @@
 - **New Behavior:** incremental legacy check (`_legacy_clear_seq`); ack reads only the acknowledged op ids. Exact (op_id, hotel, checksum) verification unchanged.
 - **Verification / Tests:** see BUG-0012 and `docs/AI_HANDOVER.md` §4.
 
+---
+
+### CHG-0022: Credit-Note Cloud Ingestion and Sync Policy v2 (TD-0013, Phase 3.5e)
+- **Date:** 2026-11-10
+- **Commit SHA:** Phase 3.5e commit (`git log -- cloud/src/worker.js`; not self-embedded, per CHG-0013)
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Feature / Financial Sync
+- **Scope / Files:** `cloud/src/worker.js` (table `sync_credit_notes`, `cnotes` in `SUPPORTED_RECORD_MODULES`, validation + immutability in `ingestSyncEnvelope`), `setu_sqlite.py` (`SYNC_MODULE_POLICY_VERSION = 2`, `cnotes` → `CLOUD_SYNC_MODULES`, `PERMANENT_SYNC_REJECTIONS`, `local_synced_credit_note_totals`)
+- **New Behavior:**
+  - Credit notes travel in the same op as their refund voucher (one save = one op).
+  - The Worker stores them in integer paise with the original credit-note id and the original bill reference, after these checks, inside the existing atomic ingest transaction:
+    - id, billId, date, non-negative amounts, `taxable + tax = total` (±1 paisa), refund ∈ Cash/UPI/Card/none, rate 0–100;
+    - billNo matches the bill when the bill is in the cloud;
+    - all credit notes on a bill ≤ bill total + ₹1 (rupee rounding).
+  - A posted credit note is immutable: an identical resend is a no-op; a changed copy is rejected (`CREDIT_NOTE_IMMUTABLE`), a delete is rejected, and an older version is stale (`CONFLICT_STALE_RECORD`).
+  - A credit note arriving before its bill is accepted and flagged (`bill_known = 0`; the report joins live, so it links once the bill arrives).
+  - Rejections keep the full envelope in the cloud and counter `sync_conflicts`; the counter holds them (no retry loop).
+- **Migration:** `CREATE TABLE IF NOT EXISTS` + indexes, run on every Durable Object start: additive, idempotent, no change to existing tables. Not run against any production tenant in this phase.
+- **Verification / Tests:** `tests/phase35e_credit_note_e2e.py` 7/7 (real Worker), `tests/phase35e_credit_note_unit_test.py` 6/6.
+
+---
+
+### CHG-0023: Credit Notes in Owner Reports; Cancel Guard; Day Book Fix (BUG-0013, BUG-0014)
+- **Date:** 2026-11-10
+- **Commit SHA:** Phase 3.5e commit
+- **Engineer/AI:** Claude Code (cloud session)
+- **Category:** Financial Reporting / Bug Fix
+- **Scope / Files:** `cloud/src/worker.js` (reports `sales`, `gst`, new `credit-notes`, `expenses`), `hotel_erp.html` (`cnLive`, `cnBlocksCancel`, `summary`, `gstMonth`, `daybookData`, `cancelBill`, `remakeBill`), `app_main.py` (`cancel_bill`)
+- **New Behavior:**
+  - `sales` adds credit-note count / total / taxable / tax, refunded vs adjusted (credit notes are not a payment mode and not credit sales), `net_sales_after_credit_notes_p`, and notes on cancelled bills listed separately; all by credit-note date, so a note issued in a later month reduces that month.
+  - `gst` adds credit-note taxable / GST and `net_gst_after_credit_notes_p`.
+  - New `/api/reports/credit-notes` register, including a count of notes whose bill is not in the cloud.
+  - `expenses` no longer counts 'Customer Refund' vouchers as expenses (the counter already treats them as non-expense) and lists them as `credit_note_refunds`.
+  - Counter and cloud share one rule: a credit note counts while its bill is not cancelled. A bill with a credit note can no longer be cancelled or re-made.
+- **Risks & Side Effects:** For existing tenants the cloud expense total drops by any refund vouchers already synced (correct per the counter's own P&L). For data where a bill was cancelled after its credit note, local GSTR-1 / summary / Day Book no longer deduct that note (they previously double-reduced). No stored record is rewritten.
+- **Verification / Tests:** `tests/run_accounting_p0_suite.cjs` 33/33 (4 new, 3 fail on the old code); E2E parity in every `tests/phase35e_credit_note_e2e.py` test.
+

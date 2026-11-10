@@ -861,6 +861,34 @@ export class SetuHotel extends DurableObject {
     )`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_vouchers_date ON sync_vouchers (date)`);
 
+    // Phase 3.5e: credit notes (sales returns / price reductions after billing). Immutable once posted; amounts in
+    // integer paise; the original bill is referenced by id, never rewritten. CREATE IF NOT EXISTS: safe for every tenant.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_credit_notes (
+      id TEXT PRIMARY KEY,
+      no INTEGER,
+      date TEXT NOT NULL,
+      time TEXT,
+      bill_id TEXT NOT NULL,
+      bill_no INTEGER,
+      bill_date TEXT,
+      gstin TEXT,
+      channel TEXT,
+      rate REAL,
+      incl INTEGER DEFAULT 0,
+      taxable_p INTEGER NOT NULL,
+      tax_p INTEGER NOT NULL,
+      total_p INTEGER NOT NULL,
+      refund TEXT NOT NULL,
+      reason TEXT,
+      issued_by TEXT,
+      bill_known INTEGER DEFAULT 0,
+      doc_version INTEGER DEFAULT 0,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_credit_notes_date ON sync_credit_notes (date)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_credit_notes_bill ON sync_credit_notes (bill_id)`);
+
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_kots (
       id TEXT PRIMARY KEY,
       table_name TEXT,
@@ -1909,7 +1937,7 @@ export class SetuHotel extends DurableObject {
     const maps = env.payload.maps || {};
     const values = env.payload.values || {};
 
-    const SUPPORTED_RECORD_MODULES = new Set(['bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders']);
+    const SUPPORTED_RECORD_MODULES = new Set(['bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders', 'cnotes']);
     const SUPPORTED_MAP_MODULES = new Set(['tables', 'kaccha']);
     const SUPPORTED_VALUE_MODULES = new Set(['settings', 'seq', 'auth']);
 
@@ -1981,6 +2009,13 @@ export class SetuHotel extends DurableObject {
           }
           for(const rmId of (vouchersRec.rm || [])){
             checkStale('sync_vouchers', 'id', String(rmId), 'vouchers');
+          }
+        }
+
+        // 2b. Check credit notes staleness
+        if(recs.cnotes && typeof recs.cnotes === 'object'){
+          for(const c of (recs.cnotes.ups || [])){
+            checkStale('sync_credit_notes', 'id', String((c && c.id) || ''), 'cnotes');
           }
         }
 
@@ -2106,6 +2141,65 @@ export class SetuHotel extends DurableObject {
               actorName, env.doc_version, now, srm
             );
             this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'bills', ?, 'cancel', ?)`, env.doc_version, srm, now);
+          }
+        }
+
+        // 1b. Credit notes (after bills, so a bill and its credit note may arrive in one op). Validated and immutable:
+        // a credit note is never edited, deleted or posted twice; anything else rejects the whole op for review.
+        if(recs.cnotes && typeof recs.cnotes === 'object'){
+          const cnFail = (code, rid, reason) => {
+            const err = new Error(reason);
+            err.isConflict = true;
+            err.entityKey = 'cnotes';
+            err.recordId = rid;
+            err.reason = `${code}: ${reason}`;
+            err.conflictResponse = { status: 'rejected', error: code, op_id: opId, record_id: rid, reason };
+            throw err;
+          };
+          if((recs.cnotes.rm || []).length){
+            cnFail('CREDIT_NOTE_IMMUTABLE', String(recs.cnotes.rm[0]), 'credit notes cannot be deleted; issue a new document instead');
+          }
+          const paise = v => Math.round(Number(v) * 100);
+          for(const c of (recs.cnotes.ups || [])){
+            const cid = String((c && c.id) || '');
+            const bad = why => cnFail('INVALID_CREDIT_NOTE', cid, why);
+            if(!c || typeof c !== 'object' || !cid || cid.length > 100) bad('credit note id missing or invalid');
+            const billId = String(c.billId || '');
+            if(!billId) bad('original bill reference (billId) missing');
+            if(!/^\d{4}-\d{2}-\d{2}$/.test(String(c.date || ''))) bad('date must be YYYY-MM-DD');
+            for(const f of ['taxable', 'tax', 'total']){
+              if(typeof c[f] !== 'number' || !Number.isFinite(c[f]) || c[f] < 0) bad(`${f} must be a non-negative number`);
+            }
+            const taxableP = paise(c.taxable), taxP = paise(c.tax), totalP = paise(c.total);
+            if(totalP <= 0) bad('total must be greater than zero');
+            if(Math.abs(taxableP + taxP - totalP) > 1) bad('taxable + tax does not equal total');
+            const refund = String(c.refund == null ? '' : c.refund);
+            if(!['Cash', 'UPI', 'Card', 'none'].includes(refund)) bad(`refund must be Cash, UPI, Card or none (got "${refund.slice(0, 20)}")`);
+            if(c.rate != null && !(typeof c.rate === 'number' && c.rate >= 0 && c.rate <= 100)) bad('rate must be 0..100');
+            if(c.items != null && !Array.isArray(c.items)) bad('items must be a list');
+
+            const prev = this.sql.exec('SELECT bill_id, taxable_p, tax_p, total_p, refund FROM sync_credit_notes WHERE id = ?', cid).toArray()[0];
+            if(prev){
+              if(prev.bill_id === billId && prev.taxable_p === taxableP && prev.tax_p === taxP && prev.total_p === totalP && prev.refund === refund) continue;
+              cnFail('CREDIT_NOTE_IMMUTABLE', cid, 'a posted credit note cannot be changed');
+            }
+            const bill = this.sql.exec('SELECT no, total FROM sync_bills WHERE id = ?', billId).toArray()[0];
+            if(bill){
+              if(c.billNo != null && bill.no != null && Number(c.billNo) !== Number(bill.no)) bad(`billNo ${c.billNo} does not match bill ${billId} (no ${bill.no})`);
+              const already = this.sql.exec('SELECT COALESCE(SUM(total_p), 0) AS t FROM sync_credit_notes WHERE bill_id = ?', billId).toArray()[0].t || 0;
+              // The bill total is rounded to the rupee; credited lines may exceed it by less than one rupee
+              if(already + totalP > paise(bill.total) + 100){
+                cnFail('CREDIT_NOTE_EXCEEDS_BILL', cid, `credit notes on bill ${billId} would total ${(already + totalP) / 100}, bill total ${bill.total}`);
+              }
+            }
+            this.sql.exec(
+              `INSERT INTO sync_credit_notes (id, no, date, time, bill_id, bill_no, bill_date, gstin, channel, rate, incl, taxable_p, tax_p, total_p, refund, reason, issued_by, bill_known, doc_version, updated_at, raw_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              cid, c.no != null ? Number(c.no) : null, String(c.date), String(c.time || ''), billId, c.billNo != null ? Number(c.billNo) : null,
+              String(c.billDate || ''), String(c.gstin || ''), String(c.channel || ''), c.rate != null ? Number(c.rate) : null, c.incl ? 1 : 0,
+              taxableP, taxP, totalP, refund, String(c.reason || ''), String(c.by || ''), bill ? 1 : 0, env.doc_version, now, JSON.stringify(c)
+            );
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'cnotes', ?, 'ups', ?)`, env.doc_version, cid, now);
           }
         }
 
@@ -2383,6 +2477,21 @@ export class SetuHotel extends DurableObject {
       const whereSql = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
       return { from, to, clauses, whereSql, params };
     };
+    // Credit notes in the requested date range (credit-note date). Counted only while the original bill is not cancelled.
+    const creditNoteTotals = () => {
+      const r = parseDateRange('c.date');
+      const w = r.clauses.length ? ' AND ' + r.clauses.join(' AND ') : '';
+      const live = this.sql.exec(
+        `SELECT COUNT(*) AS count, COALESCE(SUM(c.total_p), 0) AS total_p, COALESCE(SUM(c.taxable_p), 0) AS taxable_p,
+                COALESCE(SUM(c.tax_p), 0) AS tax_p, COALESCE(SUM(CASE WHEN c.refund <> 'none' THEN c.total_p ELSE 0 END), 0) AS refunded_p
+         FROM sync_credit_notes c LEFT JOIN sync_bills b ON b.id = c.bill_id WHERE COALESCE(b.cancelled, 0) = 0 ${w}`, ...r.params).toArray()[0] || {};
+      const dead = this.sql.exec(
+        `SELECT COUNT(*) AS count, COALESCE(SUM(c.total_p), 0) AS total_p
+         FROM sync_credit_notes c JOIN sync_bills b ON b.id = c.bill_id WHERE b.cancelled = 1 ${w}`, ...r.params).toArray()[0] || {};
+      return { count: live.count || 0, total_p: live.total_p || 0, taxable_p: live.taxable_p || 0, tax_p: live.tax_p || 0,
+        refunded_p: live.refunded_p || 0, adjusted_p: (live.total_p || 0) - (live.refunded_p || 0),
+        on_cancelled_count: dead.count || 0, on_cancelled_p: dead.total_p || 0 };
+    };
 
     const limit = Math.min(500, Math.max(1, +(url.searchParams.get('limit') || 50)));
     const offset = Math.max(0, +(url.searchParams.get('offset') || 0));
@@ -2475,6 +2584,8 @@ export class SetuHotel extends DurableObject {
         ...range.params
       ).toArray()[0] || {};
 
+      const cn = creditNoteTotals();
+
       const totalDaysRow = this.sql.exec(
         `SELECT COUNT(DISTINCT date) AS c FROM sync_bills WHERE cancelled = 0 ${range.whereSql}`,
         ...range.params
@@ -2507,7 +2618,18 @@ export class SetuHotel extends DurableObject {
           total_discount_p: activeRow.total_discount_p || 0,
           cancelled_bill_count: cancRow.cancelled_bill_count || 0,
           cancelled_amount: (cancRow.cancelled_amount_p || 0) / 100,
-          cancelled_amount_p: cancRow.cancelled_amount_p || 0
+          cancelled_amount_p: cancRow.cancelled_amount_p || 0,
+          // Credit notes (returns / price reductions) by credit-note date: deducted from sales, not a payment mode
+          credit_note_count: cn.count,
+          credit_note_total_p: cn.total_p,
+          credit_note_taxable_p: cn.taxable_p,
+          credit_note_tax_p: cn.tax_p,
+          credit_note_refunded_p: cn.refunded_p,
+          credit_note_adjusted_p: cn.adjusted_p,
+          net_sales_after_credit_notes_p: (activeRow.gross_sales_p || 0) - cn.total_p,
+          // A credit note on a bill that was later cancelled is not deducted again (the cancellation removed the bill)
+          credit_notes_on_cancelled_bills: cn.on_cancelled_count,
+          credit_notes_on_cancelled_bills_p: cn.on_cancelled_p
         },
         daily: dailyRows.map(r => ({
           date: r.date,
@@ -2593,6 +2715,7 @@ export class SetuHotel extends DurableObject {
         ...range.params
       ).toArray()[0] || {};
 
+      const gcn = creditNoteTotals();
       const totalDaysRow = this.sql.exec(
         `SELECT COUNT(DISTINCT b.date) AS c FROM sync_bills b WHERE b.cancelled = 0 ${bWhere}`,
         ...range.params
@@ -2619,7 +2742,11 @@ export class SetuHotel extends DurableObject {
           total_gst: (totalRow.gst_amount_p || 0) / 100,
           total_gst_p: totalRow.gst_amount_p || 0,
           gross_revenue: (totalRow.gross_amount_p || 0) / 100,
-          gross_revenue_p: totalRow.gross_amount_p || 0
+          gross_revenue_p: totalRow.gross_amount_p || 0,
+          credit_note_count: gcn.count,
+          credit_note_taxable_p: gcn.taxable_p,
+          credit_note_gst_p: gcn.tax_p,
+          net_gst_after_credit_notes_p: (totalRow.gst_amount_p || 0) - gcn.tax_p
         },
         by_date: dailyRows.map(r => ({
           date: r.date,
@@ -2632,6 +2759,28 @@ export class SetuHotel extends DurableObject {
           gross_amount_p: r.gross_amount_p || 0
         })),
         pagination: { limit, offset, total_days: totalDaysRow.c || 0 }
+      };
+    }
+
+    // 4b. Credit Notes Register (Phase 3.5e)
+    if(subpath === 'credit-notes'){
+      const r = parseDateRange('c.date');
+      const w = r.clauses.length ? ' AND ' + r.clauses.join(' AND ') : '';
+      const rows = this.sql.exec(
+        `SELECT c.id, c.no, c.date, c.time, c.bill_id, c.bill_no, c.bill_date, c.gstin, c.channel, c.rate, c.taxable_p, c.tax_p, c.total_p,
+                c.refund, c.reason, c.issued_by, c.bill_known, COALESCE(b.cancelled, 0) AS bill_cancelled
+         FROM sync_credit_notes c LEFT JOIN sync_bills b ON b.id = c.bill_id WHERE 1 = 1 ${w}
+         ORDER BY c.date DESC, c.no DESC LIMIT ? OFFSET ?`, ...r.params, limit, offset).toArray();
+      const unlinked = this.sql.exec(
+        `SELECT COUNT(*) AS n FROM sync_credit_notes c LEFT JOIN sync_bills b ON b.id = c.bill_id WHERE b.id IS NULL ${w}`, ...r.params).toArray()[0] || {};
+      return {
+        ok: true,
+        hotel: this.account.code,
+        from: r.from || null,
+        to: r.to || null,
+        summary: { ...creditNoteTotals(), original_bill_not_in_cloud: unlinked.n || 0 },
+        credit_notes: rows.map(x => ({ ...x, total: x.total_p / 100, bill_known: !!x.bill_known, bill_cancelled: !!x.bill_cancelled })),
+        pagination: { limit, offset }
       };
     }
 
@@ -2682,7 +2831,9 @@ export class SetuHotel extends DurableObject {
     if(subpath === 'expenses'){
       const range = parseDateRange('date');
       const typeParam = url.searchParams.get('type') || '';
-      const typeClause = typeParam ? ' AND type = ?' : '';
+      // Refunds paid against credit notes are not expenses (the credit note already reduced sales); listed separately
+      const notRefund = " AND COALESCE(json_extract(raw_json, '$.head'), '') <> 'Customer Refund'";
+      const typeClause = (typeParam ? ' AND type = ?' : '') + notRefund;
       const queryParams = typeParam ? [...range.params, typeParam] : range.params;
 
       const typeRows = this.sql.exec(
@@ -2737,6 +2888,12 @@ export class SetuHotel extends DurableObject {
           total: (r.total_amount_p || 0) / 100,
           total_p: r.total_amount_p || 0
         })),
+        credit_note_refunds: (() => {
+          const x = this.sql.exec(
+            `SELECT COUNT(*) AS count, COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) AS total_p FROM sync_vouchers
+             WHERE cancelled = 0 AND json_extract(raw_json, '$.head') = 'Customer Refund' ${range.whereSql}`, ...range.params).toArray()[0] || {};
+          return { count: x.count || 0, total: (x.total_p || 0) / 100, total_p: x.total_p || 0 };
+        })(),
         purchases_summary: {
           count: purchRow.count || 0,
           total: (purchRow.total_purchases_p || 0) / 100,

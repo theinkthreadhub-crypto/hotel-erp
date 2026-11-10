@@ -95,6 +95,15 @@
   - Acknowledgement updates select rows by their indexed id, not by scanning the queue.
   - Soak tests sample process memory against database size: memory that keeps rising after the database cache is full is a defect to trace (measure the database library's own memory and the language heap separately before blaming either).
 
+- **`SYNC-008: Financial Adjustment Documents Sync as Immutable, Linked Records`** (from Phase 3.5e credit notes)
+  - Credit notes, refunds, debit notes, fee concessions (School ERP), sales returns (Pharmacy / Retail) are separate documents with their own id, date and amounts in integer minor units, always referencing the original invoice by id. The original invoice is never rewritten.
+  - The adjustment and its money movement (refund voucher) are saved and synced in ONE op.
+  - The server validates before storing: required reference, non-negative amounts, `taxable + tax = total`, an allowed refund type, and cumulative adjustments ≤ the invoice (with a rounding tolerance).
+  - Posted documents are immutable: an identical resend is a no-op, a changed copy or a delete is rejected and kept for review.
+  - Reports are by the adjustment's own date (a return in a later period reduces that period). One rule on both sides decides what counts (e.g. not on a cancelled invoice). Adjustments are kept apart from credit sales and from expenses.
+  - Every new server rejection code goes into the client's permanent-rejection set in the same change (SYNC-004), checked by a test that reads the server source.
+  - Before syncing a module, read how the app actually stores it (field names, linked records) and test the reports with documents built exactly as the app builds them, not with hand-made fixtures.
+
 ---
 
 ### 4. Architecture & Offline-First Operation (`ARCH-xxx`)

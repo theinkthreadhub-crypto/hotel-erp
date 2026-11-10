@@ -2452,6 +2452,11 @@ class SqliteSetuStore(SetuStore):
                 return 404, {'error': 'bill not found'}
             if b.get('cancelled'):
                 return 200, {'ok': True, 'alreadyCancelled': True, 'billId': bid, 'version': self.version}
+            with self.sdb.rlock():
+                has_cn = con.execute('SELECT 1 FROM credit_notes WHERE "billId" = ? LIMIT 1', (bid,)).fetchone()
+            if has_cn:
+                # Cancelling would remove the whole sale while its credit note also reduces it (double reduction)
+                return 409, {'error': 'This bill has a credit note. Issue a credit note for the remaining amount instead of cancelling the bill.'}
             b = copy.deepcopy(b)
             b['cancelled'], b['cancelledBy'] = True, by
             ops = [{'k': 'bills', 'up': [b]}]

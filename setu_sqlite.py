@@ -1420,9 +1420,14 @@ def _normalize_numbers(obj):
 # tests/phase35d_bug0010_test.py fails if the two drift. One save stays ONE op (one op_id, one doc_version): the
 # envelope only leaves out local keys, so a bill and its stock / seq changes still reach the cloud atomically.
 # A key in neither table is kept locally, left out of the envelope and recorded in sync_unclassified.
-SYNC_MODULE_POLICY_VERSION = 1
+# Worker rejections that can never succeed on retry (SYNC-004): held for review, never resent in a loop
+PERMANENT_SYNC_REJECTIONS = frozenset({
+    'CONFLICT_OP_ID_PAYLOAD_MISMATCH', 'CONFLICT_STALE_RECORD', 'SAME_VERSION_MUTATION_CONFLICT', 'UNSUPPORTED_BUSINESS_MODULE',
+    'INVALID_CREDIT_NOTE', 'CREDIT_NOTE_IMMUTABLE', 'CREDIT_NOTE_EXCEEDS_BILL',
+})
+SYNC_MODULE_POLICY_VERSION = 2   # v2 (Phase 3.5e): cnotes moved to the cloud after Worker ingestion of credit notes
 CLOUD_SYNC_MODULES = {
-    'records': frozenset({'bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders'}),
+    'records': frozenset({'bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders', 'cnotes'}),
     'maps': frozenset({'tables', 'kaccha'}),
     'values': frozenset({'settings', 'seq', 'auth'}),
 }
@@ -1431,7 +1436,7 @@ CLOUD_SYNC_MODULES = {
 LOCAL_ONLY_MODULES = {
     'secure': 'private', 'staff': 'private', 'sessions': 'private', 'subscription': 'private', 'saas': 'private',
     'wa': 'private', 'waMessages': 'private', 'errSync': 'private', 'demoCleanupDone': 'private', 'monthlySent': 'private',
-    'menu': 'not_ingested', 'custList': 'not_ingested', 'cnotes': 'not_ingested', 'cash': 'not_ingested',
+    'menu': 'not_ingested', 'custList': 'not_ingested', 'cash': 'not_ingested',
     'att': 'not_ingested', 'salaryDays': 'not_ingested', 'salarySheets': 'not_ingested', 'reservations': 'not_ingested',
     'assets': 'not_ingested', 'gasLog': 'not_ingested', 'onlineOrders': 'not_ingested', 'qrOrders': 'not_ingested',
     'qrDone': 'not_ingested', 'qrLog': 'not_ingested', 'audit': 'not_ingested', 'expTpl': 'not_ingested',
@@ -1716,6 +1721,37 @@ def apply_held_op_replay(sdb, plan, now=None):
                        env.get('device_id') or 'counter'))
             queued.append({'op_id': op_id, 'outbox_seq': new_seq})
     return queued
+
+
+def local_synced_credit_note_totals(sdb):
+    """Counter-side credit-note totals for the credit notes that went into a Phase 3 envelope, with the Worker's rule:
+    a credit note counts while its original bill is not cancelled (paise, same rounding as the Worker)."""
+    con = sdb.con()
+    ids = set()
+    for (raw,) in con.execute("SELECT payload FROM sync_outbox WHERE payload LIKE '%\"cnotes\"%'"):
+        try:
+            p = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        if p.get('envelope_version') == 1:
+            ids |= {str(c.get('id')) for c in (((p.get('payload') or {}).get('records') or {}).get('cnotes') or {}).get('ups') or [] if isinstance(c, dict)}
+    out = {'count': 0, 'total_p': 0, 'taxable_p': 0, 'tax_p': 0, 'refunded_p': 0, 'on_cancelled_count': 0, 'on_cancelled_p': 0}
+    recs = sdb.get_records(con, 'cnotes', sorted(ids)) if ids else {}
+    p_ = lambda v: int(math.floor(abs(float(v or 0)) * 100 + 0.5)) * (1 if float(v or 0) >= 0 else -1)
+    for c in recs.values():
+        b = sdb.get_records(con, 'bills', [str(c.get('billId'))]).get(str(c.get('billId')))
+        if b and b.get('cancelled'):
+            out['on_cancelled_count'] += 1
+            out['on_cancelled_p'] += p_(c.get('total'))
+            continue
+        out['count'] += 1
+        out['total_p'] += p_(c.get('total'))
+        out['taxable_p'] += p_(c.get('taxable'))
+        out['tax_p'] += p_(c.get('tax'))
+        if c.get('refund') != 'none':
+            out['refunded_p'] += p_(c.get('total'))
+    out['adjusted_p'] = out['total_p'] - out['refunded_p']
+    return out
 
 
 def local_synced_bill_totals(sdb):
@@ -2022,7 +2058,7 @@ class OutboxSyncDispatcher:
                 # Permanent rejections are held for Manager review (payload kept, sent_at < 0). Left pending, an
                 # unsupported-module op would be resent forever and, at the head of the queue, starve every
                 # later bill (BUG-35D-01, shown by tests/phase35d_local_e2e.py).
-                if err in ('CONFLICT_OP_ID_PAYLOAD_MISMATCH', 'CONFLICT_STALE_RECORD', 'UNSUPPORTED_BUSINESS_MODULE'):
+                if err in PERMANENT_SYNC_REJECTIONS:
                     conflicts.append({'op_id': op_id, 'reason': err, 'payload': env})
 
         # 5. Persist acknowledgments and conflicts atomically in local SQLite

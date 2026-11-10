@@ -21,6 +21,9 @@
 | **BUG-0010** | Saves With Non-Ingested Modules (incl. First Bill After Migration) Never Reach the Cloud | **P1 (High)** | RESOLVED | Phase 3.5d hardening commit (see CHG-0017, CHG-0018) | `tests/phase35d_bug0010_test.py`, `tests/phase35d_local_e2e.py` test_01, test_07–test_10 |
 | **BUG-0011** | Text-Mode Receipt Lines Wider Than 58 mm Paper (Hotel Name, Footer) | P2 (Medium) | RESOLVED | Phase 3.5d commit (see CHG-0015) | `tests/phase35d_escpos_test.mjs` |
 | **BUG-0012** | Each Sync Cycle Re-Read the Whole Pending Outbox (Memory Growth, Settle Stalls, Quadratic Recovery in Long Outages) | **P1 (High)** | RESOLVED | Phase 3.5d hardening follow-up commit (see CHG-0021) | `tests/phase35d_bug0010_test.py` (`OutboxBacklogScale`) |
+| **BUG-0013** | Day Book Read `c.mode` but Credit Notes Store `c.refund`: Every Credit Note Shown as a Credit Adjustment | P2 (Medium) | RESOLVED | Phase 3.5e commit (see CHG-0023) | `tests/run_accounting_p0_suite.cjs` (35e.1, 35e.2) |
+| **BUG-0014** | A Bill With a Credit Note Could Be Cancelled: Sale Removed and Credit Note Deducted Again | **P1 (High)** | RESOLVED | Phase 3.5e commit (see CHG-0023) | `tests/run_accounting_p0_suite.cjs` (35e.3, 35e.4), `tests/phase35e_credit_note_unit_test.py`, `tests/phase35e_credit_note_e2e.py` test_03 |
+| **BUG-0015** | `SAME_VERSION_MUTATION_CONFLICT` Not Classified as Permanent: Op Would Be Resent Forever | P2 (Medium, latent) | RESOLVED | Phase 3.5e commit (see CHG-0022) | `tests/phase35e_credit_note_unit_test.py` (Worker code drift check) |
 
 ---
 
@@ -242,4 +245,27 @@
 - **Root Cause:** `is_activation_safe()` runs before every dispatch cycle and did `SELECT payload FROM sync_outbox WHERE sent_at IS NULL` + `fetchall()` + a JSON parse of every row, under the read lock; `ack_outbox()` did the same full scan for every acknowledged batch. Work and peak memory per cycle were O(pending), and draining a backlog was O(pending²).
 - **Permanent Fix:** the legacy-format check reads only rows queued after the last clean check (rows never change format once queued); `ack_outbox` reads only the rows of the acknowledged op ids (`ref`, indexed) and still verifies op_id + hotel + checksum on each. No behaviour change for normal queues.
 - **Regression Tests:** `tests/phase35d_bug0010_test.py` `OutboxBacklogScale` with 20,000 pending ops: a second activation check reads no old row (fails on the old code: 40,000 reads instead of 20,000), and the backlog drains with exact acks in under 10 s (old code: 17.1 s).
+
+### BUG-0013: Day Book Read `c.mode` but Credit Notes Store `c.refund`
+- **Severity:** P2 — Medium (report classification; no data change)
+- **Component:** `hotel_erp.html` `daybookData` (credit-note section)
+- **Discovered In:** Phase 3.5e credit-note behaviour review (2026-11-10).
+- **Symptoms:** `saveCreditNote()` stores the money-back mode as `refund` ('Cash' / 'UPI' / 'Card' / 'none'); the Day Book read `c.mode`, which is never set, so every credit note (including cash and UPI refunds) appeared in the Credit Book as a receivable adjustment. The accounting test used an artificial `mode` field and did not catch it.
+- **Permanent Fix:** read `c.refund` (falling back to the older `c.mode`). Only `refund: 'none'` is a credit adjustment. When a 'Customer Refund' voucher records the money paid back (the app always creates one), that voucher is the cash / bank movement, so the credit note line does not count it a second time.
+- **Regression Tests:** `tests/run_accounting_p0_suite.cjs` 35e.1 (cash refund counted once), 35e.2 (fails on the old code).
+
+### BUG-0014: A Bill With a Credit Note Could Be Cancelled
+- **Severity:** P1 — High (sales and output GST under-reported by the credit-note amount)
+- **Component:** `hotel_erp.html` (`cancelBill`, `remakeBill`, `summary`, `gstMonth`, `daybookData`), `app_main.py` (`cancel_bill`)
+- **Discovered In:** Phase 3.5e credit-note behaviour review (2026-11-10).
+- **Symptoms:** `creditNote()` refuses a cancelled bill, but cancelling a bill that already had a credit note was allowed. The cancellation removed the whole sale and the credit note was still deducted from sales, GST (GSTR-1 B2CS / CDNR) and the Day Book: a double reduction.
+- **Permanent Fix:** cancelling or re-making a bill with a credit note is refused (app and counter server, HTTP 409 with a clear message: issue a credit note for the remaining amount instead). For data made before the guard, every report (counter and cloud) applies one rule: a credit note counts only while its original bill is not cancelled; the cloud lists such notes separately (`credit_notes_on_cancelled_bills`). Stored records are not rewritten.
+- **Regression Tests:** `tests/run_accounting_p0_suite.cjs` 35e.3, 35e.4 (both fail on the old code); `tests/phase35e_credit_note_unit_test.py`; `tests/phase35e_credit_note_e2e.py` test_03 (counter and cloud agree).
+
+### BUG-0015: `SAME_VERSION_MUTATION_CONFLICT` Not Classified as Permanent
+- **Severity:** P2 — Medium (latent; same pattern as BUG-0009)
+- **Component:** `setu_sqlite.py` (`OutboxSyncDispatcher.dispatch_once`)
+- **Discovered In:** Phase 3.5e review of Worker rejection codes (2026-11-10).
+- **Symptoms:** The Worker returns `SAME_VERSION_MUTATION_CONFLICT` for a different record at an equal version; the dispatcher did not hold it, so it would be resent on every cycle.
+- **Permanent Fix:** one `PERMANENT_SYNC_REJECTIONS` set (now also the three credit-note codes); a test parses the Worker's rejection codes and fails if any is missing from the set.
 

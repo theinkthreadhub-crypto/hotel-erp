@@ -9325,7 +9325,7 @@ function calc(items, disc, rate){
 function summary(d){
   const bills = D.bills.filter(b => b.date === d && !b.cancelled), tx = D.txns.filter(t => t.date === d);
   const by = {}; MODES.forEach(m => by[m] = r2(bills.reduce((a, b) => a + paidBy(b, m), 0)));
-  const cns = (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => c.date === d);
+  const cns = (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => c.date === d && (typeof cnLive !== 'function' || cnLive(c)));
   const cnTotal = r2(sum(cns, 'total'));
   const cnTaxable = r2(sum(cns, 'taxable'));
   const cnTax = r2(sum(cns, 'tax'));
@@ -9418,6 +9418,9 @@ const invNo = b => String(b.no);   // the number printed on the bill
 // ---------- Credit notes (bill returned / reduced after it was made) ----------
 const cnotes = () => D.cnotes || (D.cnotes = []);
 const cnOfBill = id => cnotes().filter(c => c.billId === id);
+// A credit note counts in reports while its bill is not cancelled: a cancelled bill already removed the whole sale
+const cnLive = c => { const b = typeof getBill === 'function' ? getBill(c.billId) : null; return !(b && b.cancelled); };
+const cnBlocksCancel = b => cnOfBill(b.id).length ? (toast(`Bill #${b.no} has a credit note. Issue a credit note for the remaining amount instead of cancelling.`), true) : false;
 // Qty of each bill line already credited
 function cnDone(b){ const m = {}; cnOfBill(b.id).forEach(c => c.items.forEach(i => { m[i.k] = (m[i.k] || 0) + i.qty; })); return m; }
 // Value of returned lines with the bill's own discount ratio and GST rate
@@ -9486,7 +9489,7 @@ function gstMonth(ym){
   const ok = bills.filter(b => !b.cancelled && (b.scheme || 'regular') === 'regular');
   const own = ok.filter(b => !isEco(b)), eco = ok.filter(isEco);
   const b2b = own.filter(b => b.gstin && gstinCheck(b.gstin).ok), b2c = own.filter(b => !b2b.includes(b));
-  const cns = cnotes().filter(c => String(c.date).startsWith(ym)), billOf = c => getBill(c.billId) || {};
+  const cns = cnotes().filter(c => String(c.date).startsWith(ym) && cnLive(c)), billOf = c => getBill(c.billId) || {};
   const cnB2B = cns.filter(c => c.gstin && gstinCheck(c.gstin).ok && !isEco(billOf(c))), cnB2C = cns.filter(c => !cnB2B.includes(c) && !isEco(billOf(c)));
   const det = (txval, rt, tax) => { const [camt, samt] = split2(tax); return {txval: r2(txval), rt, iamt: 0, camt, samt, csamt: 0}; };
   // B2C small: one line per GST rate, credit notes on B2C bills reduce it
@@ -13363,7 +13366,7 @@ function saveBillEdit(id){
 }
 function remakeBill(id){
   const b = getBill(id);
-  if(!b || b.cancelled) return;
+  if(!b || b.cancelled || cnBlocksCancel(b)) return;
   if(!confirm(`Cancel bill #${b.no} and open its items for correction?`)) return;
   withManager(`Bill #${b.no} cancel & re-make`, by => {
     b.cancelled = true;
@@ -13382,7 +13385,7 @@ function remakeBill(id){
 
 function cancelBill(id){
   const b = getBill(id);
-  if(!b || b.cancelled) return;
+  if(!b || b.cancelled || cnBlocksCancel(b)) return;
   if(!confirm(`Cancel bill #${b.no} (${money(b.total)})? Stock will be restored.`)) return;
   withManager(`Bill #${b.no} cancel`, by => {
     b.cancelled = true;
@@ -13913,10 +13916,14 @@ function daybookData(from, to, view = dbView){
   });
 
   // 2. Credit Notes (Sales Returns & Price Adjustments)
-  (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => inRange(c.date)).forEach(c => {
-    const isCashRefund = c.mode === 'Cash';
-    const isBankRefund = ['UPI', 'Card', 'Bank', 'Netbanking'].includes(c.mode);
-    const isCreditAdj = !c.mode || c.mode === 'None' || c.mode === 'Credit';
+  (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => inRange(c.date) && (typeof cnLive !== 'function' || cnLive(c))).forEach(c => {
+    // The app stores the money-back mode in c.refund ('Cash' / 'UPI' / 'Card' / 'none'); c.mode is the older field name.
+    // When a 'Customer Refund' voucher records the money paid back, that voucher is the cash / bank movement (not twice).
+    const how = c.refund || c.mode;
+    const paidByVoucher = D.txns.some(t => t.cn === c.id);
+    const isCashRefund = how === 'Cash' && !paidByVoucher;
+    const isBankRefund = ['UPI', 'Card', 'Bank', 'Netbanking'].includes(how) && !paidByVoucher;
+    const isCreditAdj = !how || how === 'none' || how === 'None' || how === 'Credit';
 
     let outAmt = 0;
     if(view === 'cash') outAmt = isCashRefund ? c.total : 0;
@@ -13930,7 +13937,7 @@ function daybookData(from, to, view = dbView){
       type: 'Credit Note',
       vtype: 'Credit Note',
       part: `CN-${c.no} on Bill #${c.billNo} · ${c.cust || ''} (${c.reason || 'Return'})`,
-      mode: c.mode || 'None',
+      mode: how || 'None',
       in: 0,
       out: outAmt,
       total: c.total,

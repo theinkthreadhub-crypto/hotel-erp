@@ -1,6 +1,6 @@
 # HoReCa One — Permanent AI Handover Specification
 
-**Document Version:** 3.5d-handover-v2  
+**Document Version:** 3.5e-handover-v1  
 **Last Documentation Audit:** 2026-11-09  
 **Repository:** `theinkthreadhub-crypto/hotel-erp`  
 **Single Source of Truth:** GitHub commit history and verified CI runs, NOT conversational summaries.
@@ -16,7 +16,8 @@
 - **Last fully observed pre-audit branch SHA:** `6b2720d664fe745cc8625a52339ccf9287aedf80` (2026-11-09 audit snapshot; **not** an automatically updated HEAD). Documentation correction commits after this snapshot are recorded in the Git history.
 - **Current HEAD is dynamic:** always fetch origin and inspect the branch and Draft PR #9's head SHA immediately before new work. Never assume the literal snapshot SHA above is still current.
 - **Local working tree/stashes:** GitHub cannot establish an engineer's local working-tree cleanliness or uncommitted files. Each active writer must verify locally with `git status --short`, `git stash list`, and `git worktree list` before editing.
-- **Milestone summary:** 44 completed, 1 open (3.5d.3: full 24 h outage run); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Milestone summary:** 49 completed, 2 open (3.5d.3: full 24 h outage run; 3.5e.6: menu sync); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Phase 3.5e start point:** `a367824ffb667dd9f4484bea965e3122fdb98391`, CI green (push run `42651168270`, PR run `42651185047`, 4/4 jobs each).
 - **Phase 3.5d hardening start point:** `921e720d068bf0f819ca7ff20bf896a8c39e1df3`, CI green on that SHA (push run `42619736467`, PR run `42619747819`, 4/4 jobs each).
 - **Phase 3.5d start point:** `0bca9c738bec1bccd042b1c474ad8f9a8343daf8`, CI green on that SHA (runs `42583532643` and `42583538039`, 4/4 jobs each).
 
@@ -92,6 +93,12 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
   - TD-0011: no literal e-mail key in code; `RESEND_API_KEY` env var or `email-service.key` in the data folder; CI secret scan. **The owner must revoke/rotate the old key at Resend; not verified.**
   - New debt TD-0013: business modules the Worker does not ingest yet (`cnotes`, `cash`, `menu`, ...) stay counter-only.
 
+- **Phase 3.5e (credit notes to the cloud):**
+  - Existing behaviour (read from the code, not assumed): `saveCreditNote()` (Manager approval) creates `{id, no, date, billId, billNo, items[k, qty], taxable, tax, total, rate, incl, refund: Cash|UPI|Card|none, reason, by}` from the bill's own GST rate and discount ratio (`cnCalc`), limited to the quantity not yet credited; a non-'none' refund also creates an Expense voucher, head 'Customer Refund', `cn` = note id (non-expense in the P&L). No stock movement, no edit, no cancellation (TD-0015). Reports: `summary()` deducts notes from net sales / tax by note date; GSTR-1 B2CS / CDNR; Day Book.
+  - Worker: `sync_credit_notes` (integer paise), validation, immutability, out-of-order linking; reports `sales`, `gst`, `credit-notes`, `expenses` updated. Counter: policy v2 (`cnotes` cloud), `PERMANENT_SYNC_REJECTIONS`.
+  - Fixed BUG-0013 (Day Book read the wrong field), BUG-0014 (cancel after credit note double-reduced sales/GST), BUG-0015 (one permanent code missing).
+  - Menu synchronization stays a separate pending task (3.5e.6).
+
 ---
 
 ## 4. Empirical Test Verification Proof
@@ -130,6 +137,13 @@ To prevent merge conflicts, duplicated effort, or code regressions across differ
   - After the fix (`4caec0c` code): 12 min at 0.002 s/bill = 203,175 bills, PASS, 0 lost, 0 sent while offline; RSS 29.9 → 104 MB once the cache filled (180 s), then 110.5 MB at a 292 MB database; settle median 1.28 ms, p99 3.47 ms, max 98 ms. The remaining ~0.65 MB/min matches the harness's own latency list (~17,000 floats/min), not the counter.
   - Conclusion: memory stabilises after the SQLite cache fills; no leak found after BUG-0012. The 24 h run on stable hardware is still required (TD-0012).
 
+### Phase 3.5e local execution (Linux cloud container, 2026-11-10)
+- `tests/phase35e_credit_note_e2e.py` (real Miniflare Worker, incl. a Worker restart and a counter restart): 7/7 PASS, two consecutive runs
+- `tests/phase35e_credit_note_unit_test.py`: 6/6 PASS
+- `tests/run_accounting_p0_suite.cjs`: 33/33 PASS (4 new; 35e.2, 35e.3, 35e.4 fail on the pre-3.5e `hotel_erp.html`)
+- Regression: phase34a 9/9, phase35 6/6, phase35c 5/5, test_horeca_one_ui 11/11, inbound 15/15, outbox 9/9, sqlite_phase2b 17/17, dispatcher 17/17, sqlite_phase2 14/14, bug0010 12/12 (incl. BUG-0012 backlog tests), secret scan 2/2, phase35b 7/7, guard-records 11/11, cloud inbound 13/13, ingestion 19/19, reports 15/15, ESC/POS 16/16, phase35d loopback E2E 10/10; syntax checks OK.
+- Memory / performance after 3.5e: 1-minute outage smoke at 0.01 s/bill = 5,163 bills, PASS, 0 lost, RSS 29.8 → 37.9 MB, settle p99 3.57 ms. No new full-outbox scan (dispatcher path unchanged; `local_synced_credit_note_totals` is a reconciliation helper, never called by the sync loop).
+
 ### Verified GitHub Actions CI
 - **Phase 3.5d hardening:** `affb476` (BUG-0010, replay tool, TD-0011): push run `42639446648` and PR run `42639455491`, 4/4 jobs each (safety incl. new hardening + secret-scan step; Wrangler job incl. loopback E2E 10 tests; Chromium; Windows EXE). `4caec0c` (BUG-0012): push run `42649311390` and PR run `42649325878`, 4/4 jobs each. Later docs-only commits: check their own runs.
 - **Pre-reconciliation exact-commit CI:** [PR run 42202360784](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202360784) and [push run 42202351285](https://github.com/theinkthreadhub-crypto/hotel-erp/actions/runs/42202351285) both succeeded, each with 4/4 jobs, for SHA `6b2720d664fe745cc8625a52339ccf9287aedf80`. This evidence does not automatically certify any later documentation commits.
@@ -161,9 +175,10 @@ Important cloud/offline and QR workflows have automated coverage, but this is **
 
 ## 6. Next Immediate Development Steps
 
+0. **Menu synchronization (3.5e.6)** with the 3.5e pattern (Worker ingestion first, then policy).
 1. **Owner: revoke/rotate the old Resend key** and install the new one via `RESEND_API_KEY` or `email-service.key` (TD-0011).
 2. **Run the full 24 h outage test** on stable hardware per `docs/RUNBOOK_24H_OUTAGE.md` (TD-0012, milestone 3.5d.3), on a commit that includes the BUG-0012 fix.
-3. **Ingest `cnotes` (credit notes) and `menu` in the Worker** and move them to `CLOUD_SYNC_MODULES` (TD-0013, TD-0008).
+3. **TD-0014** (cloud GST taxable value) and **TD-0015** (credit-note reversal: product decision first).
 4. **Physical Gate B printer runbook** using the byte-level expectations in `tests/phase35d_escpos_test.mjs`.
 2. **Maintain Documentation Discipline:**
    - Update `docs/MASTER_CHECKLIST.md`, `docs/CHANGE_LEDGER.md`, and `docs/BUG_REGISTRY.md` with any subsequent change.

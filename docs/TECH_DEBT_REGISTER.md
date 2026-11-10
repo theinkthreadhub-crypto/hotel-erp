@@ -21,7 +21,10 @@
 | **TD-0010** | Raster (Graphic) Receipts Validated Structurally Only | Active | Medium / Test Coverage | Physical Gate B | **CONFIRMED** |
 | **TD-0011** | Hard-Coded Default `RESEND_API_KEY` in `app_main.py` | Code fixed; **key rotation PENDING (owner)** | **High / Security (SEC-001)** | Owner: revoke key at provider | **CONFIRMED** |
 | **TD-0012** | Full 24-Hour Outage Run Not Yet Executed | Active | Medium / Release Evidence | 24 h machine time | **CONFIRMED** |
-| **TD-0013** | Business Modules the Worker Does Not Ingest Stay Counter-Only (`menu`, `cnotes`, `cash`, `custList`, ...) | Active | Medium / Cloud Report Completeness | Worker + policy change per module | **CONFIRMED** |
+| **TD-0013** | Business Modules the Worker Does Not Ingest Stay Counter-Only (`menu`, `cash`, `custList`, ...; `cnotes` done in 3.5e) | Active | Medium / Cloud Report Completeness | Worker + policy change per module | **CONFIRMED** |
+| **TD-0014** | Cloud GST Report Uses Bill `sub` (Before Discount) as Taxable Value | Active | Medium / Report Accuracy | 2 hours | **CONFIRMED** |
+| **TD-0015** | No Credit-Note Cancellation / Reversal Workflow | Active | Medium / Product Gap | Product decision + 4 hours | **CONFIRMED** |
+| **TD-0016** | Cloud Expense Report Groups by `category`, the App Stores `head` | Active | Low / Report Detail | 1 hour | **CONFIRMED** |
 
 ---
 
@@ -140,6 +143,16 @@
 
 ### TD-0013: Business Modules the Worker Does Not Ingest Stay Counter-Only
 - **Classification:** **CONFIRMED** (BUG-0010 module policy, `LOCAL_ONLY_MODULES` reason `not_ingested`).
-- **Description:** Since BUG-0010 these keys are saved locally and backed up, but never sent through Phase 3 sync: `menu`, `cnotes` (credit notes, financial), `cash` (cash-counter openings), `custList`, `att`, `salaryDays`, `salarySheets`, `reservations`, `assets`, `gasLog`, `onlineOrders`, `qrOrders`, `qrDone`, `qrLog`, `audit`, `expTpl`, `supAlias`, `stockAlias`, `supInfo`, `outlets`. Cloud owner reports therefore do not include credit notes or cash-counter openings.
-- **Remediation:** per module, add Worker ingestion (relational table + report), move the key from `LOCAL_ONLY_MODULES` to `CLOUD_SYNC_MODULES` in the same change, extend the drift test and a loopback test. Priority: `cnotes`, then `menu` (also closes TD-0008).
+- **Phase 3.5e:** `cnotes` (credit notes) now ingested by the Worker (`sync_credit_notes`) and moved to `CLOUD_SYNC_MODULES` (policy v2).
+- **Still counter-only:** `menu` (**separate pending task: menu synchronization**, also closes TD-0008), `cash` (cash-counter openings), `custList`, `att`, `salaryDays`, `salarySheets`, `reservations`, `assets`, `gasLog`, `onlineOrders`, `qrOrders`, `qrDone`, `qrLog`, `audit`, `expTpl`, `supAlias`, `stockAlias`, `supInfo`, `outlets`.
+- **Remediation:** per module, Worker ingestion + report, then move the key to `CLOUD_SYNC_MODULES` in the same change, with the drift test and a loopback test (pattern: Phase 3.5e).
 
+### TD-0014: Cloud GST Report Uses Bill `sub` as Taxable Value
+- **Description:** `/api/reports/gst` sums `sync_bills.sub` as `total_taxable`; the counter's taxable value is `sub - disc` for exclusive GST and `net / (1 + rate)` for inclusive prices (`bill.taxable`). With discounts or inclusive prices the cloud taxable figure is too high. Credit-note taxable values are exact (stored per note). Found in 3.5e; not changed (outside the credit-note scope; changes an existing report figure).
+- **Remediation:** store `taxable` in `sync_bills` (additive column from the bill payload) and sum it.
+
+### TD-0015: No Credit-Note Cancellation / Reversal Workflow
+- **Description:** A credit note cannot be edited, cancelled or deleted in the app (`GUARDED`), on the counter or in the cloud (`CREDIT_NOTE_IMMUTABLE`). A wrongly issued credit note has no correction path. The accounting treatment (a debit note / reversal document) is a product decision; not invented in 3.5e.
+
+### TD-0016: Cloud Expense Report Groups by `category`, the App Stores `head`
+- **Description:** `sync_vouchers.category` is filled from `v.category`, while the app writes the expense head in `v.head`, so `by_category` shows everything as "General". 3.5e reads `raw_json.head` only to keep 'Customer Refund' out of expenses.
