@@ -98,3 +98,4 @@ When guests request the final check:
 | **`Esc`** | Back / Close Modal |
 | **`Ctrl + P`** | Reprint Last Bill |
 | **`Ctrl + B`** | Trigger Instant Local Backup |
+
