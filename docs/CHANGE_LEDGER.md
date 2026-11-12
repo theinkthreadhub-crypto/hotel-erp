@@ -369,3 +369,17 @@
 - **Storage decision (v1.0):** legacy JSON is the supported default; SQLite only through the verified per-site migration; no automatic engine change (TD-0017).
 - **Verification / Tests:** `tests/commercial_upgrade_test.py` 2/2; manual old-code (`8707b00`) → new-code open of the same synthetic folder: 0 keys changed, business data identical, still JSON, no SQLite file.
 
+---
+
+### CHG-0028: Customer-Facing Installer Rebrand to HoReCa One (HR-038 / Gate G03)
+- **Date:** 2026-11-12
+- **Commit SHA:** Pending
+- **Engineer/AI:** Antigravity AI Engine
+- **Category:** Brand / Installer Consistency
+- **Scope / Files:** `installer/setu-setup.iss`
+- **Previous Behavior:** The Windows Inno Setup installer displayed "Setu POS" in the title, Windows Add/Remove programs list (`UninstallDisplayName`), desktop icon shortcut description, and Start Menu group names, causing customer brand confusion with HoReCa One.
+- **New Behavior:** Rebranded customer-facing strings to "HoReCa One" (`AppName=HoReCa One`, `AppVerName=HoReCa One {#AppVersion}`, `DefaultGroupName=HoReCa One`, `UninstallDisplayName=HoReCa One - Restaurant & Hotel POS`, and desktop/start-menu shortcuts). All internal executable filenames (`Aghanya-Devanya-Hotel-ERP.exe`), GUIDs (`AppId`), output artifact names (`Setu-POS-Setup.exe`), and `%LOCALAPPDATA%\AghanyaDevanyaERP\Data` paths remain completely unchanged to preserve backward compatibility and prevent customer data loss.
+- **Risks & Side Effects:** None; existing installations update seamlessly in place.
+- **Verification / Tests:** Inno Setup script validation; `git diff installer/setu-setup.iss`.
+
+

@@ -105,7 +105,7 @@
 - [x] **CR.2 Counter hotel handlers save and link again; no built-in passwords** (BUG-0019, BUG-0020).
 - [x] **CR.3 Cloud GST taxable value and expense heads** (BUG-0021 / TD-0014, TD-0016). TD-0015 (credit-note reversal) waits for an approved design.
 - [x] **CR.4 v1.0 storage decision:** legacy JSON default, SQLite opt-in per site through verified migration (TD-0017).
-- [x] **CR.5 Release-candidate build + installer text + existing-customer upgrade test** (artifact only, nothing published).
+- [x] **CR.5 Release-candidate build + installer text + existing-customer upgrade test:** `installer/setu-setup.iss` rebranded customer-facing strings to "HoReCa One" (CHG-0028 / HR-038 / G03); artifact only, nothing published.
 
 ## 2b. Commercial Launch Checklist (v1.0)
 
