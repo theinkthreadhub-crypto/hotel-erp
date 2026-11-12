@@ -42,7 +42,18 @@ class CounterQrIntegration(unittest.TestCase):
             os.environ.pop('SETU_BACKUP', None)
         else:
             os.environ['SETU_BACKUP'] = self.prev_backup
-        self.tmp.cleanup()
+        import gc
+        gc.collect()
+        try:
+            self.tmp.cleanup()
+        except OSError:
+            import time
+            time.sleep(0.05)
+            gc.collect()
+            try:
+                self.tmp.cleanup()
+            except OSError:
+                pass
 
     def feed(self, url, path, headers):
         from urllib.parse import urlsplit, parse_qs

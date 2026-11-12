@@ -401,7 +401,7 @@
 
 ### CHG-0030: Basic v1.0 Scope Freeze & Marketing Claims Audit (HR-001, HR-003, G01)
 - **Date:** 2026-11-12
-- **Commit SHA:** Pending
+- **Commit SHA:** `f2e8bcd`
 - **Engineer/AI:** Antigravity AI Engine
 - **Category:** Scope Governance / Commercial Alignment
 - **Scope / Files:** `docs/CLAIMS_AND_SCOPE_AUDIT.md`
@@ -412,6 +412,19 @@
   3. Defines the strict "Do Not Promise" matrix prohibiting false marketing claims (such as direct Swiggy/Zomato auto-APIs or unverified real-time cloud sync in the basic offline package).
 - **Risks & Side Effects:** None; establishes firm commercial truth and protects customer expectations.
 - **Verification / Tests:** Cross-checked against existing test suites (`tests/run_accounting_p0_suite.cjs`, `tests/phase35d_local_e2e.py`, `tests/guard-records.test.mjs`, etc.).
+
+---
+
+### CHG-0031: Windows SQLite File Handle Cleanup Resilience in Test Runner (TD-0002)
+- **Date:** 2026-11-12
+- **Commit SHA:** Pending
+- **Engineer/AI:** Antigravity AI Engine
+- **Category:** Test Harness / Windows Compatibility
+- **Scope / Files:** `tests/phase35_counter_integration_test.py`
+- **Previous Behavior:** On Windows, temporary directory deletion during `tearDown()` in `tests/phase35_counter_integration_test.py` occasionally raised `PermissionError: [WinError 32]` because lingering SQLite WAL/shm lock handles were released asynchronously by the OS.
+- **New Behavior:** Enhanced `tearDown()` with explicit Python garbage collection (`gc.collect()`), a resilient retry loop with a 50ms pause, and graceful handling of lingering Windows file locks.
+- **Risks & Side Effects:** None; test harness only.
+- **Verification / Tests:** `tests/phase35_counter_integration_test.py` 6/6 PASS.
 
 
 

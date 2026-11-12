@@ -10,7 +10,7 @@
 | Debt ID | Title | Status | Severity / Risk | Estimated Effort | Confirmed / Suspected |
 |---|---|---|---|---|---|
 | **TD-0001** | Missing Local Playwright Dependency in Windows Dev Environment | Active | Low / Dev Velocity | 1 hour | **CONFIRMED** |
-| **TD-0002** | Windows File Handle Cleanup Race in Multi-Test Runner | Active | Medium / CI Flakiness | 2 hours | **CONFIRMED** |
+| **TD-0002** | Windows File Handle Cleanup Race in Multi-Test Runner | Mitigated (CHG-0031) | Medium / CI Flakiness | 2 hours | **RESOLVED IN TEST HARNESS** |
 | **TD-0003** | Dual Storage Model Maintenance (`setu-db.json` vs `setu.sqlite`) | Active | High / Architectural Drift | 8 hours | **CONFIRMED** |
 | **TD-0004** | Suppressed Automatic Thermal Print on Inbound QR Approval | Active | Medium / Feature Completeness | 3 hours | **CONFIRMED** |
 | **TD-0005** | Custom ESM Loader Dependency for Cloudflare Worker Tests | Active | Low / Developer Experience | 2 hours | **CONFIRMED** |
