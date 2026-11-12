@@ -29,3 +29,4 @@
 > **Action SEC-001 / TD-0011 Required:**
 > While commit `7ec2f05` removed the hardcoded Resend API key literal from source code and replaced it with safe environment variable / data folder file loading, the **historically exposed Resend API key remains active at the provider until the repository owner logs into their Resend dashboard and revokes/rotates it**.
 > This action cannot be performed from Git and must be completed by the repository owner before general commercial release.
+

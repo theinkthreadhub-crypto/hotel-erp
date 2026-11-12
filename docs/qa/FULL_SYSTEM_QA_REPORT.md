@@ -183,3 +183,4 @@ Comprehensive functional, concurrency, and recovery testing verified the followi
 | **5. Guest QR Ordering** | **NO-GO (BLOCKED)** | Blocked until live smartphone scan testing (Gate D) is verified on physical devices. |
 | **6. Third-Party WhatsApp / Aggregator APIs** | **DEFERRED** | Aggregator live sync requires official merchant partner credentials; Baileys WhatsApp operates as local prototype. |
 | **7. Digital Stamp Rewards** | **NOT IMPLEMENTED** | Excluded from v1.0; planned for future roadmap release. |
+

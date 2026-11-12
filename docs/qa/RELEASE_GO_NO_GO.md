@@ -27,3 +27,4 @@ To convert the **Basic Offline POS General Sale** from `NO-GO` to `GO`:
 1. **Gate B Signoff:** Execute [`docs/qa/PHYSICAL_ACCEPTANCE_CHECKLIST.md`](file:///c:/Users/jjcka/OneDrive/Desktop/School/snaoke%20eor/hotel-erp/docs/qa/PHYSICAL_ACCEPTANCE_CHECKLIST.md) on physical 58mm and 80mm ESC/POS USB thermal printers with clean cutter, paper-out recovery, and Hindi font printouts.
 2. **Gate C Signoff:** Complete 24-hour continuous burn-in and power-loss test on a physical Windows PC with 4GB RAM.
 3. **Owner Revocation:** Owner must confirm revocation and rotation of the historical Resend email API key (TD-0011).
+

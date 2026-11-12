@@ -62,3 +62,4 @@
 - [ ] Verify sound chime and review badge appear on counter POS within 3 seconds.
 - [ ] Counter cashier taps "Accept": Verify items append to table cart and KOT prints.
 - [ ] Scan QR tag using iOS Safari camera: Repeat flow; verify cross-platform responsiveness.
+

@@ -51,3 +51,4 @@ In `.github/workflows/phase34a-safety.yml`, all 4 jobs pass on push and PR trigg
 2. `chromium-browser-qa`: Dynamically installs `playwright@1.56.1` and runs full headless browser click tests (`tests/phase35c_browser_e2e.mjs`).
 3. `windows-counter-smoke`: Builds standalone PyInstaller x64 EXE, boots in SQLite mode on port 8177, checks `/api/ping` and HTML serving.
 4. `cloudflare-local-smoke`: Runs `wrangler dev --local` under Miniflare to verify Worker syntax and startup.
+
