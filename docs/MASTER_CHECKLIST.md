@@ -108,6 +108,7 @@
 - [x] **CR.5 Release-candidate build + installer text + existing-customer upgrade test:** `installer/setu-setup.iss` rebranded customer-facing strings to "HoReCa One" (CHG-0028 / HR-038 / G03); artifact only, nothing published.
 - [x] **CR.6 Cashier 10-Minute Operating Guide & Pilot Onboarding Protocol:** created `docs/CASHIER_QUICK_GUIDE.md` (HR-088) covering table/KOT/takeaway/split/cancellation/closing, and `docs/PILOT_ONBOARDING_CHECKLIST.md` (HR-086 / HR-006 / G16) covering hardware survey, menu intake, scope boundaries, and pilot agreement.
 - [x] **CR.7 Basic v1.0 Scope Freeze & Claims-to-Test Audit:** created `docs/CLAIMS_AND_SCOPE_AUDIT.md` (HR-001 / HR-003 / G01) defining 18 supported Offline Basic capabilities, mapping all marketing claims to automated test proof, and establishing the "Do Not Promise" sales boundary matrix.
+- [x] **CR.8 Full System 237-Case Master Audit & Artifacts:** executed comprehensive QA across all 237 tracked cases in `HoReCa_One_Full_QA_237_Cases.xlsx` (206 PASS, 21 BLOCKED, 9 NOT IMPLEMENTED, 1 NOT RUN, 0 FAIL). Created formal release artifacts in `docs/qa/` (`FULL_SYSTEM_QA_REPORT.md`, `TEST_EXECUTION_LOG.md`, `PHYSICAL_ACCEPTANCE_CHECKLIST.md`, `SECURITY_FINDINGS.md`, `RELEASE_GO_NO_GO.md`).
 
 ## 2b. Commercial Launch Checklist (v1.0)
 

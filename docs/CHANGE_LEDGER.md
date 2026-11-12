@@ -417,7 +417,7 @@
 
 ### CHG-0031: Windows SQLite File Handle Cleanup Resilience in Test Runner (TD-0002)
 - **Date:** 2026-11-12
-- **Commit SHA:** Pending
+- **Commit SHA:** `20f22e7`
 - **Engineer/AI:** Antigravity AI Engine
 - **Category:** Test Harness / Windows Compatibility
 - **Scope / Files:** `tests/phase35_counter_integration_test.py`
@@ -425,6 +425,19 @@
 - **New Behavior:** Enhanced `tearDown()` with explicit Python garbage collection (`gc.collect()`), a resilient retry loop with a 50ms pause, and graceful handling of lingering Windows file locks.
 - **Risks & Side Effects:** None; test harness only.
 - **Verification / Tests:** `tests/phase35_counter_integration_test.py` 6/6 PASS.
+
+---
+
+### CHG-0032: Complete 237-Case System Audit, Master Tracker Update & QA Suite (HR-005, G01-G21)
+- **Date:** 2026-11-12
+- **Commit SHA:** Pending
+- **Engineer/AI:** Antigravity AI Engine
+- **Category:** Quality Assurance / Commercial Release Audit
+- **Scope / Files:** `HoReCa_One_Full_QA_237_Cases.xlsx`, `docs/qa/FULL_SYSTEM_QA_REPORT.md`, `docs/qa/TEST_EXECUTION_LOG.md`, `docs/qa/PHYSICAL_ACCEPTANCE_CHECKLIST.md`, `docs/qa/SECURITY_FINDINGS.md`, `docs/qa/RELEASE_GO_NO_GO.md`
+- **Previous Behavior:** QA coverage tracking was fragmented across multiple development milestone documents without a unified mapping to the 237-case commercial launch master workbook.
+- **New Behavior:** Evaluated all 237 items across code, automated test suites, and physical hardware requirements. Audited status updated directly in `HoReCa_One_Full_QA_237_Cases.xlsx` (206 PASS, 21 BLOCKED, 9 NOT IMPLEMENTED, 1 NOT RUN, 0 FAIL). Formatted dedicated QA audit documents in `docs/qa/` providing explicit release decisions by tier.
+- **Risks & Side Effects:** None; governance and testing documentation only.
+- **Verification / Tests:** Executed 33 test files; 171+ automated tests pass with 0 failures.
 
 
 
