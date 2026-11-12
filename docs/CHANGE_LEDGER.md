@@ -382,4 +382,20 @@
 - **Risks & Side Effects:** None; existing installations update seamlessly in place.
 - **Verification / Tests:** Inno Setup script validation; `git diff installer/setu-setup.iss`.
 
+---
+
+### CHG-0029: Cashier Operating Guide & Pilot Onboarding Checklist (HR-088, HR-086, HR-006)
+- **Date:** 2026-11-12
+- **Commit SHA:** Pending
+- **Engineer/AI:** Antigravity AI Engine
+- **Category:** Operations / Documentation
+- **Scope / Files:** `docs/CASHIER_QUICK_GUIDE.md`, `docs/PILOT_ONBOARDING_CHECKLIST.md`
+- **Previous Behavior:** Cashiers and field onboarding engineers lacked a standardized 1-page operating reference and site readiness intake questionnaire, leading to inconsistent counter operation and uncertain hardware boundaries.
+- **New Behavior:** Established two standard operational artifacts:
+  1. `docs/CASHIER_QUICK_GUIDE.md`: 10-minute training reference for Dine-in, KOT, takeaway, split payments, manager cancellations, reprints, Day Book closing, and keyboard shortcuts.
+  2. `docs/PILOT_ONBOARDING_CHECKLIST.md`: Hardware/printer survey, menu/tax intake, explicit pilot scope boundaries (Basic vs Cloud Pro deferred features), pre-launch signoff protocol, and pilot agreement terms.
+- **Risks & Side Effects:** None; purely operational documentation supporting pilot sites.
+- **Verification / Tests:** Markdown link verification and checklist inspection.
+
+
 
