@@ -397,5 +397,22 @@
 - **Risks & Side Effects:** None; purely operational documentation supporting pilot sites.
 - **Verification / Tests:** Markdown link verification and checklist inspection.
 
+---
+
+### CHG-0030: Basic v1.0 Scope Freeze & Marketing Claims Audit (HR-001, HR-003, G01)
+- **Date:** 2026-11-12
+- **Commit SHA:** Pending
+- **Engineer/AI:** Antigravity AI Engine
+- **Category:** Scope Governance / Commercial Alignment
+- **Scope / Files:** `docs/CLAIMS_AND_SCOPE_AUDIT.md`
+- **Previous Behavior:** The project lacked an explicit scope freeze definition for Offline Basic v1.0 and an evidence-backed marketing claims audit, risking feature scope creep, customer disputes, and sales over-promising.
+- **New Behavior:** Established `docs/CLAIMS_AND_SCOPE_AUDIT.md` which:
+  1. Freezes the 18 official core capabilities of Offline Basic v1.0.
+  2. Maps all advertised claims (zero loss, split tenders, incremental KOT, cloud reports) directly to code files and automated test suites.
+  3. Defines the strict "Do Not Promise" matrix prohibiting false marketing claims (such as direct Swiggy/Zomato auto-APIs or unverified real-time cloud sync in the basic offline package).
+- **Risks & Side Effects:** None; establishes firm commercial truth and protects customer expectations.
+- **Verification / Tests:** Cross-checked against existing test suites (`tests/run_accounting_p0_suite.cjs`, `tests/phase35d_local_e2e.py`, `tests/guard-records.test.mjs`, etc.).
+
+
 
 

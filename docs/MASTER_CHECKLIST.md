@@ -107,6 +107,7 @@
 - [x] **CR.4 v1.0 storage decision:** legacy JSON default, SQLite opt-in per site through verified migration (TD-0017).
 - [x] **CR.5 Release-candidate build + installer text + existing-customer upgrade test:** `installer/setu-setup.iss` rebranded customer-facing strings to "HoReCa One" (CHG-0028 / HR-038 / G03); artifact only, nothing published.
 - [x] **CR.6 Cashier 10-Minute Operating Guide & Pilot Onboarding Protocol:** created `docs/CASHIER_QUICK_GUIDE.md` (HR-088) covering table/KOT/takeaway/split/cancellation/closing, and `docs/PILOT_ONBOARDING_CHECKLIST.md` (HR-086 / HR-006 / G16) covering hardware survey, menu intake, scope boundaries, and pilot agreement.
+- [x] **CR.7 Basic v1.0 Scope Freeze & Claims-to-Test Audit:** created `docs/CLAIMS_AND_SCOPE_AUDIT.md` (HR-001 / HR-003 / G01) defining 18 supported Offline Basic capabilities, mapping all marketing claims to automated test proof, and establishing the "Do Not Promise" sales boundary matrix.
 
 ## 2b. Commercial Launch Checklist (v1.0)
 
