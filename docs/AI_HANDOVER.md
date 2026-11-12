@@ -13,10 +13,10 @@
 - **Base Integration Branch:** `feature/horeca-one-phase3-cloud-sync` (Commit `c560c9925d0542717121616edd2e849fbc4ffdfe`)
 - **Protected Release Branch:** `main` (Strictly frozen; zero Phase 3 code merged to `main`)
 - **Active Draft Pull Request:** [Draft PR #9](https://github.com/theinkthreadhub-crypto/hotel-erp/pull/9) (`feature/horeca-one-phase34a-safety` $\to$ `feature/horeca-one-phase3-cloud-sync`)
-- **Last fully observed pre-audit branch SHA:** `6b2720d664fe745cc8625a52339ccf9287aedf80` (2026-11-09 audit snapshot; **not** an automatically updated HEAD). Documentation correction commits after this snapshot are recorded in the Git history.
+- **Last fully observed pre-audit branch SHA:** `a785497` (2026-11-12 237-case full system audit; release commit `20f22e7`). Previous snapshots: `f2e8bcd`, `6b2720d`.
 - **Current HEAD is dynamic:** always fetch origin and inspect the branch and Draft PR #9's head SHA immediately before new work. Never assume the literal snapshot SHA above is still current.
 - **Local working tree/stashes:** GitHub cannot establish an engineer's local working-tree cleanliness or uncommitted files. Each active writer must verify locally with `git status --short`, `git stash list`, and `git worktree list` before editing.
-- **Milestone summary:** 54 completed, 2 open (3.5d.3: full 24 h outage run; 3.5e.6: menu sync); 5 separate release gates (A passed, B–E blocked). See `docs/MASTER_CHECKLIST.md`.
+- **Milestone summary:** 56 total = 54 completed / verified + 2 open (3.5d.3: full 24 h outage run; 3.5e.6: menu sync); 5 separate release gates (Gate A passed, Gates B–E blocked). Full 237-case commercial audit recorded in `HoReCa_One_Full_QA_237_Cases.xlsx` and `docs/qa/`.
 - **Commercial hardening start point:** `8707b003cb5f870da3798783709f830e387eb3f1`, CI green (push run `42774561776`, PR run `42774567893`).
 - **v1.0 storage:** legacy JSON (`setu-db.json`) is the supported default; SQLite only after the verified per-site migration (`setu_migrate.py --cutover`). `SETU_STORAGE=sqlite` is for development / tests only. Never switch a customer PC silently.
 - **Phase 3.5e start point:** `a367824ffb667dd9f4484bea965e3122fdb98391`, CI green (push run `42651168270`, PR run `42651185047`, 4/4 jobs each).
