@@ -59,6 +59,7 @@ jobs:
           python tests/phase35e_credit_note_unit_test.py
           python tests/commercial_security_unit_test.py
           python tests/commercial_upgrade_test.py
+          python tests/qa_db_safety_test.py
           python tests/secret_scan_test.py
       - name: Phase 3.5d ESC/POS byte-stream validation (software only, no printer)
         run: node tests/phase35d_escpos_test.mjs
@@ -80,6 +81,13 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Run actual browser desktop/mobile QR/KOT click tests
         run: node tests/phase35c_browser_e2e.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Real-browser POS workflow QA on a real counter (legacy JSON, offline, synthetic hotel)
+        run: |
+          python -m pip install 'cryptography>=42,<48'
+          node tests/qa_pos_workflow_e2e.cjs
 
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke

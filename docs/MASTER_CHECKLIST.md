@@ -126,6 +126,9 @@
 | 10 | RC installer: install, uninstall (data folder kept), update while running, WebView2 on a PC without it | **REQUIRES PHYSICAL WINDOWS PC** |
 | 11 | Rollback: re-run the previous installer over the RC; data folder untouched | **REQUIRES PHYSICAL WINDOWS PC** |
 | 12 | Merge Draft PR #9 | **NOT AUTHORIZED** |
+| 13 | Final commercial QA of the software (`docs/qa/FINAL_COMMERCIAL_QA_V1.md`) | **DONE 2026-11-13** — demo YES, paid pilot NO, general sale NO |
+| 14 | Installer file + SHA-256 recorded (BUG-0023) | **PENDING** |
+| 15 | Fix BUG-0022 (offline '1111' cashier PIN) | **PENDING** |
 
 ---
 

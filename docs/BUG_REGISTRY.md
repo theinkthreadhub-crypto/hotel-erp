@@ -24,12 +24,14 @@
 | **BUG-0013** | Day Book Read `c.mode` but Credit Notes Store `c.refund`: Every Credit Note Shown as a Credit Adjustment | P2 (Medium) | RESOLVED | Phase 3.5e commit (see CHG-0023) | `tests/run_accounting_p0_suite.cjs` (35e.1, 35e.2) |
 | **BUG-0014** | A Bill With a Credit Note Could Be Cancelled: Sale Removed and Credit Note Deducted Again | **P1 (High)** | RESOLVED | Phase 3.5e commit (see CHG-0023) | `tests/run_accounting_p0_suite.cjs` (35e.3, 35e.4), `tests/phase35e_credit_note_unit_test.py`, `tests/phase35e_credit_note_e2e.py` test_03 |
 | **BUG-0015** | `SAME_VERSION_MUTATION_CONFLICT` Not Classified as Permanent: Op Would Be Resent Forever | P2 (Medium, latent) | RESOLVED | Phase 3.5e commit (see CHG-0022) | `tests/phase35e_credit_note_unit_test.py` (Worker code drift check) |
-| **BUG-0016** | Staff / Cashier PIN Accepted by the Owner Cloud Login: Admin Token + Hotel Sync Key Returned | **P0 (Critical)** | RESOLVED | Commercial hardening commit (see CHG-0024) | `tests/commercial_security_e2e.py` test_02 |
+| **BUG-0016** | Staff / Cashier PIN Accepted by the Owner Cloud Login: Admin Token + Hotel Sync Key Returned | **P0 (Critical)** | RESOLVED in code; **LIVE IN PRODUCTION** until the owner deploys | Commercial hardening commit (see CHG-0024) | `tests/commercial_security_e2e.py` test_02 |
 | **BUG-0017** | `/api/hotel/login`: No Wrong-Try Limit, Username Never Checked (cloud and counter offline fallback) | **P1 (High)** | RESOLVED | CHG-0024 | `tests/commercial_security_e2e.py` test_03, test_04; `tests/commercial_security_unit_test.py` |
 | **BUG-0018** | `isWeak()` Held a Control Character Instead of `\1`; `/api/hotel/register` Accepted Any 4-Character Password | **P1 (High)** | RESOLVED | CHG-0024 | `tests/commercial_security_e2e.py` test_05, test_06 |
 | **BUG-0019** | Counter Hotel Register / Activate / Login Called a Missing `store.save()`: Nothing Saved, Cloud Never Linked, Error Swallowed | **P1 (High)** | RESOLVED | CHG-0025 | `tests/commercial_security_unit_test.py` (both storage engines) |
 | **BUG-0020** | Built-In Default Admin Passwords: '1234' / '0000' Accepted by the App (Gate 1, offline hotel login); '1234' Set After Activation | **P1 (High)** | RESOLVED | CHG-0025 | `tests/commercial_security_unit_test.py` (`NoBuiltInPasswords`) |
 | **BUG-0021** | Cloud Sales / GST Taxable Value Summed the Bill `sub` (Before Discount, Inclusive of GST) — was TD-0014 | P1 (High) | RESOLVED | CHG-0026 | `tests/commercial_finance_e2e.py`, `tests/cloud_reports_test.mjs` |
+| **BUG-0022** | Gate 2 Offline Fallback Accepts '1111' as Cashier PIN When None Is Set | **P1 (High)** | OPEN | — | — (found in FINAL_COMMERCIAL_QA_V1) |
+| **BUG-0023** | Installer Never Uploaded (Artifact Quota) While the Build Shows Green; No RC File or SHA-256 Exists | **P1 (High)** | OPEN | — | — |
 
 ---
 
@@ -314,4 +316,19 @@
 - **Component:** `cloud/src/worker.js` reports `sales` (`net_taxable_p`) and `gst` (`total_taxable_p`, by date)
 - **Permanent Fix:** sum the bill's own `taxable` from its stored payload (`raw_json`), falling back to `sub - disc` for older rows. Read-only report change: no migration.
 - **Regression Tests:** `tests/commercial_finance_e2e.py` (discount, inclusive and zero-rated bills: cloud = counter = 223,333 paise; fails on the old Worker); `tests/cloud_reports_test.mjs` expectation corrected from 3,500 (the bug) to 3,350.
+
+### BUG-0016 production status (2026-11-13)
+- The last workflow deploy of the production Worker is run `41786698635` (2026-11-04) from branch `ccr-89eaafa4-mxbfj2`, commit `a9e0f19`, which still has the `/internal/auth` `checkPin` fallback returning the Sync Key (`git show a9e0f19:cloud/src/worker.js`, line ~1642). The fix (`7ec2f05`) has not been deployed by any workflow. Manual deploys outside GitHub Actions cannot be seen from the repository. Production was not probed.
+
+### BUG-0022: Gate 2 Offline Fallback Accepts '1111' as Cashier PIN
+- **Severity:** P1 — High
+- **Component:** `hotel_erp.html` `handleGate2Submit` (offline branch: `const validCashierPin = D.settings.cashierPin || '1111'`); `normalize` also seeds `adminPin '1234'` / `cashierPin '1111'` for data without hashed PINs (TD-0020).
+- **Impact:** when the counter cannot be reached and no cashier PIN is set on that device's data, '1111' signs in as cashier. Missed by the `NoBuiltInPasswords` test (pattern `pass === '1234'`).
+- **Status:** open; not a P0, so not changed during release QA. Fix: no literal fallback; extend `NoBuiltInPasswords` to `|| '1111'` / `|| '1234'`.
+
+### BUG-0023: Installer Never Uploaded; Build Shows Green
+- **Severity:** P1 — High (release evidence)
+- **Component:** `.github/workflows/build-exe.yml` (`actions/upload-artifact` with `continue-on-error: true`)
+- **Evidence:** runs `42835815768` (`7ec2f05`) and `43168295780` (`9d9b4c4`): "Successful compile", then "Failed to CreateArtifact: Artifact storage quota has been hit"; both runs list 0 artifacts. The earlier AI_HANDOVER statement that the RC was "uploaded as workflow artifacts" was wrong and is corrected.
+- **Fix options (owner):** free artifact storage (delete old artifacts) or publish the RC to a separate pre-release tag (never `setu-latest`); print the installer SHA-256 in the build log; make the upload step fail the build on this branch.
 

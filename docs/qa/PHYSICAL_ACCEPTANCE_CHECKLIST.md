@@ -47,7 +47,7 @@
 - [ ] Start an order settlement; immediately pull the PC power plug from the wall socket.
 - [ ] Power the PC back on.
 - [ ] Launch HoReCa One: Verify application starts cleanly without prompt for manual repair.
-- [ ] Verify SQLite WAL integrity: `PRAGMA integrity_check` returns `ok`.
+- [ ] v1.0 uses the legacy JSON store: verify `setu-db.json` opens (or the newest `Backups\setu-YYYY-MM-DD.json` is used and `setu-server.log` says so). The SQLite `PRAGMA integrity_check` step applies only to a site migrated to SQLite. Record results in `docs/qa/FIELD_TEST_SHEET_V1.md`.
 - [ ] Verify last confirmed bill is present and complete; partial unfinished transaction is cleanly discarded.
 
 ---

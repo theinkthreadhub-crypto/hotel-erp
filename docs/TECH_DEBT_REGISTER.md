@@ -29,6 +29,10 @@
 | **TD-0018** | Production Publishing (setu-latest + Cloud Deploy) Gated on a Session Branch Name | Active | High / Release Control | Owner decision | **CONFIRMED** |
 | **TD-0019** | Hotel IDs `HOTEL` + 4 Digits (9,000 Values) and a Distinct "Not Found" Answer | Active | Medium / Enumeration | 2 hours | **CONFIRMED** |
 | **TD-0020** | Fresh Install Seeds `adminPin: '1234'` | Active | Medium / Security | Product decision (onboarding) | **CONFIRMED** |
+| **TD-0021** | Eight Browser Suites (`tests/regression.js`, `qr-ordering`, `inventory`, `expenses`, `reports`, `data`, `gst`, `whatsapp`) Wait for the Removed `#connect_hotel` | Active | Low / Test Coverage | 3 hours | **CONFIRMED** |
+| **TD-0022** | Legacy JSON Backups Carry No Checksum (only the SQLite manifest does) | Active | Medium / Recovery Evidence | 2 hours | **CONFIRMED** |
+| **TD-0023** | Upgrade Leaves the Old "Setu POS" Shortcuts Next to "HoReCa One" | Active | Low / Branding | 1 hour (`[InstallDelete]`) | **CONFIRMED (script)** |
+| **TD-0024** | `summary()` Crashes When the Data Has No `cash` Key (load normalisation does not add it) | Active | Medium / Robustness | 15 min | **SUSPECTED** (app-created data always has it) |
 
 ---
 

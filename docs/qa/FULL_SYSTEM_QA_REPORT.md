@@ -176,8 +176,8 @@ Comprehensive functional, concurrency, and recovery testing verified the followi
 
 | Edition / Product Tier | Release Decision | Authorized Scope & Commercial Boundaries |
 |---|---|---|
-| **1. Demo-Ready** | **GO (APPROVED)** | Local offline POS, dine-in tables, KOT generation, split billing, Day Book closing, and browser UI are 100% stable and fully demonstrable. |
-| **2. Basic Offline POS Controlled Paid Pilot** | **GO (APPROVED)** | Approved strictly for 1–3 friendly pilot restaurants running standalone on a single PC with USB thermal printer under engineer supervision. Must use [`docs/PILOT_ONBOARDING_CHECKLIST.md`](file:///c:/Users/jjcka/OneDrive/Desktop/School/snaoke%20eor/hotel-erp/docs/PILOT_ONBOARDING_CHECKLIST.md). |
+| **1. Demo-Ready** | **GO (APPROVED)** | Local offline POS, dine-in tables, KOT generation, split billing, Day Book closing, and browser UI are demonstrable (executed evidence: FINAL_COMMERCIAL_QA_V1.md §2). |
+| **2. Basic Offline POS Controlled Paid Pilot** | **NO-GO (corrected 2026-11-13, `docs/qa/FINAL_COMMERCIAL_QA_V1.md`)** | Not yet. Blocked by: (1) BUG-0016 (P0) still live in the production Worker every pilot hotel registers with — owner must deploy the fixed Worker and verify staff PINs are refused; (2) no installer file or SHA-256 exists (BUG-0023); (3) one supervised install with a real printer must pass `docs/qa/FIELD_TEST_SHEET_V1.md`. Then follow `docs/PILOT_ONBOARDING_CHECKLIST.md` and `docs/CASHIER_QUICK_GUIDE.md` for 1–3 restaurants. |
 | **3. Basic Offline POS General Sale** | **NO-GO (BLOCKED)** | Blocked until physical thermal printers (Gate B) and low-RAM Windows PC burn-in (Gate C) are physically signed off. |
 | **4. Cloud Pro (Multi-Tenant Sync)** | **NO-GO (BLOCKED)** | Blocked until Gate E signoff and owner rotates Resend API key and deploys Worker security hardening. |
 | **5. Guest QR Ordering** | **NO-GO (BLOCKED)** | Blocked until live smartphone scan testing (Gate D) is verified on physical devices. |

@@ -439,6 +439,14 @@
 - **Risks & Side Effects:** None; governance and testing documentation only.
 - **Verification / Tests:** Executed 33 test files; 171+ automated tests pass with 0 failures.
 
+---
 
-
+### CHG-0033: Final Commercial QA of Basic Offline POS v1.0; Corrections of Release Claims
+- **Date:** 2026-11-13
+- **Commit SHA:** QA commit after `267b306` (`git log -- docs/qa/FINAL_COMMERCIAL_QA_V1.md`)
+- **Engineer/AI:** Claude Code (cloud session), writer lock handed over by the owner
+- **Category:** QA / Release Governance
+- **Scope / Files:** `docs/qa/FINAL_COMMERCIAL_QA_V1.md`, `docs/qa/FIELD_TEST_SHEET_V1.md` (new); `tests/qa_pos_workflow_e2e.cjs`, `tests/qa_db_safety_test.py` (new); corrections in `docs/qa/RELEASE_GO_NO_GO.md`, `FULL_SYSTEM_QA_REPORT.md`, `TEST_EXECUTION_LOG.md`, `SECURITY_FINDINGS.md`, `PHYSICAL_ACCEPTANCE_CHECKLIST.md`; `.github/workflows/phase34a-safety.yml` (new suites)
+- **Result:** demo YES; controlled paid pilot **NO** (was GO) until the fixed Worker is deployed, an installer file + SHA-256 exists and one supervised printer install passes; general sale NO. No product code changed. Digital Stamp Rewards: not implemented.
+- **Verification / Tests:** see FINAL_COMMERCIAL_QA_V1 §2; `qa_pos_workflow_e2e.cjs` 17/17 (×2), `qa_db_safety_test.py` 2/2.
 

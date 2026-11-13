@@ -52,3 +52,11 @@ In `.github/workflows/phase34a-safety.yml`, all 4 jobs pass on push and PR trigg
 3. `windows-counter-smoke`: Builds standalone PyInstaller x64 EXE, boots in SQLite mode on port 8177, checks `/api/ping` and HTML serving.
 4. `cloudflare-local-smoke`: Runs `wrangler dev --local` under Miniflare to verify Worker syntax and startup.
 
+---
+
+## 3. Corrections (2026-11-13) — verified re-run on commit `267b306`
+
+Re-executed in a Linux container (`docs/qa/FINAL_COMMERCIAL_QA_V1.md`). Actual test counts differ from §1 for: `sqlite_phase2_test.py` **14** (not 18), `sqlite_phase2b_test.py` **17** (not 15), `sync_phase3_inbound_test.py` **15** (not 8), `sync_phase3_dispatcher_test.py` **17** (not 11), `master_qa_suite.cjs` **18** (not 22), `s01_double_payment_suite.cjs` **16** (not 14), `p0-security.cjs` **24/24 with a local Worker, 17 + 6 skipped without** (not 15 + 2 failed). All PASS.
+The CI runs `42202360784` / `42202351285` cited in the header belong to commit `6b2720d`. CI for `267b306`: push run `43197093257`, PR run `43197102810` (success).
+New: `tests/qa_pos_workflow_e2e.cjs` 17/17 (real Chromium + real counter, legacy JSON, offline; two runs), `tests/qa_db_safety_test.py` 2/2.
+
