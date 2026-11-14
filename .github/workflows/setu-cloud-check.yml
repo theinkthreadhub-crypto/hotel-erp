@@ -49,4 +49,5 @@ jobs:
           echo "Super Admin Login Card live (expect 1+):"; curl -s -m 15 -L $U/admin.html | grep -c "Login Card" || true
           echo "POS choose-password step live (expect 1+):"; curl -s -m 15 -L $U/hotel_erp.html | grep -c "exist_change_box" || true
           echo "service worker cache:"; curl -s -m 15 $U/sw.js | grep -o "setu-pos-v[0-9]*" | head -1 || true
+          echo "paise arithmetic live (expect 1+):"; curl -s -m 15 -L $U/hotel_erp.html | grep -c "const linePaise = i =>" || true
           echo "download manifest (EXE for counter PCs, must be unchanged):"; curl -s -m 15 $U/download/latest.json || true; echo
