@@ -33,6 +33,8 @@
 | **TD-0022** | Legacy JSON Backups Carry No Checksum (only the SQLite manifest does) | Active | Medium / Recovery Evidence | 2 hours | **CONFIRMED** |
 | **TD-0023** | Upgrade Leaves the Old "Setu POS" Shortcuts Next to "HoReCa One" | Active | Low / Branding | 1 hour (`[InstallDelete]`) | **CONFIRMED (script)** |
 | **TD-0024** | `summary()` Crashes When the Data Has No `cash` Key (load normalisation does not add it) | Active | Medium / Robustness | 15 min | **SUSPECTED** (app-created data always has it) |
+| **TD-0025** | Installer Not Code-Signed and Has No EULA Page | Active | High / Trust & Legal | Owner buys a certificate + legal review; then 2–3 days (ADR-0001 Phase 1) | **CONFIRMED** (`installer/setu-setup.iss` has no `LicenseFile` / `SignTool`) |
+| **TD-0026** | JSON → SQLite Migration Loads the Whole JSON (3.4 GB Peak at 365k Bills) | Active | High / 4 GB PCs | 3–5 days (ADR-0001 Phase 2) | **CONFIRMED (measured, Windows CI W3/W4)** |
 
 ---
 
@@ -177,4 +179,10 @@
 
 ### TD-0020: Fresh Install Seeds `adminPin: '1234'`
 - **Description:** `seed()` in `hotel_erp.html` starts a new database with admin PIN 1234 (flagged weak; the cloud refuses weak PINs online). Forcing a PIN at first start changes onboarding; needs a product decision.
+
+### TD-0025: Installer Not Code-Signed and Has No EULA Page
+- **Description:** Windows SmartScreen shows "Unknown publisher"; a tampered installer cannot be told apart; customers never accept licence terms. Fix in ADR-0001 Phase 1 (Authenticode signing in `build-exe.yml`, `LicenseFile=EULA.rtf`, version info). Needs the owner's certificate and a lawyer-reviewed EULA with the exact legal publisher name.
+
+### TD-0026: JSON → SQLite Migration Loads the Whole JSON
+- **Evidence:** `docs/sqlite-phase2b/Windows-EXE-Test-Results.md` W3/W4: 365k bills peak 3,443 MB; under a 2 GB cap `MemoryError` (safe: JSON stayed in charge). A big hotel cannot migrate on a 4 GB PC. Fix: streaming import (ADR-0001 Phase 2).
 

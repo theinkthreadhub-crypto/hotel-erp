@@ -1,0 +1,143 @@
+{
+  "env": {
+    "python": "3.13.16",
+    "sqlite": "3.45.1",
+    "cpus": 4,
+    "platform": "linux",
+    "kernel": "6.18.44-fc-v470",
+    "postgres": "postgres (PostgreSQL) 16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)"
+  },
+  "args": {
+    "history": 100000,
+    "bills": 2000,
+    "threads": 8,
+    "per_thread": 500,
+    "engines": "sqlite,postgres",
+    "out": "tools/bench/results-100k.json"
+  },
+  "runs": [
+    {
+      "engine": "sqlite",
+      "start": {
+        "open_and_schema_ms": 6.8
+      },
+      "idle_mem_empty": {
+        "rss_mb": 16.6,
+        "pss_mb": 14.8
+      },
+      "history_load_s": 4.2,
+      "disk_after_history_mb": 83.9,
+      "single_counter": {
+        "n": 2000,
+        "p50_ms": 0.338,
+        "p95_ms": 0.836,
+        "p99_ms": 2.743,
+        "max_ms": 4.218,
+        "mean_ms": 0.427,
+        "retry_made_second_bill": false
+      },
+      "concurrent": {
+        "n": 4000,
+        "p50_ms": 0.387,
+        "p95_ms": 0.961,
+        "p99_ms": 34.48,
+        "max_ms": 1432.445,
+        "mean_ms": 3.079,
+        "threads": 8,
+        "bills": 4000,
+        "wall_s": 2.22,
+        "bills_per_s": 1803.6,
+        "errors": 0,
+        "first_errors": [],
+        "peak_mem": {
+          "rss_mb": 37.4,
+          "pss_mb": 35.6
+        },
+        "duplicate_bill_numbers": 0
+      },
+      "month_report_ms": 55.7,
+      "idle_mem_loaded": {
+        "rss_mb": 33.5,
+        "pss_mb": 31.6
+      },
+      "backup": {
+        "ms": 174.7,
+        "bytes": 80842752
+      },
+      "disk_final_mb": 88.5,
+      "crash": {
+        "acknowledged": 5489,
+        "present_after_restart": 5489,
+        "acknowledged_but_lost": 0,
+        "restart_ms": 10.9,
+        "integrity": "ok"
+      }
+    },
+    {
+      "engine": "postgres",
+      "start": {
+        "initdb_ms": 613.9,
+        "data_dir_after_initdb_mb": 40.0,
+        "pg_ctl_start_ms": 113.9,
+        "connect_and_schema_ms": 26.8
+      },
+      "idle_mem_empty": {
+        "rss_mb": 85.0,
+        "pss_mb": 37.0
+      },
+      "history_load_s": 9.4,
+      "disk_after_history_mb": 381.9,
+      "single_counter": {
+        "n": 2000,
+        "p50_ms": 1.44,
+        "p95_ms": 2.2,
+        "p99_ms": 2.874,
+        "max_ms": 24.757,
+        "mean_ms": 1.483,
+        "retry_made_second_bill": false
+      },
+      "concurrent": {
+        "n": 4000,
+        "p50_ms": 10.776,
+        "p95_ms": 35.37,
+        "p99_ms": 51.673,
+        "max_ms": 126.829,
+        "mean_ms": 14.11,
+        "threads": 8,
+        "bills": 4000,
+        "wall_s": 7.35,
+        "bills_per_s": 543.9,
+        "errors": 0,
+        "first_errors": [],
+        "peak_mem": {
+          "rss_mb": 493.1,
+          "pss_mb": 181.4
+        },
+        "duplicate_bill_numbers": 0
+      },
+      "month_report_ms": 19.7,
+      "idle_mem_loaded": {
+        "rss_mb": 273.2,
+        "pss_mb": 168.4
+      },
+      "backup": {
+        "ms": 1214.9,
+        "bytes": 6025711
+      },
+      "disk_final_mb": 407.0,
+      "crash": {
+        "acknowledged": 1992,
+        "present_after_restart": 1992,
+        "acknowledged_but_lost": 0,
+        "restart_ms": 1130.6,
+        "integrity": "ok"
+      },
+      "clean_stop_ms": 105.5,
+      "warm_restart": {
+        "pg_ctl_start_ms": 116.1,
+        "connect_and_schema_ms": 13.8
+      },
+      "runtime_install_mb": 45.3
+    }
+  ]
+}

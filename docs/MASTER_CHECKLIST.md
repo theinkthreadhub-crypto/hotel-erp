@@ -110,6 +110,11 @@
 - [x] **CR.7 Basic v1.0 Scope Freeze & Claims-to-Test Audit:** created `docs/CLAIMS_AND_SCOPE_AUDIT.md` (HR-001 / HR-003 / G01) defining 18 supported Offline Basic capabilities, mapping all marketing claims to automated test proof, and establishing the "Do Not Promise" sales boundary matrix.
 - [x] **CR.8 Full System 237-Case Master Audit & Artifacts:** executed comprehensive QA across all 237 tracked cases in `HoReCa_One_Full_QA_237_Cases.xlsx` (206 PASS, 21 BLOCKED, 9 NOT IMPLEMENTED, 1 NOT RUN, 0 FAIL). Created formal release artifacts in `docs/qa/` (`FULL_SYSTEM_QA_REPORT.md`, `TEST_EXECUTION_LOG.md`, `PHYSICAL_ACCEPTANCE_CHECKLIST.md`, `SECURITY_FINDINGS.md`, `RELEASE_GO_NO_GO.md`).
 
+### Architecture Decision ADR-0001 (2026-11-14): Storage Engine & Windows Installer
+- [x] Audit + benchmark recorded: `docs/architecture/ADR-0001-storage-and-installer.md`, `tools/bench/` (SQLite vs PostgreSQL 16, 100k / 365k bills, Linux container).
+- [ ] Owner decision on ADR-0001 (proposed: SQLite on the counter, signed Inno Setup, PostgreSQL only cloud-side later).
+- [ ] Phase 1 installer signing + EULA (TD-0025) · [ ] Phase 2 streaming migration (TD-0026) · [ ] Phase 3 SQLite for new installs · [ ] Phase 4 guided migration · [ ] Phase 5 physical gates on SQLite · [ ] Phase 6 cloud PostgreSQL read model (when group reporting is built).
+
 ## 2b. Commercial Launch Checklist (v1.0)
 
 | # | Item | Status |

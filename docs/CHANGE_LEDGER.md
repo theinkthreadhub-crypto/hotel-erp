@@ -476,3 +476,11 @@
 - **Live checks (read-only, run `43544179752`):** `/api/hotel/register` 403 REGISTRATION_CLOSED; `/api/hotel/password` answers; Login Card and choose-password step served; service worker v102; Library ERP worker untouched (200).
 - **Not yet verified live:** BUG-0016 staff-PIN refusal and the full vendor-login flow on a real hotel (needs the Admin Key; owner step O-1).
 - **Rollback:** Cloudflare dashboard → Workers → setu-cloud → Deployments → previous version, or redeploy commit `fe81910`.
+
+### CHG-0037: Architecture Decision Record ADR-0001 (Storage Engine & Installer) and Storage Benchmark
+- **Date:** 2026-11-14
+- **Category:** Architecture / Documentation (no product code changed)
+- **Scope / Files:** `docs/architecture/ADR-0001-storage-and-installer.md` (new); `tools/bench/storage_engine_bench.py`, `tools/bench/results-100k.json`, `tools/bench/results-365k.json` (new); TD-0025, TD-0026; MASTER_CHECKLIST section.
+- **Result:** recommends SQLite on the counter (already built, opt-in today) with SQLite as default for new installs first and a verified opt-in migration for existing sites; hardened, signed Inno Setup; no embedded PostgreSQL on customer PCs; PostgreSQL later as a cloud read model. NodeDR (AGPL) studied for architecture only; no code copied.
+- **Evidence:** same workload, 365k bills: SQLite P50 0.36 ms, 1,654 bills/s (8 devices), 31 MB, 300 MB disk, 0 lost after kill -9; PostgreSQL 16 P50 1.47 ms, 514 bills/s, 169 MB PSS idle (596 MB RSS peak), 1,340 MB disk, 0 lost after kill -9. Linux container, not Windows / 4 GB (stated in the ADR).
+- **Status:** Proposed; awaiting the owner's decision.
