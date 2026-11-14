@@ -484,3 +484,11 @@
 - **Result:** recommends SQLite on the counter (already built, opt-in today) with SQLite as default for new installs first and a verified opt-in migration for existing sites; hardened, signed Inno Setup; no embedded PostgreSQL on customer PCs; PostgreSQL later as a cloud read model. NodeDR (AGPL) studied for architecture only; no code copied.
 - **Evidence:** same workload, 365k bills: SQLite P50 0.36 ms, 1,654 bills/s (8 devices), 31 MB, 300 MB disk, 0 lost after kill -9; PostgreSQL 16 P50 1.47 ms, 514 bills/s, 169 MB PSS idle (596 MB RSS peak), 1,340 MB disk, 0 lost after kill -9. Linux container, not Windows / 4 GB (stated in the ADR).
 - **Status:** Proposed; awaiting the owner's decision.
+
+### CHG-0038: Paid-Release Integrity: Exact Money, Unique Printed Numbers, 15-Day Offline Reconnect
+- **Date:** 2026-11-14
+- **Scope / Files:** `hotel_erp.html` (paise arithmetic in `calc`, `cnCalc`, `split2`, `billLines`, HSN split; print after the counter's save on every engine; credit-note renumbering and announce-after-save); `app_main.py` (`merge3` renumbers credit notes; SQLite save path replaces a taken CN number; `CloudSync` reads back the cloud's part after `changed`); `sw.js` v103; new tests `tests/money_precision_test.cjs`, `tests/two_device_numbering_e2e.cjs`, `tests/long_offline_reconnect_e2e.py`; `tests/phase35d_escpos_test.mjs` (extracts the new helpers); new `docs/RUNBOOK_OFFLINE_BACKUP_RECONNECT.md`; CI.
+- **Bugs:** BUG-0024 (P0), BUG-0025, BUG-0026, BUG-0027. Each new test fails on the previous commit `471e316` and passes now.
+- **Not changed:** stored bills and their numbers; storage engines; licence rules (20-day warning / 30-day lock).
+- **Verification:** money precision 7/7 (20,000 bills); two-device numbering 16/16; 15-day offline reconnect OK; regression: POS workflow 17/17, browser QR/KOT 2/2, vendor login 12/12 + 7/7, ESC/POS 16/16, cloud reports 15/15, inbound 13/13, ingestion 19/19, native QR 7/7, protocol smoke, and 19 Python suites (security, finance, upgrade, 3.5d, 3.5e, BUG-0010, safety, secret scan, DB safety, SQLite phase 2/2b, sync, counter integration, backup restore).
+- **Note:** a bill now prints after the counter's save. On the JSON engine that save grows with history (TD-0017): about 30 ms at 5,000 bills and about 1 s at 150,000. Large sites should move to SQLite (ADR-0001).

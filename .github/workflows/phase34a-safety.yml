@@ -88,6 +88,10 @@ jobs:
         run: |
           python -m pip install 'cryptography>=42,<48'
           node tests/qa_pos_workflow_e2e.cjs
+      - name: Money precision (20,000 random bills vs a whole-paise reference) and two-device bill numbering
+        run: |
+          node tests/money_precision_test.cjs
+          node tests/two_device_numbering_e2e.cjs
       - name: Install the local Worker runtime (no deployment)
         working-directory: cloud
         run: npm ci --no-audit --no-fund
@@ -206,3 +210,4 @@ jobs:
           SETU_REQUIRE_WRANGLER=1 python tests/commercial_security_e2e.py
           SETU_REQUIRE_WRANGLER=1 python tests/commercial_finance_e2e.py
           SETU_REQUIRE_WRANGLER=1 python tests/vendor_login_e2e.py
+          SETU_REQUIRE_WRANGLER=1 python tests/long_offline_reconnect_e2e.py

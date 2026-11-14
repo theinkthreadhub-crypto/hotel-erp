@@ -32,6 +32,10 @@
 | **BUG-0021** | Cloud Sales / GST Taxable Value Summed the Bill `sub` (Before Discount, Inclusive of GST) — was TD-0014 | P1 (High) | RESOLVED | CHG-0026 | `tests/commercial_finance_e2e.py`, `tests/cloud_reports_test.mjs` |
 | **BUG-0022** | Gate 2 Offline Fallback Accepts '1111' as Cashier PIN When None Is Set | **P1 (High)** | RESOLVED | CHG-0034 | `tests/commercial_security_unit_test.py` (literal fallback PIN check) |
 | **BUG-0023** | Installer Never Uploaded (Artifact Quota) While the Build Shows Green; No RC File or SHA-256 Exists | **P1 (High)** | RESOLVED | CHG-0034 | Run `43540590832`: pre-release `horeca-one-v1.0-rc.130`, `Setu-POS-Setup.exe` SHA-256 `b766430acf829a01d44674a3f65b723a5f022635c56ea290e93b4809145c306c` |
+| **BUG-0024** | Two Devices on a JSON Counter Printed the Same Bill Number (the counter then saved one under a new number) | **P0 (Critical)** | RESOLVED | CHG-0038 | `tests/two_device_numbering_e2e.cjs` (JSON + SQLite) |
+| **BUG-0025** | Credit Notes from Two Devices Got the Same CN Number (JSON and SQLite counters) | **P1 (High)** | RESOLVED | CHG-0038 | `tests/two_device_numbering_e2e.cjs` |
+| **BUG-0026** | Counter Did Not Read Back the Cloud's Plan / Lock / 30-Day Data After Its Own Upload | **P1 (High)** | RESOLVED | CHG-0038 | `tests/long_offline_reconnect_e2e.py` |
+| **BUG-0027** | Bill Money Off by 1 Paisa in Half-Paisa Cases (GST, round-off, item-wise shares, HSN table, credit notes) | **P1 (High)** | RESOLVED | CHG-0038 | `tests/money_precision_test.cjs` (20,000 random bills vs an integer-paise reference) |
 
 ---
 
@@ -332,4 +336,21 @@
 - **Evidence:** runs `42835815768` (`7ec2f05`) and `43168295780` (`9d9b4c4`): "Successful compile", then "Failed to CreateArtifact: Artifact storage quota has been hit"; both runs list 0 artifacts. The earlier AI_HANDOVER statement that the RC was "uploaded as workflow artifacts" was wrong and is corrected.
 - **Fix options (owner):** free artifact storage (delete old artifacts) or publish the RC to a separate pre-release tag (never `setu-latest`); print the installer SHA-256 in the build log; make the upload step fail the build on this branch.
 - **Fix (CHG-0034):** `build-exe.yml` prints `INSTALLER SHA-256` in the log and, on `feature/horeca-one-phase34a-safety` only, publishes the installer + `.sha256` file as GitHub pre-release `horeca-one-v1.0-rc.N`; that step fails the build if it cannot publish. Not `setu-latest`, not Hotel Setu Cloud `/download/`, so no counter updates itself. Verified: run `43540590832` (commit `8eac6aa`) printed the hash and published pre-release `horeca-one-v1.0-rc.130` (installer 57,007,849 bytes + `.sha256`).
+
+### BUG-0024: Two Devices on a JSON Counter Printed the Same Bill Number
+- **Component:** `hotel_erp.html` `finalizePakkaBill` (bill number `++D.seq.bill` on the device; print before the counter's save on the legacy JSON engine).
+- **Evidence:** two Chromium devices settling together on a JSON counter: bills #1–#5 printed on both devices; the counter saved device B's as #16–#20 (`merge3` renumbering after the 409). A printed duplicate invoice number is a GST problem. SQLite counters already waited.
+- **Fix:** every server-connected device (JSON, SQLite, cloud) prints only after `srvFlush` confirms the save, with the number the counter kept.
+
+### BUG-0025: Credit Notes from Two Devices Got the Same Number
+- **Evidence:** 10 credit notes from 2 devices at once: numbers 1,1,2,2,3,3,4,4,5,5 on both engines.
+- **Fix:** `merge3` (JS and Python) renumber new credit notes like bills and KOTs; the SQLite save path replaces a taken CN number; the app announces and prints the number the server kept and corrects the refund voucher's text.
+
+### BUG-0026: Counter Did Not Read Back the Cloud's Part After Its Own Upload
+- **Evidence:** after linking, the counter's data had no `saas`; `/api/ping` `grace` stayed `null`, so the 20/30-day warning and lock never applied, and a vendor message or lock waited for some other cloud change.
+- **Fix:** when the cloud answers `changed: true`, `CloudSync` reads the cloud copy again on the next round.
+
+### BUG-0027: Money Off by 1 Paisa in Half-Paisa Cases
+- **Evidence:** example: 2×10 + 4×45.50 + 1.5×33.33 + 5×100.05 = 752.25 at 18% gave GST 135.40 (correct 135.41), and taxable + GST + round-off was 1 paisa away from the total. Other failures: item-wise discount shares did not add up to the bill on 4,669 of 20,000 bills; a full credit note was not exactly the bill value on 329 bills; the HSN table could differ from the invoices.
+- **Fix:** `calc`, `cnCalc`, `split2`, `billLines` and the GSTR-1 HSN split work in whole paise with half-up rounding (`toPaise`, `divHU`, `linePaise`, `sharePaise`). Stored bills are not changed.
 

@@ -5203,7 +5203,12 @@ const today = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d
 const nowTime = () => { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
 const dmy = d => d ? d.split('-').reverse().join('-') : '';
 const addDays = (d, n) => { const dt = new Date(d || today()); dt.setDate(dt.getDate() + n); return dt.toISOString().split('T')[0]; };
-const r2 = n => Math.round((+n || 0)*100)/100;
+// Money is worked out in whole paise. toPaise(1.005) = 101: binary floats store 1.005 as 1.00499…, so a plain
+// Math.round(x * 100) would lose a paisa on exact halves; the tiny nudge (far below 1 paisa) keeps half-up rounding.
+const toPaise = n => { n = +n || 0; return n < 0 ? -Math.round(-n * 100 + 1e-6) : Math.round(n * 100 + 1e-6); };
+// Half-up integer division for paise (num, den whole numbers; den > 0)
+const divHU = (num, den) => num < 0 ? -Math.floor((-2 * num + den) / (2 * den)) : Math.floor((2 * num + den) / (2 * den));
+const r2 = n => toPaise(n) / 100;
 const money = n => '₹' + r2(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
 const rs = n => '₹' + r2(n).toLocaleString('en-IN');
 const fq = n => String(+(+n || 0).toFixed(3));
@@ -5780,7 +5785,7 @@ function merge3(base, mine, theirs){
   const ms = mine.seq || {}, ts = theirs.seq || {};
   // Running numbers must never go backwards
   out.seq = {...ts, ...ms};
-  ['bill', 'kot'].forEach(k => out.seq[k] = Math.max(+ms[k] || 0, +ts[k] || 0));
+  ['bill', 'kot', 'cn'].forEach(k => out.seq[k] = Math.max(+ms[k] || 0, +ts[k] || 0));
   // Tokens restart daily, so the newer day wins before comparing numbers
   const md = ms.tokenDate || '', td = ts.tokenDate || '';
   out.seq.tokenDate = md > td ? md : td;
@@ -5807,8 +5812,8 @@ function merge3(base, mine, theirs){
   });
   out.bills = dedupedBills;
 
-  // Two devices may have used the same bill / KOT number: give this device's new ones fresh numbers
-  [['bills', 'bill'], ['kots', 'kot']].forEach(([list, key]) => {
+  // Two devices may have used the same bill / KOT / credit-note number: give this device's new ones fresh numbers
+  [['bills', 'bill'], ['kots', 'kot'], ['cnotes', 'cn']].forEach(([list, key]) => {
     const theirIds = new Set((theirs[list] || []).map(x => x.id)), baseIds = new Set(((base || {})[list] || []).map(x => x.id));
     const taken = new Set((theirs[list] || []).map(x => x.no));
     (out[list] || []).forEach(x => {
@@ -6295,7 +6300,7 @@ async function srvPushOps(){
     }
     opsToBase(parts[i]);
     if(j.fix && j.fix.length) opsApply(j.fix);
-    if(j.renumbered) Object.entries(j.renumbered).forEach(([bid, no]) => { if(!bid.startsWith('kot:')) toast(`Bill saved as #${no}: its first number was already used on another device.`); });
+    if(j.renumbered) Object.entries(j.renumbered).forEach(([bid, no]) => { if(!bid.startsWith('kot:') && !bid.startsWith('cn:')) toast(`Bill saved as #${no}: its first number was already used on another device.`); });
     if(j.dup && Object.keys(j.dup).length) toast('This sale was already settled on another device. The stored bill is shown.');
     if(j.blocked && j.blocked.length) toast('Some changes need a Manager login and were not saved.');
     if(j.fix && j.fix.length){ try{ stockRecalc(D); }catch(e){} srvRefreshScreen(); }
@@ -9332,17 +9337,21 @@ document.addEventListener('keydown', e => {
 const gstRate = () => (D.settings.gstScheme || 'regular') === 'regular' ? (+D.settings.gst || 0) : 0;
 const billTitle = b => ({composition: 'BILL OF SUPPLY', none: 'BILL'})[b.scheme] || 'TAX INVOICE';
 
+// One line's amount in paise: rate × quantity, half-up (quantity to 3 decimals: 0.5 kg, 0.333 l)
+const linePaise = i => divHU(toPaise(i.price) * Math.round((+i.qty || 0) * 1000), 1000);
+// Every bill amount is worked out in whole paise, so the printed figures always add up exactly:
+// sub − discount = taxable; taxable + GST + round-off = total; CGST + SGST = GST (half-up rounding, as on a GST invoice)
 function calc(items, disc, rate){
-  const sub = sum(items || [], i => i.price * i.qty);
-  disc = Math.min(+disc || 0, sub);
+  const subP = (items || []).reduce((a, i) => a + linePaise(i), 0);
+  const discP = Math.min(Math.max(toPaise(disc), 0), subP), bp = Math.round((+rate || 0) * 100);   // rate in basis points
   // Menu rates that already include GST: the customer pays the menu price and the
   // tax is worked out backwards from it (₹80 incl. 5% = ₹76.19 + ₹3.81)
-  if(D.settings.gstInclusive && +rate){
-    const gross = sub - disc, taxable = r2(gross / (1 + rate / 100)), tax = r2(gross - taxable), total = Math.round(gross);
-    return {sub: r2(sub), disc: r2(disc), taxable, tax, round: r2(total - gross), total, incl: true};
+  if(D.settings.gstInclusive && bp){
+    const grossP = subP - discP, taxableP = divHU(grossP * 10000, 10000 + bp), totalP = divHU(grossP, 100) * 100;
+    return {sub: subP / 100, disc: discP / 100, taxable: taxableP / 100, tax: (grossP - taxableP) / 100, round: (totalP - grossP) / 100, total: totalP / 100, incl: true};
   }
-  const taxable = sub - disc, tax = r2(taxable * (+rate || 0)/100), raw = taxable + tax, total = Math.round(raw);
-  return {sub: r2(sub), disc: r2(disc), taxable: r2(taxable), tax, round: r2(total - raw), total};
+  const taxableP = subP - discP, taxP = divHU(taxableP * bp, 10000), rawP = taxableP + taxP, totalP = divHU(rawP, 100) * 100;
+  return {sub: subP / 100, disc: discP / 100, taxable: taxableP / 100, tax: taxP / 100, round: (totalP - rawP) / 100, total: totalP / 100};
 }
 
 function summary(d){
@@ -9434,7 +9443,7 @@ const hotelGst = () => gstinCheck(D.settings.gstin);
 const hotelStateCode = () => { const r = hotelGst(); return r.ok && !r.empty ? r.code : ''; };
 const sacDefault = () => String(D.settings.sac || '996331').trim() || '996331';
 const hsnOf = item => { const m = item && D.menu.find(x => x.id === item.mid || x.name === item.name); return String((m && m.hsn) || sacDefault()).trim(); };
-const split2 = tax => { const c = r2(tax / 2); return [c, r2(tax - c)]; };
+const split2 = tax => { const t = toPaise(tax), c = divHU(t, 2); return [c / 100, (t - c) / 100]; };
 const gstDate = d => d.slice(8, 10) + '-' + d.slice(5, 7) + '-' + d.slice(0, 4);
 const invNo = b => String(b.no);   // the number printed on the bill
 
@@ -9448,9 +9457,11 @@ const cnBlocksCancel = b => cnOfBill(b.id).length ? (toast(`Bill #${b.no} has a 
 function cnDone(b){ const m = {}; cnOfBill(b.id).forEach(c => c.items.forEach(i => { m[i.k] = (m[i.k] || 0) + i.qty; })); return m; }
 // Value of returned lines with the bill's own discount ratio and GST rate
 function cnCalc(b, lines){
-  const gross = sum(lines, i => i.qty * i.price), f = b.sub ? (b.sub - b.disc) / b.sub : 1, net = r2(gross * f), rate = +b.gstRate || 0;
-  if(b.incl && rate){ const taxable = r2(net / (1 + rate / 100)); return {taxable, tax: r2(net - taxable), total: r2(net)}; }
-  const tax = r2(net * rate / 100); return {taxable: net, tax, total: r2(net + tax)};
+  // Paise, with the bill's own discount share and GST rate: a full return equals the bill's taxable value + GST
+  const subP = toPaise(b.sub), grossP = (lines || []).reduce((a, i) => a + linePaise(i), 0);
+  const netP = subP ? divHU(grossP * (subP - toPaise(b.disc)), subP) : grossP, bp = Math.round((+b.gstRate || 0) * 100);
+  if(b.incl && bp){ const taxableP = divHU(netP * 10000, 10000 + bp); return {taxable: taxableP / 100, tax: (netP - taxableP) / 100, total: netP / 100}; }
+  const taxP = divHU(netP * bp, 10000); return {taxable: netP / 100, tax: taxP / 100, total: (netP + taxP) / 100};
 }
 function creditNote(id){
   const b = getBill(id);
@@ -9486,9 +9497,16 @@ function saveCreditNote(id){
     cnotes().push(cn);
     if(mode !== 'none') D.txns.push({id: uid(), type: 'Expense', date: cn.date, time: cn.time, head: 'Customer Refund', desc: `Credit Note CN-${cn.no} on bill #${b.no}`, party: b.cust || '', amount: cn.total, mode, by, cn: cn.id});
     audit('Credit Note', `CN-${cn.no} on bill #${b.no} · ${reason}`, cn.total, cn.id, by);
-    save(); closeModal(); toast(`Credit Note CN-${cn.no} saved — ${money(cn.total)}`);
-    if(confirm('Print the credit note?')) printDoc([cnHTML(cn)]);
-    if(cur === 'bills') scrBills(); else if(cur === 'gst') scrGst();
+    save(); closeModal();
+    // Announce and print the number the server kept (another device may have used CN-n at the same moment)
+    const done = () => {
+      const c = cnotes().find(x => x.id === cn.id) || cn, tx = D.txns.find(x => x.cn === c.id);
+      if(tx && !tx.desc.startsWith(`Credit Note CN-${c.no} `)){ tx.desc = `Credit Note CN-${c.no} on bill #${b.no}`; save(); }
+      toast(`Credit Note CN-${c.no} saved — ${money(c.total)}`);
+      if(confirm('Print the credit note?')) printDoc([cnHTML(c)]);
+      if(cur === 'bills') scrBills(); else if(cur === 'gst') scrGst();
+    };
+    if(SRV.on && !SRV.readOnly) srvFlush(8000).then(done); else done();
   });
 }
 NON_EXPENSE_HEADS.push('Customer Refund');
@@ -9527,11 +9545,13 @@ function gstMonth(ym){
     .map(([ctin, nt]) => ({ctin, nt}));
   // HSN / SAC summary, split B2B / B2C; bill discount shared over the lines
   const hs = {b2b: {}, b2c: {}}, addH = (side, code, rt, qty, tx, tax, name) => { const k = code + '|' + rt, x = hs[side][k] || (hs[side][k] = {code, rt, qty: 0, tx: 0, tax: 0, name}); x.qty += qty; x.tx += tx; x.tax += tax; };
-  const lineSplit = (lines, taxable, tax, sign) => { const g = sum(lines, i => i.qty * i.price) || 1; return lines.map(i => ({code: hsnOf(i), name: i.name, qty: sign * i.qty, tx: sign * taxable * i.qty * i.price / g, tax: sign * tax * i.qty * i.price / g})); };
+  // Paise, shared by line value so the HSN table adds up exactly to the invoices (sharePaise)
+  const lineSplit = (lines, taxable, tax, sign) => { const w = lines.map(i => linePaise(i)), tx = sharePaise(toPaise(taxable), w), tt = sharePaise(toPaise(tax), w);
+    return lines.map((i, k) => ({code: hsnOf(i), name: i.name, qty: sign * i.qty, tx: sign * tx[k], tax: sign * tt[k]})); };
   [[b2b, 'b2b'], [b2c, 'b2c']].forEach(([list, side]) => list.forEach(b => lineSplit(b.items, +b.taxable || 0, +b.tax || 0, 1).forEach(l => addH(side, l.code, +b.gstRate || 0, l.qty, l.tx, l.tax, l.name))));
   [[cnB2B, 'b2b'], [cnB2C, 'b2c']].forEach(([list, side]) => list.forEach(c => lineSplit(c.items, c.taxable, c.tax, -1).forEach(l => addH(side, l.code, c.rate, l.qty, l.tx, l.tax, l.name))));
   const hsnRows = side => Object.values(hs[side]).filter(x => r2(x.tx)).map((x, i) => { const svc = /^99/.test(x.code);
-    return {num: i + 1, hsn_sc: x.code, desc: svc ? 'Restaurant service' : String(x.name).slice(0, 30), uqc: svc ? 'NA' : 'NOS', qty: svc ? 0 : r2(x.qty), ...det(x.tx, x.rt, x.tax)}; });
+    return {num: i + 1, hsn_sc: x.code, desc: svc ? 'Restaurant service' : String(x.name).slice(0, 30), uqc: svc ? 'NA' : 'NOS', qty: svc ? 0 : r2(x.qty), ...det(x.tx / 100, x.rt, x.tax / 100)}; });
   const docs = issued.length ? [{num: 1, from: invNo(issued[0]), to: invNo(issued[issued.length - 1]), totnum: issued.length, cancel: issued.filter(b => b.cancelled).length, net_issue: issued.filter(b => !b.cancelled).length}] : [];
   const cnSorted = cns.slice().sort((a, b) => a.no - b.no);
   const doc_det = [...(docs.length ? [{doc_num: 1, doc_typ: 'Invoices for outward supply', docs}] : []),
@@ -12598,9 +12618,11 @@ function finalizePakkaBill(approvedDisc){
 
   B = newB(tbl, B.channel);
   scrBill();
-  // SQLite counter: the bill counts as saved, and prints with its final number, only after the counter has
-  // written it to its disk (a number another device took meanwhile is replaced there first)
-  if(SRV.on && !SRV.readOnly && SRV.engine === 'sqlite'){
+  // Any counter (SQLite or the legacy JSON file) and the cloud: the bill counts as saved, and prints with its final
+  // number, only after the server has written it (a number another device took meanwhile is replaced first:
+  // natively on SQLite, by merge3 on the JSON file). Printing the local number first gave two receipts the same
+  // number when two devices billed at once (BUG-0024).
+  if(SRV.on && !SRV.readOnly){
     const id = bill.id;
     srvFlush(8000).then(ok => {
       const b = getBill(id) || bill;
@@ -20069,7 +20091,7 @@ const srvErrLine = l => /FAIL|ERROR|CLOUD|damaged|not found|could not|blocked|de
 //   Gross = items total (bill.sub) · Discount = manual + loyalty (bill.disc) · Net Sales = Gross − Discount, without GST (bill.taxable)
 //   GST = bill.tax · Bill Total = what the customer paid (bill.total, after round-off) · Cancelled bills are never counted as sales.
 // Money is added in paise (whole numbers) so totals do not drift.
-const pz = x => Math.round((+x || 0) * 100);
+const pz = x => toPaise(x);
 const zr = p => p / 100;
 const AN_PAGE = 50;
 let AN = {id: '', from: today(), to: today(), q: '', sort: null, page: 0, f: {}, top: 25};
@@ -20082,12 +20104,19 @@ const anBills = (all, f = AN.f) => (histNeed(AN.from, AN.to), D.bills).filter(b 
 const anTx = type => D.txns.filter(t => t.type === type && t.date >= AN.from && t.date <= AN.to);
 const menuCat = i => ((D.menu.find(m => m.id === i.mid) || D.menu.find(m => m.name === i.name) || {}).cat) || 'Other';
 // A bill's items with the bill discount and Net Sales shared out by item value
+// Shares a whole-paise amount over the lines by weight; the remainder paise go to the largest fractions, so the
+// shares always add up to the amount exactly (item-wise reports = bill totals, to the paisa)
+function sharePaise(total, weights){
+  const W = weights.reduce((a, w) => a + w, 0);
+  if(!W) return weights.map((w, k) => k === 0 ? total : 0);
+  const base = weights.map(w => Math.floor(total * w / W)), rest = total - base.reduce((a, x) => a + x, 0);
+  weights.map((w, k) => [k, total * w / W - base[k]]).sort((x, y) => y[1] - x[1] || x[0] - y[0]).slice(0, rest).forEach(([k]) => base[k]++);
+  return base;
+}
 function billLines(b){
-  const sub = pz(b.sub) || 1;
-  return (b.items || []).map(i => {
-    const gross = pz((+i.price || 0) * (+i.qty || 0));
-    return {name: i.name, mid: i.mid, qty: +i.qty || 0, cat: menuCat(i), gross, disc: Math.round(pz(b.disc) * gross / sub), net: Math.round(pz(b.taxable) * gross / sub)};
-  });
+  const items = b.items || [], gross = items.map(i => linePaise(i));
+  const disc = sharePaise(pz(b.disc), gross), net = sharePaise(pz(b.taxable), gross);
+  return items.map((i, k) => ({name: i.name, mid: i.mid, qty: +i.qty || 0, cat: menuCat(i), gross: gross[k], disc: disc[k], net: net[k]}));
 }
 // Ingredient cost of one plate at today's stock rates (estimate: Setu does not keep the cost at the time of sale yet)
 const recipeCost = m => (m && m.recipe || []).reduce((a, r) => a + pz((+r.qty || 0) * (+((D.stock.find(s => s.id === r.sid) || {}).rate) || 0)), 0);

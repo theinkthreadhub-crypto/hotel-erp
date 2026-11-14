@@ -1392,7 +1392,7 @@ def merge3(base, mine, theirs):
     ms, ts = mine.get('seq') or {}, theirs.get('seq') or {}
     seq = {**ts, **ms}
     # Running numbers must never go backwards
-    for k in ('bill', 'kot'):
+    for k in ('bill', 'kot', 'cn'):
         seq[k] = max(_num(ms.get(k)), _num(ts.get(k)))
     # Tokens restart daily, so the newer day wins before comparing numbers
     md, td = str(ms.get('tokenDate') or ''), str(ts.get('tokenDate') or '')
@@ -1423,8 +1423,8 @@ def merge3(base, mine, theirs):
         deduped_bills.append(b)
     out['bills'] = deduped_bills
 
-    # Both sides may have used the same bill / KOT number: new ones from "mine" get fresh numbers
-    for lst, key in (('bills', 'bill'), ('kots', 'kot')):
+    # Both sides may have used the same bill / KOT / credit-note number: new ones from "mine" get fresh numbers
+    for lst, key in (('bills', 'bill'), ('kots', 'kot'), ('cnotes', 'cn')):
         theirs_l = [x for x in theirs.get(lst) or [] if isinstance(x, dict)]
         base_l = [x for x in (base or {}).get(lst) or [] if isinstance(x, dict)]
         their_ids = {x.get('id') for x in theirs_l}
@@ -2158,6 +2158,31 @@ class SqliteSetuStore(SetuStore):
                     top = max(top, no)
                 if top != _num(seq.get('bill')):
                     seq['bill'] = top
+                    new_v['seq'] = seq
+            if 'cnotes' in new_v:
+                # Credit-note numbers go to GSTR-1 like bill numbers: a number another device took is replaced.
+                # Start from the stored counters so a save without "seq" never loses the bill / KOT numbers.
+                seq = {**(seq_cur if isinstance(seq_cur, dict) else {}), **(new_v['seq'] if isinstance(new_v.get('seq'), dict) else {})}
+                top = max(_num(seq.get('cn')), _num(seq_cur.get('cn')),
+                          int(con.execute('SELECT MAX(CAST(no AS INTEGER)) FROM credit_notes').fetchone()[0] or 0))
+                batch, moved = {}, False
+                for c_ in new_v['cnotes']:
+                    if not isinstance(c_, dict) or c_.get('id') in cur_rec['cnotes']:
+                        continue
+                    no = _num(c_.get('no'))
+                    if not no:
+                        continue
+                    clash = batch.get(no) not in (None, c_['id']) or con.execute(
+                        'SELECT 1 FROM credit_notes WHERE no IN (?, ?, ?) AND id <> ? LIMIT 1', (no, float(no), str(no), c_['id'])).fetchone()
+                    if clash:
+                        top += 1
+                        renum['cn:' + c_['id']] = top
+                        c_['no'] = no = top
+                        moved = True
+                    batch[no] = c_['id']
+                    top = max(top, no)
+                if moved and top > _num(seq.get('cn')):     # the counter moves only when a number was replaced
+                    seq['cn'] = top
                     new_v['seq'] = seq
             if 'kots' in new_v:
                 seq = new_v['seq'] if isinstance(new_v.get('seq'), dict) else {}
@@ -2992,6 +3017,7 @@ class CloudSync:
         # The vendor's part (plan, message, warning / lock) always comes from the cloud
         if isinstance(theirs, dict) and 'saas' in theirs:
             merged['saas'] = theirs['saas']
+        cloud_added = False
         if theirs is None or not jeq(merged, theirs):
             body = '{"baseVersion": %d, "force": false, "data": %s}' % (cv, json.dumps(merged, ensure_ascii=False))
             code, text = self._request('POST', '/api/db', body)
@@ -3009,7 +3035,11 @@ class CloudSync:
                 raise OSError('Hotel Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
             if code != 200:
                 raise OSError(f'Cloud save failed (HTTP {code})')
-            cv = json.loads(text)['version']
+            resp = json.loads(text)
+            cv = resp['version']
+            # The cloud added its own part while saving (plan, message, lock, licence keys): read it back next round,
+            # or the vendor's lock and the 30-day check would wait for some other cloud change (BUG-0026)
+            cloud_added = bool(resp.get('changed'))
         with self.store.lock:
             if self.store.version == lv:
                 final = merged
@@ -3022,6 +3052,9 @@ class CloudSync:
             new_lv = self.store.version
         _write_json(self.base_path, merged)
         # lv = -1 tells the next round that this PC still has edits the cloud lacks
+        if cloud_added:
+            cv = -1
+            self.wake.set()
         self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1, **{k: self.state[k] for k in ('lic', 'licSent', 'okAt') if k in self.state}}
         _write_json(self.state_path, self.state)
         self.status['cloudVersion'] = cv

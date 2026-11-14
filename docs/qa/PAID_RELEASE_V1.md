@@ -24,6 +24,12 @@ The business type is chosen on sign-up (both registration forms) and by Super Ad
 
 Super Admin → Create New Hotel (leave the password empty) → Login Card (Hotel ID, `owner`, temporary password) → send on WhatsApp → the owner installs the counter PC (or opens the website), signs in, and chooses their own password. Public self-registration is closed. Forgotten password: Super Admin → Owner Password → Reset.
 
+## 2b. Money, numbering and offline integrity (CHG-0038)
+
+- Every bill amount is worked out in whole paise. 20,000 random bills were compared with an independent paise reference and matched to the paisa: totals, GST, CGST/SGST, round-off, split payments, item-wise reports, Day Book, Daily Sales, GSTR-1/3B/HSN and credit notes (`tests/money_precision_test.cjs`).
+- With two billing devices, the printed number is always the saved number; no duplicate bill or credit-note numbers appear; a retried sale is saved once (`tests/two_device_numbering_e2e.cjs`).
+- A counter offline for 15 days keeps billing, is not warned or cut off, and uploads every bill on reconnection. The warning starts at 20 days and the lock at 30 days, and data is never deleted (`tests/long_offline_reconnect_e2e.py`, `docs/RUNBOOK_OFFLINE_BACKUP_RECONNECT.md`).
+
 ## 3. Owner actions before the first paid customer (in this order)
 
 | # | Action | Who | Evidence to keep |

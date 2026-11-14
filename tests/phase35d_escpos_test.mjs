@@ -22,7 +22,7 @@ function line(start) {
 
 const code = [
   line('const pad = n =>'), line('const today = () =>'), line('const nowTime = () =>'), line('const dmy = d =>'),
-  line('const r2 = n =>'), line('const payParts = b =>'), line('const paidBy = (b, m) =>'),
+  line('const toPaise = n =>'), line('const divHU = (num, den) =>'), line('const r2 = n =>'), line('const linePaise = i =>'), line('const payParts = b =>'), line('const paidBy = (b, m) =>'),
   line('const billTitle = b =>'), line('const sacDefault = () =>'), line('const gstRate = () =>'),
   span('function calc(items, disc, rate){', 'function summary(d){'),
   span('/* ================= DIRECT PRINTING', 'async function testPrint(which){'),
