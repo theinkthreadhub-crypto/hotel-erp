@@ -97,6 +97,8 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Vendor-issued login in a real browser (Super Admin -> counter PC -> owner's own password)
         run: SETU_REQUIRE_WRANGLER=1 node tests/vendor_login_browser_e2e.cjs
+      - name: Every money / stock / admin button tapped 10 times = one record (JSON, SQLite, Super Admin)
+        run: SETU_REQUIRE_WRANGLER=1 node tests/rapid_tap_idempotency_e2e.cjs
 
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke

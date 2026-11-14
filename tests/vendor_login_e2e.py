@@ -116,6 +116,41 @@ class VendorIssuedLogin(LoopbackBase):
         self.assertEqual(self.login(code, 'Taken#Over2026')[0], 401)
         self.assertEqual(self.login(code, 'Owner#Own2026')[0], 200)
 
+    def test_08_same_create_request_many_times_makes_one_hotel(self):
+        import concurrent.futures as cf
+        s, before = http(self.base, 'POST', '/api/admin/hotels', {}, ADMIN)
+        body = {'name': 'Retry Hotel', 'owner': 'Retry Owner', 'phone': '9876509999', 'businessType': 'cafe', 'days': 30, 'paid': True,
+                'idemKey': 'k' + os.urandom(6).hex()}
+        with cf.ThreadPoolExecutor(6) as ex:                      # six identical requests at the same moment
+            res = list(ex.map(lambda _: http(self.base, 'POST', '/api/admin/create', body, ADMIN), range(6)))
+        ok = [j for s_, j in res if s_ == 200]
+        self.assertTrue(all(s_ in (200, 409) for s_, _ in res), res)
+        self.assertEqual(len({j['code'] for j in ok}), 1, 'every answer names the same hotel')
+        self.assertEqual(sum(1 for j in ok if j.get('ownerPassword')), 1, 'the temporary password is given once')
+        s, again = http(self.base, 'POST', '/api/admin/create', body, ADMIN)  # a retry later
+        self.assertEqual((s, again.get('duplicate'), again.get('code')), (200, True, ok[0]['code']))
+        self.assertNotIn('ownerPassword', again)
+        self.assertNotIn('syncKey', again)
+        s, after = http(self.base, 'POST', '/api/admin/hotels', {}, ADMIN)
+        self.assertEqual(len(after['hotels']) - len(before['hotels']), 1, 'one hotel in the registry')
+
+    def test_09_same_add_days_operation_applies_once(self):
+        import concurrent.futures as cf
+        j = self.create()
+        code = j['code']
+        p0 = self.admin_view(code)['paidUntil']
+        body = {'code': code, 'update': {'days': 30, 'amount': 999}, 'opId': 'o' + os.urandom(6).hex()}
+        with cf.ThreadPoolExecutor(5) as ex:
+            res = list(ex.map(lambda _: http(self.base, 'POST', '/api/admin/hotel', body, ADMIN), range(5)))
+        self.assertTrue(all(s_ in (200, 409) for s_, _ in res), res)
+        s, _ = http(self.base, 'POST', '/api/admin/hotel', body, ADMIN)            # retried later
+        self.assertEqual(s, 200)
+        added = round((self.admin_view(code)['paidUntil'] - p0) / 86400000)
+        self.assertEqual(added, 30, 'the same Apply adds 30 days once')
+        other = dict(body, opId='o' + os.urandom(6).hex())                       # a NEW Apply adds again
+        self.assertEqual(http(self.base, 'POST', '/api/admin/hotel', other, ADMIN)[0], 200)
+        self.assertEqual(round((self.admin_view(code)['paidUntil'] - p0) / 86400000), 60)
+
     def test_07_existing_hotels_are_not_forced_to_change(self):
         j = self.create(password='Moved#Customer42', mustChange=False)
         s, r = self.login(j['code'], 'Moved#Customer42')

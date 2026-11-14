@@ -498,3 +498,10 @@
 - **How:** fast-forward of `ccr-89eaafa4-mxbfj2` to `83a155a` → `setu-cloud-deploy.yml` run `43568355123`, Worker version `791dc391-1c60-4bd7-8128-fa99bde80fdb`.
 - **Live checks (read-only, Setu Cloud check on `f77f2b0`):** paise arithmetic served (`linePaise`), service worker `setu-pos-v103`, registration closed, Login Card live, counter EXE download unchanged (1.0.63).
 - **Rollback:** Cloudflare → setu-cloud → Deployments → version `087f75c5`, or redeploy `a2bf9fb`.
+
+### CHG-0040: One Press = One Record (Super Admin Idempotency), Super Admin App Fixes and App Release Build
+- **Date:** 2026-11-14
+- **Scope / Files:** `cloud/src/worker.js` (registry `/idem/claim` + `/idem/done`; `/api/admin/create` `idemKey`; `/api/admin/hotel` `opId` for days / amount / WhatsApp credits); `cloud/static/admin.html` (single-flight `run()`, Create button lock + `idemKey`, `opId` on Apply and WhatsApp credits, replaced dialogs resolve as cancelled, "Pending Activation" icon); `.github/workflows/build-admin-apk.yml` (this branch publishes the Super Admin app v2.2 as a GitHub pre-release with SHA-256); `.github/workflows/phase34a-safety.yml`; new `tests/rapid_tap_idempotency_e2e.cjs`; `tests/vendor_login_e2e.py` test_08, test_09.
+- **Bugs:** BUG-0028 (P0), BUG-0029 (P1), BUG-0030. The new tests fail on `03ed8ff` and pass now; no existing test was changed.
+- **Verification:** rapid taps 23/23 (JSON + SQLite counter, Super Admin); vendor login 9/9; Super Admin app (phone, Keystore bridge) 17/17 on a local cloud with three synthetic hotels; regression: security 7/7, 3.5d 10/10, 3.5e 7/7, finance 2/2, 15-day offline OK, vendor login browser 12/12, cloud reports 15/15, inbound 13/13, ingestion 19/19.
+

@@ -444,7 +444,10 @@ async function api(path, body, again){
   return j;
 }
 // Errors show in the page: the phone app has no native alert()
-const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ toast(e.message, true); } };
+// Every action button: one press at a time. Taps while the first one is still working are ignored, so a
+// quick double / ten-fold tap can never add days, credits or hotels twice (the server checks again: opId / idemKey)
+const run = fn => { let busy = false; return async (...a) => { if(busy) return; busy = true; try{ await fn(...a); }catch(e){ toast(e.message, true); } finally { busy = false; } }; };
+const opId = () => 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
 // ----- layers: Android back closes the top one -----
 let LAYERS = 0;
@@ -473,6 +476,8 @@ $('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
 // In-page confirm: resolves with the box's input values ({id: value}) on OK, null on cancel
 let ASK = null;
 function ask(title, html, ok, danger){
+  // A box replaced by another counts as cancelled, so the action that waited for it finishes (run() unlocks)
+  if(ASK){ const old = ASK; ASK = null; old(null); }
   $('#abox').innerHTML = `<h2>${title}</h2>${html || ''}<div class="btns"><button class="g" onclick="popLayer()">Cancel</button><button class="${danger ? 'bad' : ''}" id="ask-ok">${ok || 'OK'}</button></div>`;
   layerIn($('#ask')); pushLayer();
   setTimeout(() => { const f = $('#abox input, #abox textarea'); f && f.focus(); }, 250);
@@ -579,7 +584,7 @@ function urgency(h){
   return u;
 }
 let KF = 'all';
-const KF_ICON = {all: 'hotels', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
+const KF_ICON = {all: 'hotels', pending: 'key', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
 const KFS = {all: ['All', () => true], pending: ['Pending Activation', h => h.status === 'pending' || state(h) === 'pending'], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
   tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
 function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'All hotels' : KFS[k][0]; haptic('tick'); }
@@ -682,8 +687,8 @@ function hotelSheet(code){
     </div>
     <button class="g" style="width:100%;margin-top:14px;color:var(--bad)" onclick="delBox('${C}')">${'Delete hotel'}</button>`);
 }
-const adminUpdate = async (code, update, msg) => {
-  await api('/api/admin/hotel', {code, update});
+const adminUpdate = async (code, update, msg, op) => {
+  await api('/api/admin/hotel', {code, update, ...(op ? {opId: op} : {})});
   toast(msg);
   await loadHotels();
   if(VIEW === 'hotels') drawHotelsBody();
@@ -713,7 +718,9 @@ const cloudDaysSave = run(async code => {
   const amt = +($('#cd_amt') || {}).value || 0;
   if(!CD.life && !(CD.days >= 1)) return toast('Enter the days', true);
   const u = CD.life ? {lifetime: true} : CD.set ? {setDays: CD.days} : {days: CD.days, amount: amt};
-  await adminUpdate(code, u, CD.life ? 'Lifetime given' : 'Days applied. On the phone at once.');
+  CD.op = CD.op || opId();                                  // same Apply = same operation, even if sent again
+  await adminUpdate(code, u, CD.life ? 'Lifetime given' : 'Days applied. On the phone at once.', CD.op);
+  CD.op = '';
   hotelSheet(code);
 });
 
@@ -736,7 +743,7 @@ const waRechargePrompt = run(async code => {
   `, '+ Add Credits');
   if(!v) return;
   const n = +v.wa_prompt_credits || 500;
-  await api('/api/admin/hotel', {code, update: {addWaCredits: n}});
+  await api('/api/admin/hotel', {code, update: {addWaCredits: n}, opId: opId()});
   toast('+' + n + ' WhatsApp credits allotted to ' + h.name + '!');
   await drawHotels();
 });
@@ -1226,15 +1233,32 @@ function drawAdd(){
     </div><div class="row" style="margin-top:12px"><button>Create Hotel</button><span id="ares"></span></div></form></div>`;
   $('#a_type').onchange = () => $('#a_tier').value = META.templates[$('#a_type').value].tier;
   $('#a_type').onchange();
+  const idemKey = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);   // one hotel per opened form
+  let sending = false;
   $('#af').onsubmit = run(async e => {
     e.preventDefault();
+    if(sending) return;                                    // many taps on Create: one request
+    sending = true;
+    const btn = e.target.querySelector('button');
+    if(btn){ btn.disabled = true; btn.textContent = 'Creating…'; }
     const f = Object.fromEntries(new FormData(e.target));
     f.paid = !!f.paid;
+    f.idemKey = idemKey;
     const gstin = (f.gstin || '').trim(); delete f.gstin;
     $('#ares').innerHTML = '<span class="muted">Creating…</span>';
     let j;
-    try{ j = await api('/api/admin/create', f); }catch(err){ $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err; }
+    try{ j = await api('/api/admin/create', f); }catch(err){
+      sending = false;
+      if(btn){ btn.disabled = false; btn.textContent = 'Create Hotel'; }
+      $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err;
+    }
     if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
+    if(j.duplicate && !j.ownerPassword && !f.password){
+      // A repeat of a form that already made the hotel: the password was shown once, a new one needs Reset
+      $('#main').innerHTML = `<div class="card"><h2>Already created: ${esc(j.code)}</h2><p class="muted">This form already made the hotel. Its temporary password was shown once. Open the hotel and use Owner Password → Reset for a new one.</p>
+        <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Create Another</button></div></div>`;
+      return;
+    }
     loginCard({name: f.name, code: j.code, username: j.username || 'owner', password: j.ownerPassword || f.password, syncKey: j.syncKey});
   });
 }

@@ -631,6 +631,21 @@ export class SetuRegistry extends DurableObject {
       ['hotel', 'domain', 'ticket'].forEach(t => this.sql.exec(`DELETE FROM ${t} WHERE code = ?`, body.code));
       return json(200, { ok: true, iid: h ? h.iid : '' });
     }
+    // One request = one result (Super Admin "Create Hotel" pressed many times, or a network retry). Runs inside the
+    // registry Durable Object with no await, so two requests with the same key can never both get "fresh".
+    if(path === '/idem/claim'){
+      const k = 'idem:' + String(body.k || '').slice(0, 80), r = one('SELECT v FROM conf WHERE k = ?', k), now = Date.now();
+      const v = r ? JSON.parse(r.v) : null;
+      if(v && now - (v.at || 0) < DAY) return json(200, v.done ? { done: true, result: v.result } : { busy: true });
+      this.sql.exec('INSERT OR REPLACE INTO conf (k, v) VALUES (?, ?)', k, JSON.stringify({ at: now }));
+      return json(200, { fresh: true });
+    }
+    if(path === '/idem/done'){
+      const k = 'idem:' + String(body.k || '').slice(0, 80);
+      if(body.result === null) this.sql.exec('DELETE FROM conf WHERE k = ?', k);       // failed: the same key may try again
+      else this.sql.exec('INSERT OR REPLACE INTO conf (k, v) VALUES (?, ?)', k, JSON.stringify({ at: Date.now(), done: true, result: body.result }));
+      return json(200, { ok: true });
+    }
     if(path === '/conf/get'){
       const r = one('SELECT v FROM conf WHERE k = ?', body.k);
       return json(200, { v: r ? JSON.parse(r.v) : null });
@@ -4616,21 +4631,32 @@ async function admin(request, env, path){
   if(path === '/api/admin/audit') return regCall(env, '/audit/list', { code: validCode(body.code) ? body.code : '' });
 
   if(path === '/api/admin/create'){
+    // The same form sent again (many taps, a retry) makes no second hotel: it gets the first one back
+    const idem = /^[A-Za-z0-9_-]{8,64}$/.test(String(body.idemKey || '')) ? String(body.idemKey) : '';
+    if(idem){
+      const c = await regJson(env, '/idem/claim', { k: 'create:' + idem });
+      if(c.busy) return json(409, { error: 'This hotel is already being created. Please wait.', code: 'IN_PROGRESS' });
+      if(c.done) return json(200, { ...c.result, duplicate: true });
+    }
+    try{
     // Vendor-issued login: with no password typed, a temporary one is made; the owner must change it at first sign-in
     const generated = !body.password ? tempPassword() : '';
     if(generated) body.password = generated;
     // A password the vendor typed is also temporary unless the request says otherwise (mustChange: false, e.g. a move)
     const mustChange = !!generated || body.mustChange !== false;
     const input = signupInput(body);
-    if(input.error) return json(400, input);
+    if(input.error){ if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: null }); return json(400, input); }
     const days = Math.max(1, Math.min(3650, +body.days || 14));
     const res = await createHotel(env, input, { days, admin: true, tier: TIERS[body.tier] ? body.tier : undefined,
       status: body.paid ? 'active' : 'trial', plan: body.paid ? 'manual' : 'trial', mustChange: mustChange });
-    if(!res.ok) return res;
+    if(!res.ok){ if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: null }); return res; }
     const j = await res.json();
     await log('Hotel created', j.code, `${input.name} · ${input.businessType} · ${days} days${body.paid ? ' (paid)' : ''}`);
+    // A repeat of this request gets the hotel back, never the password or keys (shown once, here)
+    if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: { code: j.code, loginId: j.code, username: 'owner', mustChange } });
     // The password is shown to the vendor once (Login Card); only its salted hash is stored
     return json(200, { ...j, loginId: j.code, username: 'owner', ...(generated ? { ownerPassword: generated } : {}), mustChange });
+    }catch(e){ if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: null }).catch(() => {}); throw e; }
   }
 
   // ----- Setu AI settings (one Gemini key for all hotels) -----
@@ -4731,7 +4757,17 @@ async function admin(request, env, path){
   }
 
   if(path === '/api/admin/hotel'){
-    const r = await hotelCall(code, '/internal/admin', body.update || {});
+    // Changes that ADD (days, payment, WhatsApp credits) are applied once per operation id: a repeated tap or a
+    // network retry of the same "Apply" adds nothing more
+    const upd = body.update || {}, adds = ['days', 'amount', 'addWaCredits'].some(k => upd[k] !== undefined);
+    const op = adds && /^[A-Za-z0-9_-]{8,64}$/.test(String(body.opId || '')) ? 'upd:' + code + ':' + body.opId : '';
+    if(op){
+      const c = await regJson(env, '/idem/claim', { k: op });
+      if(c.busy) return json(409, { error: 'This change is already being applied. Please wait.', code: 'IN_PROGRESS' });
+      if(c.done){ const v = await hotelCall(code, '/internal/admin', {}); return json(200, { ...(await v.json()), duplicate: true }); }
+    }
+    const r = await hotelCall(code, '/internal/admin', upd);
+    if(op) await regCall(env, '/idem/done', { k: op, result: r.ok ? { ok: true } : null }).catch(() => {});
     if(!r.ok) return r;
     const j = await r.json();
     j.domains = (await regJson(env, '/domain/list', { code })).domains;

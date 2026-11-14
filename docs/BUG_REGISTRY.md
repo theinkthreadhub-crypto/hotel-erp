@@ -36,6 +36,9 @@
 | **BUG-0025** | Credit Notes from Two Devices Got the Same CN Number (JSON and SQLite counters) | **P1 (High)** | RESOLVED | CHG-0038 | `tests/two_device_numbering_e2e.cjs` |
 | **BUG-0026** | Counter Did Not Read Back the Cloud's Plan / Lock / 30-Day Data After Its Own Upload | **P1 (High)** | RESOLVED | CHG-0038 | `tests/long_offline_reconnect_e2e.py` |
 | **BUG-0027** | Bill Money Off by 1 Paisa in Half-Paisa Cases (GST, round-off, item-wise shares, HSN table, credit notes) | **P1 (High)** | RESOLVED | CHG-0038 | `tests/money_precision_test.cjs` (20,000 random bills vs an integer-paise reference) |
+| **BUG-0028** | Super Admin "Create Hotel" Tapped 10 Times Made 10 Hotels (Live in Production Until CHG-0040) | **P0 (Critical)** | RESOLVED | CHG-0040 | `tests/rapid_tap_idempotency_e2e.cjs`, `tests/vendor_login_e2e.py` test_08 |
+| **BUG-0029** | Super Admin "Apply +30 days" Tapped 10 Times Added 300 Days (also WhatsApp credits) | **P1 (High)** | RESOLVED | CHG-0040 | `tests/rapid_tap_idempotency_e2e.cjs`, `tests/vendor_login_e2e.py` test_09 |
+| **BUG-0030** | Super Admin App: "Pending Activation" Filter Chip Had No Icon (SVG error on every list draw) | P3 (Low) | RESOLVED | CHG-0040 | `tests/admin-app.e2e.cjs` A14 |
 
 ---
 
@@ -353,4 +356,9 @@
 ### BUG-0027: Money Off by 1 Paisa in Half-Paisa Cases
 - **Evidence:** example: 2×10 + 4×45.50 + 1.5×33.33 + 5×100.05 = 752.25 at 18% gave GST 135.40 (correct 135.41), and taxable + GST + round-off was 1 paisa away from the total. Other failures: item-wise discount shares did not add up to the bill on 4,669 of 20,000 bills; a full credit note was not exactly the bill value on 329 bills; the HSN table could differ from the invoices.
 - **Fix:** `calc`, `cnCalc`, `split2`, `billLines` and the GSTR-1 HSN split work in whole paise with half-up rounding (`toPaise`, `divHU`, `linePaise`, `sharePaise`). Stored bills are not changed.
+
+### BUG-0028 / BUG-0029: Repeated Taps in Super Admin Repeated the Action
+- **Evidence (real Chromium, phone size, real mouse taps on the button, local Worker):** Create Hotel ×10 → 10 hotels (HOTEL codes all different); Activate "Add to the old date" +30 days, Apply ×10 → +300 days. Server side, 6 identical create requests at once → 6 hotels; 5 identical +30-day requests → +180 days.
+- **Fix:** every `run()` action in `admin.html` takes one press at a time; Create Hotel sends an `idemKey` per opened form and disables its button; adding actions send an `opId`; the Worker keeps the result per key in the registry Durable Object (`/idem/claim`, `/idem/done`, no await between check and set) so the same key creates or adds once; a repeat gets the first hotel back without the password or keys.
+- **Counter side (checked, no bug):** Settle, Save running order (KOT), Voucher, Expense, Purchase, Credit Note and Cancel tapped ×10 each make one record on both storage engines.
 
