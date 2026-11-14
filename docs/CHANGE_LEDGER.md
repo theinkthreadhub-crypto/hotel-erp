@@ -468,3 +468,11 @@
 - **Compatibility:** existing hotels are not forced to change (no `mustChange` on their accounts); `mustChange: false` on admin create keeps a typed password (moves); PENDING_ACTIVATION / Master Key sign-up unchanged. An older installed counter shows the raw code `MUST_CHANGE_PASSWORD` for a new hotel: give new hotels the current installer.
 - **Verification / Tests:** `vendor_login_e2e.py` 7/7 (local Worker); `vendor_login_browser_e2e.cjs` 12/12 (real Chromium: Super Admin page → Login Card → counter PC on legacy JSON → own password → cloud + offline checks); regression: commercial security 7/7, security unit 9/9, finance 2/2, upgrade 2/2, phase35d loopback 10/10, phase35e 7/7 + 6/6, BUG-0010 12/12, safety 9/9, secret scan, DB safety 2/2, POS workflow 17/17, cloud reports 15/15, inbound 13/13, ingestion 19/19.
 - **Production:** none of this is live until the owner deploys the Worker (same deploy as BUG-0016).
+
+### CHG-0036: Production Worker Deploy (Worker Only, No Customer EXE Update)
+- **Date:** 2026-11-14
+- **Approved by:** owner ("Sirf Worker live"), in this session
+- **How:** fast-forward of `ccr-89eaafa4-mxbfj2` to `5cf7e12` (no force) → `setu-cloud-deploy.yml` run `43544064868`, Worker version `4cab6c0d-0408-411f-a53d-79b52afb52fa`. `build-exe.yml` now publishes `setu-latest` and the cloud `/download/` copy only when the repository variable `PUBLISH_EXE = on`; the counter download stayed at 1.0.63.
+- **Live checks (read-only, run `43544179752`):** `/api/hotel/register` 403 REGISTRATION_CLOSED; `/api/hotel/password` answers; Login Card and choose-password step served; service worker v102; Library ERP worker untouched (200).
+- **Not yet verified live:** BUG-0016 staff-PIN refusal and the full vendor-login flow on a real hotel (needs the Admin Key; owner step O-1).
+- **Rollback:** Cloudflare dashboard → Workers → setu-cloud → Deployments → previous version, or redeploy commit `fe81910`.

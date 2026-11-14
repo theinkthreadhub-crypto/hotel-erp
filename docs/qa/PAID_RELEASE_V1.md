@@ -28,7 +28,7 @@ Super Admin → Create New Hotel (leave the password empty) → Login Card (Hote
 
 | # | Action | Who | Evidence to keep |
 |---|---|---|---|
-| O-1 | Deploy the fixed Worker to production (closes BUG-0016) and test: a cashier PIN on the owner cloud login must be refused | Owner | Deploy log + screenshot of the refused login |
+| O-1 | ~~Deploy the fixed Worker~~ **done 2026-11-14** (run `43544064868`, version `4cab6c0d`; live read-only checks run `43544179752`: registration closed, Login Card and choose-password live, counter EXE download unchanged 1.0.63). Remaining: in Super Admin create a test hotel, add a cashier PIN, confirm the PIN is refused on the owner login, then delete the hotel | Owner | Deploy log + screenshot of the refused login |
 | O-2 | Rotate the Resend email key (TD-0011) | Owner | Date of rotation |
 | O-3 | Download the installer from pre-release `horeca-one-v1.0-rc.130` (SHA-256 `b766430acf829a01d44674a3f65b723a5f022635c56ea290e93b4809145c306c`); check the hash on the PC (`certutil -hashfile Setu-POS-Setup.exe SHA256`) | Owner | File name + hash |
 | O-4 | One supervised install on a real counter PC: `docs/qa/FIELD_TEST_SHEET_V1.md` P1–P3, P8, P10, P13–P16 | Owner / field engineer | Filled sheet with photos |

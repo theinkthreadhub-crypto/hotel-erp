@@ -4446,7 +4446,7 @@ async function hotelLogin(request, env){
 
   const regCheck = await regJson(env, '/hotel/get', { code: hotelId });
   if(!regCheck || !regCheck.hotel){
-    return json(404, { error: 'Hotel ID not found. Please check your Hotel ID or register as a New Hotel.' });
+    return json(404, { error: 'Hotel ID not found. Please check the Hotel ID from your HoReCa One provider.' });
   }
 
   const stub = hotelStub(env, hotelId);
