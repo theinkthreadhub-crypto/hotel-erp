@@ -62,7 +62,7 @@ const TIERS = {
 const TEMPLATES = {
   restaurant:   { label: 'Restaurant', tier: 'premium', billing: { paper: '80', showTable: true, showCustomer: true, fields: [] } },
   cafe:         { label: 'Cafe / QSR', tier: 'basic', billing: { paper: '58', showTable: false, showCustomer: true, fields: [] } },
-  hotel:        { label: 'Hotel (Rooms + Restaurant)', tier: 'diamond', billing: { paper: 'A6', showTable: true, showCustomer: true, fields: [{ label: 'Room No', required: false }, { label: 'Guest Name', required: false }] } },
+  hotel:        { label: 'Hotel Restaurant (Room No. on bill)', tier: 'diamond', billing: { paper: 'A6', showTable: true, showCustomer: true, fields: [{ label: 'Room No', required: false }, { label: 'Guest Name', required: false }] } },
   cloudkitchen: { label: 'Cloud Kitchen', tier: 'premium', billing: { paper: '80', showTable: false, showCustomer: true, fields: [] }, overrides: { online: true } }
 };
 
@@ -4261,6 +4261,7 @@ async function hotelRegister(request, env){
   const phone = String(b.phone || b.mobile || '').replace(/\D/g, '');
   const username = String(b.username || 'owner').trim();
   const password = String(b.password || '').trim();
+  const businessType = TEMPLATES[b.businessType] ? b.businessType : 'restaurant';
 
   if(hotelName.length < 2) return json(400, { error: 'Hotel Name must be at least 2 characters.' });
   if(ownerName.length < 2) return json(400, { error: 'Owner Name must be at least 2 characters.' });
@@ -4291,7 +4292,7 @@ async function hotelRegister(request, env){
     status: 'pending',
     plan: 'pending',
     tier: 'premium',
-    btype: 'restaurant',
+    btype: businessType,
     customCode: hotelId,
     ip
   });
@@ -4309,7 +4310,7 @@ async function hotelRegister(request, env){
       owner: ownerName,
       phone,
       email: b.email || '',
-      businessType: 'restaurant',
+      businessType,
       tier: 'premium',
       password,
       days: 0,

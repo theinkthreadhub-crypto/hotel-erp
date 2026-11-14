@@ -93,6 +93,17 @@ class CloudAuthSecurity(LoopbackBase):
         s, j = http(self.base, 'POST', '/api/hotel/register', dict(base, password='Good#Pass42'), {})
         self.assertEqual(s, 200, j)
 
+    def test_07_register_keeps_the_chosen_business_type(self):
+        from phase35d_local_e2e import ADMIN_KEY as AK
+        for btype, expect in (('cafe', 'cafe'), ('hotel', 'hotel'), ('unknown-type', 'restaurant')):
+            s, j = http(self.base, 'POST', '/api/hotel/register',
+                        {'hotelName': 'Type ' + btype, 'ownerName': 'Type Owner', 'phone': '9876500001',
+                         'password': 'Good#Pass42', 'businessType': btype}, {})
+            self.assertEqual(s, 200, j)
+            s, a = http(self.base, 'POST', '/api/admin/hotel', {'code': j['hotelId']}, {'X-Setu-Admin': AK})
+            self.assertEqual(s, 200, a)
+            self.assertEqual(a['config']['businessType'], expect, (btype, a.get('config')))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

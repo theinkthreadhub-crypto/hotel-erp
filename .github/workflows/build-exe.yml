@@ -9,7 +9,7 @@ on:
       - feat/horeca-one-premium-22-modules
       - feat/horeca-one-v3-reference-accurate
       - main
-      # Release-candidate builds (installer as a workflow artifact only). Publishing to setu-latest and Hotel Setu Cloud
+      # Release-candidate builds (installer published as a GitHub pre-release horeca-one-v1.0-rc.N). Publishing to setu-latest and Hotel Setu Cloud
       # stays limited to the branch named in the two `if:` lines below; this branch never publishes.
       - feature/horeca-one-phase34a-safety
     paths:
@@ -90,6 +90,27 @@ jobs:
           if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
           Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile installer\MicrosoftEdgeWebview2Setup.exe
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=1.0.${{ github.run_number }}" installer\setu-setup.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # Release evidence (BUG-0023): the installer's SHA-256 is always printed in the build log
+      - name: Installer SHA-256
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash Output/Setu-POS-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  Setu-POS-Setup.exe" | Out-File -Encoding ascii Output/Setu-POS-Setup.exe.sha256
+          Write-Host "INSTALLER SHA-256: $h  (version 1.0.${{ github.run_number }}, commit ${{ github.sha }})"
+
+      # Release candidate: a separate GitHub pre-release, never setu-latest and never Hotel Setu Cloud /download/,
+      # so no counter PC updates itself from it. Must succeed on this branch (no silent "green without a file").
+      - name: Publish release candidate (pre-release)
+        if: github.ref_name == 'feature/horeca-one-phase34a-safety'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "horeca-one-v1.0-rc.${{ github.run_number }}"
+          $notes = "HoReCa One v1.0.${{ github.run_number }} release candidate (commit ${{ github.sha }}). Not for automatic update. Verify the file with Setu-POS-Setup.exe.sha256 before installing."
+          gh release create $tag Output/Setu-POS-Setup.exe Output/Setu-POS-Setup.exe.sha256 --prerelease --title "HoReCa One v1.0 RC (build ${{ github.run_number }})" --notes $notes --target ${{ github.sha }}
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
       # Optional copy; the release below is the real download (private repos run out of artifact storage)

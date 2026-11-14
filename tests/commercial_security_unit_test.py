@@ -112,6 +112,7 @@ class NoBuiltInPasswords(unittest.TestCase):
         self.assertIsNone(re.search(r"pass\s*===\s*'(1234|0000)'", src), 'a literal default password is accepted')
         self.assertNotIn('Default Admin PIN', src)
         self.assertNotIn("password || '1234'", src)
+        self.assertIsNone(re.search(r"(Pin|PIN|pin|password)\s*\|\|\s*'(1111|1234|0000)'", src), 'a literal fallback PIN is accepted (BUG-0022)')
 
 
 if __name__ == '__main__':

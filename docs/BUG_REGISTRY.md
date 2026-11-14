@@ -30,8 +30,8 @@
 | **BUG-0019** | Counter Hotel Register / Activate / Login Called a Missing `store.save()`: Nothing Saved, Cloud Never Linked, Error Swallowed | **P1 (High)** | RESOLVED | CHG-0025 | `tests/commercial_security_unit_test.py` (both storage engines) |
 | **BUG-0020** | Built-In Default Admin Passwords: '1234' / '0000' Accepted by the App (Gate 1, offline hotel login); '1234' Set After Activation | **P1 (High)** | RESOLVED | CHG-0025 | `tests/commercial_security_unit_test.py` (`NoBuiltInPasswords`) |
 | **BUG-0021** | Cloud Sales / GST Taxable Value Summed the Bill `sub` (Before Discount, Inclusive of GST) — was TD-0014 | P1 (High) | RESOLVED | CHG-0026 | `tests/commercial_finance_e2e.py`, `tests/cloud_reports_test.mjs` |
-| **BUG-0022** | Gate 2 Offline Fallback Accepts '1111' as Cashier PIN When None Is Set | **P1 (High)** | OPEN | — | — (found in FINAL_COMMERCIAL_QA_V1) |
-| **BUG-0023** | Installer Never Uploaded (Artifact Quota) While the Build Shows Green; No RC File or SHA-256 Exists | **P1 (High)** | OPEN | — | — |
+| **BUG-0022** | Gate 2 Offline Fallback Accepts '1111' as Cashier PIN When None Is Set | **P1 (High)** | RESOLVED | CHG-0034 | `tests/commercial_security_unit_test.py` (literal fallback PIN check) |
+| **BUG-0023** | Installer Never Uploaded (Artifact Quota) While the Build Shows Green; No RC File or SHA-256 Exists | **P1 (High)** | FIX PUSHED, awaiting the first RC build (CHG-0034) | CHG-0034 | `build-exe.yml` run on this branch: pre-release `horeca-one-v1.0-rc.N` + SHA-256 in the log |
 
 ---
 
@@ -324,11 +324,12 @@
 - **Severity:** P1 — High
 - **Component:** `hotel_erp.html` `handleGate2Submit` (offline branch: `const validCashierPin = D.settings.cashierPin || '1111'`); `normalize` also seeds `adminPin '1234'` / `cashierPin '1111'` for data without hashed PINs (TD-0020).
 - **Impact:** when the counter cannot be reached and no cashier PIN is set on that device's data, '1111' signs in as cashier. Missed by the `NoBuiltInPasswords` test (pattern `pass === '1234'`).
-- **Status:** open; not a P0, so not changed during release QA. Fix: no literal fallback; extend `NoBuiltInPasswords` to `|| '1111'` / `|| '1234'`.
+- **Status:** RESOLVED (CHG-0034). The offline branch accepts only a PIN stored on this device; empty values never match. The unit test now fails on any `pin/Pin/password || '1111'|'1234'|'0000'` literal. Legacy data that never set PINs still gets the seeded defaults from `normalize` (TD-0020, unchanged so no existing counter is locked out).
 
 ### BUG-0023: Installer Never Uploaded; Build Shows Green
 - **Severity:** P1 — High (release evidence)
 - **Component:** `.github/workflows/build-exe.yml` (`actions/upload-artifact` with `continue-on-error: true`)
 - **Evidence:** runs `42835815768` (`7ec2f05`) and `43168295780` (`9d9b4c4`): "Successful compile", then "Failed to CreateArtifact: Artifact storage quota has been hit"; both runs list 0 artifacts. The earlier AI_HANDOVER statement that the RC was "uploaded as workflow artifacts" was wrong and is corrected.
 - **Fix options (owner):** free artifact storage (delete old artifacts) or publish the RC to a separate pre-release tag (never `setu-latest`); print the installer SHA-256 in the build log; make the upload step fail the build on this branch.
+- **Fix (CHG-0034):** `build-exe.yml` prints `INSTALLER SHA-256` in the log and, on `feature/horeca-one-phase34a-safety` only, publishes the installer + `.sha256` file as GitHub pre-release `horeca-one-v1.0-rc.N`; that step fails the build if it cannot publish. Not `setu-latest`, not Hotel Setu Cloud `/download/`, so no counter updates itself. Closed only after a run shows the file and hash.
 

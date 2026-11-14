@@ -1,5 +1,5 @@
 // Setu - Restaurant & Hotel POS - Service Worker
-const CACHE_NAME = 'setu-pos-v100';
+const CACHE_NAME = 'setu-pos-v101';
 // Smart Food Visuals pictures never change under the same name: kept across app updates
 const FOOD_CACHE = 'setu-food-v1';
 const ASSETS = [

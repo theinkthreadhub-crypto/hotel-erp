@@ -196,6 +196,8 @@ Important cloud/offline and QR workflows have automated coverage, but this is **
 
 ## 6. Next Immediate Development Steps
 
+**2026-11-14 (CHG-0034):** business type on new registration, BUG-0022 fixed, installer RC as GitHub pre-release `horeca-one-v1.0-rc.N` with SHA-256 (BUG-0023). Paid-release decision and owner actions: `docs/qa/PAID_RELEASE_V1.md`.
+
 0. **Menu synchronization (3.5e.6)** with the 3.5e pattern (Worker ingestion first, then policy).
 1. **Owner: revoke/rotate the old Resend key** and install the new one via `RESEND_API_KEY` or `email-service.key` (TD-0011).
 2. **Run the full 24 h outage test** on stable hardware per `docs/RUNBOOK_24H_OUTAGE.md` (TD-0012, milestone 3.5d.3), on a commit that includes the BUG-0012 fix.

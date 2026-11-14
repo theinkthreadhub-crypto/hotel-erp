@@ -450,3 +450,11 @@
 - **Result:** demo YES; controlled paid pilot **NO** (was GO) until the fixed Worker is deployed, an installer file + SHA-256 exists and one supervised printer install passes; general sale NO. No product code changed. Digital Stamp Rewards: not implemented.
 - **Verification / Tests:** see FINAL_COMMERCIAL_QA_V1 §2; `qa_pos_workflow_e2e.cjs` 17/17 (×2), `qa_db_safety_test.py` 2/2.
 
+### CHG-0034: Business Type on New Registration; BUG-0022; Installer RC Evidence (BUG-0023)
+- **Date:** 2026-11-14
+- **Commit SHA:** commit after `80701d6` (`git log -- docs/qa/PAID_RELEASE_V1.md`)
+- **Engineer/AI:** Claude Code (cloud session), writer lock with the owner's approval
+- **Category:** Product / Security / Release
+- **Scope / Files:** `hotel_erp.html` (new registration form: Business Type select sent to the cloud; password rule 6 characters, not one repeated character; offline Gate 2 has no built-in fallback PIN); `cloud/src/worker.js` (`hotelRegister` stores the chosen business type, unknown -> restaurant; template label "Hotel Restaurant (Room No. on bill)", since a Rooms module does not exist yet); `sw.js` cache v101; `.github/workflows/build-exe.yml` (SHA-256 in the log, RC pre-release on this branch); tests; docs.
+- **Not changed:** plan / tier on registration stays `premium` until activation (the activation key or Super Admin decides the plan); existing hotels keep their stored business type; legacy JSON storage; `normalize` defaults for legacy data (TD-0020).
+- **Verification / Tests:** `commercial_security_e2e.py` 7/7 (new test_07: cafe, hotel, unknown -> restaurant on a local Worker); `commercial_security_unit_test.py` 9/9 (the new check fails on the old code); browser check of the form (5-character password refused; `businessType: cafe` sent); `qa_pos_workflow_e2e.cjs` 17/17; `qa_db_safety_test.py` 2/2; `phase35c_browser_e2e.mjs` 2/2; `phase34a_safety_test.py` 9/9; `secret_scan_test.py` OK.

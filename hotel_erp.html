@@ -4845,17 +4845,26 @@ html[data-theme] #main .modes button.split.on,
             </div>
           </div>
           <div class="login-field">
+            <label style="font-size:12px;font-weight:700;color:#475569">Business Type *</label>
+            <select id="new_business_type" required>
+              <option value="restaurant">Restaurant</option>
+              <option value="cafe">Cafe / QSR</option>
+              <option value="hotel">Hotel Restaurant (Room No. on bill)</option>
+              <option value="cloudkitchen">Cloud Kitchen</option>
+            </select>
+          </div>
+          <div class="login-field">
             <label style="font-size:12px;font-weight:700;color:#475569">Admin Username *</label>
             <input id="new_admin_username" required placeholder="e.g. owner" value="owner">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div class="login-field">
               <label style="font-size:12px;font-weight:700;color:#475569">Admin Password *</label>
-              <input id="new_admin_password" type="password" required placeholder="Min 4 characters" minlength="4">
+              <input id="new_admin_password" type="password" required placeholder="Min 6 characters" minlength="6">
             </div>
             <div class="login-field">
               <label style="font-size:12px;font-weight:700;color:#475569">Confirm Password *</label>
-              <input id="new_confirm_password" type="password" required placeholder="Confirm password" minlength="4">
+              <input id="new_confirm_password" type="password" required placeholder="Confirm password" minlength="6">
             </div>
           </div>
 
@@ -6510,7 +6519,7 @@ function showConnectScreen(msg, view){
       ${head('Setu — New Hotel (Mobile)', 'Billing from the phone, no computer needed. You need the Master Key from your vendor.')}
       <form id="signup-form" style="text-align:left">
         <div class="login-field"><label>Hotel / Restaurant Name *</label><input id="su_hotel" required maxlength="80"></div>
-        <div class="login-field"><label>Business type *</label><select id="su_type"><option value="restaurant">Restaurant</option><option value="cafe">Cafe / QSR</option><option value="hotel">Hotel (Rooms + Restaurant)</option><option value="cloudkitchen">Cloud Kitchen</option></select></div>
+        <div class="login-field"><label>Business type *</label><select id="su_type"><option value="restaurant">Restaurant</option><option value="cafe">Cafe / QSR</option><option value="hotel">Hotel Restaurant (Room No. on bill)</option><option value="cloudkitchen">Cloud Kitchen</option></select></div>
         <div class="login-field"><label>Owner Name *</label><input id="su_owner" required maxlength="60"></div>
         <div class="login-field"><label>Mobile (10 digit) *</label><input id="su_phone" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div>
         <div class="login-field"><label>Email</label><input id="su_email" type="email" maxlength="100"></div>
@@ -7541,18 +7550,19 @@ async function handleGate2Submit(e){
     finishLogin();
   } catch(netErr) {
     // Offline local fallback
-    const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password);
-    const validCashierPin = D.settings.cashierPin || '1111';
+    // No built-in fallback PIN (BUG-0022): only a PIN stored on this device can sign in offline
+    const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password) || '';
+    const validCashierPin = D.settings.cashierPin || '';
     const st = staffByPin(pin);
     let role = 'cashier';
     let userName = 'Staff';
-    if(pin === validAdminPin){
+    if(validAdminPin && pin === validAdminPin){
       role = 'admin';
       userName = (D.auth && D.auth.ownerName) || 'Manager';
     } else if(st){
       userName = st.name;
       role = st.access === 'manager' ? 'admin' : 'cashier';
-    } else if(pin === validCashierPin){
+    } else if(validCashierPin && pin === validCashierPin){
       role = 'cashier';
       userName = 'Cashier';
     } else {
@@ -23618,6 +23628,7 @@ async function handleNewHotelRegister(e){
   const username = ($('#new_admin_username')?.value || 'owner').trim();
   const password = ($('#new_admin_password')?.value || '').trim();
   const confirmPassword = ($('#new_confirm_password')?.value || '').trim();
+  const businessType = $('#new_business_type')?.value || 'restaurant';
   const errBox = $('#new_reg_err');
   const btn = $('#btn_new_reg');
 
@@ -23641,8 +23652,8 @@ async function handleNewHotelRegister(e){
     return;
   }
 
-  if(password.length < 4){
-    showErr('Password must be at least 4 characters long.');
+  if(password.length < 6 || /^(.)\1+$/.test(password)){
+    showErr('Password must be at least 6 characters and not too simple.');
     return;
   }
 
@@ -23664,6 +23675,7 @@ async function handleNewHotelRegister(e){
         phone: mobile,
         username,
         password,
+        businessType,
         installId: installIdObj.id
       })
     });
