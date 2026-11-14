@@ -26,7 +26,7 @@ The business type is chosen on sign-up (both registration forms) and by Super Ad
 |---|---|---|---|
 | O-1 | Deploy the fixed Worker to production (closes BUG-0016) and test: a cashier PIN on the owner cloud login must be refused | Owner | Deploy log + screenshot of the refused login |
 | O-2 | Rotate the Resend email key (TD-0011) | Owner | Date of rotation |
-| O-3 | Download the installer from pre-release `horeca-one-v1.0-rc.N`; check its SHA-256 against the build log | Owner | File name + hash |
+| O-3 | Download the installer from pre-release `horeca-one-v1.0-rc.130` (SHA-256 `b766430acf829a01d44674a3f65b723a5f022635c56ea290e93b4809145c306c`); check the hash on the PC (`certutil -hashfile Setu-POS-Setup.exe SHA256`) | Owner | File name + hash |
 | O-4 | One supervised install on a real counter PC: `docs/qa/FIELD_TEST_SHEET_V1.md` P1–P3, P8, P10, P13–P16 | Owner / field engineer | Filled sheet with photos |
 | O-5 | Decide on PR #9 (merge to the release branch) | Owner | — |
 
