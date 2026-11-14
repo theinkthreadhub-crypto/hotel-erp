@@ -767,7 +767,7 @@ const pwAsk = run(async code => {
   const v = await ask('New owner password', `<p class="muted" style="margin-top:0">Owner forgot the password? Type a new one. It works on the phone app at once and on the counter PC after the next sync (it is also the Manager PIN).</p><input id="pw" maxlength="40" placeholder="At least 6 characters" autocomplete="off">`, 'Set');
   if(!v) return;
   if(v.pw.trim().length < 6) return toast('Password: at least 6 characters', true);
-  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'New password: ' + v.pw.trim() + ' (tell the owner)');
+  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'Temporary password: ' + v.pw.trim() + ' (tell the owner; they change it at the next sign-in)');
 });
 function noticeBox(code){
   const h = hotelBy(code);
@@ -1211,7 +1211,7 @@ function drawAdd(){
   const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
   const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
   $('#main').innerHTML = backBtn() + `<div class="card"><h2>Create New Hotel</h2>
-    <p class="muted">Customer → Business Type → Plan → Features → Login. The hotel signs in the first time with the Hotel Code and this password, then builds its own data.</p>
+    <p class="muted">Customer → Business Type → Plan → Login Card. You give the owner the Hotel ID and a temporary password; at the first sign-in (website or counter PC) they choose their own password.</p>
     <form id="af"><div class="grid">
       <div><label>Hotel / Restaurant name *</label><input name="name" required></div>
       <div><label>Owner name *</label><input name="owner" required></div>
@@ -1222,7 +1222,7 @@ function drawAdd(){
       <div><label>Plan</label><select name="tier" id="a_tier">${tiers}</select></div>
       <div><label>Days</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
       <div><label>Payment</label><select name="paid"><option value="">Free trial</option><option value="1">Paid (cash / UPI received)</option></select></div>
-      <div><label>Owner initial password (6+ characters) *</label><input name="password" required minlength="6"></div>
+      <div><label>Temporary password (leave empty to generate one)</label><input name="password" minlength="6" maxlength="40" autocomplete="off" placeholder="Generated automatically"></div>
     </div><div class="row" style="margin-top:12px"><button>Create Hotel</button><span id="ares"></span></div></form></div>`;
   $('#a_type').onchange = () => $('#a_tier').value = META.templates[$('#a_type').value].tier;
   $('#a_type').onchange();
@@ -1235,14 +1235,35 @@ function drawAdd(){
     let j;
     try{ j = await api('/api/admin/create', f); }catch(err){ $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err; }
     if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
-    $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
-      <p>Send this to the owner on WhatsApp:</p>
-      <div class="card" style="background:var(--soft)" id="newmsg">Setu POS (mobile) — ${esc(f.name)}<br>1. Install <b>SetuPOS.apk</b>.<br>2. Open the app → <b>Over the internet (Hotel Setu Cloud)</b> → Open Cloud.<br>
-        3. Hotel Code: <b>${esc(j.code)}</b><br>4. Password: <b>${esc(f.password)}</b><br>(Also in a browser: ${esc(location.origin)}/hotel_erp.html)</div>
-      <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText($('#newmsg').innerText)">WhatsApp / Share</button><button class="g" onclick="copyText($('#newmsg').innerText, 'Message')">Copy</button></div>
-      <details class="muted" style="font-size:12px;margin-bottom:10px"><summary>If a computer is added later (Counter PC Sync Key)</summary><code>${esc(j.syncKey)}</code> (will not be shown again)</details>
-      <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Create Another</button></div></div>`;
+    loginCard({name: f.name, code: j.code, username: j.username || 'owner', password: j.ownerPassword || f.password, syncKey: j.syncKey});
   });
+}
+
+// Login Card: what the vendor gives the owner. The password is shown here once (only its hash is stored).
+function loginText(c){
+  return `HoReCa One — ${c.name}\n\nHotel ID: ${c.code}\nUsername: ${c.username}\nTemporary password: ${c.password}\n\n` +
+    `Sign in on the website: ${location.origin}/hotel_erp.html\nOr install on the counter PC: ${location.origin}/download/Setu-POS-Setup.exe\n\n` +
+    `At the first sign-in you will choose your own password. Keep it private.`;
+}
+function loginCard(c){
+  $('#main').innerHTML = `<div class="card"><h2 class="ok">Login Card: ${esc(c.name)}</h2>
+    <p class="muted" style="margin-top:-4px">The temporary password is shown only now. Send it to the owner, then close this page.</p>
+    <div class="card" style="background:var(--soft)" id="logincard">
+      <div class="row" style="justify-content:space-between"><span class="muted">Hotel ID</span><code style="font-size:18px" id="lc_code">${esc(c.code)}</code></div>
+      <div class="row" style="justify-content:space-between"><span class="muted">Username</span><code style="font-size:16px">${esc(c.username)}</code></div>
+      <div class="row" style="justify-content:space-between"><span class="muted">Temporary password</span><code style="font-size:18px" id="lc_pw">${esc(c.password)}</code></div>
+      <p class="muted" style="margin:8px 0 0;font-size:12px">Website: ${esc(location.origin)}/hotel_erp.html · Counter PC: ${esc(location.origin)}/download/Setu-POS-Setup.exe<br>The owner chooses a new password at the first sign-in.</p>
+    </div>
+    <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText(LOGIN_TXT)">WhatsApp / Share</button><button class="g" onclick="copyText(LOGIN_TXT, 'Login Card')">Copy</button><button class="g" onclick="printLoginCard()">Print</button></div>
+    ${c.syncKey ? `<details class="muted" style="font-size:12px;margin-bottom:10px"><summary>If a computer is linked by hand later (Counter PC Sync Key)</summary><code>${esc(c.syncKey)}</code> (will not be shown again)</details>` : ''}
+    <div class="row">${c.code ? `<button onclick="hotelSheet('${esc(c.code)}')">Open Hotel</button>` : ''}<button class="g" onclick="show('add')">Create Another</button></div></div>`;
+  window.LOGIN_TXT = loginText(c);
+}
+function printLoginCard(){
+  const w = window.open('', '_blank', 'width=420,height=560');
+  if(!w) return toast('Allow pop-ups to print', true);
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Login Card</title><style>body{font-family:Inter,system-ui,sans-serif;padding:24px}pre{font:15px/1.6 Inter,system-ui,sans-serif;white-space:pre-wrap}</style><pre>${esc(window.LOGIN_TXT || '')}</pre>`);
+  w.document.close(); w.focus(); w.print();
 }
 
 // ---------------- audit ----------------
@@ -1298,15 +1319,15 @@ function tabOverview(){
     </div>
     <div class="row" style="margin-top:8px"><button class="g" onclick="update({profile:{name:p_name.value,owner:p_owner.value,phone:p_phone.value,email:p_email.value,gstin:p_gst.value}})">Save Profile</button></div>
     <h3>Owner Password</h3>
-    <p class="muted" style="margin-top:-4px">Owner forgot the password? Set a new one: it works on the phone app at once and on the counter PC after its next sync (it is also the Manager PIN there).</p>
-    <div class="row"><input id="o_pw2" placeholder="New owner password (6+ characters)" maxlength="40" style="min-width:240px">
-      <button onclick="ownerPw2()">Set Owner Password</button></div>
+    <p class="muted" style="margin-top:-4px">Owner forgot the password? Make a temporary one (or type one). The owner signs in with it and must choose a new password at once. It also becomes the Manager PIN on the counter PC after its next sync.</p>
+    <div class="row" style="margin-bottom:6px">Status: ${h.mustChange ? '<span class="tag warn">Temporary password: owner has not signed in yet</span>' : '<span class="tag ok">Owner uses their own password</span>'}</div>
+    <div class="row"><button onclick="ownerPwReset()">Reset: make a temporary password</button>
+      <input id="o_pw2" placeholder="Or type one (6+ characters)" maxlength="40" style="min-width:200px" autocomplete="off">
+      <button class="g" onclick="ownerPw2()">Set</button></div>
     <h3>Counter PC Connection</h3>
     <div class="row">Hotel Code: <code style="font-size:14px">${esc(h.code)}</code>
       Sync Key: ${h.storedSyncKey ? `<code style="font-size:14px">${esc(h.storedSyncKey)}</code><button class="g" onclick="copyText('${esc(h.storedSyncKey)}', 'Sync Key')">Copy</button>`
         : '<span class="muted">not stored (made before this option) — Support tab → New Counter PC Sync Key, or record the current key there</span>'}</div>
-    <div class="row" style="margin-top:6px">Owner password (last set by you): ${h.storedOwnerPass ? `<code style="font-size:14px">${esc(h.storedOwnerPass)}</code>` : '<span class="muted">not stored — set a new one below</span>'}
-      <span class="muted">(if the owner changed it in Setu Settings, theirs is newer)</span></div>
     ${(h.counter || {}).installId ? '' : `<p class="muted" style="margin:6px 0 0">Install ID appears here after the hotel's Setu connects: Setu → Settings (G) → Hotel Setu Cloud Sync → Hotel Code <b>${esc(h.code)}</b> + the Sync Key above → Save &amp; Connect.</p>`}
     <h3>Counter PC &amp; Backup</h3>
     <div class="grid">
@@ -1500,11 +1521,25 @@ const setSyncKey = run(async () => {
 const ownerPw2 = run(async () => {
   const pw = $('#o_pw2').value.trim();
   if(!pw) return;
-  if(!await ask('New owner password for ' + esc(CUR.name) + '?', '', 'Set')) return;
+  if(pw.length < 6) return toast('Password: at least 6 characters', true);
+  if(!await ask('Temporary password for ' + esc(CUR.name) + '?', '<p class="muted" style="margin-top:0">The owner must choose a new password at the next sign-in.</p>', 'Set')) return;
   CUR = await api('/api/admin/hotel', {code: CUR.code, update: {ownerPassword: pw}});
-  toast('Owner password set — tell the owner: ' + pw);
-  drawHotel();
+  showResetCard(pw);
 });
+const ownerPwReset = run(async () => {
+  if(!await ask('Reset the owner password of ' + esc(CUR.name) + '?', '<p class="muted" style="margin-top:0">The current password stops working. A temporary password is shown once; the owner must change it at the next sign-in.</p>', 'Reset', true)) return;
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: {resetOwnerPassword: true}});
+  showResetCard(CUR.ownerPassword);
+});
+function showResetCard(pw){
+  const c = {name: CUR.name, code: CUR.code, username: 'owner', password: pw};
+  window.LOGIN_TXT = loginText(c);
+  ask('New temporary password', `<p style="font-size:22px;font-weight:800;letter-spacing:1px;text-align:center;margin:8px 0"><code>${esc(pw)}</code></p>
+    <p class="muted">Hotel ID ${esc(CUR.code)} · Username owner. Shown only now.</p>
+    <div class="row"><button class="okb" onclick="shareText(LOGIN_TXT)">WhatsApp / Share</button><button class="g" onclick="copyText(LOGIN_TXT, 'Login Card')">Copy</button></div>`, 'Done');
+  delete CUR.ownerPassword;
+  drawHotel();
+}
 const supportOpen = run(async () => {
   if(!$('#s_why').value.trim()) return toast('Please enter a reason (visible to the hotel)', true);
   const j = await api('/api/admin/support', {code: CUR.code, minutes: +$('#s_min').value, reason: $('#s_why').value});

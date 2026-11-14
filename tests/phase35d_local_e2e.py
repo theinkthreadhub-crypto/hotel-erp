@@ -80,7 +80,8 @@ class LoopbackBase(unittest.TestCase):
     @classmethod
     def _start_worker(cls):
         cls.proc = subprocess.Popen([WRANGLER, 'dev', '--local', '--port', str(cls.port), '--ip', '127.0.0.1', '--log-level', 'error',
-                                     '--persist-to', os.path.join(cls.tmp, 'state'), '--var', f'ADMIN_KEY:{ADMIN_KEY}'],
+                                     '--persist-to', os.path.join(cls.tmp, 'state'), '--var', f'ADMIN_KEY:{ADMIN_KEY}',
+                                     *[x for k, v in getattr(cls, 'EXTRA_VARS', {}).items() for x in ('--var', f'{k}:{v}')]],
                                     cwd=CLOUD, stdout=cls.log, stderr=subprocess.STDOUT)
         for _ in range(90):
             try:
@@ -111,7 +112,8 @@ class LoopbackBase(unittest.TestCase):
     @classmethod
     def new_hotel(cls, tag):
         s, j = http(cls.base, 'POST', '/api/admin/create', {'name': f'Loopback Hotel {tag}', 'owner': 'Test Owner', 'phone': '9876543210',
-                                                              'password': 'Loop@Test2026x', 'businessType': 'restaurant', 'days': 30, 'paid': True},
+                                                              'password': 'Loop@Test2026x', 'businessType': 'restaurant', 'days': 30, 'paid': True,
+                                                              'mustChange': False},
                     {'X-Setu-Admin': ADMIN_KEY})
         assert s == 200 and j.get('syncKey'), (s, j)
         return j['code'], j['syncKey']

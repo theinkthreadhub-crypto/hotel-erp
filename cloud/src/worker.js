@@ -91,6 +91,18 @@ function sameText(a, b){
   return diff === 0 && a.length > 0;
 }
 
+// Vendor-issued first-login password: 12 characters in 3 groups, no look-alike characters (0/O, 1/l/I)
+const PW_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+function tempPassword(){
+  for(;;){
+    const b = new Uint8Array(12);
+    crypto.getRandomValues(b);
+    const raw = [...b].map(x => PW_CHARS[x % PW_CHARS.length]).join('');
+    const pw = raw.slice(0, 4) + '-' + raw.slice(4, 8) + '-' + raw.slice(8);
+    if(/[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw)) return pw;
+  }
+}
+
 function randomHex(n){
   const b = new Uint8Array(n);
   crypto.getRandomValues(b);
@@ -1747,6 +1759,25 @@ export class SetuHotel extends DurableObject {
   }
 
   // ----- Super Admin changes to this hotel -----
+  // One place that changes the owner password: account hash, and the hotel data (owner password + Manager PIN, as
+  // salted hashes) so it works on the phone app now and on the counter PC after its next sync.
+  async setOwnerPassword(pw, mustChange){
+    const a = this.account;
+    a.ownerHash2 = await SEC.hashSecret(pw);
+    delete a.ownerHash;
+    delete a.ownerPass;
+    if(mustChange) a.mustChange = true; else delete a.mustChange;
+    if(this.meta.version){
+      const d = JSON.parse(this.data());
+      const old = JSON.parse(this.data());
+      d.auth = { ...(d.auth && typeof d.auth === 'object' ? d.auth : {}), password: pw };
+      d.settings = { ...(d.settings || {}), adminPin: pw };
+      await SEC.absorbSecrets(d, old, true);      // stored as salted hashes only
+      await this.prepare(d);
+      this.commit(d);
+    }
+  }
+
   async adminUpdate(b){
     const a = this.account, c = a.config;
     const notes = [];
@@ -1861,23 +1892,13 @@ export class SetuHotel extends DurableObject {
       if(!/^[0-9a-f]{40}$/.test(k)) throw new Error('A Sync Key is 40 characters (0-9, a-f)');
       a.syncHash = await sha256(k); a.syncKey = k; notes.push('sync key set');
     }
-    if(b.ownerPassword){
-      const pw = String(b.ownerPassword);
+    // Owner forgot the password: the vendor sets one, or "resetOwnerPassword" makes a temporary one (shown once).
+    // Either way the owner must choose a new password at the next sign-in.
+    if(b.resetOwnerPassword || b.ownerPassword){
+      const pw = b.resetOwnerPassword ? tempPassword() : String(b.ownerPassword);
       if(pw.length < 6 || isWeak(pw)) throw new Error('weak password');
-      a.ownerHash2 = await SEC.hashSecret(pw);
-      delete a.ownerHash;
-      delete a.ownerPass;
-      // Owner forgot the password: put the new one into the hotel's data, so it works on the
-      // phone app now and on the counter PC after its next sync (also the Manager PIN there)
-      if(this.meta.version){
-        const d = JSON.parse(this.data());
-        const old = JSON.parse(this.data());
-        d.auth = { ...(d.auth && typeof d.auth === 'object' ? d.auth : {}), password: pw };
-        d.settings = { ...(d.settings || {}), adminPin: pw };
-        await SEC.absorbSecrets(d, old, true);      // stored as salted hashes only
-        await this.prepare(d);
-        this.commit(d);
-      }
+      await this.setOwnerPassword(pw, true);
+      if(b.resetOwnerPassword) this.issuedOwnerPassword = pw;
       notes.push('owner password reset');
     }
     this.saveAccount();
@@ -3129,7 +3150,8 @@ export class SetuHotel extends DurableObject {
         ...(b.lifetime ? { lifetime: true } : {}),
         created: Date.now(), paidUntil: b.paidUntil, status: b.status || 'trial', plan: b.plan || 'trial',
         syncHash: await sha256(syncKey), syncKey, pendingKeys: [], config: newConfig(b.businessType, b.tier),
-        ...(b.password ? { ownerHash2: await SEC.hashSecret(b.password), initialDays: b.days } : {}) };
+        ...(b.password ? { ownerHash2: await SEC.hashSecret(b.password), initialDays: b.days } : {}),
+        ...(b.mustChange ? { mustChange: true } : {}) };
       let trialKey = '';
       if(b.installId && !b.noKey){
         trialKey = await makeLicenseKey(this.env, b.installId, b.days);
@@ -3198,9 +3220,9 @@ export class SetuHotel extends DurableObject {
       const a = this.account, user = String(b.username || '').trim().toLowerCase();
       const userOk = !user || ['owner', 'admin', 'manager'].includes(user) ||
         [a.owner, a.phone, a.email].some(x => x && String(x).trim().toLowerCase() === user);
-      let found = false;
+      let found = false, viaOwner = false;
       if(userOk && pw){
-        if(await this.ownerMatches(pw)) found = true;
+        if(await this.ownerMatches(pw)) found = viaOwner = true;
         else {
           await this.ensureSecure();
           let d = {};
@@ -3214,8 +3236,20 @@ export class SetuHotel extends DurableObject {
         this.kvSet('fail:*', all);
         return json(401, { error: 'Invalid Hotel ID, Username, or Password.' });
       }
-      if(isWeak(pw)) return json(403, { error: 'The owner password is too simple. Change it in Settings on the counter, or ask the vendor to reset it.', code: 'WEAK_PASSWORD' });
       this.kvDel('fail:' + ip);
+      // New owner password: needed after a vendor-issued (temporary) password, allowed for a too-simple one.
+      // Only the owner password itself can change it, never the manager PIN slot.
+      const newPw = String(b.newPassword || '');
+      if(newPw && viaOwner){
+        if(passwordProblem(newPw)) return json(400, { error: passwordProblem(newPw), code: 'WEAK_NEW_PASSWORD' });
+        if(newPw === pw) return json(400, { error: 'Choose a password different from the temporary one.', code: 'SAME_PASSWORD' });
+        await this.setOwnerPassword(newPw, false);
+        this.saveAccount();
+      } else {
+        if(a.mustChange && viaOwner) return json(403, { error: 'MUST_CHANGE_PASSWORD', code: 'MUST_CHANGE_PASSWORD', hotelId: a.code, hotelName: a.name,
+          message: 'Please choose your own password to finish signing in.' });
+        if(isWeak(pw)) return json(403, { error: 'The owner password is too simple. Change it in Settings on the counter, or ask the vendor to reset it.', code: 'WEAK_PASSWORD' });
+      }
 
       if(this.account.status === 'pending'){
         return json(403, {
@@ -3287,9 +3321,9 @@ export class SetuHotel extends DurableObject {
     if(path === '/internal/admin'){
       let notes;
       try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
-      const syncKey = this.issuedSyncKey;
-      this.issuedSyncKey = '';
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerHash2 || this.account.ownerHash) });
+      const syncKey = this.issuedSyncKey, ownerPassword = this.issuedOwnerPassword;
+      this.issuedSyncKey = ''; this.issuedOwnerPassword = '';
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), ...(ownerPassword ? { ownerPassword } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerHash2 || this.account.ownerHash), mustChange: !!this.account.mustChange });
     }
     if(path === '/internal/errors'){
       let d = null;
@@ -4244,7 +4278,8 @@ async function createHotel(env, input, opts){
   const h = await hotelStub(env, code).fetch('https://hotel/internal/create', { method: 'POST', body: JSON.stringify({
     code, name: input.name, owner: input.owner, phone: input.phone, email: input.email, businessType: input.businessType, tier,
     installId: opts.installId || '', password: opts.installId ? '' : input.password, days: opts.days, paidUntil,
-    status: opts.status, plan: opts.plan, counterId: opts.counterId || '', lifetime: !!opts.lifetime, noKey: !!opts.noKey }) });
+    status: opts.status, plan: opts.plan, counterId: opts.counterId || '', lifetime: !!opts.lifetime, noKey: !!opts.noKey,
+    mustChange: !!opts.mustChange }) });
   if(!h.ok){
     await regCall(env, '/release', { code });
     return json(500, { error: 'Could not create the hotel. Please try again.' });
@@ -4254,6 +4289,10 @@ async function createHotel(env, input, opts){
 
 
 async function hotelRegister(request, env){
+  // New hotels are created by the vendor in Super Admin (Hotel ID + temporary password). Open self-registration
+  // only when the deployment sets PUBLIC_REGISTRATION = "on".
+  if(String(env.PUBLIC_REGISTRATION || '').toLowerCase() !== 'on')
+    return json(403, { error: 'New hotels are set up by your HoReCa One provider. Please contact them for your Hotel ID and password.', code: 'REGISTRATION_CLOSED' });
   let b;
   try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
   const hotelName = String(b.hotelName || b.name || '').trim();
@@ -4413,7 +4452,7 @@ async function hotelLogin(request, env){
   const stub = hotelStub(env, hotelId);
   const authRes = await stub.fetch('https://hotel/internal/auth', {
     method: 'POST',
-    body: JSON.stringify({ username, password, ip: request.headers.get('CF-Connecting-IP') || 'unknown' })
+    body: JSON.stringify({ username, password, newPassword: String(b.newPassword || '').trim(), ip: request.headers.get('CF-Connecting-IP') || 'unknown' })
   });
 
   const j = await authRes.json().catch(() => ({}));
@@ -4577,16 +4616,21 @@ async function admin(request, env, path){
   if(path === '/api/admin/audit') return regCall(env, '/audit/list', { code: validCode(body.code) ? body.code : '' });
 
   if(path === '/api/admin/create'){
+    // Vendor-issued login: with no password typed, a temporary one is made; the owner must change it at first sign-in
+    const generated = !body.password ? tempPassword() : '';
+    if(generated) body.password = generated;
+    // A password the vendor typed is also temporary unless the request says otherwise (mustChange: false, e.g. a move)
+    const mustChange = !!generated || body.mustChange !== false;
     const input = signupInput(body);
     if(input.error) return json(400, input);
     const days = Math.max(1, Math.min(3650, +body.days || 14));
     const res = await createHotel(env, input, { days, admin: true, tier: TIERS[body.tier] ? body.tier : undefined,
-      status: body.paid ? 'active' : 'trial', plan: body.paid ? 'manual' : 'trial' });
-    if(res.ok){
-      const j = await res.clone().json();
-      await log('Hotel created', j.code, `${input.name} · ${input.businessType} · ${days} days${body.paid ? ' (paid)' : ''}`);
-    }
-    return res;
+      status: body.paid ? 'active' : 'trial', plan: body.paid ? 'manual' : 'trial', mustChange: mustChange });
+    if(!res.ok) return res;
+    const j = await res.json();
+    await log('Hotel created', j.code, `${input.name} · ${input.businessType} · ${days} days${body.paid ? ' (paid)' : ''}`);
+    // The password is shown to the vendor once (Login Card); only its salted hash is stored
+    return json(200, { ...j, loginId: j.code, username: 'owner', ...(generated ? { ownerPassword: generated } : {}), mustChange });
   }
 
   // ----- Setu AI settings (one Gemini key for all hotels) -----
@@ -4843,7 +4887,7 @@ export default {
     }
     if(path === '/api/hotel/register' && request.method === 'POST') return hotelRegister(request, env);
     if(path === '/api/hotel/activate' && request.method === 'POST') return hotelActivate(request, env);
-    if((path === '/api/hotel/login' || path === '/api/hotel/auth') && request.method === 'POST') return hotelLogin(request, env);
+    if((path === '/api/hotel/login' || path === '/api/hotel/auth' || path === '/api/hotel/password') && request.method === 'POST') return hotelLogin(request, env);
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);
     if(path === '/api/counter/link' && request.method === 'POST') return counterLink(request, env);
     if(path === '/api/razorpay/webhook' && request.method === 'POST') return webhook(request, env);

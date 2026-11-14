@@ -197,6 +197,7 @@ Important cloud/offline and QR workflows have automated coverage, but this is **
 ## 6. Next Immediate Development Steps
 
 **2026-11-14 (CHG-0034):** business type on new registration, BUG-0022 fixed, installer RC as GitHub pre-release `horeca-one-v1.0-rc.N` with SHA-256 (BUG-0023). Paid-release decision and owner actions: `docs/qa/PAID_RELEASE_V1.md`.
+**CHG-0035:** vendor-issued login (Super Admin Login Card, temporary password, owner sets own password; `/api/hotel/register` closed unless `PUBLIC_REGISTRATION=on`). Tests: `tests/vendor_login_e2e.py`, `tests/vendor_login_browser_e2e.cjs`.
 
 0. **Menu synchronization (3.5e.6)** with the 3.5e pattern (Worker ingestion first, then policy).
 1. **Owner: revoke/rotate the old Resend key** and install the new one via `RESEND_API_KEY` or `email-service.key` (TD-0011).

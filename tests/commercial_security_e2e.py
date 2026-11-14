@@ -21,6 +21,7 @@ OWNER_PW = 'Loop@Test2026x'
 
 @unittest.skipUnless(os.path.exists(WRANGLER), 'cloud/node_modules missing: run npm ci in cloud/ (SKIPPED, not passed)')
 class CloudAuthSecurity(LoopbackBase):
+    EXTRA_VARS = {'PUBLIC_REGISTRATION': 'on'}       # test_06 / test_07 use the (optional) self-registration route
     def setUp(self):
         self.code, self.key = self.new_hotel('S')
         s, cur = http(self.base, 'GET', '/api/db', None, self.sync_h())

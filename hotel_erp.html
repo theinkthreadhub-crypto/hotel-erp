@@ -4763,16 +4763,16 @@ html[data-theme] #main .modes button.split.on,
     </div>
 
     <!-- Onboarding Mode Switcher Tabs: Option B (Existing) & Option A (New) -->
-    <div style="display:flex;background:rgba(226,232,240,0.6);backdrop-filter:blur(10px);border-radius:12px;padding:3px;margin-bottom:20px;border:1px solid rgba(203,213,225,0.7)">
+    <div id="onboard-tabs" style="display:none;background:rgba(226,232,240,0.6);backdrop-filter:blur(10px);border-radius:12px;padding:3px;margin-bottom:20px;border:1px solid rgba(203,213,225,0.7)">
       <button type="button" id="tab-login-existing" onclick="switchOnboardingMode('existing')" style="flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:#0f172a;box-shadow:0 2px 6px rgba(0,0,0,0.06);transition:all .15s">Existing Hotel Login</button>
-      <button type="button" id="tab-login-new" onclick="switchOnboardingMode('new')" style="flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:all .15s">+ New Hotel Setup</button>
+      <button type="button" id="tab-login-new" onclick="switchOnboardingMode('new')" style="display:none;flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:all .15s">+ New Hotel Setup</button>
     </div>
 
     <!-- OPTION B: EXISTING HOTEL LOGIN -->
     <div id="mode-onboard-existing">
       <div style="text-align:left;margin-bottom:16px">
         <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Login to HoReCa One</h2>
-        <p style="font-size:13px;color:#64748b;margin:0">Enter your Hotel ID, Username & Password to continue</p>
+        <p style="font-size:13px;color:#64748b;margin:0" id="exist_sub">Enter the Hotel ID and password from your HoReCa One provider</p>
       </div>
 
       <form onsubmit="handleUnifiedLogin(event)">
@@ -4791,6 +4791,19 @@ html[data-theme] #main .modes button.split.on,
             <button type="button" onclick="togglePasswordVisibility('exist_password', this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#64748b;padding:4px">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
+          </div>
+        </div>
+
+        <!-- First sign-in with a temporary password (or a too-simple one): the owner chooses their own -->
+        <div id="exist_change_box" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+          <div style="font-size:12.5px;font-weight:700;color:#9a3412;margin-bottom:8px" id="exist_change_msg">Choose your own password to finish signing in.</div>
+          <div class="login-field">
+            <label style="font-size:12px;font-weight:700;color:#475569">New Password *</label>
+            <input id="exist_new_password" type="password" minlength="6" placeholder="At least 6 characters" autocomplete="new-password">
+          </div>
+          <div class="login-field" style="margin-bottom:0">
+            <label style="font-size:12px;font-weight:700;color:#475569">Confirm New Password *</label>
+            <input id="exist_new_password2" type="password" minlength="6" placeholder="Type it again" autocomplete="new-password">
           </div>
         </div>
 
@@ -4816,7 +4829,7 @@ html[data-theme] #main .modes button.split.on,
       </div>
 
       <div style="margin-top:16px;text-align:center;font-size:12.5px;color:#64748b">
-        New property? <a href="javascript:void(0)" onclick="switchOnboardingMode('new')" style="color:#059669;font-weight:800;text-decoration:none">Register New Hotel</a>
+        New property? Your HoReCa One provider gives you the Hotel ID and password.
       </div>
     </div>
 
@@ -23455,8 +23468,11 @@ async function handleUnifiedLogin(e){
   if(e) e.preventDefault();
   const hotel = ($('#exist_hotel_id')?.value || '').trim().toUpperCase();
   const username = ($('#exist_username')?.value || 'owner').trim();
-  const password = ($('#exist_password')?.value || '').trim();
+  let password = ($('#exist_password')?.value || '').trim();
   const remember = $('#exist_remember')?.checked;
+  const changeBox = $('#exist_change_box');
+  const changing = !!(changeBox && changeBox.style.display !== 'none');
+  const newPassword = changing ? ($('#exist_new_password')?.value || '').trim() : '';
   const errBox = $('#exist_pull_err');
   const okBox = $('#exist_pull_ok');
   const btn = $('#btn-exist-pull');
@@ -23476,6 +23492,11 @@ async function handleUnifiedLogin(e){
     showErr('Please enter Hotel ID and Password.');
     return;
   }
+  if(changing){
+    if(newPassword !== ($('#exist_new_password2')?.value || '').trim()){ showErr('The new passwords do not match.'); return; }
+    if(newPassword.length < 6 || /^(.)\1+$/.test(newPassword)){ showErr('New password: at least 6 characters and not too simple.'); return; }
+    if(newPassword === password){ showErr('Choose a password different from the temporary one.'); return; }
+  }
 
   if(btn){
     btn.disabled = true;
@@ -23483,15 +23504,33 @@ async function handleUnifiedLogin(e){
   }
 
   try {
-    const endpoint = getAuthEndpoint('/api/hotel/login');
+    const endpoint = getAuthEndpoint(changing ? '/api/hotel/password' : '/api/hotel/login');
     const headers = { 'Content-Type': 'application/json', 'X-Setu-Hotel': hotel };
     const res = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ hotelId: hotel, username, password })
+      body: JSON.stringify(changing ? { hotelId: hotel, username, password, newPassword } : { hotelId: hotel, username, password })
     });
 
     const j = await res.json().catch(() => ({}));
+
+    // Vendor-issued temporary password (or a too-simple one): ask for the owner's own password, then sign in with it
+    if(res.status === 403 && (j.code === 'MUST_CHANGE_PASSWORD' || j.code === 'WEAK_PASSWORD')){
+      if(changeBox) changeBox.style.display = 'block';
+      if($('#exist_change_msg')) $('#exist_change_msg').textContent = j.code === 'WEAK_PASSWORD'
+        ? 'Your password is too simple. Choose a new one to continue.'
+        : 'Welcome! Choose your own password to finish signing in. The temporary password stops working.';
+      if(btn){ btn.disabled = false; btn.textContent = 'Set Password & Login'; }
+      setTimeout(() => $('#exist_new_password')?.focus(), 100);
+      return;
+    }
+    if(changing && res.ok && j.ok){
+      password = newPassword;                       // the rest of the sign-in uses the owner's own password
+      if(changeBox) changeBox.style.display = 'none';
+      if($('#exist_password')) $('#exist_password').value = '';
+      if($('#exist_new_password')) $('#exist_new_password').value = '';
+      if($('#exist_new_password2')) $('#exist_new_password2').value = '';
+    }
 
     if(res.status === 403 && j.error === 'PENDING_ACTIVATION'){
       // Switch to Activation Key view for this hotel
@@ -23616,7 +23655,7 @@ async function handleUnifiedLogin(e){
   } catch(err) {
     showErr('Connection error: ' + (err.message || err));
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = 'Login to HoReCa One'; }
+    if(btn){ btn.disabled = false; btn.textContent = (changeBox && changeBox.style.display !== 'none') ? 'Set Password & Login' : 'Login to HoReCa One'; }
   }
 }
 

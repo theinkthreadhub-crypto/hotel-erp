@@ -20,6 +20,10 @@ The business type is chosen on sign-up (both registration forms) and by Super Ad
 - BUG-0022: no built-in offline PIN.
 - BUG-0023: the installer SHA-256 is printed in every build log; this branch publishes a GitHub pre-release `horeca-one-v1.0-rc.N`, which is not used for automatic updates.
 
+## 2a. New customer onboarding (CHG-0035)
+
+Super Admin → Create New Hotel (leave the password empty) → Login Card (Hotel ID, `owner`, temporary password) → send on WhatsApp → the owner installs the counter PC (or opens the website), signs in, and chooses their own password. Public self-registration is closed. Forgotten password: Super Admin → Owner Password → Reset.
+
 ## 3. Owner actions before the first paid customer (in this order)
 
 | # | Action | Who | Evidence to keep |

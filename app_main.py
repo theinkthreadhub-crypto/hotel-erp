@@ -3823,20 +3823,28 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         store.log(f'Hotel registration / activation: saving on the counter failed: {e}')
                 return self.send_json(status, res)
 
-            if path == '/api/hotel/login':
+            if path in ('/api/hotel/login', '/api/hotel/password'):
+                # /api/hotel/password: first sign-in with a vendor-issued (temporary) password, or a too-simple one;
+                # the cloud checks the current owner password and stores the new one. Needs the internet.
+                changing = path == '/api/hotel/password'
                 try:
                     b = self.read_json()
                     hotel_id = str(b.get('hotelId') or '').strip().upper()
                     username = str(b.get('username') or 'owner').strip()
                     password = str(b.get('password') or '').strip()
+                    new_password = str(b.get('newPassword') or '').strip()
                 except Exception:
                     return self.send_json(400, {'error': 'Invalid JSON request'})
 
                 if not hotel_id or not password:
                     return self.send_json(400, {'error': 'Hotel ID and Password are required.'})
+                if changing and not new_password:
+                    return self.send_json(400, {'error': 'Please enter the new password.'})
 
                 # Try cloud first
-                status, cloud_res = http_cloud_post('/api/hotel/login', b)
+                status, cloud_res = http_cloud_post(path, b)
+                if status is None and changing:
+                    return self.send_json(503, {'error': 'Setting your own password needs an internet connection. Please connect and try again.'})
                 if status is not None:
                     if status == 200 and cloud_res.get('ok'):
                         try:
@@ -3852,13 +3860,17 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                             auth['isRegistered'] = True
                             # A new / formatted PC takes the owner password from the cloud login. An existing owner
                             # password is never replaced by whatever passed the cloud check (it may be the manager PIN).
-                            if not sec.get('owner'):
+                            # A password the cloud has just changed (owner verified) replaces it.
+                            if changing:
+                                sec['owner'] = SEC.hash_secret(new_password)
+                                sec['admin'] = sec['owner']
+                            elif not sec.get('owner'):
                                 sec['owner'] = SEC.hash_secret(password)
                             store.save(d)
                             if cloud and cloud_res.get('syncKey'):
                                 cloud.set_config(DEFAULT_CLOUD_URL, cloud_res['hotelId'], cloud_res['syncKey'], True)
                                 try:
-                                    cloud.restore(cloud_res['hotelId'], password)
+                                    cloud.restore(cloud_res['hotelId'], new_password if changing else password)
                                 except Exception:
                                     pass
                         except Exception as e:
