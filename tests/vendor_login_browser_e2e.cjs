@@ -63,8 +63,14 @@ function startCounter(dir, port, cloudUrl){
     adm.on('pageerror', e => errs.push(String(e)));
     await adm.goto(WB + '/admin.html', { waitUntil: 'domcontentloaded' });
     await adm.waitForFunction(() => typeof show === 'function' && typeof META !== 'undefined' && META && META.templates, null, { timeout: 30000 });
-    await adm.evaluate(() => show('add'));
-    await adm.waitForSelector('#af');
+    // The page finishes its own first screen (hotel list) after the data loads; open Create Hotel once that is done,
+    // and again if the first render replaced it.
+    for(let i = 0; i < 10 && !(await adm.$('#af')); i++){
+      await adm.evaluate(() => show('add'));
+      await adm.waitForSelector('#af', { timeout: 3000 }).catch(() => {});
+      await sleep(i ? 300 : 1000);
+    }
+    await adm.waitForSelector('#af', { timeout: 5000 });
     await adm.fill('#af [name=name]', 'Sharma Hotel');
     await adm.fill('#af [name=owner]', 'R Sharma');
     await adm.fill('#af [name=phone]', '9876501234');
