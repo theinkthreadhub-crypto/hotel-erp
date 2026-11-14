@@ -126,8 +126,10 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path Setu-POS-Setup -DestinationPath Setu-POS-Setup.zip -Force
 
+      # Customer EXE updates go out only when the owner turns them on (repo variable PUBLISH_EXE = on), after the pilot.
+      # Until then a Worker deploy from this branch never pushes a new EXE to counter PCs.
       - name: Update setu-latest release
-        if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
+        if: github.ref_name == 'ccr-89eaafa4-mxbfj2' && vars.PUBLISH_EXE == 'on'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -144,7 +146,7 @@ jobs:
   # Publish the new installer on Hotel Setu Cloud (/download/), so counter PCs update themselves
   # and the website's "Install for PC" gets it. Same steps as setu-cloud-deploy.yml.
   publish-cloud:
-    if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
+    if: github.ref_name == 'ccr-89eaafa4-mxbfj2' && vars.PUBLISH_EXE == 'on'
     needs: build
     runs-on: ubuntu-latest
     concurrency:
