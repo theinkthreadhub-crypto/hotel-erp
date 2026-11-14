@@ -492,3 +492,9 @@
 - **Not changed:** stored bills and their numbers; storage engines; licence rules (20-day warning / 30-day lock).
 - **Verification:** money precision 7/7 (20,000 bills); two-device numbering 16/16; 15-day offline reconnect OK; regression: POS workflow 17/17, browser QR/KOT 2/2, vendor login 12/12 + 7/7, ESC/POS 16/16, cloud reports 15/15, inbound 13/13, ingestion 19/19, native QR 7/7, protocol smoke, and 19 Python suites (security, finance, upgrade, 3.5d, 3.5e, BUG-0010, safety, secret scan, DB safety, SQLite phase 2/2b, sync, counter integration, backup restore).
 - **Note:** a bill now prints after the counter's save. On the JSON engine that save grows with history (TD-0017): about 30 ms at 5,000 bills and about 1 s at 150,000. Large sites should move to SQLite (ADR-0001).
+
+### CHG-0039: Production Worker Deploy of CHG-0038 (Worker Only)
+- **Date:** 2026-11-14 · **Approved by:** owner ("Ha worker deploy kro")
+- **How:** fast-forward of `ccr-89eaafa4-mxbfj2` to `83a155a` → `setu-cloud-deploy.yml` run `43568355123`, Worker version `791dc391-1c60-4bd7-8128-fa99bde80fdb`.
+- **Live checks (read-only, Setu Cloud check on `f77f2b0`):** paise arithmetic served (`linePaise`), service worker `setu-pos-v103`, registration closed, Login Card live, counter EXE download unchanged (1.0.63).
+- **Rollback:** Cloudflare → setu-cloud → Deployments → version `087f75c5`, or redeploy `a2bf9fb`.
