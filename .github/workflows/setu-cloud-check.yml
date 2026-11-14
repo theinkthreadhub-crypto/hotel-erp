@@ -39,3 +39,14 @@ jobs:
           echo "admin page cache header:"; curl -sI -m 15 https://setu-cloud.theinkthreadhub.workers.dev/admin | grep -i "cache-control" || true
           echo "keygen endpoint without key (expect 401):"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" -X POST -d '{}' https://setu-cloud.theinkthreadhub.workers.dev/api/admin/keygen || true
           echo "library setu-erp /api ping:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" https://setu-erp.theinkthreadhub.workers.dev/view || true
+      - name: Release checks on the live Worker (read-only, creates nothing)
+        run: |
+          U=https://setu-cloud.theinkthreadhub.workers.dev
+          echo "self-registration closed (expect 403 REGISTRATION_CLOSED):"
+          curl -s -m 15 -w " [%{http_code}]\n" -X POST -H 'Content-Type: application/json' -d '{}' $U/api/hotel/register || true
+          echo "password route exists (unknown hotel, expect 404):"
+          curl -s -m 15 -w " [%{http_code}]\n" -X POST -H 'Content-Type: application/json' -d '{"hotelId":"ZZZZ0000","password":"x","newPassword":"y"}' $U/api/hotel/password || true
+          echo "Super Admin Login Card live (expect 1+):"; curl -s -m 15 -L $U/admin.html | grep -c "Login Card" || true
+          echo "POS choose-password step live (expect 1+):"; curl -s -m 15 -L $U/hotel_erp.html | grep -c "exist_change_box" || true
+          echo "service worker cache:"; curl -s -m 15 $U/sw.js | grep -o "setu-pos-v[0-9]*" | head -1 || true
+          echo "download manifest (EXE for counter PCs, must be unchanged):"; curl -s -m 15 $U/download/latest.json || true; echo
