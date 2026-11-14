@@ -88,6 +88,11 @@ jobs:
         run: |
           python -m pip install 'cryptography>=42,<48'
           node tests/qa_pos_workflow_e2e.cjs
+      - name: Install the local Worker runtime (no deployment)
+        working-directory: cloud
+        run: npm ci --no-audit --no-fund
+      - name: Vendor-issued login in a real browser (Super Admin -> counter PC -> owner's own password)
+        run: SETU_REQUIRE_WRANGLER=1 node tests/vendor_login_browser_e2e.cjs
 
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke
@@ -201,8 +206,3 @@ jobs:
           SETU_REQUIRE_WRANGLER=1 python tests/commercial_security_e2e.py
           SETU_REQUIRE_WRANGLER=1 python tests/commercial_finance_e2e.py
           SETU_REQUIRE_WRANGLER=1 python tests/vendor_login_e2e.py
-      - name: Vendor-issued login in a real browser (Super Admin -> counter PC -> owner's own password)
-        run: |
-          npm install --no-save --no-package-lock playwright@1.56.1
-          npx playwright install --with-deps chromium
-          SETU_REQUIRE_WRANGLER=1 node tests/vendor_login_browser_e2e.cjs
