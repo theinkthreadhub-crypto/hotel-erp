@@ -15,6 +15,7 @@
 // (same ECDSA format as keygen.py) into the hotel's data. Writes are refused (HTTP 402)
 // once the paid period + grace ends or the hotel is suspended.
 import { DurableObject } from 'cloudflare:workers';
+import {normalizeAggregatorOrder,outletHotel} from './aggregators.js';
 
 const CHUNK = 500000;                 // chars per row; <= 1.5 MB UTF-8, under the 2 MB row limit
 const KEEP_BACKUPS = 30;              // end-of-day snapshots kept per hotel
@@ -662,6 +663,10 @@ export class SetuHotel extends DurableObject {
     this.sql.exec(`CREATE TABLE IF NOT EXISTS guestorder (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, items TEXT NOT NULL, note TEXT, name TEXT,
       status TEXT NOT NULL, at INTEGER, by TEXT, decided INTEGER, kot TEXT, reason TEXT)`);
     this.sql.exec(`CREATE TABLE IF NOT EXISTS guestcall (id TEXT PRIMARY KEY, tbl TEXT NOT NULL, kind TEXT, at INTEGER, done INTEGER DEFAULT 0, by TEXT)`);
+    // Provider-verified inbound staging: not included in client-side database merges or backups.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS agg_inbox (provider TEXT NOT NULL, order_id TEXT NOT NULL,
+      outlet_id TEXT NOT NULL, content TEXT NOT NULL, status TEXT NOT NULL, received INTEGER NOT NULL,
+      imported INTEGER DEFAULT 0, PRIMARY KEY(provider, order_id))`);
     // Outside hotel sync JSON: backup restores cannot cause a second WhatsApp receipt.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS receipt_send (id TEXT PRIMARY KEY, phone TEXT, status TEXT, provider_id TEXT, error TEXT, at INTEGER)`);
     this.meta = this.kvGet('meta') || { version: 0, savedAt: 0, day: '' };
@@ -943,6 +948,32 @@ export class SetuHotel extends DurableObject {
     if(d.settings?.waReceiptMode!=='auto')return;
     const recent=(d.bills||[]).filter(b=>this.receiptEligible(b,d.settings)&&!this.receiptLog(b.id)).slice(0,5);
     for(const bill of recent)await this.receiptSend(bill);
+  }
+
+  // Provider webhooks live in an isolated hotel-specific SQL inbox.
+  // Do NOT create KOTs or financial bills on receipt: marketplace acknowledgement
+  // and the settlement contract must be validated with each approved partner first.
+  aggregatorReceive(order){
+    const exists=this.sql.exec('SELECT status FROM agg_inbox WHERE provider=? AND order_id=?',
+      order.platform,order.orderId).toArray()[0];
+    if(exists)return {duplicate:true,status:exists.status};
+    this.sql.exec('INSERT INTO agg_inbox (provider,order_id,outlet_id,content,status,received) VALUES (?,?,?,?,?,?)',
+      order.platform,order.orderId,order.outletId,JSON.stringify(order),'received',Date.now());
+    return {duplicate:false,status:'received'};
+  }
+  aggregatorList(){
+    return this.sql.exec('SELECT content,status,received,imported FROM agg_inbox ORDER BY received DESC LIMIT 120')
+      .toArray().map(r=>({...JSON.parse(r.content),inboxStatus:r.status,importedAt:r.imported}));
+  }
+  aggregatorAck(platform,id,action){
+    if(!['zomato','swiggy'].includes(platform)||!id||id.length>90)return {error:'Invalid order key'};
+    const row=this.sql.exec('SELECT status FROM agg_inbox WHERE provider=? AND order_id=?',platform,id).toArray()[0];
+    if(!row)return {error:'Order not found'};
+    if(action==='imported'){
+      this.sql.exec("UPDATE agg_inbox SET status='imported',imported=? WHERE provider=? AND order_id=? AND status='received'",
+        Date.now(),platform,id);
+    }
+    return {status:row.status==='imported'?'imported':action==='imported'?'imported':row.status};
   }
 
   // ---------- QR self-ordering ----------
@@ -1375,6 +1406,17 @@ export class SetuHotel extends DurableObject {
       return json(200, { token: b.installId ? this.newToken('admin', b.owner || 'Manager') : '', syncKey, trialKey, saas: saasView(this.account) });
     }
     if(!this.account) return json(404, { error: 'hotel not found' });
+    if(path === '/internal/aggregator/order'){
+      if(method!=='POST')return json(405,{error:'POST only'});
+      if(this.blocked())return json(402,{error:'Hotel account inactive'});
+      if(!saasView(this.account).features.online)return json(403,{error:'Online orders are disabled for this hotel'});
+      const order=body();
+      if(!['zomato','swiggy'].includes(order.platform)||!order.orderId || !order.outletId)
+        return json(400,{error:'Invalid verified order'});
+      const result=this.aggregatorReceive(order);
+      return json(200,{code:200,status:'success',message:'Order received in Setu inbox',
+        external_order_id:order.orderId,duplicate:result.duplicate});
+    }
     if(path === '/internal/webhook'){
       const b = body();
       if(b.event === 'charged') await this.credit(b.paymentId, b.plan, b.days, b.amount);
@@ -1450,6 +1492,17 @@ export class SetuHotel extends DurableObject {
     }
     // QR self-ordering, staff side (the counter PC through its sync key, or a logged-in device)
     if(path.startsWith('/api/qr/')) return this.qrStaff(request, path, method, body, role, url);
+    if(path === '/api/aggregators/inbox' && method === 'GET'){
+      if(!saasView(this.account).features.online)return json(403,{error:'Online Orders module disabled'});
+      return json(200,{connectedProviders:['zomato','swiggy'].filter(k=>!!this.env['AGGREGATOR_WEBHOOK_SECRET_'+k.toUpperCase()]),
+        orders:this.aggregatorList()});
+    }
+    if(path === '/api/aggregators/ack' && method === 'POST'){
+      if(!isAdmin)return json(403,{error:'Manager/main counter only'});
+      const b=body();
+      const outcome=this.aggregatorAck(String(b.platform||''),String(b.orderId||''),b.action);
+      return json(outcome.error?400:200,outcome);
+    }
     if(path === '/api/receipt/status' && method === 'GET'){
       const id=String(url.searchParams.get('billId')||'');
       if(!/^[a-zA-Z0-9_-]{4,90}$/.test(id))return json(400,{error:'Invalid bill ID'});
@@ -2014,6 +2067,28 @@ async function updateManifest(env, request){
     notes: c.notes || m.notes || '', at: m.at || '', hold: !!c.hold };
 }
 
+// Incoming POS-partner webhook. Provider must agree the header format during onboarding.
+// The outlet-to-hotel mapping is private, and provider status is NEVER accepted from a browser.
+async function aggregatorWebhook(request,env,provider){
+  if(request.method!=='POST')return json(405,{error:'POST only'});
+  const secret=String(env['AGGREGATOR_WEBHOOK_SECRET_'+provider.toUpperCase()]||'');
+  if(secret.length<32)return json(503,{error:'Partner onboarding not configured'});
+  if(!sameText(request.headers.get('X-Setu-Integration-Key'),secret))return json(401,{error:'Invalid partner credentials'});
+  if(+(request.headers.get('Content-Length')||0)>256000)return json(413,{error:'Order too large'});
+  let raw='';
+  try{raw=await request.text();}catch(e){return json(400,{error:'Invalid body'});}
+  if(raw.length>256000)return json(413,{error:'Order too large'});
+  let normalized;
+  try{normalized=normalizeAggregatorOrder(provider,JSON.parse(raw));}
+  catch(e){return json(400,{error:String(e.message||'Invalid partner order').slice(0,140)});}
+  let code='';
+  try{code=outletHotel(env,provider,normalized.outletId);}catch(e){return json(503,{error:'Outlet mapping unavailable'});}
+  if(!code)return json(403,{error:'This outlet has not been mapped by Setu'});
+  return hotelStub(env,code).fetch(new Request('https://hotel/internal/aggregator/order',{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(normalized)
+  }));
+}
+
 export default {
   async fetch(request, env){
     const url = new URL(request.url), path = url.pathname;
@@ -2026,6 +2101,8 @@ export default {
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);
     if(path === '/api/counter/link' && request.method === 'POST') return counterLink(request, env);
     if(path === '/api/razorpay/webhook' && request.method === 'POST') return webhook(request, env);
+    if(path === '/api/integrations/zomato/order')return aggregatorWebhook(request,env,'zomato');
+    if(path === '/api/integrations/swiggy/order')return aggregatorWebhook(request,env,'swiggy');
     if(path === '/api/update') return json(200, await updateManifest(env, request));
     if(path.startsWith('/api/admin/')) return admin(request, env, path);
     // The hotel's own domain decides the hotel; a header from the browser cannot override it

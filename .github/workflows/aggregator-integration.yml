@@ -1,0 +1,37 @@
+name: Official Aggregator Integration Checks
+
+on:
+  push:
+    branches: [feat/official-aggregator-inbox]
+    paths:
+      - 'cloud/src/aggregators.js'
+      - 'cloud/src/worker.js'
+      - 'hotel_erp.html'
+      - 'app_main.py'
+      - 'tests/aggregator-inbox.test.mjs'
+      - '.github/workflows/aggregator-integration.yml'
+  pull_request:
+    branches: [feat/whatsapp-baileys, ccr-89eaafa4-mxbfj2]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  marketplace-inbox-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check JavaScript and Python syntax
+        run: |
+          node --check cloud/src/aggregators.js
+          node --check cloud/src/worker.js
+          python -m py_compile app_main.py
+      - name: Run provider authorization, payload, tenant and replay tests
+        run: node --test tests/aggregator-inbox.test.mjs
