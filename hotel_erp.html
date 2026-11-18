@@ -5209,6 +5209,8 @@ const toPaise = n => { n = +n || 0; return n < 0 ? -Math.round(-n * 100 + 1e-6) 
 // Half-up integer division for paise (num, den whole numbers; den > 0)
 const divHU = (num, den) => num < 0 ? -Math.floor((-2 * num + den) / (2 * den)) : Math.floor((2 * num + den) / (2 * den));
 const r2 = n => toPaise(n) / 100;
+// The one address customers and owners see (the workers.dev address keeps working for counters and old QR codes)
+const PUBLIC_URL = 'https://hotel.setupro.in';
 const money = n => '₹' + r2(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
 const rs = n => '₹' + r2(n).toLocaleString('en-IN');
 const fq = n => String(+(+n || 0).toFixed(3));
@@ -6733,7 +6735,7 @@ const FEATURE_LABELS = {kot: 'Kitchen Display', online: 'Zomato/Swiggy', invento
 async function drawSaasCard(el, headT){
   let b;
   try{ b = await cloudBilling(); }catch(e){ el.innerHTML = headT + '<p class="muted" style="margin:0">Could not load subscription details. Please check your internet connection.</p>'; return; }
-  const link = location.origin + '/hotel_erp.html';
+  const link = PUBLIC_URL;
   const left = b.lifetime ? 'Lifetime' : new Date(b.paidUntil).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'});
   const st = b.blocked ? `<b style="color:#dc2626">${b.blocked === 'suspended' ? 'Account suspended. Please contact your vendor.' : 'Expired. Cloud saving is paused.'}</b>`
     : b.status === 'trial' ? `<b style="color:#0284c7">Free Trial — until ${esc(left)}</b>` : `<b style="color:#16a34a">Active — until ${esc(left)}</b>`;
@@ -22980,7 +22982,7 @@ async function drawCloudCard(){
   const pinNote = '<span class="muted">Simple PINs such as 1234 / 1111 are not accepted on the cloud. Please change the Manager and Cashier PINs first.</span>';
   if(SRV.saas) return drawSaasCard(el, headT);
   if(SRV.cloud){
-    const u = location.origin + '/hotel_erp.html';
+    const u = PUBLIC_URL;
     el.innerHTML = headT + `
       <div style="margin:0 0 10px">Counter PC ${installIdHTML()}</div>
       <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">

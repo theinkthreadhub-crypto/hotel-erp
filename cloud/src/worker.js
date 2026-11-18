@@ -1533,7 +1533,7 @@ export class SetuHotel extends DurableObject {
       const orders = this.sql.exec(`SELECT * FROM guestorder WHERE status IN ('pending', 'accepted') OR at > ? ORDER BY at`, Date.now() - 6 * 3600e3).toArray()
         .map(o => ({ ...o, items: JSON.parse(o.items) }));
       const calls = this.sql.exec('SELECT * FROM guestcall WHERE done = 0 ORDER BY at').toArray();
-      return json(200, { on: !!c.on, auto: !!c.auto, base: url.origin + '/q/' + this.account.code + '/',
+      return json(200, { on: !!c.on, auto: !!c.auto, base: String(this.env.PUBLIC_URL || url.origin).replace(/\/$/, '') + '/q/' + this.account.code + '/',
         tables: manager ? c.tables || {} : undefined, orders, calls });
     }
     if(method !== 'POST') return json(404, { error: 'not found' });

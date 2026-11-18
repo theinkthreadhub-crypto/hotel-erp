@@ -58,7 +58,9 @@ jobs:
           echo "service worker cache (cloud now: setu-pos-v103):"; curl -s -m 15 "$D/sw.js" | grep -o "setu-pos-v[0-9]*" | head -1 || true
           echo "paise arithmetic in its page (1+ = current):"; curl -s -m 15 -L "$D/hotel_erp.html" | grep -c "const linePaise = i =>" || true
           echo "vendor login step in its page (1+ = current):"; curl -s -m 15 -L "$D/hotel_erp.html" | grep -c "exist_change_box" || true
-          echo "admin page:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" "$D/admin.html" || true
+          echo "admin page via hotel.setupro.in/admin (200 + title = routed):"; curl -s -m 15 -L -o /tmp/a.html -w "%{http_code}\n" "$D/admin" || true; grep -o "<title>[^<]*" /tmp/a.html | head -1 || true
+          echo "table QR route /q/ (200 = routed):"; curl -s -m 15 -L -o /dev/null -w "%{http_code}\n" "$D/q/TEST0000/00000000000000000000000000000000" || true
+          echo "installer route /download/latest.json:"; curl -s -m 15 "$D/download/latest.json" | head -c 160 || true; echo
           echo "api goes to the cloud:"; curl -s -m 15 "$D/api/ping" || true; echo
           echo "who answers:"; curl -sI -m 15 "$D/hotel_erp.html" | grep -iE "^server:|^x-vercel|^cf-ray" || true
 

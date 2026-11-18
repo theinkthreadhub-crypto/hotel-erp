@@ -151,6 +151,13 @@ class VendorIssuedLogin(LoopbackBase):
         self.assertEqual(http(self.base, 'POST', '/api/admin/hotel', other, ADMIN)[0], 200)
         self.assertEqual(round((self.admin_view(code)['paidUntil'] - p0) / 86400000), 60)
 
+    def test_10_table_qr_codes_use_the_public_address(self):
+        j = self.create(password='Qr#Public2026', mustChange=False)
+        h = {'X-Setu-Hotel': j['code'], 'X-Setu-Sync': j['syncKey'], 'X-Setu-Caps': 'secure1'}
+        s, st = http(self.base, 'GET', '/api/qr/state', None, h)
+        self.assertEqual(s, 200, st)
+        self.assertEqual(st['base'], 'https://hotel.setupro.in/q/' + j['code'] + '/', 'printed table QR codes point at hotel.setupro.in')
+
     def test_07_existing_hotels_are_not_forced_to_change(self):
         j = self.create(password='Moved#Customer42', mustChange=False)
         s, r = self.login(j['code'], 'Moved#Customer42')

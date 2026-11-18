@@ -505,3 +505,8 @@
 - **Bugs:** BUG-0028 (P0), BUG-0029 (P1), BUG-0030. The new tests fail on `03ed8ff` and pass now; no existing test was changed.
 - **Verification:** rapid taps 23/23 (JSON + SQLite counter, Super Admin); vendor login 9/9; Super Admin app (phone, Keystore bridge) 17/17 on a local cloud with three synthetic hotels; regression: security 7/7, 3.5d 10/10, 3.5e 7/7, finance 2/2, 15-day offline OK, vendor login browser 12/12, cloud reports 15/15, inbound 13/13, ingestion 19/19.
 
+
+### CHG-0041: One Public Address: hotel.setupro.in (Links, Login Card, Table QR Codes, Downloads)
+- **Date:** 2026-11-18 · **Asked by:** owner ("sab me ek he kro, QR code scanner me bhi")
+- **Scope / Files:** `cloud/wrangler.toml` (`PUBLIC_URL = "https://hotel.setupro.in"`); `cloud/src/worker.js` (table QR base uses `PUBLIC_URL`); `cloud/static/admin.html` (Login Card, WhatsApp text and download link show `hotel.setupro.in`); `hotel_erp.html` (owner links + "scan with a phone" QR use `PUBLIC_URL`; `sw.js` v104); `vercel.json` (`/q/*`, `/download/*`, `/admin`, `/qr` go to the Cloudflare Worker); `tests/vendor_login_e2e.py` test_10; read-only live check.
+- **Kept on purpose:** counter PCs sync with the Worker address (`DEFAULT_CLOUD_URL`), and old QR codes / links on `setu-cloud.theinkthreadhub.workers.dev` keep working (same Worker, same data). Both Android apps still open the Worker address until `hotel.setupro.in/admin` is confirmed live through Vercel.

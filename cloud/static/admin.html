@@ -1140,7 +1140,7 @@ async function drawUpdates(){
     <p>Status: ${u.hold ? '<span class="err"><b>Paused</b>: no PC is offered this update</span>' : '<span class="ok"><b>Released</b> to all PCs</span>'}</p>
     <label>Message shown with the update (optional)</label><input id="up_notes" maxlength="300" value="${esc(u.notes || '')}">
     <div class="btns">${u.hold ? `<button onclick="updSet(false)">Release to all PCs</button>` : `<button class="g" style="color:var(--bad)" onclick="updSet(true)">Pause updates</button>`}<button class="g" onclick="updSet(null)">Save message</button></div>
-    ${u.version ? `<p class="muted" style="font-size:12px">Download link for new clients: <code>${esc(location.origin)}/download/Setu-POS-Setup.exe</code></p>` : ''}</div>
+    ${u.version ? `<p class="muted" style="font-size:12px">Download link for new clients: <code>${esc(PUBLIC)}/download/Setu-POS-Setup.exe</code></p>` : ''}</div>
     <div class="card"><h2>PCs on an older version (${behind.length})</h2>
     ${behind.map(h => `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></span><span class="tag warn">v${esc(h.appv)}</span></div>`).join('') || '<p class="muted">All connected PCs are on the newest version.</p>'}</div>`;
 }
@@ -1263,10 +1263,12 @@ function drawAdd(){
   });
 }
 
+// The one address customers see (website, table QR codes, PC installer); the workers.dev address keeps working
+const PUBLIC = 'https://hotel.setupro.in';
 // Login Card: what the vendor gives the owner. The password is shown here once (only its hash is stored).
 function loginText(c){
   return `HoReCa One — ${c.name}\n\nHotel ID: ${c.code}\nUsername: ${c.username}\nTemporary password: ${c.password}\n\n` +
-    `Sign in on the website: ${location.origin}/hotel_erp.html\nOr install on the counter PC: ${location.origin}/download/Setu-POS-Setup.exe\n\n` +
+    `Sign in on the website: ${PUBLIC}\nOr install on the counter PC: ${PUBLIC}/download/Setu-POS-Setup.exe\n\n` +
     `At the first sign-in you will choose your own password. Keep it private.`;
 }
 function loginCard(c){
@@ -1276,7 +1278,7 @@ function loginCard(c){
       <div class="row" style="justify-content:space-between"><span class="muted">Hotel ID</span><code style="font-size:18px" id="lc_code">${esc(c.code)}</code></div>
       <div class="row" style="justify-content:space-between"><span class="muted">Username</span><code style="font-size:16px">${esc(c.username)}</code></div>
       <div class="row" style="justify-content:space-between"><span class="muted">Temporary password</span><code style="font-size:18px" id="lc_pw">${esc(c.password)}</code></div>
-      <p class="muted" style="margin:8px 0 0;font-size:12px">Website: ${esc(location.origin)}/hotel_erp.html · Counter PC: ${esc(location.origin)}/download/Setu-POS-Setup.exe<br>The owner chooses a new password at the first sign-in.</p>
+      <p class="muted" style="margin:8px 0 0;font-size:12px">Website: ${esc(PUBLIC)} · Counter PC: ${esc(PUBLIC)}/download/Setu-POS-Setup.exe<br>The owner chooses a new password at the first sign-in.</p>
     </div>
     <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText(LOGIN_TXT)">WhatsApp / Share</button><button class="g" onclick="copyText(LOGIN_TXT, 'Login Card')">Copy</button><button class="g" onclick="printLoginCard()">Print</button></div>
     ${c.syncKey ? `<details class="muted" style="font-size:12px;margin-bottom:10px"><summary>If a computer is linked by hand later (Counter PC Sync Key)</summary><code>${esc(c.syncKey)}</code> (will not be shown again)</details>` : ''}
