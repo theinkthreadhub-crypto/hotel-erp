@@ -51,3 +51,14 @@ jobs:
           echo "service worker cache:"; curl -s -m 15 $U/sw.js | grep -o "setu-pos-v[0-9]*" | head -1 || true
           echo "paise arithmetic live (expect 1+):"; curl -s -m 15 -L $U/hotel_erp.html | grep -c "const linePaise = i =>" || true
           echo "download manifest (EXE for counter PCs, must be unchanged):"; curl -s -m 15 $U/download/latest.json || true; echo
+      - name: What hotel.setupro.in serves (read-only)
+        run: |
+          D=https://hotel.setupro.in
+          echo "page status:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" "$D/hotel_erp.html" || true
+          echo "service worker cache (cloud now: setu-pos-v103):"; curl -s -m 15 "$D/sw.js" | grep -o "setu-pos-v[0-9]*" | head -1 || true
+          echo "paise arithmetic in its page (1+ = current):"; curl -s -m 15 -L "$D/hotel_erp.html" | grep -c "const linePaise = i =>" || true
+          echo "vendor login step in its page (1+ = current):"; curl -s -m 15 -L "$D/hotel_erp.html" | grep -c "exist_change_box" || true
+          echo "admin page:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" "$D/admin.html" || true
+          echo "api goes to the cloud:"; curl -s -m 15 "$D/api/ping" || true; echo
+          echo "who answers:"; curl -sI -m 15 "$D/hotel_erp.html" | grep -iE "^server:|^x-vercel|^cf-ray" || true
+
