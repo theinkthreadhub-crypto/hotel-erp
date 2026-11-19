@@ -16,7 +16,7 @@
     },
     {
       "source": "/admin",
-      "destination": "https://setu-cloud.theinkthreadhub.workers.dev/admin.html"
+      "destination": "https://setu-cloud.theinkthreadhub.workers.dev/admin"
     },
     {
       "source": "/admin.webmanifest",
@@ -24,7 +24,7 @@
     },
     {
       "source": "/qr",
-      "destination": "https://setu-cloud.theinkthreadhub.workers.dev/qr.html"
+      "destination": "https://setu-cloud.theinkthreadhub.workers.dev/qr"
     },
     {
       "source": "/",
