@@ -515,3 +515,8 @@
 - **Date:** 2026-11-19 · repo made public by the owner (Resend key revoked first) so GitHub Actions run again.
 - **Deploy:** Worker version `f3c28e68` (run `44433136737`, attempt 2), then `vercel.json` `/admin` → Worker `/admin` (no redirect loop). Live checks: `hotel.setupro.in` page v104, `/admin` 200, `/q/` 200, `/download/latest.json` served, `/api` → Worker.
 - **Apps:** Super Admin app v2.3.0 opens `https://hotel.setupro.in/admin`; Setu POS app v1.4.0's cloud choice opens `https://hotel.setupro.in/hotel_erp`. Both build as pre-releases from this branch; the POS app reaches `setu-latest` only with `PUBLISH_EXE = on`.
+
+### CHG-0043: Super Admin for Windows (Desktop App)
+- **Date:** 2026-11-19 · **Asked by:** owner
+- **Files:** `admin_desktop/super_admin.py` (pywebview window on `https://hotel.setupro.in/admin`, own WebView2 profile in `%LOCALAPPDATA%\HoReCaOneSuperAdmin`, downloads allowed, external links in the browser, browser fallback), `installer/super-admin-setup.iss` (own AppId, per-user, WebView2 bootstrapper), `.github/workflows/build-super-admin-exe.yml` (build, silent-install smoke test, SHA-256, pre-release `super-admin-desktop-v1.0.N`).
+- **Website:** the same panel is `https://hotel.setupro.in/admin` (create hotels, Login Card, activate, reset password, backups, tickets).
