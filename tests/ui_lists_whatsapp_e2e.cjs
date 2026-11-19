@@ -67,6 +67,7 @@ const HINDI = /[ऀ-ॿ]/;
     await m.fill('#ls_tables .ls-add input', 'Rooftop-1');
     await m.click('#ls_tables .ls-add button');
     const counted = await m.evaluate(() => ({ badge: document.querySelector('#ls_expHeads').closest('.card').querySelector('.ls-count').textContent, vals: listVals('ls_expHeads') }));
+    if(process.env.SHOTS){ await m.evaluate(() => window.scrollTo(0, 0)); await m.screenshot({ path: path.join(process.env.SHOTS, 'lists-top.png') }); }
     if(process.env.SHOTS) await m.screenshot({ path: path.join(process.env.SHOTS, 'lists.png') });
     await m.evaluate(() => saveListsAndTables());
     await m.evaluate(() => srvFlush(8000));
@@ -80,6 +81,9 @@ const HINDI = /[ऀ-ॿ]/;
     const optionHas = await m.evaluate(() => { expTab = 'regular'; EF = {}; go('expense'); scrExpense(); return [...document.querySelectorAll('#e_head option')].map(o => o.value).includes('Laundry'); });
     check(optionHas, 'Expense dropdown uses the saved list');
     const listText = await m.evaluate(() => { go('lists'); return document.getElementById('main').innerText; });
+    const titleOk = await m.evaluate(() => { const t = [...document.querySelectorAll('#main .title div')].find(d => /Categories & Dropdown Lists Master/.test(d.textContent));
+      const fg = getComputedStyle(t).color, bg = getComputedStyle(t.closest('.title')).backgroundColor; return { fg, bg, same: fg === bg }; });
+    check(!titleOk.same && titleOk.fg !== 'rgb(255, 255, 255)', 'Screen title is readable (not white on a light panel)', titleOk);
     check(!HINDI.test(listText), 'Lists screen: English only');
 
     // ---------- WhatsApp QR ----------

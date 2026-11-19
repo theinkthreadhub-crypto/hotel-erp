@@ -21121,11 +21121,11 @@ setInterval(doctorAuto, 6 * 36e5);
 function scrLists(){
   const settingTables = D.settings.tables || ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8', 'T-9', 'T-10', 'Parcel'];
   main.innerHTML = `
-    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:#1e293b;color:#fff;padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
+    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:var(--panel,#fff);color:var(--text,#0f172a);padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
       <div>
-        <div style="font-size:11px;color:#94a3b8;font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One · Masters</div>
-        <div style="font-size:19px;font-weight:800;color:#ffffff">Categories & Dropdown Lists Master</div>
-        <div style="font-size:12.5px;color:#cbd5e1;margin-top:2px">Configure your custom categories, expense heads, stock groups, locations and transaction reasons.</div>
+        <div style="font-size:11px;color:var(--muted,#64748b);font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One · Masters</div>
+        <div style="font-size:19px;font-weight:800;color:var(--text,#0f172a)">Categories & Dropdown Lists Master</div>
+        <div style="font-size:12.5px;color:var(--muted,#64748b);margin-top:2px">Configure your custom categories, expense heads, stock groups, locations and transaction reasons.</div>
       </div>
       <div style="display:flex;gap:8px">
         <button type="button" class="btn g sm" onclick="resetListsDefaults()" style="background:#334155;color:#fff;border:1px solid #475569;font-weight:650">Reset Defaults</button>
@@ -21202,11 +21202,11 @@ function resetListsDefaults(){
 
 function scrMasters(){
   main.innerHTML = `
-    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:#1e293b;color:#fff;padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
+    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:var(--panel,#fff);color:var(--text,#0f172a);padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
       <div>
-        <div style="font-size:11px;color:#94a3b8;font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One ERP</div>
-        <div style="font-size:19px;font-weight:800;color:#ffffff">Masters Management</div>
-        <div style="font-size:12.5px;color:#cbd5e1;margin-top:2px">Configure and manage all core data masters: Menu, Stock, Suppliers, Categories, Tables, Customers and Staff.</div>
+        <div style="font-size:11px;color:var(--muted,#64748b);font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One ERP</div>
+        <div style="font-size:19px;font-weight:800;color:var(--text,#0f172a)">Masters Management</div>
+        <div style="font-size:12.5px;color:var(--muted,#64748b);margin-top:2px">Configure and manage all core data masters: Menu, Stock, Suppliers, Categories, Tables, Customers and Staff.</div>
       </div>
     </div>
 
