@@ -510,3 +510,8 @@
 - **Date:** 2026-11-18 · **Asked by:** owner ("sab me ek he kro, QR code scanner me bhi")
 - **Scope / Files:** `cloud/wrangler.toml` (`PUBLIC_URL = "https://hotel.setupro.in"`); `cloud/src/worker.js` (table QR base uses `PUBLIC_URL`); `cloud/static/admin.html` (Login Card, WhatsApp text and download link show `hotel.setupro.in`); `hotel_erp.html` (owner links + "scan with a phone" QR use `PUBLIC_URL`; `sw.js` v104); `vercel.json` (`/q/*`, `/download/*`, `/admin`, `/qr` go to the Cloudflare Worker); `tests/vendor_login_e2e.py` test_10; read-only live check.
 - **Kept on purpose:** counter PCs sync with the Worker address (`DEFAULT_CLOUD_URL`), and old QR codes / links on `setu-cloud.theinkthreadhub.workers.dev` keep working (same Worker, same data). Both Android apps still open the Worker address until `hotel.setupro.in/admin` is confirmed live through Vercel.
+
+### CHG-0042: hotel.setupro.in Live; Both Android Apps Use It
+- **Date:** 2026-11-19 · repo made public by the owner (Resend key revoked first) so GitHub Actions run again.
+- **Deploy:** Worker version `f3c28e68` (run `44433136737`, attempt 2), then `vercel.json` `/admin` → Worker `/admin` (no redirect loop). Live checks: `hotel.setupro.in` page v104, `/admin` 200, `/q/` 200, `/download/latest.json` served, `/api` → Worker.
+- **Apps:** Super Admin app v2.3.0 opens `https://hotel.setupro.in/admin`; Setu POS app v1.4.0's cloud choice opens `https://hotel.setupro.in/hotel_erp`. Both build as pre-releases from this branch; the POS app reaches `setu-latest` only with `PUBLISH_EXE = on`.
