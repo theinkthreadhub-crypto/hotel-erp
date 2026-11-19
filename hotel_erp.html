@@ -4703,6 +4703,15 @@ html[data-theme] #main .modes button.split.on,
   transform: translateX(-1px) !important;
 }
 
+/* List editor (Masters → Dropdown Lists): one clean box per item, × beside it */
+.ls-ed{display:flex;flex-direction:column;gap:8px}
+.ls-rows{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow:auto;padding:2px}
+.ls-row{display:flex;align-items:center;gap:6px}
+.ls-row input{flex:1;min-width:0;margin:0 !important;font-size:13.5px !important;padding:7px 10px !important;height:auto !important}
+.ls-x{border:0;background:transparent;color:#94a3b8;font-size:18px;line-height:1;width:30px;height:30px;border-radius:6px;cursor:pointer;flex:none}
+.ls-x:hover{background:#fee2e2;color:#dc2626}
+.ls-add{display:flex;gap:6px;align-items:center}
+.ls-add input{flex:1;min-width:0;margin:0 !important;font-size:13px !important;padding:7px 10px !important;border-style:dashed !important;height:auto !important}
 </style>
 </head>
 <body>
@@ -12113,7 +12122,7 @@ function scrBill(){
           <div class="pos-kaccha-orders-tray" style="margin-top:12px;padding-top:10px;border-top:1px dashed #cbd5e1">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
               <span style="font-size:12px;font-weight:800;color:#0f172a;letter-spacing:.3px">
-                🍽️ Running Orders / कच्चा बिल (${kacchaEntries.length} Active)
+                🍽️ Running Orders (${kacchaEntries.length} Active)
               </span>
               <span style="font-size:11px;font-weight:750;color:#b45309">
                 Total: ${money(totalKacchaAmt)}
@@ -14144,12 +14153,12 @@ function renderDaybookFilterScreen(){
           <select id="db_form_type" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;font-size:13px">
             <option value="all" ${dbFilterType==='all'?'selected':''}>All Transactions (Day Book)</option>
             <option value="active_sales" ${dbFilterType==='active_sales'?'selected':''}>Sales Bills (Active Only)</option>
-            <option value="cancelled_sales" ${dbFilterType==='cancelled_sales'?'selected':''}>Cancelled Bills Only (रद्द किए गए बिल)</option>
+            <option value="cancelled_sales" ${dbFilterType==='cancelled_sales'?'selected':''}>Cancelled Bills Only</option>
             <option value="all_sales" ${dbFilterType==='all_sales'?'selected':''}>All Bills (Active + Cancelled Bills)</option>
-            <option value="expense" ${dbFilterType==='expense'?'selected':''}>Expenses Only (खर्च)</option>
-            <option value="sales_expense" ${dbFilterType==='sales_expense'?'selected':''}>Sales & Expenses (बिक्री और खर्च)</option>
-            <option value="purchase" ${dbFilterType==='purchase'?'selected':''}>Stock Purchases Only (खरीद)</option>
-            <option value="cash" ${dbFilterType==='cash'?'selected':''}>Cash Drawer Movements Only (रोकड़ बही)</option>
+            <option value="expense" ${dbFilterType==='expense'?'selected':''}>Expenses Only</option>
+            <option value="sales_expense" ${dbFilterType==='sales_expense'?'selected':''}>Sales & Expenses</option>
+            <option value="purchase" ${dbFilterType==='purchase'?'selected':''}>Stock Purchases Only</option>
+            <option value="cash" ${dbFilterType==='cash'?'selected':''}>Cash Drawer Movements Only</option>
             <option value="bank" ${dbFilterType==='bank'?'selected':''}>Bank / UPI / Online Collections</option>
             <option value="credit" ${dbFilterType==='credit'?'selected':''}>Credit / Customer Outstandings</option>
           </select>
@@ -14363,9 +14372,9 @@ function renderDaybookReportScreen(){
   <!-- Dainikee-Style Quick Bar: Total Inward, Outward & Cash vs Online -->
   <div style="margin-top:14px;padding:12px 16px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:13px">
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
-      <span style="font-weight:800;color:#08080E">Total Inward (आवक): <span style="color:#16a34a;font-weight:900">${money(totalInward)}</span></span>
+      <span style="font-weight:800;color:#08080E">Total Inward: <span style="color:#16a34a;font-weight:900">${money(totalInward)}</span></span>
       <span style="color:#94a3b8">|</span>
-      <span style="font-weight:800;color:#08080E">Total Outward (भुगतान): <span style="color:#dc2626;font-weight:900">${money(totalOutward)}</span></span>
+      <span style="font-weight:800;color:#08080E">Total Outward: <span style="color:#dc2626;font-weight:900">${money(totalOutward)}</span></span>
       <span style="color:#94a3b8">|</span>
       <span style="font-weight:800;color:#08080E">Net Balance: <span style="color:${netBalance >= 0 ? '#16a34a' : '#dc2626'};font-weight:900">${money(netBalance)}</span></span>
     </div>
@@ -14383,26 +14392,26 @@ function renderDaybookReportScreen(){
     <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
         <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
-          💵 Cash Summary (नकदी विवरण)
+          💵 Cash Summary
         </h4>
         <span style="font-size:11px;font-weight:800;color:#15803d;background:#ecfdf5;padding:3px 9px;border-radius:6px;border:1px solid #bbf7d0">Cash Counter</span>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:none !important">
         <tbody>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Day's Cash Receipts (कुल नकद आवक)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Day's Cash Receipts</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(totalCashIn)}</td>
           </tr>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Cash Expenses & Payments (नकद खर्चे)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Cash Expenses & Payments</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#dc2626;border:none !important">${money(totalCashOut)}</td>
           </tr>
           <tr style="border-bottom:1.5px solid #cbd5e1;background:#f8fafc">
-            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Net Cash Movement (शुद्ध नकद बचत)</td>
+            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Net Cash Movement</td>
             <td style="padding:9px 6px;text-align:right;font-weight:800;color:${netCashMovement >= 0 ? '#16a34a' : '#dc2626'};border:none !important">${money(netCashMovement)}</td>
           </tr>
           <tr>
-            <td style="padding:10px 0 0;color:#08080E;font-weight:800;border:none !important">Expected in Cash Drawer (गल्ला बैलेंस)</td>
+            <td style="padding:10px 0 0;color:#08080E;font-weight:800;border:none !important">Expected in Cash Drawer</td>
             <td style="padding:10px 0 0;text-align:right;font-weight:900;font-size:14.5px;color:#08080E;border:none !important">${money(t.expected || 0)}</td>
           </tr>
         </tbody>
@@ -14413,26 +14422,26 @@ function renderDaybookReportScreen(){
     <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
         <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
-          🌐 Bank & Online Summary (ऑनलाइन व बैंक)
+          🌐 Bank & Online Summary
         </h4>
         <span style="font-size:11px;font-weight:800;color:#1d4ed8;background:#eff6ff;padding:3px 9px;border-radius:6px;border:1px solid #bfdbfe">Digital</span>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:none !important">
         <tbody>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">UPI / QR Receipts (ऑनलाइन यूपीआई)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">UPI / QR Receipts</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(modeIn['UPI'] || 0)}</td>
           </tr>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Card POS Receipts (कार्ड आवक)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Card POS Receipts</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(modeIn['Card'] || 0)}</td>
           </tr>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Bank / Online Outflow (ऑनलाइन भुगतान)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Bank / Online Outflow</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#dc2626;border:none !important">${money(totalBankOut)}</td>
           </tr>
           <tr style="border-top:1.5px solid #cbd5e1;background:#f8fafc">
-            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Total Online Inflow (कुल ऑनलाइन आवक)</td>
+            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Total Online Inflow</td>
             <td style="padding:9px 6px;text-align:right;font-weight:900;font-size:14.5px;color:#1d4ed8;border:none !important">${money(totalBankIn)}</td>
           </tr>
         </tbody>
@@ -14443,7 +14452,7 @@ function renderDaybookReportScreen(){
     <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
         <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
-          📊 Mode Breakdown (मोड अनुसार कलेक्शन)
+          📊 Mode Breakdown
         </h4>
         <span style="font-size:11px;font-weight:800;color:#c2410c;background:#fff7ed;padding:3px 9px;border-radius:6px;border:1px solid #fed7aa">All Modes</span>
       </div>
@@ -14469,7 +14478,7 @@ function renderDaybookReportScreen(){
           `}
           ${totalCreditIn > 0 ? `
             <tr style="border-top:1.5px solid #fed7aa;background:#fff7ed">
-              <td style="padding:7px 6px;font-weight:800;color:#c2410c;border:none !important">Credit (उधार बिल)</td>
+              <td style="padding:7px 6px;font-weight:800;color:#c2410c;border:none !important">Credit</td>
               <td colspan="2" style="padding:7px 6px;text-align:right;font-weight:800;color:#c2410c;border:none !important">${money(totalCreditIn)}</td>
             </tr>
           ` : ''}
@@ -20919,6 +20928,22 @@ const LISTS = {
   issueReasons: ['Issue reasons', () => OUT_KIND.issue[1]], returnReasons: ['Return reasons', () => OUT_KIND.return[1]]
 };
 const lst = k => { const c = ((D.settings.lists || {})[k] || []).filter(Boolean); return c.length ? c : LISTS[k][1](); };
+// A clean list editor: one item per row (rename in place, × removes, Enter or + Add adds). listVals(id) reads it back.
+const lsRow = v => `<div class="ls-row"><input value="${esc(v)}" maxlength="60" aria-label="Item"><button type="button" class="ls-x" title="Remove" aria-label="Remove" onclick="lsDel(this)">×</button></div>`;
+function listEditor(id, items, ph){
+  return `<div class="ls-ed" id="${id}"><div class="ls-rows">${items.map(lsRow).join('')}</div>
+    <div class="ls-add"><input placeholder="${esc(ph || 'Add an item')}" maxlength="60" onkeydown="if(event.key==='Enter'){event.preventDefault();lsAdd(this)}"><button type="button" class="btn g sm" onclick="lsAdd(this.previousElementSibling)">+ Add</button></div></div>`;
+}
+function lsCount(ed){ const c = ed.closest('.card, .ls-card'); const b = c && c.querySelector('.ls-count'); if(b) b.textContent = ed.querySelectorAll('.ls-row').length + (b.dataset.unit || ' items'); }
+function lsAdd(inp){
+  const v = (inp.value || '').trim(), ed = inp.closest('.ls-ed');
+  if(!v) return;
+  if(listVals(ed.id).some(x => x.toLowerCase() === v.toLowerCase())){ toast(`"${v}" is already in the list`); inp.select(); return; }
+  ed.querySelector('.ls-rows').insertAdjacentHTML('beforeend', lsRow(v));
+  inp.value = ''; inp.focus(); lsCount(ed);
+}
+function lsDel(btn){ const ed = btn.closest('.ls-ed'); btn.closest('.ls-row').remove(); lsCount(ed); }
+const listVals = id => { const ed = document.getElementById(id); return ed ? [...new Set([...ed.querySelectorAll('.ls-row input')].map(i => i.value.trim()).filter(Boolean))] : []; };
 
 const DOC_ICON = {ok: '✅', warn: '⚠️', bad: '❌', info: 'ℹ️'};
 let DOC = {res: null, extra: [], at: 0};
@@ -21098,7 +21123,7 @@ function scrLists(){
   main.innerHTML = `
     <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:#1e293b;color:#fff;padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
       <div>
-        <div style="font-size:11px;color:#94a3b8;font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One · Masters (मास्टर प्रबंधन)</div>
+        <div style="font-size:11px;color:#94a3b8;font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One · Masters</div>
         <div style="font-size:19px;font-weight:800;color:#ffffff">Categories & Dropdown Lists Master</div>
         <div style="font-size:12.5px;color:#cbd5e1;margin-top:2px">Configure your custom categories, expense heads, stock groups, locations and transaction reasons.</div>
       </div>
@@ -21111,8 +21136,7 @@ function scrLists(){
     <!-- Quick Navigation / Info Banner -->
     <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
       <div style="font-size:12.5px;color:#334155;line-height:1.5">
-        💡 <b>नियम / How it works:</b> प्रत्येक नाम को नई लाइन (Enter) पर लिखें। पुराना कोई भी बिल या रिकॉर्ड नहीं बदलेगा। यहाँ जो भी नया नाम डालेंगे वह सभी फॉर्म्स में ड्रॉपडाउन लिस्ट में तुरंत दिखाई देगा।
-      </div>
+        <b>How it works:</b> add, rename or remove items in each list, then press Save. Old bills and records never change; new entries use the updated lists.</div>
       <div style="display:flex;gap:6px">
         <button type="button" class="btn g sm" onclick="go('menu')">Menu Master →</button>
         <button type="button" class="btn g sm" onclick="go('stock')">Stock Master →</button>
@@ -21128,10 +21152,9 @@ function scrLists(){
           <div class="card" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
             <div style="display:flex;justify-content:space-between;align-items:center">
               <label style="font-weight:750;font-size:13px;color:#0f172a;margin:0">${esc(l)}</label>
-              <span style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${items.length} items</span>
+              <span class="ls-count" style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${items.length} items</span>
             </div>
-            <textarea id="ls_${k}" rows="5" style="width:100%;font-size:13.5px;color:#0f172a;font-weight:500;line-height:1.5;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;resize:vertical;font-family:inherit;background:#fff">${esc(items.join('\n'))}</textarea>
-            <div style="font-size:11.5px;color:#475569">Type each item on a new line</div>
+            ${listEditor('ls_' + k, items)}
           </div>
         `;
       }).join('')}
@@ -21140,16 +21163,15 @@ function scrLists(){
       <div class="card" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <label style="font-weight:750;font-size:13px;color:#0f172a;margin:0">Restaurant Dining Tables & Parcel</label>
-          <span style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${settingTables.length} tables</span>
+          <span class="ls-count" data-unit=" tables" style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${settingTables.length} tables</span>
         </div>
-        <textarea id="ls_tables" rows="5" style="width:100%;font-size:13.5px;color:#0f172a;font-weight:500;line-height:1.5;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;resize:vertical;font-family:inherit;background:#fff">${esc(settingTables.join('\n'))}</textarea>
-        <div style="font-size:11.5px;color:#475569">e.g. T-1, T-2, T-3, Parcel (one per line)</div>
+        ${listEditor('ls_tables', settingTables, 'Add a table, e.g. T-11 or Parcel')}
       </div>
     </div>
 
     <!-- Bottom Save Action Bar -->
     <div style="margin-top:20px;padding:16px 20px;background:#ffffff;border:1px solid #cbd5e1;border-radius:12px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
-      <div style="font-size:13px;color:#334155;font-weight:500">Save करने पर सभी परिवर्तन आपके बिलिंग, स्टॉक और खर्च ड्रॉपडाउन में सुरक्षित हो जाएंगे।</div>
+      <div style="font-size:13px;color:#334155;font-weight:500">Saved lists are used at once in billing, stock and expense dropdowns.</div>
       <button type="button" class="btn" onclick="saveListsAndTables()" style="background:#047857;color:#fff;border:1px solid #047857;font-size:14px;font-weight:800;padding:10px 24px;border-radius:8px;cursor:pointer">
         Save All Lists & Categories
       </button>
@@ -21160,9 +21182,8 @@ function scrLists(){
 function saveListsAndTables(){
   if(!isManager()){ toast('Manager / Owner only'); return; }
   saveLists();
-  const tblEl = $('#ls_tables');
-  if(tblEl){
-    const tbls = [...new Set(tblEl.value.split('\n').map(x => x.trim()).filter(Boolean))];
+  if($('#ls_tables')){
+    const tbls = listVals('ls_tables');
     if(tbls.length){
       D.settings.tables = tbls;
       save();
@@ -21184,7 +21205,7 @@ function scrMasters(){
     <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:#1e293b;color:#fff;padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
       <div>
         <div style="font-size:11px;color:#94a3b8;font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One ERP</div>
-        <div style="font-size:19px;font-weight:800;color:#ffffff">Masters Management (मास्टर प्रबंधन)</div>
+        <div style="font-size:19px;font-weight:800;color:#ffffff">Masters Management</div>
         <div style="font-size:12.5px;color:#cbd5e1;margin-top:2px">Configure and manage all core data masters: Menu, Stock, Suppliers, Categories, Tables, Customers and Staff.</div>
       </div>
     </div>
@@ -21254,17 +21275,17 @@ function listsCard(){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div>
         <h3 style="margin:0;color:#0f172a;font-size:16px;font-weight:750">Dropdown Lists & Categories (Masters)</h3>
-        <p class="muted" style="margin:2px 0 0;font-size:12.5px;color:#334155">One name per line. Clear everything = Setu’s default list. Old entries do not change.</p>
+        <p class="muted" style="margin:2px 0 0;font-size:12.5px;color:#334155">Add, rename or remove items. Remove every item to go back to the default list. Old entries do not change.</p>
       </div>
       <button type="button" class="btn g sm" onclick="go('lists')" style="background:#1e293b;color:#fff;border:1px solid #1e293b;font-weight:700">Open Dedicated Screen →</button>
     </div>
-    <div class="grid">${Object.entries(LISTS).map(([k, [l]]) => `<div><label style="font-weight:750;font-size:13px;color:#0f172a">${l}</label><textarea id="ls_${k}" rows="4" style="width:100%;font-size:13.5px;color:#0f172a;font-weight:500;line-height:1.5;border:1px solid #cbd5e1;border-radius:8px;padding:8px">${esc(lst(k).join('\n'))}</textarea></div>`).join('')}</div>
+    <div class="grid">${Object.entries(LISTS).map(([k, [l]]) => `<div class="ls-card"><label style="font-weight:750;font-size:13px;color:#0f172a">${l} <span class="ls-count muted" style="font-weight:600">${lst(k).length} items</span></label>${listEditor('ls_' + k, lst(k))}</div>`).join('')}</div>
     <div class="btns" style="margin-top:14px"><button class="btn ok" onclick="saveLists()" style="background:#047857;color:#fff;border:1px solid #047857;font-weight:750;padding:9px 20px">Save Lists</button></div></div>`;
 }
 function saveLists(){
   if(!isManager()){ toast('Manager / Owner only'); return; }
   const out = {};
-  Object.entries(LISTS).forEach(([k, [, def]]) => { const v = [...new Set($('#ls_' + k).value.split('\n').map(x => x.trim()).filter(Boolean))]; if(v.length && v.join('|') !== def().join('|')) out[k] = v; });
+  Object.entries(LISTS).forEach(([k, [, def]]) => { const v = listVals('ls_' + k); if(v.length && v.join('|') !== def().join('|')) out[k] = v; });
   D.settings.lists = out;
   audit('Settings', 'Dropdown lists changed');
   save(); toast('Lists saved');
@@ -22625,7 +22646,7 @@ function getWaConnectionCardHTML(w, st, isConnected){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input id="wa_modal_test_num_gs" placeholder="10-digit mobile for test" style="width:200px">
-          <button class="btn ok sm" onclick="const num=$('#wa_modal_test_num_gs')?.value.trim();if(!num)return toast('Number dalein');fetch('/api/gupshup/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:num,text:'Gupshup Test from '+(D.settings.name||'Setu')+' ✅'})}).then(r=>r.json()).then(j=>toast(j.ok?'Test Sent Successfully!':'Failed: '+(j.error||j.message||'Error')))">Send Test Message</button>
+          <button class="btn ok sm" onclick="const num=$('#wa_modal_test_num_gs')?.value.trim();if(!num)return toast('Enter a mobile number');fetch('/api/gupshup/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:num,text:'Gupshup Test from '+(D.settings.name||'Setu')+' ✅'})}).then(r=>r.json()).then(j=>toast(j.ok?'Test Sent Successfully!':'Failed: '+(j.error||j.message||'Error')))">Send Test Message</button>
           <button class="btn g sm" onclick="closeModal();scrSettings();">Configure in Settings</button>
           <button class="btn g sm" onclick="showGupshupHelpModal()">Recharge Guide</button>
         </div>
@@ -22640,8 +22661,8 @@ function getWaConnectionCardHTML(w, st, isConnected){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h4 style="margin:0;display:flex;align-items:center;gap:8px">
           ${isConnected 
-            ? '<span style="color:#10b981">● Connected (WhatsApp चालू है)</span>' 
-            : '<span style="color:#ef4444">🚫 Disconnected (WhatsApp कट / बंद है)</span>'}
+            ? '<span style="color:#10b981">● Connected</span>' 
+            : '<span style="color:#ef4444">Not connected</span>'}
         </h4>
         <button class="btn g sm" onclick="waStatus().then(()=>openWaModal(false))">Refresh Status</button>
       </div>
@@ -22658,6 +22679,11 @@ function getWaConnectionCardHTML(w, st, isConnected){
           <input id="wa_modal_test_num" placeholder="10-digit number for test" style="width:220px">
           <button class="btn g" onclick="waSend($('#wa_modal_test_num').value, 'Test message from ' + (D.settings.name || 'Setu') + ' ✅').then(r=>toast(r.ok?'Test message sent!':'Send failed: '+r.error))">Send Test</button>
           <button class="btn bad" onclick="if(confirm('Disconnect WhatsApp?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}">Disconnect WhatsApp</button>
+        </div>
+      ` : st === 'qr' && !w.qr ? `
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;line-height:1.6">
+          <b>The link QR is shown only to the Manager or Owner.</b><br>
+          Open this screen on the main counter PC, or sign in on this device with the Manager PIN, then press Refresh Status.
         </div>
       ` : st === 'qr' ? `
         <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
@@ -22694,7 +22720,7 @@ async function openWaModal(focusRecharge = false){
     <div style="margin-bottom:16px">
       <div style="display:flex;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:16px">
         <button class="btn ${!focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-conn" onclick="openWaModal(false)">WhatsApp Connection Status</button>
-        <button class="btn ${focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-rech" onclick="openWaModal(true)">Message Credits & Recharge (रिचार्ज सिस्टम)</button>
+        <button class="btn ${focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-rech" onclick="openWaModal(true)">Message Credits & Recharge</button>
       </div>
 
       ${!focusRecharge ? getWaConnectionCardHTML(w, st, isConnected) : `
@@ -22731,7 +22757,7 @@ async function openWaModal(focusRecharge = false){
 
         ${recharges.length ? `
           <div class="card">
-            <h4 style="margin:0 0 10px">Recharge History (हाल के रिचार्ज)</h4>
+            <h4 style="margin:0 0 10px">Recharge History</h4>
             <table class="tbl" style="width:100%;font-size:12px">
               <thead>
                 <tr><th>Date & Time</th><th>Amount</th><th>Previous</th><th>New Balance</th><th>By</th><th>Note</th></tr>

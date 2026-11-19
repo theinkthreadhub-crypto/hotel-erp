@@ -520,3 +520,8 @@
 - **Date:** 2026-11-19 · **Asked by:** owner
 - **Files:** `admin_desktop/super_admin.py` (pywebview window on `https://hotel.setupro.in/admin`, own WebView2 profile in `%LOCALAPPDATA%\HoReCaOneSuperAdmin`, downloads allowed, external links in the browser, browser fallback), `installer/super-admin-setup.iss` (own AppId, per-user, WebView2 bootstrapper), `.github/workflows/build-super-admin-exe.yml` (build, silent-install smoke test, SHA-256, pre-release `super-admin-desktop-v1.0.N`).
 - **Website:** the same panel is `https://hotel.setupro.in/admin` (create hotels, Login Card, activate, reset password, backups, tickets).
+
+### CHG-0044: Dropdown Lists Editor, WhatsApp QR for Cashiers, English-Only Labels
+- **Date:** 2026-11-19 · **Reported by:** owner (screenshots)
+- **Files:** `hotel_erp.html` (`listEditor` / `lsAdd` / `lsDel` / `listVals`: one box per item with ×, + Add / Enter, duplicate check, live count, on the Masters screen and the Settings card; WhatsApp Center explains that only the Manager / Owner sees the link QR instead of a broken image; 21 Hindi labels removed; `sw.js` v105); new `tests/ui_lists_whatsapp_e2e.cjs` + `tests/fixtures/fake_whatsapp_helper.py`; CI.
+- **Kept:** the Hindi sample line in the printer test (it checks Hindi printing) and the Hindi words the menu import recognises as headings.

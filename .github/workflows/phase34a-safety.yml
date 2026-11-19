@@ -92,6 +92,7 @@ jobs:
         run: |
           node tests/money_precision_test.cjs
           node tests/two_device_numbering_e2e.cjs
+          node tests/ui_lists_whatsapp_e2e.cjs
       - name: Install the local Worker runtime (no deployment)
         working-directory: cloud
         run: npm ci --no-audit --no-fund

@@ -39,6 +39,8 @@
 | **BUG-0028** | Super Admin "Create Hotel" Tapped 10 Times Made 10 Hotels (Live in Production Until CHG-0040) | **P0 (Critical)** | RESOLVED | CHG-0040 | `tests/rapid_tap_idempotency_e2e.cjs`, `tests/vendor_login_e2e.py` test_08 |
 | **BUG-0029** | Super Admin "Apply +30 days" Tapped 10 Times Added 300 Days (also WhatsApp credits) | **P1 (High)** | RESOLVED | CHG-0040 | `tests/rapid_tap_idempotency_e2e.cjs`, `tests/vendor_login_e2e.py` test_09 |
 | **BUG-0030** | Super Admin App: "Pending Activation" Filter Chip Had No Icon (SVG error on every list draw) | P3 (Low) | RESOLVED | CHG-0040 | `tests/admin-app.e2e.cjs` A14 |
+| **BUG-0031** | WhatsApp Center Showed a Broken QR Image to a Cashier (the server hides the QR from non-managers) | P2 (Medium) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` |
+| **BUG-0032** | Hindi Text Left in the Product UI (21 labels: Day Book, WhatsApp, Masters) Against the English-Only Rule | P3 (Low) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` (English-only checks) |
 
 ---
 
