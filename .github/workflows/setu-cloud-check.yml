@@ -70,4 +70,11 @@ jobs:
             echo "$H ping:"; curl -s -m 15 -H "X-Setu-Hotel: $H" "$U/api/ping" || true; echo
             echo "$H version (401 = hotel exists, needs key; 404 = not found):"; curl -s -m 15 -w " [%{http_code}]" -H "X-Setu-Hotel: $H" "$U/api/version" || true; echo
           done
+      - name: Is the hotel in the Super Admin registry? (read-only, invalid key)
+        run: |
+          U=https://setu-cloud.theinkthreadhub.workers.dev
+          for H in SHRIM069 SHRIM011; do
+            echo "$H registry (404 Hotel ID not found = missing from registry; 403 = present):"
+            curl -s -m 15 -w " [%{http_code}]" -H 'Content-Type: application/json' -d "{\"hotelId\":\"$H\",\"key\":\"X\"}" "$U/api/hotel/activate" || true; echo
+          done
 
