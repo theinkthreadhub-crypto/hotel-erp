@@ -63,4 +63,11 @@ jobs:
           echo "installer route /download/latest.json:"; curl -s -m 15 "$D/download/latest.json" | head -c 160 || true; echo
           echo "api goes to the cloud:"; curl -s -m 15 "$D/api/ping" || true; echo
           echo "who answers:"; curl -sI -m 15 "$D/hotel_erp.html" | grep -iE "^server:|^x-vercel|^cf-ray" || true
+      - name: Is a hotel on the cloud? (read-only, hotel codes only)
+        run: |
+          U=https://setu-cloud.theinkthreadhub.workers.dev
+          for H in SHRIM069 SHRIM011; do
+            echo "$H ping:"; curl -s -m 15 -H "X-Setu-Hotel: $H" "$U/api/ping" || true; echo
+            echo "$H version (401 = hotel exists, needs key; 404 = not found):"; curl -s -m 15 -w " [%{http_code}]" -H "X-Setu-Hotel: $H" "$U/api/version" || true; echo
+          done
 
