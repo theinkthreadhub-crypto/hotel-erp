@@ -4838,7 +4838,7 @@ html[data-theme] #main .modes button.split.on,
       </div>
 
       <div style="margin-top:16px;text-align:center;font-size:12.5px;color:#64748b">
-        New property? Your HoReCa One provider gives you the Hotel ID and password.
+        New property? Your HoReCa One provider gives you the Hotel ID and password.<br>Helpline: <a href="tel:+919194115127">+91 91941 15127</a>
       </div>
     </div>
 
@@ -5614,7 +5614,7 @@ function save(){
       json = JSON.stringify(D);
       localStorage.setItem(KEY, json);
     }catch(e){
-      alert('Data could not be saved: ' + e.message + '\n\nPlease download a backup now (Settings → Download JSON Backup) and contact your vendor. The Desktop App (EXE) does not have this limit.');
+      alert('Data could not be saved: ' + e.message + '\n\nPlease download a backup now (Settings → Download JSON Backup) and call the HoReCa One Helpline ' + HELPLINE + '. The Desktop App (EXE) does not have this limit.');
     }
     // Browser storage is ~5M characters; warn well before it fills up
     if(json.length > 4000000 && !save.warned){
@@ -6746,7 +6746,7 @@ async function drawSaasCard(el, headT){
   try{ b = await cloudBilling(); }catch(e){ el.innerHTML = headT + '<p class="muted" style="margin:0">Could not load subscription details. Please check your internet connection.</p>'; return; }
   const link = PUBLIC_URL;
   const left = b.lifetime ? 'Lifetime' : new Date(b.paidUntil).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'});
-  const st = b.blocked ? `<b style="color:#dc2626">${b.blocked === 'suspended' ? 'Account suspended. Please contact your vendor.' : 'Expired. Cloud saving is paused.'}</b>`
+  const st = b.blocked ? `<b style="color:#dc2626">${b.blocked === 'suspended' ? 'Account suspended. Please call the HoReCa One Helpline ' + HELPLINE + '.' : 'Expired. Cloud saving is paused.'}</b>`
     : b.status === 'trial' ? `<b style="color:#0284c7">Free Trial — until ${esc(left)}</b>` : `<b style="color:#16a34a">Active — until ${esc(left)}</b>`;
   const mgr = activeUser && activeUser.access === 'manager';
   el.innerHTML = headT + `
@@ -9046,6 +9046,8 @@ const SCREENS = {
 };
 
 let kdsTimer = null;
+const HELPLINE = '+91 91941 15127', HELPLINE_WA = '919194115127';   // HoReCa One helpline (call and WhatsApp)
+const helpLinks = () => `<a href="tel:+${HELPLINE_WA}">${HELPLINE}</a> · <a href="https://wa.me/${HELPLINE_WA}" target="_blank" rel="noopener">WhatsApp</a>`;
 const CASHIER_BLOCK = ['gst', 'settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support', 'errors', 'ai'];
 const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens', 'guide'];
 // Current staff member's ticked screens (looked up fresh so Staff edits apply at once)
@@ -19928,7 +19930,7 @@ async function graceCheck(){
     l.innerHTML = `<div class="login-card" style="max-width:480px;text-align:center">
       <h2 style="margin-top:0">Licence check needed</h2>
       <p style="font-size:15px">This PC has not reached Hotel Setu Cloud for ${Math.floor(g)} days.</p>
-      <p class="muted">Connect the internet (a phone hotspot is enough): Setu opens again by itself within a minute. Or enter the licence key from Aghanya Devanya Enterprises. All your data is safe.</p>
+      <p class="muted">Connect the internet (a phone hotspot is enough): Setu opens again by itself within a minute. Or enter the licence key from Aghanya Devanya Enterprises (Helpline ${HELPLINE}). All your data is safe.</p>
       <input id="grace_key" placeholder="Paste licence key" style="width:100%;margin:8px 0">
       <div class="btns" style="justify-content:center"><button class="btn ok" onclick="graceKey()">Activate Key</button><button class="btn g" onclick="backup()">Backup Download</button></div>
       <div id="grace_msg" class="muted" style="margin-top:8px"></div></div>`;
@@ -21497,7 +21499,7 @@ async function scrErrors(){
 /* ================= HELP & SUPPORT (tickets to Setu Pro) ================= */
 let SUP = [];
 async function scrSupport(){
-  main.innerHTML = `<div class="title">Help &amp; Support (Setu Pro)</div><div class="card" id="sup-card"><p class="muted">Loading...</p></div>`;
+  main.innerHTML = `<div class="title">Help &amp; Support (Setu Pro)</div><div class="card" style="margin-bottom:12px"><b>HoReCa One Helpline:</b> ${helpLinks()}</div><div class="card" id="sup-card"><p class="muted">Loading...</p></div>`;
   const el = $('#sup-card');
   if(!SRV.on){ el.innerHTML = '<p>Help &amp; Support <b>Setu Desktop App (EXE)</b> and the PC must be connected to Hotel Setu Cloud.</p>'; return; }
   let j = {};
@@ -21506,7 +21508,7 @@ async function scrSupport(){
     j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   }catch(e){
-    el.innerHTML = `<p class="muted">${esc(e.message)}</p><p>To talk directly, WhatsApp your vendor.</p>`;
+    el.innerHTML = `<p class="muted">${esc(e.message)}</p><p>To talk directly, call or WhatsApp the HoReCa One Helpline: ${helpLinks()}</p>`;
     return;
   }
   SUP = j.tickets || [];
@@ -23469,7 +23471,7 @@ function showWaQuotaInfo(){
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-bottom:14px;text-align:left">
         • WhatsApp message quota is securely managed by <b>Aghanya Devanya Enterprises</b>.<br>
         • Staff/hotel cannot manually recharge or alter quota locally.<br>
-        • To top up messages, contact your software vendor directly at <b>+91 79872 45831</b>.
+        • To top up messages, call the HoReCa One Helpline at <b>+91 91941 15127</b>.
       </div>
       <button class="btn ok" style="width:100%;padding:10px;font-weight:700" onclick="closeModal()">OK, Got It</button>
     </div>

@@ -54,7 +54,7 @@
 
 4.2 You are responsible for all activity under your Hotel ID, including the actions of your Users. You decide which staff get which PIN and role.
 
-4.3 Tell us immediately at [support email / WhatsApp number] if you believe your password, PIN or Sync Key has been misused.
+4.3 Tell us immediately at the HoReCa One Helpline +91 91941 15127 (call or WhatsApp) if you believe your password, PIN or Sync Key has been misused.
 
 4.4 We will never ask for your owner password by phone, WhatsApp or email.
 
@@ -93,7 +93,7 @@
 
 7.1 **Updates.** We may release updates to fix errors, improve security or add features. The Software tells you when an update is available. We recommend you install updates promptly. We may stop supporting versions older than [12] months.
 
-7.2 **Support.** Support is provided by [WhatsApp / phone / the in-app Help & Support ticket] on [Monday to Saturday, 10:00 to 19:00 IST], except public holidays. We aim to respond to urgent issues (billing stopped) within [4] working hours and to other issues within [2] working days. These are targets, not guarantees.
+7.2 **Support.** Support is provided through the HoReCa One Helpline +91 91941 15127 (call or WhatsApp) and the in-app Help & Support ticket on [Monday to Saturday, 10:00 to 19:00 IST], except public holidays. We aim to respond to urgent issues (billing stopped) within [4] working hours and to other issues within [2] working days. These are targets, not guarantees.
 
 7.3 **Installation and training.** On-site installation, printer setup and training are included only if stated in your plan or invoice. Travel outside [city] may be charged separately.
 
@@ -267,15 +267,15 @@ Each party will keep confidential any non-public information received from the o
 
 18.7 **No waiver.** Not enforcing a right is not a waiver of that right.
 
-18.8 **Notices.** We may give you notices in the Software, by WhatsApp, SMS or email to the contact details on your account. You may give us notices at [support email] or at our address in Section 1.
+18.8 **Notices.** We may give you notices in the Software, by WhatsApp, SMS or email to the contact details on your account. You may give us notices on the Helpline +91 91941 15127, at [support email], or at our address in Section 1.
 
-18.9 **Grievance officer.** For complaints about the Service or your data, contact our Grievance Officer: [Name], [email], [phone]. We will acknowledge complaints within 48 hours and aim to resolve them within 15 days.
+18.9 **Grievance officer.** For complaints about the Service or your data, contact our Grievance Officer: [Name], [email], +91 91941 15127. We will acknowledge complaints within 48 hours and aim to resolve them within 15 days.
 
 ## 19. Contact
 
 **Aghanya Devanya Enterprises**
 [Address]
-Email: [support email] · Phone / WhatsApp: [number]
+Email: [support email] · Helpline (call / WhatsApp): +91 91941 15127
 Website: https://hotel.setupro.in
 
 ---

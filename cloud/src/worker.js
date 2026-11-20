@@ -4170,7 +4170,7 @@ export class SetuHotel extends DurableObject {
     // Setu AI: owner / manager (or the counter PC) asks; the Worker adds the hotel's totals and asks Gemini
     if(method === 'POST' && path === '/api/ai'){
       if(!isAdmin) return json(403, { error: 'Setu AI is for the owner / manager only' });
-      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Talk to your vendor.' });
+      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Call the HoReCa One Helpline +91 91941 15127.' });
       const q = str(body().question, 500);
       if(q.length < 3) return json(400, { error: 'Type a question' });
       const c = await aiConf(this.env);
@@ -4189,7 +4189,7 @@ export class SetuHotel extends DurableObject {
     // Purchase bill photo → items, supplier, GST (counts as one AI question)
     if(method === 'POST' && path === '/api/ai/bill'){
       if(!isAdmin) return json(403, { error: 'Reading bill photos is for the owner / manager only' });
-      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Talk to your vendor.' });
+      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Call the HoReCa One Helpline +91 91941 15127.' });
       const b = body(), image = String(b.image || ''), mime = ['image/jpeg', 'image/png', 'image/webp'].includes(b.mime) ? b.mime : 'image/jpeg';
       if(image.length < 1000 || image.length > 4000000 || !/^[A-Za-z0-9+/=]+$/.test(image.slice(0, 2000))) return json(400, { error: 'Send a photo of the bill (up to about 3 MB)' });
       const c = await aiConf(this.env);
@@ -4307,7 +4307,7 @@ async function hotelRegister(request, env){
   // New hotels are created by the vendor in Super Admin (Hotel ID + temporary password). Open self-registration
   // only when the deployment sets PUBLIC_REGISTRATION = "on".
   if(String(env.PUBLIC_REGISTRATION || '').toLowerCase() !== 'on')
-    return json(403, { error: 'New hotels are set up by your HoReCa One provider. Please contact them for your Hotel ID and password.', code: 'REGISTRATION_CLOSED' });
+    return json(403, { error: 'New hotels are set up by your HoReCa One provider. Please contact them for your Hotel ID and password (Helpline +91 91941 15127).', code: 'REGISTRATION_CLOSED' });
   let b;
   try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
   const hotelName = String(b.hotelName || b.name || '').trim();
@@ -4410,8 +4410,8 @@ async function hotelActivate(request, env){
     lic = await verifyLicense(env, key, installId || hotelId);
   } catch(e) {
     const msg = /expired/i.test(e.message)
-      ? 'This Activation Key has expired. Please contact your vendor for a valid key.'
-      : 'Invalid Activation Key. Please verify the key or contact your software vendor.';
+      ? 'This Activation Key has expired. Please call the HoReCa One Helpline +91 91941 15127 for a valid key.'
+      : 'Invalid Activation Key. Please verify the key or call the HoReCa One Helpline +91 91941 15127.';
     return json(400, { ok: false, error: msg });
   }
 
@@ -4461,7 +4461,7 @@ async function hotelLogin(request, env){
 
   const regCheck = await regJson(env, '/hotel/get', { code: hotelId });
   if(!regCheck || !regCheck.hotel){
-    return json(404, { error: 'Hotel ID not found. Please check the Hotel ID from your HoReCa One provider.' });
+    return json(404, { error: 'Hotel ID not found. Please check the Hotel ID from your HoReCa One provider (Helpline +91 91941 15127).' });
   }
 
   const stub = hotelStub(env, hotelId);
@@ -4489,7 +4489,7 @@ async function signup(request, env){
     try{ lic = await verifyLicense(env, b.key, installId); }catch(e){
       return json(403, { error: /expired/.test(e.message) ? 'This Master Key has expired. Get a new one from your vendor.' : 'The key is not valid. Paste the full Master Key from your vendor.' });
     }
-    if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This phone has been blocked. Talk to your vendor.' });
+    if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This phone has been blocked. Call the HoReCa One Helpline +91 91941 15127.' });
     const have = (await regJson(env, '/byiid', { iid: installId })).code;
     if(have) return json(409, { error: `A hotel was already created from this phone (Hotel Code ${have}). Please sign in.`, code: have });
     const days = lic.lifetime ? 3650 : Math.max(1, Math.ceil((lic.until - Date.now()) / DAY));
@@ -4508,7 +4508,7 @@ async function counterLink(request, env){
   if(!/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(installId)) return json(400, { error: 'install id' });
   let lic;
   try{ lic = await verifyLicense(env, b.key, installId); }catch(e){ return json(403, { error: e.message }); }
-  if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This computer has been blocked. Talk to your vendor.' });
+  if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This computer has been blocked. Call the HoReCa One Helpline +91 91941 15127.' });
   // Already joined (setu-cloud.json lost, Windows reinstalled): only the owner password may take it over
   const have = (await regJson(env, '/byiid', { iid: installId })).code;
   if(have) return json(409, { error: 'linked', code: have });

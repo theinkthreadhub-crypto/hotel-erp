@@ -13,6 +13,7 @@ AppName=HoReCa One
 AppVersion={#AppVersion}
 AppVerName=HoReCa One {#AppVersion}
 AppPublisher=Aghanya Devanya Enterprises
+AppSupportPhone=+91 91941 15127
 DefaultDirName={localappdata}\Programs\AghanyaDevanyaERP
 DisableDirPage=yes
 DefaultGroupName=HoReCa One
