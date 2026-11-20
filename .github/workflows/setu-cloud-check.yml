@@ -77,4 +77,10 @@ jobs:
             echo "$H registry (404 Hotel ID not found = missing from registry; 403 = present):"
             curl -s -m 15 -w " [%{http_code}]" -H 'Content-Type: application/json' -d "{\"hotelId\":\"$H\",\"key\":\"X\"}" "$U/api/hotel/activate" || true; echo
           done
+      - name: Published counter installer (read-only)
+        run: |
+          for U in https://hotel.setupro.in https://setu-cloud.theinkthreadhub.workers.dev; do
+            echo "UPD $U $(curl -s -m 20 $U/api/update)"
+            echo "DL $U $(curl -sL -m 120 $U/download/Setu-POS-Setup.exe | sha256sum)"
+          done
 
