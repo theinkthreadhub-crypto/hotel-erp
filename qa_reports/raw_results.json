@@ -7,7 +7,8 @@
     "priority": "P0",
     "actual": {
       "version": 1,
-      "savedAt": 1793266907523
+      "savedAt": 1794476892858,
+      "changed": true
     },
     "evidence": {
       "status": 200
@@ -20,7 +21,7 @@
     "status": "PASS",
     "priority": "P0",
     "actual": {
-      "token": "c4284a92e7ca83f2dbdc5d927230ea8c",
+      "token": "3cdbb539e48fbd6e475f96b7169cc0bc",
       "role": "admin",
       "name": "Manager",
       "hotelId": "default"
@@ -34,7 +35,7 @@
     "status": "PASS",
     "priority": "P1",
     "actual": {
-      "token": "9fe502c6ab9050c4fd0961a79f476176",
+      "token": "d85b905a89ad871274b9370c55408c57",
       "role": "cashier",
       "name": "Sunil Kumar",
       "hotelId": "default"
@@ -162,7 +163,7 @@
           }
         ],
         "waReceiptConsent": true,
-        "waConsentAt": 1793266908587,
+        "waConsentAt": 1794476894485,
         "idemKey": "idem_b_test_101",
         "paymentStatus": "recorded",
         "upiVerified": false
@@ -228,88 +229,98 @@
       "every": 2,
       "keep": 60,
       "on": true,
-      "lastAt": 1793266908703,
-      "lastFile": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
+      "lastAt": 1794476894604,
+      "lastFile": "Setu-Backup-2026-11-12_1518-HotelAlphaGrand.json.gz",
       "lastError": "",
       "lastWhy": "by hand",
       "files": [
         {
-          "name": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
-          "size": 4570,
-          "at": 1793266908701
+          "name": "Setu-Backup-2026-11-12_1518-HotelAlphaGrand.json.gz",
+          "size": 5067,
+          "at": 1794476894597
         },
         {
-          "name": "Setu-Backup-2026-10-29_1434-HotelAlphaGrand.json.gz",
-          "size": 4568,
-          "at": 1793264646777
+          "name": "Setu-Backup-2026-11-03_1419-ShriMahalaxamiBhojan.json.gz",
+          "size": 17111,
+          "at": 1793695768372
         },
         {
-          "name": "Setu-Backup-2026-10-29_1420-HotelAlphaGrand.json.gz",
-          "size": 4568,
-          "at": 1793263841115
+          "name": "Setu-Backup-2026-11-03_1346-demooooo.json.gz",
+          "size": 2375583,
+          "at": 1793693818501
         },
         {
-          "name": "Setu-Backup-2026-10-29_1328-HotelAlphaGrand.json.gz",
-          "size": 4570,
-          "at": 1793260690541
+          "name": "Setu-Backup-2026-11-02_1513-demooooo.json.gz",
+          "size": 2375534,
+          "at": 1793612596204
         },
         {
-          "name": "Setu-Backup-2026-10-29_1250-new.json.gz",
-          "size": 8754,
-          "at": 1793258426575
+          "name": "Setu-Backup-2026-11-02_1313-demooooo.json.gz",
+          "size": 4353,
+          "at": 1793605393890
         },
         {
-          "name": "Setu-Backup-2026-10-29_1233-new.json.gz",
-          "size": 8578,
-          "at": 1793257424628
+          "name": "Setu-Backup-2026-11-02_1234-HoReCaOneDemoRestaur.json.gz",
+          "size": 1927,
+          "at": 1793603055690
         },
         {
-          "name": "Setu-Backup-2026-10-29_1227-new.json.gz",
-          "size": 8387,
-          "at": 1793257079169
+          "name": "Setu-Backup-2026-11-02_1218-HoReCaOneDemoRestaur.json.gz",
+          "size": 1594,
+          "at": 1793602116533
         },
         {
-          "name": "Setu-Backup-2026-10-29_1109-HotelAlphaGrand.json.gz",
-          "size": 4517,
-          "at": 1793252399727
+          "name": "Setu-Backup-2026-11-02_1113-demooooo.json.gz",
+          "size": 4352,
+          "at": 1793598192534
         },
         {
-          "name": "Setu-Backup-2026-10-29_1107-HotelAlphaGrand.json.gz",
-          "size": 801,
-          "at": 1793252263922
+          "name": "Setu-Backup-2026-11-02_1052-HoReCaOneDemoRestaur.json.gz",
+          "size": 1356,
+          "at": 1793596976402
         },
         {
-          "name": "Setu-Backup-2026-10-29_1106-HotelAlphaGrand.json.gz",
-          "size": 800,
-          "at": 1793252203188
+          "name": "Setu-Backup-2026-11-02_1017.json.gz",
+          "size": 1093,
+          "at": 1793594839596
         },
         {
-          "name": "Setu-Backup-2026-10-29_1102-HotelAlphaGrand.json.gz",
-          "size": 4450,
-          "at": 1793251922161
+          "name": "Setu-Backup-2026-11-02_1016.json.gz",
+          "size": 1094,
+          "at": 1793594787111
         },
         {
-          "name": "Setu-Backup-2026-10-29_1058-new.json.gz",
-          "size": 8287,
-          "at": 1793251721234
+          "name": "Setu-Backup-2026-11-02_0911-demooooo.json.gz",
+          "size": 3359,
+          "at": 1793590903109
         },
         {
-          "name": "Setu-Backup-2026-10-29_1047-new.json.gz",
-          "size": 7664,
-          "at": 1793251022503
+          "name": "Setu-Backup-2026-11-02_0904-demooooo.json.gz",
+          "size": 2378,
+          "at": 1793590459624
+        },
+        {
+          "name": "Setu-Backup-2026-10-31_1527-demooooo.json.gz",
+          "size": 2246,
+          "at": 1793440651685
+        },
+        {
+          "name": "Setu-Backup-2026-10-31_1450.json.gz",
+          "size": 1035,
+          "at": 1793438443736
         }
       ],
-      "count": 13,
-      "free": 97346027520,
+      "count": 44,
+      "free": 86267461632,
       "drives": [
         {
           "drive": "C:",
-          "free": 97346027520,
+          "free": 86267461632,
           "total": 483558158336
         },
         {
           "drive": "D:",
-          "free": 2611560448,
+          "free": 2609029120,
           "total": 5241827328
         }
       ],
@@ -339,88 +350,98 @@
       "every": 2,
       "keep": 60,
       "on": true,
-      "lastAt": 1793266908753,
-      "lastFile": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
+      "lastAt": 1794476894663,
+      "lastFile": "Setu-Backup-2026-11-12_1518-HotelAlphaGrand.json.gz",
       "lastError": "",
       "lastWhy": "before restore",
       "files": [
         {
-          "name": "Setu-Backup-2026-10-29_1511-HotelAlphaGrand.json.gz",
-          "size": 4570,
-          "at": 1793266908752
+          "name": "Setu-Backup-2026-11-12_1518-HotelAlphaGrand.json.gz",
+          "size": 5067,
+          "at": 1794476894657
         },
         {
-          "name": "Setu-Backup-2026-10-29_1434-HotelAlphaGrand.json.gz",
-          "size": 4568,
-          "at": 1793264646777
+          "name": "Setu-Backup-2026-11-03_1419-ShriMahalaxamiBhojan.json.gz",
+          "size": 17111,
+          "at": 1793695768372
         },
         {
-          "name": "Setu-Backup-2026-10-29_1420-HotelAlphaGrand.json.gz",
-          "size": 4568,
-          "at": 1793263841115
+          "name": "Setu-Backup-2026-11-03_1346-demooooo.json.gz",
+          "size": 2375583,
+          "at": 1793693818501
         },
         {
-          "name": "Setu-Backup-2026-10-29_1328-HotelAlphaGrand.json.gz",
-          "size": 4570,
-          "at": 1793260690541
+          "name": "Setu-Backup-2026-11-02_1513-demooooo.json.gz",
+          "size": 2375534,
+          "at": 1793612596204
         },
         {
-          "name": "Setu-Backup-2026-10-29_1250-new.json.gz",
-          "size": 8754,
-          "at": 1793258426575
+          "name": "Setu-Backup-2026-11-02_1313-demooooo.json.gz",
+          "size": 4353,
+          "at": 1793605393890
         },
         {
-          "name": "Setu-Backup-2026-10-29_1233-new.json.gz",
-          "size": 8578,
-          "at": 1793257424628
+          "name": "Setu-Backup-2026-11-02_1234-HoReCaOneDemoRestaur.json.gz",
+          "size": 1927,
+          "at": 1793603055690
         },
         {
-          "name": "Setu-Backup-2026-10-29_1227-new.json.gz",
-          "size": 8387,
-          "at": 1793257079169
+          "name": "Setu-Backup-2026-11-02_1218-HoReCaOneDemoRestaur.json.gz",
+          "size": 1594,
+          "at": 1793602116533
         },
         {
-          "name": "Setu-Backup-2026-10-29_1109-HotelAlphaGrand.json.gz",
-          "size": 4517,
-          "at": 1793252399727
+          "name": "Setu-Backup-2026-11-02_1113-demooooo.json.gz",
+          "size": 4352,
+          "at": 1793598192534
         },
         {
-          "name": "Setu-Backup-2026-10-29_1107-HotelAlphaGrand.json.gz",
-          "size": 801,
-          "at": 1793252263922
+          "name": "Setu-Backup-2026-11-02_1052-HoReCaOneDemoRestaur.json.gz",
+          "size": 1356,
+          "at": 1793596976402
         },
         {
-          "name": "Setu-Backup-2026-10-29_1106-HotelAlphaGrand.json.gz",
-          "size": 800,
-          "at": 1793252203188
+          "name": "Setu-Backup-2026-11-02_1017.json.gz",
+          "size": 1093,
+          "at": 1793594839596
         },
         {
-          "name": "Setu-Backup-2026-10-29_1102-HotelAlphaGrand.json.gz",
-          "size": 4450,
-          "at": 1793251922161
+          "name": "Setu-Backup-2026-11-02_1016.json.gz",
+          "size": 1094,
+          "at": 1793594787111
         },
         {
-          "name": "Setu-Backup-2026-10-29_1058-new.json.gz",
-          "size": 8287,
-          "at": 1793251721234
+          "name": "Setu-Backup-2026-11-02_0911-demooooo.json.gz",
+          "size": 3359,
+          "at": 1793590903109
         },
         {
-          "name": "Setu-Backup-2026-10-29_1047-new.json.gz",
-          "size": 7664,
-          "at": 1793251022503
+          "name": "Setu-Backup-2026-11-02_0904-demooooo.json.gz",
+          "size": 2378,
+          "at": 1793590459624
+        },
+        {
+          "name": "Setu-Backup-2026-10-31_1527-demooooo.json.gz",
+          "size": 2246,
+          "at": 1793440651685
+        },
+        {
+          "name": "Setu-Backup-2026-10-31_1450.json.gz",
+          "size": 1035,
+          "at": 1793438443736
         }
       ],
-      "count": 13,
-      "free": 97346093056,
+      "count": 44,
+      "free": 86267461632,
       "drives": [
         {
           "drive": "C:",
-          "free": 97346093056,
+          "free": 86267461632,
           "total": 483558158336
         },
         {
           "drive": "D:",
-          "free": 2611560448,
+          "free": 2609029120,
           "total": 5241827328
         }
       ],

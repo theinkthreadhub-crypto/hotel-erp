@@ -65,8 +65,9 @@ import javax.crypto.spec.GCMParameterSpec;
 // offline screen that retries by itself, system bar colours, haptics, back button, file save / share.
 // The screens themselves come from the live admin.html (app mode), so most changes need no new APK.
 public class MainActivity extends Activity {
-    static final String HOST = "setu-cloud.theinkthreadhub.workers.dev";
-    static final String START = "https://" + HOST + "/admin.html";
+    // The one public address (hotel.setupro.in, served by Vercel in front of the same Cloudflare Worker)
+    static final String HOST = "hotel.setupro.in";
+    static final String START = "https://" + HOST + "/admin";
     static final String VERSION = "2.2";
     static final int PICK = 7, LOCK_REQ = 8;
     static final String NIGHT = "#0E0B09", INK = "#F8F3EE", MUTED = "#A39A92";   // dark glass look

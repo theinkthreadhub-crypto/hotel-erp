@@ -64,14 +64,35 @@ KEEP_BACKUPS = 60              # daily backup files kept
 print_lock = threading.Lock()  # one print job at a time keeps receipts from interleaving
 
 # ---------------- Resend Email Service for Password & PIN Recovery ----------------
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_VTatW35W_E1D5xCB7XBJ4shqzsVo7cagp')
+# The API key is configuration, never source code (SEC-001, TD-0011). It comes from the RESEND_API_KEY environment
+# variable or from a one-line file "email-service.key" in the counter's data folder (outside Git, outside the EXE).
+# Without a key only the e-mail password-recovery feature is unavailable; billing and every other feature work.
+RESEND_KEY_FILE = 'email-service.key'
+
+
+def resend_api_key(data_dir=None):
+    key = os.environ.get('RESEND_API_KEY', '').strip()
+    if key or not data_dir:
+        return key
+    try:
+        with open(os.path.join(data_dir, RESEND_KEY_FILE), encoding='utf-8') as f:
+            return f.read().strip()
+    except OSError:
+        return ''
+
+
+class EmailNotConfigured(RuntimeError):
+    pass
+
+
 RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'Aghanya Devanya Security <security@inkthreadhub.in>')
 RESEND_REPLY_TO = os.environ.get('RESEND_REPLY_TO', 'theinkthreadhub@gmail.com')
 
 
-def send_resend_email(to_email, subject, html, reply_to=None):
-    if not RESEND_API_KEY:
-        raise ValueError('Resend API Key is not configured')
+def send_resend_email(to_email, subject, html, reply_to=None, data_dir=None):
+    api_key = resend_api_key(data_dir)
+    if not api_key:
+        raise EmailNotConfigured('Email service is not configured on this counter')
 
     def _do_send(from_addr):
         url = 'https://api.resend.com/emails'
@@ -84,7 +105,7 @@ def send_resend_email(to_email, subject, html, reply_to=None):
         if reply_to or RESEND_REPLY_TO:
             payload['reply_to'] = reply_to or RESEND_REPLY_TO
         headers = {
-            'Authorization': f'Bearer {RESEND_API_KEY}',
+            'Authorization': f'Bearer {api_key}',
             'Content-Type': 'application/json',
             'User-Agent': 'AghanyaDevanya-HotelERP/2.0 (Windows NT 10.0; Win64; x64)'
         }
@@ -539,6 +560,20 @@ class SetuStore:
                 f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + msg + '\n')
         except Exception:
             pass
+
+    # Keys the hotel registration / activation / login handlers may change on the counter
+    IDENTITY_KEYS = ('settings', 'auth', 'secure')
+
+    def save(self, data_obj):
+        """Saves only the hotel-identity keys of data_obj onto a fresh copy taken under the lock (BUG: the handlers called a
+        save() that did not exist, so the AttributeError was swallowed and nothing was saved or linked). Other keys are
+        never written from the caller's older copy, so a device's save in between cannot be lost."""
+        with self.lock:
+            cur = self.data()
+            for k in self.IDENTITY_KEYS:
+                if k in data_obj:
+                    cur[k] = data_obj[k]
+            self.write(cur)
 
     def write(self, data_obj):
         # Nothing changes in memory until the file is safely on disk, so a failed
@@ -1357,7 +1392,7 @@ def merge3(base, mine, theirs):
     ms, ts = mine.get('seq') or {}, theirs.get('seq') or {}
     seq = {**ts, **ms}
     # Running numbers must never go backwards
-    for k in ('bill', 'kot'):
+    for k in ('bill', 'kot', 'cn'):
         seq[k] = max(_num(ms.get(k)), _num(ts.get(k)))
     # Tokens restart daily, so the newer day wins before comparing numbers
     md, td = str(ms.get('tokenDate') or ''), str(ts.get('tokenDate') or '')
@@ -1388,8 +1423,8 @@ def merge3(base, mine, theirs):
         deduped_bills.append(b)
     out['bills'] = deduped_bills
 
-    # Both sides may have used the same bill / KOT number: new ones from "mine" get fresh numbers
-    for lst, key in (('bills', 'bill'), ('kots', 'kot')):
+    # Both sides may have used the same bill / KOT / credit-note number: new ones from "mine" get fresh numbers
+    for lst, key in (('bills', 'bill'), ('kots', 'kot'), ('cnotes', 'cn')):
         theirs_l = [x for x in theirs.get(lst) or [] if isinstance(x, dict)]
         base_l = [x for x in (base or {}).get(lst) or [] if isinstance(x, dict)]
         their_ids = {x.get('id') for x in theirs_l}
@@ -1779,7 +1814,7 @@ class SqliteSetuStore(SetuStore):
                 actor={'role': 'server', 'elevated': True},
                 writes_whole=changed_values
             )
-            SQ.SqliteDoc.append_outbox(c, outbox[0], outbox[1] or envelope['op_id'], version, envelope, saved_at)
+            SQ.SqliteDoc.enqueue_envelope(c, outbox[0], envelope, saved_at)
         with self._enc_lock:
             for k in touched:
                 self._ws[k] = data_obj[k]
@@ -1798,7 +1833,27 @@ class SqliteSetuStore(SetuStore):
         with self.sdb.tx() as c:
             self.sdb.record_conflict(c, k, rid, reason, kept=kept, other=other, device=device, now=now)
 
-    def start_cloud_sync(self, url, hotel, key, enabled=True, batch_size=50, poll_interval=5.0):
+    def _reload_after_inbound(self):
+        """Refresh LAN-visible data after an inbound SQLite commit.
+
+        Caller must hold self.lock (same lock ordering as apply_ops).
+        Never append the inbound transaction to the outbound cloud queue:
+        doing so would create a QR echo loop.
+        """
+        fresh = self.sdb.export_except(HIST_KEYS)
+        version = int(self.sdb.meta('doc_version') or 0)
+        saved_at = int(self.sdb.meta('saved_at') or 0)
+        with self._enc_lock:
+            self._ws = fresh
+            self._idx = {}
+            self._kotno = None
+            self._raw_cache = (None, 'null')
+            self._pub = (None, 'null')
+            self.version = version
+            self.saved_at = saved_at
+        self._after_write(keep_maxno=True)
+
+    def start_cloud_sync(self, url, hotel, key, enabled=False, batch_size=50, poll_interval=5.0):
         if getattr(self, 'dispatcher', None):
             self.dispatcher.stop()
         self.dispatcher = SQ.OutboxSyncDispatcher(
@@ -1837,7 +1892,7 @@ class SqliteSetuStore(SetuStore):
                 actor={'role': 'manager', 'elevated': True},
                 writes_whole={k: v for k, v in doc.items() if k not in HIST_KEYS}
             )
-            SQ.SqliteDoc.append_outbox(c, 'restore', envelope['op_id'], version, envelope, saved_at)
+            SQ.SqliteDoc.enqueue_envelope(c, 'restore', envelope, saved_at)
         with self._enc_lock:
             self._ws = {k: v for k, v in doc.items() if k not in HIST_KEYS}
             self._idx = {}
@@ -2104,6 +2159,31 @@ class SqliteSetuStore(SetuStore):
                 if top != _num(seq.get('bill')):
                     seq['bill'] = top
                     new_v['seq'] = seq
+            if 'cnotes' in new_v:
+                # Credit-note numbers go to GSTR-1 like bill numbers: a number another device took is replaced.
+                # Start from the stored counters so a save without "seq" never loses the bill / KOT numbers.
+                seq = {**(seq_cur if isinstance(seq_cur, dict) else {}), **(new_v['seq'] if isinstance(new_v.get('seq'), dict) else {})}
+                top = max(_num(seq.get('cn')), _num(seq_cur.get('cn')),
+                          int(con.execute('SELECT MAX(CAST(no AS INTEGER)) FROM credit_notes').fetchone()[0] or 0))
+                batch, moved = {}, False
+                for c_ in new_v['cnotes']:
+                    if not isinstance(c_, dict) or c_.get('id') in cur_rec['cnotes']:
+                        continue
+                    no = _num(c_.get('no'))
+                    if not no:
+                        continue
+                    clash = batch.get(no) not in (None, c_['id']) or con.execute(
+                        'SELECT 1 FROM credit_notes WHERE no IN (?, ?, ?) AND id <> ? LIMIT 1', (no, float(no), str(no), c_['id'])).fetchone()
+                    if clash:
+                        top += 1
+                        renum['cn:' + c_['id']] = top
+                        c_['no'] = no = top
+                        moved = True
+                    batch[no] = c_['id']
+                    top = max(top, no)
+                if moved and top > _num(seq.get('cn')):     # the counter moves only when a number was replaced
+                    seq['cn'] = top
+                    new_v['seq'] = seq
             if 'kots' in new_v:
                 seq = new_v['seq'] if isinstance(new_v.get('seq'), dict) else {}
                 taken = self._kot_numbers()
@@ -2223,7 +2303,7 @@ class SqliteSetuStore(SetuStore):
                 writes_whole=writes_whole,
                 conflicts=conflicts
             )
-            SQ.SqliteDoc.append_outbox(c, 'ops', op_id_val, version, envelope, now)
+            SQ.SqliteDoc.enqueue_envelope(c, 'ops', envelope, now)
             if getattr(self, 'dispatcher', None) and getattr(self.dispatcher, '_running', False):
                 self.dispatcher.wake()
             out = {'ok': True, 'version': version, 'savedAt': now}
@@ -2411,6 +2491,11 @@ class SqliteSetuStore(SetuStore):
                 return 404, {'error': 'bill not found'}
             if b.get('cancelled'):
                 return 200, {'ok': True, 'alreadyCancelled': True, 'billId': bid, 'version': self.version}
+            with self.sdb.rlock():
+                has_cn = con.execute('SELECT 1 FROM credit_notes WHERE "billId" = ? LIMIT 1', (bid,)).fetchone()
+            if has_cn:
+                # Cancelling would remove the whole sale while its credit note also reduces it (double reduction)
+                return 409, {'error': 'This bill has a credit note. Issue a credit note for the remaining amount instead of cancelling the bill.'}
             b = copy.deepcopy(b)
             b['cancelled'], b['cancelledBy'] = True, by
             ops = [{'k': 'bills', 'up': [b]}]
@@ -2434,6 +2519,40 @@ class SqliteSetuStore(SetuStore):
 
     # ---------- paginated reads (indexed SQL; nothing loads all history) ----------
     def query(self, name, q):
+        if name == 'inbound-qr':
+            # A bounded, local-first staff review queue; pending QR orders
+            # remain separate from the billable running table cart.
+            state = str(q.get('status') or 'pending').strip().lower()
+            if state not in ('pending', 'accepted', 'rejected', 'all'):
+                raise ValueError('status must be pending, accepted, rejected or all')
+            limit = max(1, min(int(q.get('limit') or 50), 100))
+            offset = max(0, int(q.get('offset') or 0))
+            where = '' if state == 'all' else ' WHERE status = ?'
+            args = () if state == 'all' else (state,)
+            with self.sdb.rlock():
+                c = self.sdb.con()
+                count = c.execute(
+                    'SELECT COUNT(*) FROM inbound_qr_orders' + where, args
+                ).fetchone()[0]
+                rows = c.execute(
+                    'SELECT order_id,tbl,items_json,guest_name,note,status,kot_id,created_at,updated_at '
+                    'FROM inbound_qr_orders' + where +
+                    ' ORDER BY created_at DESC,order_id DESC LIMIT ? OFFSET ?',
+                    args + (limit, offset)
+                ).fetchall()
+            native_qr = bool(getattr(getattr(getattr(self, 'dispatcher', None), 'inbound', None), '_running', False))
+            return {
+                'count': count, 'status': state, 'inboundQrNative': native_qr,
+                'rows': [
+                    {
+                        'order_id': r[0], 'table': r[1],
+                        'items': json.loads(r[2]), 'guest_name': r[3],
+                        'note': r[4], 'status': r[5], 'kot_id': r[6],
+                        'created_at': r[7], 'updated_at': r[8]
+                    }
+                    for r in rows
+                ]
+            }
         if name == 'bill-range':
             # Whole bill records of a date range (the app's own reports and screens run on them), by pages.
             # Own read connection: a long range never pauses billing.
@@ -2898,6 +3017,7 @@ class CloudSync:
         # The vendor's part (plan, message, warning / lock) always comes from the cloud
         if isinstance(theirs, dict) and 'saas' in theirs:
             merged['saas'] = theirs['saas']
+        cloud_added = False
         if theirs is None or not jeq(merged, theirs):
             body = '{"baseVersion": %d, "force": false, "data": %s}' % (cv, json.dumps(merged, ensure_ascii=False))
             code, text = self._request('POST', '/api/db', body)
@@ -2915,7 +3035,11 @@ class CloudSync:
                 raise OSError('Hotel Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
             if code != 200:
                 raise OSError(f'Cloud save failed (HTTP {code})')
-            cv = json.loads(text)['version']
+            resp = json.loads(text)
+            cv = resp['version']
+            # The cloud added its own part while saving (plan, message, lock, licence keys): read it back next round,
+            # or the vendor's lock and the 30-day check would wait for some other cloud change (BUG-0026)
+            cloud_added = bool(resp.get('changed'))
         with self.store.lock:
             if self.store.version == lv:
                 final = merged
@@ -2928,6 +3052,9 @@ class CloudSync:
             new_lv = self.store.version
         _write_json(self.base_path, merged)
         # lv = -1 tells the next round that this PC still has edits the cloud lacks
+        if cloud_added:
+            cv = -1
+            self.wake.set()
         self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1, **{k: self.state[k] for k in ('lic', 'licSent', 'okAt') if k in self.state}}
         _write_json(self.state_path, self.state)
         self.status['cloudVersion'] = cv
@@ -3457,13 +3584,17 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
                 if path[7:] in ('status', 'conflicts') and self.role() not in ('local', 'admin'):
                     return self.send_json(403, {'error': 'manager only'})
+                if path[7:] == 'inbound-qr' and not self.role():
+                    return self.send_json(401, {'error': 'staff login required'})
                 try:
                     res = store.query(path[7:], qs)
                 except (ValueError, TypeError) as e:
                     return self.send_json(400, {'error': str(e)})
                 return self.send_json(200, res) if res is not None else self.send_json(404, {'error': 'unknown query'})
             if path == '/api/version':
-                return self.send_json(200, {'version': store.version, **({'engine': 'sqlite'} if getattr(store, 'engine', '') == 'sqlite' else {})})
+                native_qr = bool(getattr(getattr(getattr(store, 'dispatcher', None), 'inbound', None), '_running', False))
+                return self.send_json(200, {'version': store.version,
+                                            **({'engine': 'sqlite', 'inboundQrNative': native_qr} if getattr(store, 'engine', '') == 'sqlite' else {})})
             if path == '/api/changes':
                 # SQLite engine: only what changed since the device's version (never the whole data)
                 if getattr(store, 'engine', '') != 'sqlite':
@@ -3597,7 +3728,11 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 hotel_name = st.get('name') or 'Aghanya Devanya Hotel ERP'
                 email_html = render_forgot_password_email(hotel_name, expected_hid, otp)
                 try:
-                    send_resend_email(target_email, f"Aghanya Devanya ERP - Password Reset OTP: {otp}", email_html)
+                    send_resend_email(target_email, f"Aghanya Devanya ERP - Password Reset OTP: {otp}", email_html, data_dir=store.dir)
+                except EmailNotConfigured:
+                    store.reset_otps.pop(target_email.lower(), None)
+                    store.log('Password recovery e-mail requested, but the e-mail service is not configured (RESEND_API_KEY).')
+                    return self.send_json(503, {'error': 'Email password recovery is not set up on this counter. Please contact support.'})
                 except Exception as e:
                     store.log(f'Resend email send error: {e}')
                     return self.send_json(500, {'error': f'Failed to send email via Resend: {e}'})
@@ -3696,8 +3831,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         auth['status'] = 'pending'
                         auth['isRegistered'] = True
                         store.save(d)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        store.log(f'Hotel registration / activation: saving on the counter failed: {e}')
                 return self.send_json(status, res)
 
             if path == '/api/hotel/activate':
@@ -3717,24 +3852,32 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         store.save(d)
                         if cloud and res.get('syncKey'):
                             cloud.set_config(DEFAULT_CLOUD_URL, res['hotelId'], res['syncKey'], True)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        store.log(f'Hotel registration / activation: saving on the counter failed: {e}')
                 return self.send_json(status, res)
 
-            if path == '/api/hotel/login':
+            if path in ('/api/hotel/login', '/api/hotel/password'):
+                # /api/hotel/password: first sign-in with a vendor-issued (temporary) password, or a too-simple one;
+                # the cloud checks the current owner password and stores the new one. Needs the internet.
+                changing = path == '/api/hotel/password'
                 try:
                     b = self.read_json()
                     hotel_id = str(b.get('hotelId') or '').strip().upper()
                     username = str(b.get('username') or 'owner').strip()
                     password = str(b.get('password') or '').strip()
+                    new_password = str(b.get('newPassword') or '').strip()
                 except Exception:
                     return self.send_json(400, {'error': 'Invalid JSON request'})
 
                 if not hotel_id or not password:
                     return self.send_json(400, {'error': 'Hotel ID and Password are required.'})
+                if changing and not new_password:
+                    return self.send_json(400, {'error': 'Please enter the new password.'})
 
                 # Try cloud first
-                status, cloud_res = http_cloud_post('/api/hotel/login', b)
+                status, cloud_res = http_cloud_post(path, b)
+                if status is None and changing:
+                    return self.send_json(503, {'error': 'Setting your own password needs an internet connection. Please connect and try again.'})
                 if status is not None:
                     if status == 200 and cloud_res.get('ok'):
                         try:
@@ -3748,16 +3891,23 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                             auth['ownerName'] = cloud_res.get('owner') or username
                             auth['status'] = 'active'
                             auth['isRegistered'] = True
-                            sec['owner'] = SEC.hash_secret(password)
+                            # A new / formatted PC takes the owner password from the cloud login. An existing owner
+                            # password is never replaced by whatever passed the cloud check (it may be the manager PIN).
+                            # A password the cloud has just changed (owner verified) replaces it.
+                            if changing:
+                                sec['owner'] = SEC.hash_secret(new_password)
+                                sec['admin'] = sec['owner']
+                            elif not sec.get('owner'):
+                                sec['owner'] = SEC.hash_secret(password)
                             store.save(d)
                             if cloud and cloud_res.get('syncKey'):
                                 cloud.set_config(DEFAULT_CLOUD_URL, cloud_res['hotelId'], cloud_res['syncKey'], True)
                                 try:
-                                    cloud.restore(cloud_res['hotelId'], password)
+                                    cloud.restore(cloud_res['hotelId'], new_password if changing else password)
                                 except Exception:
                                     pass
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            store.log(f'Hotel login: saving the hotel on the counter / linking the cloud failed: {e}')
                         token = store.add_token('admin', hotel_id=cloud_res['hotelId'], name=cloud_res.get('owner') or username)
                         cloud_res['token'] = token
                     return self.send_json(status, cloud_res)
@@ -3770,9 +3920,16 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not local_hid or (hotel_id and hotel_id != local_hid):
                     return self.send_json(503, {'error': 'Offline: Hotel ID not found locally. Initial login requires an active internet connection.'})
 
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many wrong tries. Try again in {wait // 60 + 1} minutes.'})
                 found = store.check_pin(password)
                 if not found:
+                    store.pin_guard(ip, False)
+                    time.sleep(1)
                     return self.send_json(401, {'error': 'Invalid Hotel ID, Username, or Password (offline mode).'})
+                store.pin_guard(ip, True)
 
                 role, name = found
                 token = store.add_token(role, hotel_id=local_hid, name=name)

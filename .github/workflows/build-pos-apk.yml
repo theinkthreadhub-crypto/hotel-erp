@@ -58,7 +58,21 @@ jobs:
           name: SetuPOS
           path: android-pos/SetuPOS.apk
           retention-days: 90
+      # The release branch publishes the app as its own pre-release (with SHA-256) for testing first
+      - name: Publish Setu POS app (pre-release)
+        if: github.ref_name == 'feature/horeca-one-phase34a-safety'
+        working-directory: android-pos
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          V=$(grep -o 'versionName="[^"]*"' AndroidManifest.xml | cut -d'"' -f2)
+          sha256sum SetuPOS.apk | tee SetuPOS.apk.sha256
+          gh release create "setu-pos-app-v$V-build.${{ github.run_number }}" SetuPOS.apk SetuPOS.apk.sha256 --prerelease --target ${{ github.sha }} \
+            --title "Setu POS app v$V (build ${{ github.run_number }})" --notes "Restaurant phone app v$V (commit ${{ github.sha }}). Cloud = hotel.setupro.in. Uninstall an older Setu POS app first if Android refuses (signing key changed)."
+      # Customers get it from setu-latest only when the owner turns publishing on (repo variable PUBLISH_EXE = on)
       - name: Add to setu-latest release
+        if: vars.PUBLISH_EXE == 'on'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

@@ -176,7 +176,7 @@ class SqlitePhase2(unittest.TestCase):
         self.assertTrue(info['verified'])
         self.assertEqual(info['bills'], 201)
         dest = os.path.join(self.tmp, 'restored.sqlite')
-        r = S.restore_backup(gz, dest)
+        r = S.restore_backup(gz, dest, expected_hotel_id='SYNTH1')
         self.assertEqual(r['integrity'], 'ok')
         self.assertEqual(S.canonical(S.SqliteDoc(dest).export_document()), S.canonical(doc))
         # damage a copy: the store refuses to open it instead of serving wrong data

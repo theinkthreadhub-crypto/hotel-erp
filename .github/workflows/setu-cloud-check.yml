@@ -39,3 +39,53 @@ jobs:
           echo "admin page cache header:"; curl -sI -m 15 https://setu-cloud.theinkthreadhub.workers.dev/admin | grep -i "cache-control" || true
           echo "keygen endpoint without key (expect 401):"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" -X POST -d '{}' https://setu-cloud.theinkthreadhub.workers.dev/api/admin/keygen || true
           echo "library setu-erp /api ping:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" https://setu-erp.theinkthreadhub.workers.dev/view || true
+      - name: Release checks on the live Worker (read-only, creates nothing)
+        run: |
+          U=https://setu-cloud.theinkthreadhub.workers.dev
+          echo "self-registration closed (expect 403 REGISTRATION_CLOSED):"
+          curl -s -m 15 -w " [%{http_code}]\n" -X POST -H 'Content-Type: application/json' -d '{}' $U/api/hotel/register || true
+          echo "password route exists (unknown hotel, expect 404):"
+          curl -s -m 15 -w " [%{http_code}]\n" -X POST -H 'Content-Type: application/json' -d '{"hotelId":"ZZZZ0000","password":"x","newPassword":"y"}' $U/api/hotel/password || true
+          echo "Super Admin Login Card live (expect 1+):"; curl -s -m 15 -L $U/admin.html | grep -c "Login Card" || true
+          echo "POS choose-password step live (expect 1+):"; curl -s -m 15 -L $U/hotel_erp.html | grep -c "exist_change_box" || true
+          echo "service worker cache:"; curl -s -m 15 $U/sw.js | grep -o "setu-pos-v[0-9]*" | head -1 || true
+          echo "paise arithmetic live (expect 1+):"; curl -s -m 15 -L $U/hotel_erp.html | grep -c "const linePaise = i =>" || true
+          echo "download manifest (EXE for counter PCs, must be unchanged):"; curl -s -m 15 $U/download/latest.json || true; echo
+      - name: What hotel.setupro.in serves (read-only)
+        run: |
+          D=https://hotel.setupro.in
+          echo "page status:"; curl -s -m 15 -o /dev/null -w "%{http_code}\n" "$D/hotel_erp.html" || true
+          echo "service worker cache (cloud now: setu-pos-v103):"; curl -s -m 15 "$D/sw.js" | grep -o "setu-pos-v[0-9]*" | head -1 || true
+          echo "paise arithmetic in its page (1+ = current):"; curl -s -m 15 -L "$D/hotel_erp.html" | grep -c "const linePaise = i =>" || true
+          echo "vendor login step in its page (1+ = current):"; curl -s -m 15 -L "$D/hotel_erp.html" | grep -c "exist_change_box" || true
+          echo "admin page via hotel.setupro.in/admin (200 + title = routed):"; curl -s -m 15 -L --max-redirs 5 -o a.html -w "%{http_code}\n" "$D/admin" || true; grep -o "<title>[^<]*" a.html | head -1 || true
+          echo "table QR route /q/ (200 = routed):"; curl -s -m 15 -L -o /dev/null -w "%{http_code}\n" "$D/q/TEST0000/00000000000000000000000000000000" || true
+          echo "installer route /download/latest.json:"; curl -s -m 15 "$D/download/latest.json" | head -c 160 || true; echo
+          echo "api goes to the cloud:"; curl -s -m 15 "$D/api/ping" || true; echo
+          echo "who answers:"; curl -sI -m 15 "$D/hotel_erp.html" | grep -iE "^server:|^x-vercel|^cf-ray" || true
+      - name: Is a hotel on the cloud? (read-only, hotel codes only)
+        run: |
+          U=https://setu-cloud.theinkthreadhub.workers.dev
+          for H in SHRIM069 SHRIM011; do
+            echo "$H ping:"; curl -s -m 15 -H "X-Setu-Hotel: $H" "$U/api/ping" || true; echo
+            echo "$H version (401 = hotel exists, needs key; 404 = not found):"; curl -s -m 15 -w " [%{http_code}]" -H "X-Setu-Hotel: $H" "$U/api/version" || true; echo
+          done
+      - name: Is the hotel in the Super Admin registry? (read-only, invalid key)
+        run: |
+          U=https://setu-cloud.theinkthreadhub.workers.dev
+          for H in SHRIM069 SHRIM011; do
+            echo "$H registry (404 Hotel ID not found = missing from registry; 403 = present):"
+            curl -s -m 15 -w " [%{http_code}]" -H 'Content-Type: application/json' -d "{\"hotelId\":\"$H\",\"key\":\"X\"}" "$U/api/hotel/activate" || true; echo
+          done
+      - name: Published counter installer (read-only)
+        run: |
+          for U in https://hotel.setupro.in https://setu-cloud.theinkthreadhub.workers.dev; do
+            echo "UPD $U $(curl -s -m 20 $U/api/update)"
+            echo "DL $U $(curl -sL -m 120 $U/download/Setu-POS-Setup.exe | sha256sum)"
+          done
+      - name: Helpline and Offline hotel are live (read-only)
+        run: |
+          for U in https://hotel.setupro.in https://setu-cloud.theinkthreadhub.workers.dev; do
+            echo "LIVE $U pos-helpline=$(curl -sL -m 30 $U/hotel_erp.html | grep -c '91941 15127') admin-offline=$(curl -sL -m 30 $U/admin | grep -c 'Offline hotel (no internet)') admin-helpline=$(curl -sL -m 30 $U/admin | grep -c '91941 15127')"
+          done
+

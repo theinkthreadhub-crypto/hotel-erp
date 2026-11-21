@@ -332,8 +332,39 @@ await runAsyncTest('9. /internal/activate emits licence_update inbound event', a
   const payload = JSON.parse(evt.payload);
   assert.equal(payload.plan, 'enterprise');
   assert.equal(payload.hotel_id, 'TESTHOTEL01');
-  assert.equal(payload.signature, 'sig_valid_abc123');
+  // Signature strings are untrusted input; only the actual signed key matters.
+  assert.equal(payload.key, 'SETU-TEST-KEY-1234');
+  assert.equal(payload.signature, undefined);
   assert.equal(payload.install_id, 'inst_pc_01');
+});
+
+// 9b. Keyless subscription status must not emit an unverifiable licence event.
+await runAsyncTest('9b. Keyless activation never emits unsigned licence_update', async () => {
+  const { callApi, db } = createHarness();
+  const r = await callApi('POST', '/internal/activate', {
+    plan: 'enterprise', days: 365, paidUntil: Date.now() + 365 * 864e5
+  });
+  assert.equal(r.status, 200);
+  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM sync_inbound_events WHERE event_type='licence_update'").get().c, 0);
+});
+
+// 9c. ACK idempotence, unknown IDs rejected and newly-changed count exact.
+await runAsyncTest('9c. Cloud ACK cannot claim unknown or duplicate events', async () => {
+  const { hotel, callApi, db } = createHarness();
+  const e = hotel.emitInboundEvent('vendor_message', 'msg_ack_1', { id: 'msg_ack_1' });
+  const payload = { hotel_id: 'TESTHOTEL01', event_ids: [e.id] };
+  const first = await callApi('POST', '/api/sync/inbound/ack', payload);
+  assert.equal(first.status, 200);
+  assert.equal(first.data.acked_count, 1);
+  assert.deepEqual(first.data.acked_ids, [e.id]);
+  const again = await callApi('POST', '/api/sync/inbound/ack', payload);
+  assert.equal(again.status, 200);
+  assert.equal(again.data.acked_count, 0);
+  assert.deepEqual(again.data.acked_ids, [e.id]);
+  const unknown = await callApi('POST', '/api/sync/inbound/ack',
+    { hotel_id: 'TESTHOTEL01', event_ids: [e.id, 'evt_999_fake'] });
+  assert.equal(unknown.status, 404);
+  assert.equal(db.prepare('SELECT COUNT(*) AS c FROM sync_inbound_events WHERE acked=1').get().c, 1);
 });
 
 // 10. Super Admin notice emits vendor_message inbound event
@@ -353,6 +384,32 @@ await runAsyncTest('10. Super Admin notice update emits vendor_message inbound e
   assert.equal(payload.title, 'Vendor Notice');
   assert.equal(payload.message, 'Critical security update scheduled for Sunday 2 AM');
   assert.equal(payload.priority, 'high');
+});
+
+// 11. An order is 'done' only with the exact accepted KOT. Response loss
+// replay returns the same ID+number; rejected/unknown orders fail closed.
+await runAsyncTest('11. Accepted QR cloud KOT confirmation is exact and idempotent', async () => {
+  const {callApi,db}=createHarness();
+  const add=(id,status)=>db.prepare(
+    "INSERT INTO guestorder(id,tbl,items,status,at) VALUES(?,?,?,?,?)"
+  ).run(id,'T7','[]',status,Date.now());
+  add('g_exact','accepted');
+  add('g_rejected','rejected');
+
+  const first=await callApi('POST','/api/qr/applied',{id:'g_exact',kot:'27'});
+  assert.equal(first.status,200);
+  assert.deepEqual(first.data,{ok:true,id:'g_exact',kot:'27',already_applied:false});
+  assert.equal(db.prepare('SELECT status,kot FROM guestorder WHERE id=?').get('g_exact').status,'done');
+  const retry=await callApi('POST','/api/qr/applied',{id:'g_exact',kot:'27'});
+  assert.equal(retry.status,200);
+  assert.equal(retry.data.already_applied,true);
+  const forgedKot=await callApi('POST','/api/qr/applied',{id:'g_exact',kot:'999'});
+  assert.equal(forgedKot.status,409);
+  const rejected=await callApi('POST','/api/qr/applied',{id:'g_rejected',kot:'30'});
+  assert.equal(rejected.status,409);
+  const unknown=await callApi('POST','/api/qr/applied',{id:'g_missing',kot:'30'});
+  assert.equal(unknown.status,404);
+  assert.equal(db.prepare('SELECT status FROM guestorder WHERE id=?').get('g_rejected').status,'rejected');
 });
 
 console.log(`\n========================================`);

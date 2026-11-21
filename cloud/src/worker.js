@@ -62,7 +62,7 @@ const TIERS = {
 const TEMPLATES = {
   restaurant:   { label: 'Restaurant', tier: 'premium', billing: { paper: '80', showTable: true, showCustomer: true, fields: [] } },
   cafe:         { label: 'Cafe / QSR', tier: 'basic', billing: { paper: '58', showTable: false, showCustomer: true, fields: [] } },
-  hotel:        { label: 'Hotel (Rooms + Restaurant)', tier: 'diamond', billing: { paper: 'A6', showTable: true, showCustomer: true, fields: [{ label: 'Room No', required: false }, { label: 'Guest Name', required: false }] } },
+  hotel:        { label: 'Hotel Restaurant (Room No. on bill)', tier: 'diamond', billing: { paper: 'A6', showTable: true, showCustomer: true, fields: [{ label: 'Room No', required: false }, { label: 'Guest Name', required: false }] } },
   cloudkitchen: { label: 'Cloud Kitchen', tier: 'premium', billing: { paper: '80', showTable: false, showCustomer: true, fields: [] }, overrides: { online: true } }
 };
 
@@ -79,7 +79,9 @@ const enc = s => new TextEncoder().encode(s);
 const hex = buf => [...new Uint8Array(buf)].map(x => x.toString(16).padStart(2, '0')).join('');
 const istDay = (ms = Date.now()) => new Date(ms + 330 * 60000).toISOString().slice(0, 10);
 // Same rule as the app (changeOwnerPass): short, listed, or one repeated character
-const isWeak = pin => String(pin).length < 4 || WEAK_PINS.has(String(pin).toLowerCase()) || /^(.)+$/.test(String(pin));
+const isWeak = pin => String(pin).length < 4 || WEAK_PINS.has(String(pin).toLowerCase()) || /^(.)\1+$/.test(String(pin));
+// One rule for every owner / manager password the cloud creates or changes (sign-up, registration, password change)
+const passwordProblem = pw => (String(pw).length < 6 || isWeak(pw)) ? 'Password must be at least 6 characters and not too simple' : '';
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 function sameText(a, b){
@@ -87,6 +89,18 @@ function sameText(a, b){
   let diff = a.length ^ b.length;
   for(let i = 0; i < Math.max(a.length, b.length); i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   return diff === 0 && a.length > 0;
+}
+
+// Vendor-issued first-login password: 12 characters in 3 groups, no look-alike characters (0/O, 1/l/I)
+const PW_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+function tempPassword(){
+  for(;;){
+    const b = new Uint8Array(12);
+    crypto.getRandomValues(b);
+    const raw = [...b].map(x => PW_CHARS[x % PW_CHARS.length]).join('');
+    const pw = raw.slice(0, 4) + '-' + raw.slice(4, 8) + '-' + raw.slice(8);
+    if(/[A-Z]/.test(pw) && /[a-z]/.test(pw) && /[0-9]/.test(pw)) return pw;
+  }
 }
 
 function randomHex(n){
@@ -292,6 +306,15 @@ const pemBytes = pem => Uint8Array.from(atob(String(pem).replace(/-----[^-]+----
 // Keygen in Super Admin: the LICENSE_PRIVATE_KEY secret, or the key file the vendor pasted once (Super Admin -> Keygen)
 const KEY_PLANS = { '1m': [1, 30, '1 Month'], '3m': [1, 90, '3 Months'], '6m': [1, 180, '6 Months'], '1y': [1, 365, '1 Year'],
   life: [3, 0, 'Lifetime'], demo1h: [2, 60, 'Demo 1 Hour'], demo24h: [2, 1440, 'Demo 24 Hours'], reset: [4, 0, 'Owner Password Reset'] };
+// Offline hotel (no internet): its licence key is the only thing that keeps Setu running, so the vendor makes it here
+const OFFLINE_PLANS = ['1m', '3m', '6m', '1y', 'life'];
+function offlinePlan(b){
+  if(OFFLINE_PLANS.includes(b.licPlan)){ const [kind, value, label] = KEY_PLANS[b.licPlan]; return { kind, value, label, days: kind === 3 ? 0 : value, lifetime: kind === 3 }; }
+  const d = Math.round(+b.licDays || 0);
+  if(!(d >= 1 && d <= 3650)) return { error: 'Choose a licence plan (1 month to lifetime) or 1 to 3650 days' };
+  return { kind: 1, value: d, label: d + ' Days', days: d, lifetime: false };
+}
+const licText = (lifetime, until) => lifetime ? 'lifetime' : new Date(until).toISOString();
 async function licPriv(env){
   if(env.LICENSE_PRIVATE_KEY) return { pem: env.LICENSE_PRIVATE_KEY, from: 'secret' };
   const v = (await regJson(env, '/conf/get', { k: 'licpriv' })).v;
@@ -617,6 +640,21 @@ export class SetuRegistry extends DurableObject {
       ['hotel', 'domain', 'ticket'].forEach(t => this.sql.exec(`DELETE FROM ${t} WHERE code = ?`, body.code));
       return json(200, { ok: true, iid: h ? h.iid : '' });
     }
+    // One request = one result (Super Admin "Create Hotel" pressed many times, or a network retry). Runs inside the
+    // registry Durable Object with no await, so two requests with the same key can never both get "fresh".
+    if(path === '/idem/claim'){
+      const k = 'idem:' + String(body.k || '').slice(0, 80), r = one('SELECT v FROM conf WHERE k = ?', k), now = Date.now();
+      const v = r ? JSON.parse(r.v) : null;
+      if(v && now - (v.at || 0) < DAY) return json(200, v.done ? { done: true, result: v.result } : { busy: true });
+      this.sql.exec('INSERT OR REPLACE INTO conf (k, v) VALUES (?, ?)', k, JSON.stringify({ at: now }));
+      return json(200, { fresh: true });
+    }
+    if(path === '/idem/done'){
+      const k = 'idem:' + String(body.k || '').slice(0, 80);
+      if(body.result === null) this.sql.exec('DELETE FROM conf WHERE k = ?', k);       // failed: the same key may try again
+      else this.sql.exec('INSERT OR REPLACE INTO conf (k, v) VALUES (?, ?)', k, JSON.stringify({ at: Date.now(), done: true, result: body.result }));
+      return json(200, { ok: true });
+    }
     if(path === '/conf/get'){
       const r = one('SELECT v FROM conf WHERE k = ?', body.k);
       return json(200, { v: r ? JSON.parse(r.v) : null });
@@ -860,6 +898,34 @@ export class SetuHotel extends DurableObject {
       raw_json TEXT
     )`);
     this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_vouchers_date ON sync_vouchers (date)`);
+
+    // Phase 3.5e: credit notes (sales returns / price reductions after billing). Immutable once posted; amounts in
+    // integer paise; the original bill is referenced by id, never rewritten. CREATE IF NOT EXISTS: safe for every tenant.
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_credit_notes (
+      id TEXT PRIMARY KEY,
+      no INTEGER,
+      date TEXT NOT NULL,
+      time TEXT,
+      bill_id TEXT NOT NULL,
+      bill_no INTEGER,
+      bill_date TEXT,
+      gstin TEXT,
+      channel TEXT,
+      rate REAL,
+      incl INTEGER DEFAULT 0,
+      taxable_p INTEGER NOT NULL,
+      tax_p INTEGER NOT NULL,
+      total_p INTEGER NOT NULL,
+      refund TEXT NOT NULL,
+      reason TEXT,
+      issued_by TEXT,
+      bill_known INTEGER DEFAULT 0,
+      doc_version INTEGER DEFAULT 0,
+      updated_at INTEGER,
+      raw_json TEXT
+    )`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_credit_notes_date ON sync_credit_notes (date)`);
+    this.sql.exec(`CREATE INDEX IF NOT EXISTS idx_sync_credit_notes_bill ON sync_credit_notes (bill_id)`);
 
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_kots (
       id TEXT PRIMARY KEY,
@@ -1439,17 +1505,21 @@ export class SetuHotel extends DurableObject {
         if(ex) ex.qty = Math.min(50, ex.qty + q); else lines.push({ mid: m.id, name: str(m.name, 80), price: +m.price || 0, qty: q });
       }
       if(!lines.length) return json(400, { error: 'Please add an item' });
-      hit.n++; this.kvSet('gip:' + ip, hit);
-      this.sql.exec(`INSERT INTO guestorder (id, tbl, items, note, name, status, at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-        'g' + id, tbl, JSON.stringify(lines), str(b.note, 200), str(b.name, 60), Date.now());
-      this.emitInboundEvent('qr_order', 'g' + id, {
-        order_id: 'g' + id,
-        table: tbl,
-        guest_name: str(b.name, 60),
-        items: lines,
-        note: str(b.note, 200),
-        total: lines.reduce((s, x) => s + (x.price * x.qty), 0),
-        at: Date.now()
+      // Persist guest order AND inbound change together: never create an
+      // un-deliverable QR order if the event write fails.
+      this.ctx.storage.transactionSync(() => {
+        hit.n++; this.kvSet('gip:' + ip, hit);
+        this.sql.exec(`INSERT INTO guestorder (id, tbl, items, note, name, status, at) VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
+          'g' + id, tbl, JSON.stringify(lines), str(b.note, 200), str(b.name, 60), Date.now());
+        this.emitInboundEvent('qr_order', 'g' + id, {
+          order_id: 'g' + id,
+          table: tbl,
+          guest_name: str(b.name, 60),
+          items: lines,
+          note: str(b.note, 200),
+          total: lines.reduce((sum, x) => sum + (x.price * x.qty), 0),
+          at: Date.now()
+        });
       });
       return json(200, { id: 'g' + id, status: 'pending' });
     }
@@ -1472,7 +1542,7 @@ export class SetuHotel extends DurableObject {
       const orders = this.sql.exec(`SELECT * FROM guestorder WHERE status IN ('pending', 'accepted') OR at > ? ORDER BY at`, Date.now() - 6 * 3600e3).toArray()
         .map(o => ({ ...o, items: JSON.parse(o.items) }));
       const calls = this.sql.exec('SELECT * FROM guestcall WHERE done = 0 ORDER BY at').toArray();
-      return json(200, { on: !!c.on, auto: !!c.auto, base: url.origin + '/q/' + this.account.code + '/',
+      return json(200, { on: !!c.on, auto: !!c.auto, base: String(this.env.PUBLIC_URL || url.origin).replace(/\/$/, '') + '/q/' + this.account.code + '/',
         tables: manager ? c.tables || {} : undefined, orders, calls });
     }
     if(method !== 'POST') return json(404, { error: 'not found' });
@@ -1509,21 +1579,37 @@ export class SetuHotel extends DurableObject {
       // First decision wins: the Durable Object runs one request at a time, so two staff cannot both accept
       if(o.status !== 'pending') return json(409, { error: 'already ' + o.status, status: o.status, by: o.by });
       const accept = b.action === 'accept';
-      this.sql.exec('UPDATE guestorder SET status = ?, by = ?, decided = ?, reason = ? WHERE id = ?',
-        accept ? 'accepted' : 'rejected', str(b.by, 60), Date.now(), accept ? '' : str(b.reason, 120), o.id);
-      this.emitInboundEvent('qr_status', o.id, {
-        order_id: o.id,
-        status: accept ? 'accepted' : 'rejected',
-        by: str(b.by, 60),
-        reason: accept ? '' : str(b.reason, 120),
-        at: Date.now()
+      this.ctx.storage.transactionSync(() => {
+        this.sql.exec('UPDATE guestorder SET status = ?, by = ?, decided = ?, reason = ? WHERE id = ?',
+          accept ? 'accepted' : 'rejected', str(b.by, 60), Date.now(), accept ? '' : str(b.reason, 120), o.id);
+        this.emitInboundEvent('qr_status', o.id, {
+          order_id: o.id,
+          status: accept ? 'accepted' : 'rejected',
+          by: str(b.by, 60),
+          reason: accept ? '' : str(b.reason, 120),
+          at: Date.now()
+        });
       });
       return json(200, { id: o.id, status: accept ? 'accepted' : 'rejected', order: { ...o, items: JSON.parse(o.items) } });
     }
     if(path === '/api/qr/applied'){
-      // The accepted order is now in the table's running order with this KOT
-      this.sql.exec(`UPDATE guestorder SET status = 'done', kot = ? WHERE id = ? AND status = 'accepted'`, str(b.kot, 20), String(b.id || ''));
-      return json(200, { ok: true });
+      // Idempotent cloud confirmation of the exact order/KOT pair. Never
+      // return an unconditional OK for a nonexistent or rejected order.
+      const id = str(b.id, 90), kot = str(b.kot, 20);
+      if(!id || !kot) return json(400, {ok:false,error:'ORDER_AND_KOT_REQUIRED'});
+      const o = this.sql.exec('SELECT id,status,kot FROM guestorder WHERE id = ?', id).toArray()[0];
+      if(!o) return json(404, {ok:false,error:'QR_ORDER_NOT_FOUND'});
+      if(o.status === 'done' && String(o.kot) === kot){
+        return json(200, {ok:true,id,kot,already_applied:true});
+      }
+      if(o.status !== 'accepted'){
+        return json(409, {ok:false,error:'QR_ORDER_NOT_ACCEPTED',status:o.status});
+      }
+      this.sql.exec(
+        "UPDATE guestorder SET status='done', kot=? WHERE id=? AND status='accepted'",
+        kot, id
+      );
+      return json(200, {ok:true,id,kot,already_applied:false});
     }
     if(path === '/api/qr/call'){
       this.sql.exec('UPDATE guestcall SET done = 1, by = ? WHERE id = ?', str(b.by, 60), String(b.id || ''));
@@ -1697,6 +1783,25 @@ export class SetuHotel extends DurableObject {
   }
 
   // ----- Super Admin changes to this hotel -----
+  // One place that changes the owner password: account hash, and the hotel data (owner password + Manager PIN, as
+  // salted hashes) so it works on the phone app now and on the counter PC after its next sync.
+  async setOwnerPassword(pw, mustChange){
+    const a = this.account;
+    a.ownerHash2 = await SEC.hashSecret(pw);
+    delete a.ownerHash;
+    delete a.ownerPass;
+    if(mustChange) a.mustChange = true; else delete a.mustChange;
+    if(this.meta.version){
+      const d = JSON.parse(this.data());
+      const old = JSON.parse(this.data());
+      d.auth = { ...(d.auth && typeof d.auth === 'object' ? d.auth : {}), password: pw };
+      d.settings = { ...(d.settings || {}), adminPin: pw };
+      await SEC.absorbSecrets(d, old, true);      // stored as salted hashes only
+      await this.prepare(d);
+      this.commit(d);
+    }
+  }
+
   async adminUpdate(b){
     const a = this.account, c = a.config;
     const notes = [];
@@ -1811,23 +1916,13 @@ export class SetuHotel extends DurableObject {
       if(!/^[0-9a-f]{40}$/.test(k)) throw new Error('A Sync Key is 40 characters (0-9, a-f)');
       a.syncHash = await sha256(k); a.syncKey = k; notes.push('sync key set');
     }
-    if(b.ownerPassword){
-      const pw = String(b.ownerPassword);
+    // Owner forgot the password: the vendor sets one, or "resetOwnerPassword" makes a temporary one (shown once).
+    // Either way the owner must choose a new password at the next sign-in.
+    if(b.resetOwnerPassword || b.ownerPassword){
+      const pw = b.resetOwnerPassword ? tempPassword() : String(b.ownerPassword);
       if(pw.length < 6 || isWeak(pw)) throw new Error('weak password');
-      a.ownerHash2 = await SEC.hashSecret(pw);
-      delete a.ownerHash;
-      delete a.ownerPass;
-      // Owner forgot the password: put the new one into the hotel's data, so it works on the
-      // phone app now and on the counter PC after its next sync (also the Manager PIN there)
-      if(this.meta.version){
-        const d = JSON.parse(this.data());
-        const old = JSON.parse(this.data());
-        d.auth = { ...(d.auth && typeof d.auth === 'object' ? d.auth : {}), password: pw };
-        d.settings = { ...(d.settings || {}), adminPin: pw };
-        await SEC.absorbSecrets(d, old, true);      // stored as salted hashes only
-        await this.prepare(d);
-        this.commit(d);
-      }
+      await this.setOwnerPassword(pw, true);
+      if(b.resetOwnerPassword) this.issuedOwnerPassword = pw;
       notes.push('owner password reset');
     }
     this.saveAccount();
@@ -1889,7 +1984,7 @@ export class SetuHotel extends DurableObject {
     const maps = env.payload.maps || {};
     const values = env.payload.values || {};
 
-    const SUPPORTED_RECORD_MODULES = new Set(['bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders']);
+    const SUPPORTED_RECORD_MODULES = new Set(['bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders', 'cnotes']);
     const SUPPORTED_MAP_MODULES = new Set(['tables', 'kaccha']);
     const SUPPORTED_VALUE_MODULES = new Set(['settings', 'seq', 'auth']);
 
@@ -1961,6 +2056,13 @@ export class SetuHotel extends DurableObject {
           }
           for(const rmId of (vouchersRec.rm || [])){
             checkStale('sync_vouchers', 'id', String(rmId), 'vouchers');
+          }
+        }
+
+        // 2b. Check credit notes staleness
+        if(recs.cnotes && typeof recs.cnotes === 'object'){
+          for(const c of (recs.cnotes.ups || [])){
+            checkStale('sync_credit_notes', 'id', String((c && c.id) || ''), 'cnotes');
           }
         }
 
@@ -2089,6 +2191,65 @@ export class SetuHotel extends DurableObject {
           }
         }
 
+        // 1b. Credit notes (after bills, so a bill and its credit note may arrive in one op). Validated and immutable:
+        // a credit note is never edited, deleted or posted twice; anything else rejects the whole op for review.
+        if(recs.cnotes && typeof recs.cnotes === 'object'){
+          const cnFail = (code, rid, reason) => {
+            const err = new Error(reason);
+            err.isConflict = true;
+            err.entityKey = 'cnotes';
+            err.recordId = rid;
+            err.reason = `${code}: ${reason}`;
+            err.conflictResponse = { status: 'rejected', error: code, op_id: opId, record_id: rid, reason };
+            throw err;
+          };
+          if((recs.cnotes.rm || []).length){
+            cnFail('CREDIT_NOTE_IMMUTABLE', String(recs.cnotes.rm[0]), 'credit notes cannot be deleted; issue a new document instead');
+          }
+          const paise = v => Math.round(Number(v) * 100);
+          for(const c of (recs.cnotes.ups || [])){
+            const cid = String((c && c.id) || '');
+            const bad = why => cnFail('INVALID_CREDIT_NOTE', cid, why);
+            if(!c || typeof c !== 'object' || !cid || cid.length > 100) bad('credit note id missing or invalid');
+            const billId = String(c.billId || '');
+            if(!billId) bad('original bill reference (billId) missing');
+            if(!/^\d{4}-\d{2}-\d{2}$/.test(String(c.date || ''))) bad('date must be YYYY-MM-DD');
+            for(const f of ['taxable', 'tax', 'total']){
+              if(typeof c[f] !== 'number' || !Number.isFinite(c[f]) || c[f] < 0) bad(`${f} must be a non-negative number`);
+            }
+            const taxableP = paise(c.taxable), taxP = paise(c.tax), totalP = paise(c.total);
+            if(totalP <= 0) bad('total must be greater than zero');
+            if(Math.abs(taxableP + taxP - totalP) > 1) bad('taxable + tax does not equal total');
+            const refund = String(c.refund == null ? '' : c.refund);
+            if(!['Cash', 'UPI', 'Card', 'none'].includes(refund)) bad(`refund must be Cash, UPI, Card or none (got "${refund.slice(0, 20)}")`);
+            if(c.rate != null && !(typeof c.rate === 'number' && c.rate >= 0 && c.rate <= 100)) bad('rate must be 0..100');
+            if(c.items != null && !Array.isArray(c.items)) bad('items must be a list');
+
+            const prev = this.sql.exec('SELECT bill_id, taxable_p, tax_p, total_p, refund FROM sync_credit_notes WHERE id = ?', cid).toArray()[0];
+            if(prev){
+              if(prev.bill_id === billId && prev.taxable_p === taxableP && prev.tax_p === taxP && prev.total_p === totalP && prev.refund === refund) continue;
+              cnFail('CREDIT_NOTE_IMMUTABLE', cid, 'a posted credit note cannot be changed');
+            }
+            const bill = this.sql.exec('SELECT no, total FROM sync_bills WHERE id = ?', billId).toArray()[0];
+            if(bill){
+              if(c.billNo != null && bill.no != null && Number(c.billNo) !== Number(bill.no)) bad(`billNo ${c.billNo} does not match bill ${billId} (no ${bill.no})`);
+              const already = this.sql.exec('SELECT COALESCE(SUM(total_p), 0) AS t FROM sync_credit_notes WHERE bill_id = ?', billId).toArray()[0].t || 0;
+              // The bill total is rounded to the rupee; credited lines may exceed it by less than one rupee
+              if(already + totalP > paise(bill.total) + 100){
+                cnFail('CREDIT_NOTE_EXCEEDS_BILL', cid, `credit notes on bill ${billId} would total ${(already + totalP) / 100}, bill total ${bill.total}`);
+              }
+            }
+            this.sql.exec(
+              `INSERT INTO sync_credit_notes (id, no, date, time, bill_id, bill_no, bill_date, gstin, channel, rate, incl, taxable_p, tax_p, total_p, refund, reason, issued_by, bill_known, doc_version, updated_at, raw_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              cid, c.no != null ? Number(c.no) : null, String(c.date), String(c.time || ''), billId, c.billNo != null ? Number(c.billNo) : null,
+              String(c.billDate || ''), String(c.gstin || ''), String(c.channel || ''), c.rate != null ? Number(c.rate) : null, c.incl ? 1 : 0,
+              taxableP, taxP, totalP, refund, String(c.reason || ''), String(c.by || ''), bill ? 1 : 0, env.doc_version, now, JSON.stringify(c)
+            );
+            this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'cnotes', ?, 'ups', ?)`, env.doc_version, cid, now);
+          }
+        }
+
         // 2. Vouchers & Txns
         if(vouchersRec && typeof vouchersRec === 'object'){
           for(const v of (vouchersRec.ups || [])){
@@ -2096,7 +2257,7 @@ export class SetuHotel extends DurableObject {
             if(vid){
               this.sql.exec(
                 `INSERT OR REPLACE INTO sync_vouchers (id, type, amount, party, mode, date, time, category, note, doc_version, updated_at, raw_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                vid, String(v.type || 'Expense'), +v.amount || 0, String(v.party || ''), String(v.mode || 'Cash'), String(v.date || ''), String(v.time || ''), String(v.category || ''), String(v.note || ''), env.doc_version, now, JSON.stringify(v)
+                vid, String(v.type || 'Expense'), +v.amount || 0, String(v.party || ''), String(v.mode || 'Cash'), String(v.date || ''), String(v.time || ''), String(v.category || v.head || ''), String(v.note || v.desc || ''), env.doc_version, now, JSON.stringify(v)
               );
               this.sql.exec(`INSERT INTO sync_change_log (version, k, rid, op, at) VALUES (?, 'vouchers', ?, 'ups', ?)`, env.doc_version, vid, now);
             }
@@ -2363,6 +2524,21 @@ export class SetuHotel extends DurableObject {
       const whereSql = clauses.length ? ' AND ' + clauses.join(' AND ') : '';
       return { from, to, clauses, whereSql, params };
     };
+    // Credit notes in the requested date range (credit-note date). Counted only while the original bill is not cancelled.
+    const creditNoteTotals = () => {
+      const r = parseDateRange('c.date');
+      const w = r.clauses.length ? ' AND ' + r.clauses.join(' AND ') : '';
+      const live = this.sql.exec(
+        `SELECT COUNT(*) AS count, COALESCE(SUM(c.total_p), 0) AS total_p, COALESCE(SUM(c.taxable_p), 0) AS taxable_p,
+                COALESCE(SUM(c.tax_p), 0) AS tax_p, COALESCE(SUM(CASE WHEN c.refund <> 'none' THEN c.total_p ELSE 0 END), 0) AS refunded_p
+         FROM sync_credit_notes c LEFT JOIN sync_bills b ON b.id = c.bill_id WHERE COALESCE(b.cancelled, 0) = 0 ${w}`, ...r.params).toArray()[0] || {};
+      const dead = this.sql.exec(
+        `SELECT COUNT(*) AS count, COALESCE(SUM(c.total_p), 0) AS total_p
+         FROM sync_credit_notes c JOIN sync_bills b ON b.id = c.bill_id WHERE b.cancelled = 1 ${w}`, ...r.params).toArray()[0] || {};
+      return { count: live.count || 0, total_p: live.total_p || 0, taxable_p: live.taxable_p || 0, tax_p: live.tax_p || 0,
+        refunded_p: live.refunded_p || 0, adjusted_p: (live.total_p || 0) - (live.refunded_p || 0),
+        on_cancelled_count: dead.count || 0, on_cancelled_p: dead.total_p || 0 };
+    };
 
     const limit = Math.min(500, Math.max(1, +(url.searchParams.get('limit') || 50)));
     const offset = Math.max(0, +(url.searchParams.get('offset') || 0));
@@ -2441,7 +2617,7 @@ export class SetuHotel extends DurableObject {
       const activeRow = this.sql.exec(
         `SELECT COUNT(*) AS bill_count,
                 COALESCE(SUM(CAST(ROUND(total * 100) AS INTEGER)), 0) AS gross_sales_p,
-                COALESCE(SUM(CAST(ROUND(sub * 100) AS INTEGER)), 0) AS net_taxable_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(raw_json, '$.taxable'), sub - COALESCE(disc, 0)) * 100) AS INTEGER)), 0) AS net_taxable_p,
                 COALESCE(SUM(CAST(ROUND(tax * 100) AS INTEGER)), 0) AS total_tax_p,
                 COALESCE(SUM(CAST(ROUND(disc * 100) AS INTEGER)), 0) AS total_discount_p
          FROM sync_bills WHERE cancelled = 0 ${range.whereSql}`,
@@ -2455,6 +2631,8 @@ export class SetuHotel extends DurableObject {
         ...range.params
       ).toArray()[0] || {};
 
+      const cn = creditNoteTotals();
+
       const totalDaysRow = this.sql.exec(
         `SELECT COUNT(DISTINCT date) AS c FROM sync_bills WHERE cancelled = 0 ${range.whereSql}`,
         ...range.params
@@ -2463,7 +2641,7 @@ export class SetuHotel extends DurableObject {
       const dailyRows = this.sql.exec(
         `SELECT date, COUNT(*) AS bill_count,
                 COALESCE(SUM(CAST(ROUND(total * 100) AS INTEGER)), 0) AS gross_sales_p,
-                COALESCE(SUM(CAST(ROUND(sub * 100) AS INTEGER)), 0) AS net_taxable_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(raw_json, '$.taxable'), sub - COALESCE(disc, 0)) * 100) AS INTEGER)), 0) AS net_taxable_p,
                 COALESCE(SUM(CAST(ROUND(tax * 100) AS INTEGER)), 0) AS tax_p,
                 COALESCE(SUM(CAST(ROUND(disc * 100) AS INTEGER)), 0) AS discount_p
          FROM sync_bills WHERE cancelled = 0 ${range.whereSql} GROUP BY date ORDER BY date ASC LIMIT ? OFFSET ?`,
@@ -2487,7 +2665,18 @@ export class SetuHotel extends DurableObject {
           total_discount_p: activeRow.total_discount_p || 0,
           cancelled_bill_count: cancRow.cancelled_bill_count || 0,
           cancelled_amount: (cancRow.cancelled_amount_p || 0) / 100,
-          cancelled_amount_p: cancRow.cancelled_amount_p || 0
+          cancelled_amount_p: cancRow.cancelled_amount_p || 0,
+          // Credit notes (returns / price reductions) by credit-note date: deducted from sales, not a payment mode
+          credit_note_count: cn.count,
+          credit_note_total_p: cn.total_p,
+          credit_note_taxable_p: cn.taxable_p,
+          credit_note_tax_p: cn.tax_p,
+          credit_note_refunded_p: cn.refunded_p,
+          credit_note_adjusted_p: cn.adjusted_p,
+          net_sales_after_credit_notes_p: (activeRow.gross_sales_p || 0) - cn.total_p,
+          // A credit note on a bill that was later cancelled is not deducted again (the cancellation removed the bill)
+          credit_notes_on_cancelled_bills: cn.on_cancelled_count,
+          credit_notes_on_cancelled_bills_p: cn.on_cancelled_p
         },
         daily: dailyRows.map(r => ({
           date: r.date,
@@ -2561,18 +2750,21 @@ export class SetuHotel extends DurableObject {
     }
 
     // 4. GST Summary Report
+    // Taxable value = the bill's own `taxable` (after discount; net of GST for inclusive prices), as on the counter's
+    // GST report (TD-0014). Older rows without it fall back to sub - disc. Read from raw_json: no migration needed.
     if(subpath === 'gst'){
       const range = parseDateRange('b.date');
       const bWhere = range.clauses.length ? ' AND ' + range.clauses.join(' AND ') : '';
       const totalRow = this.sql.exec(
         `SELECT COUNT(*) AS bill_count,
-                COALESCE(SUM(CAST(ROUND(b.sub * 100) AS INTEGER)), 0) AS taxable_amount_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(b.raw_json, '$.taxable'), b.sub - COALESCE(b.disc, 0)) * 100) AS INTEGER)), 0) AS taxable_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.tax * 100) AS INTEGER)), 0) AS gst_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.total * 100) AS INTEGER)), 0) AS gross_amount_p
          FROM sync_bills b WHERE b.cancelled = 0 ${bWhere}`,
         ...range.params
       ).toArray()[0] || {};
 
+      const gcn = creditNoteTotals();
       const totalDaysRow = this.sql.exec(
         `SELECT COUNT(DISTINCT b.date) AS c FROM sync_bills b WHERE b.cancelled = 0 ${bWhere}`,
         ...range.params
@@ -2580,7 +2772,7 @@ export class SetuHotel extends DurableObject {
 
       const dailyRows = this.sql.exec(
         `SELECT b.date, COUNT(*) AS bill_count,
-                COALESCE(SUM(CAST(ROUND(b.sub * 100) AS INTEGER)), 0) AS taxable_amount_p,
+                COALESCE(SUM(CAST(ROUND(COALESCE(json_extract(b.raw_json, '$.taxable'), b.sub - COALESCE(b.disc, 0)) * 100) AS INTEGER)), 0) AS taxable_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.tax * 100) AS INTEGER)), 0) AS gst_amount_p,
                 COALESCE(SUM(CAST(ROUND(b.total * 100) AS INTEGER)), 0) AS gross_amount_p
          FROM sync_bills b WHERE b.cancelled = 0 ${bWhere} GROUP BY b.date ORDER BY b.date ASC LIMIT ? OFFSET ?`,
@@ -2599,7 +2791,11 @@ export class SetuHotel extends DurableObject {
           total_gst: (totalRow.gst_amount_p || 0) / 100,
           total_gst_p: totalRow.gst_amount_p || 0,
           gross_revenue: (totalRow.gross_amount_p || 0) / 100,
-          gross_revenue_p: totalRow.gross_amount_p || 0
+          gross_revenue_p: totalRow.gross_amount_p || 0,
+          credit_note_count: gcn.count,
+          credit_note_taxable_p: gcn.taxable_p,
+          credit_note_gst_p: gcn.tax_p,
+          net_gst_after_credit_notes_p: (totalRow.gst_amount_p || 0) - gcn.tax_p
         },
         by_date: dailyRows.map(r => ({
           date: r.date,
@@ -2612,6 +2808,28 @@ export class SetuHotel extends DurableObject {
           gross_amount_p: r.gross_amount_p || 0
         })),
         pagination: { limit, offset, total_days: totalDaysRow.c || 0 }
+      };
+    }
+
+    // 4b. Credit Notes Register (Phase 3.5e)
+    if(subpath === 'credit-notes'){
+      const r = parseDateRange('c.date');
+      const w = r.clauses.length ? ' AND ' + r.clauses.join(' AND ') : '';
+      const rows = this.sql.exec(
+        `SELECT c.id, c.no, c.date, c.time, c.bill_id, c.bill_no, c.bill_date, c.gstin, c.channel, c.rate, c.taxable_p, c.tax_p, c.total_p,
+                c.refund, c.reason, c.issued_by, c.bill_known, COALESCE(b.cancelled, 0) AS bill_cancelled
+         FROM sync_credit_notes c LEFT JOIN sync_bills b ON b.id = c.bill_id WHERE 1 = 1 ${w}
+         ORDER BY c.date DESC, c.no DESC LIMIT ? OFFSET ?`, ...r.params, limit, offset).toArray();
+      const unlinked = this.sql.exec(
+        `SELECT COUNT(*) AS n FROM sync_credit_notes c LEFT JOIN sync_bills b ON b.id = c.bill_id WHERE b.id IS NULL ${w}`, ...r.params).toArray()[0] || {};
+      return {
+        ok: true,
+        hotel: this.account.code,
+        from: r.from || null,
+        to: r.to || null,
+        summary: { ...creditNoteTotals(), original_bill_not_in_cloud: unlinked.n || 0 },
+        credit_notes: rows.map(x => ({ ...x, total: x.total_p / 100, bill_known: !!x.bill_known, bill_cancelled: !!x.bill_cancelled })),
+        pagination: { limit, offset }
       };
     }
 
@@ -2662,7 +2880,9 @@ export class SetuHotel extends DurableObject {
     if(subpath === 'expenses'){
       const range = parseDateRange('date');
       const typeParam = url.searchParams.get('type') || '';
-      const typeClause = typeParam ? ' AND type = ?' : '';
+      // Refunds paid against credit notes are not expenses (the credit note already reduced sales); listed separately
+      const notRefund = " AND COALESCE(json_extract(raw_json, '$.head'), '') <> 'Customer Refund'";
+      const typeClause = (typeParam ? ' AND type = ?' : '') + notRefund;
       const queryParams = typeParam ? [...range.params, typeParam] : range.params;
 
       const typeRows = this.sql.exec(
@@ -2674,10 +2894,10 @@ export class SetuHotel extends DurableObject {
       ).toArray();
 
       const catRows = this.sql.exec(
-        `SELECT category, COUNT(*) AS count,
+        `SELECT COALESCE(NULLIF(category, ''), json_extract(raw_json, '$.head'), '') AS category, COUNT(*) AS count,
                 COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) AS total_amount_p
          FROM sync_vouchers WHERE cancelled = 0 ${range.whereSql}${typeClause}
-         GROUP BY category ORDER BY total_amount_p DESC`,
+         GROUP BY 1 ORDER BY total_amount_p DESC`,
         ...queryParams
       ).toArray();
 
@@ -2717,6 +2937,12 @@ export class SetuHotel extends DurableObject {
           total: (r.total_amount_p || 0) / 100,
           total_p: r.total_amount_p || 0
         })),
+        credit_note_refunds: (() => {
+          const x = this.sql.exec(
+            `SELECT COUNT(*) AS count, COALESCE(SUM(CAST(ROUND(amount * 100) AS INTEGER)), 0) AS total_p FROM sync_vouchers
+             WHERE cancelled = 0 AND json_extract(raw_json, '$.head') = 'Customer Refund' ${range.whereSql}`, ...range.params).toArray()[0] || {};
+          return { count: x.count || 0, total: (x.total_p || 0) / 100, total_p: x.total_p || 0 };
+        })(),
         purchases_summary: {
           count: purchRow.count || 0,
           total: (purchRow.total_purchases_p || 0) / 100,
@@ -2948,7 +3174,8 @@ export class SetuHotel extends DurableObject {
         ...(b.lifetime ? { lifetime: true } : {}),
         created: Date.now(), paidUntil: b.paidUntil, status: b.status || 'trial', plan: b.plan || 'trial',
         syncHash: await sha256(syncKey), syncKey, pendingKeys: [], config: newConfig(b.businessType, b.tier),
-        ...(b.password ? { ownerHash2: await SEC.hashSecret(b.password), initialDays: b.days } : {}) };
+        ...(b.password ? { ownerHash2: await SEC.hashSecret(b.password), initialDays: b.days } : {}),
+        ...(b.mustChange ? { mustChange: true } : {}) };
       let trialKey = '';
       if(b.installId && !b.noKey){
         trialKey = await makeLicenseKey(this.env, b.installId, b.days);
@@ -2972,18 +3199,17 @@ export class SetuHotel extends DurableObject {
           'act_' + Date.now(), 'active', b.days || 365, Date.now(), b.key);
       }
       this.saveAccount();
-      this.emitInboundEvent('licence_update', b.key || ('lic_' + Date.now()), {
-        key: b.key || '',
-        plan: b.plan || 'active',
-        days: b.days || 365,
-        paid_until: this.account.paidUntil,
-        status: this.account.status,
-        lifetime: !!this.account.lifetime,
-        signature: b.signature || '',
-        hotel_id: this.account.code,
-        install_id: b.installId || '',
-        at: Date.now()
-      });
+      // Cloud status updates without a signed key do not grant offline
+      // counter licences. They must not produce an un-verifiable event.
+      if(b.key){
+        this.emitInboundEvent('licence_update', b.key, {
+          key: b.key, plan: b.plan || 'active', days: b.days || 365,
+          paid_until: this.account.paidUntil,
+          status: this.account.status, lifetime: !!this.account.lifetime,
+          hotel_id: this.account.code, install_id: b.installId || '',
+          at: Date.now()
+        });
+      }
       await regCall(this.env, '/update', {
         code: this.account.code,
         status: 'active',
@@ -3007,17 +3233,46 @@ export class SetuHotel extends DurableObject {
       if(!this.account) return json(404, { error: 'Hotel not found' });
       const b = body();
       const pw = String(b.password || '');
-      let found = false;
-      if(pw && await this.ownerMatches(pw)){
-        found = true;
+      // Owner sign-in only. It returns an admin token AND the hotel's Sync Key, so a staff / cashier PIN must never pass
+      // here (staff sign in with their PIN at /api/login, which gives their own role and no Sync Key). Same wrong-try
+      // lock as /api/login; the caller's IP comes from the public route (internal paths are not reachable from outside).
+      const ip = String(b.ip || 'unknown'), now0 = Date.now();
+      const fails = this.kvGet('fail:' + ip) || { n: 0, at: now0 }, all = this.kvGet('fail:*') || { n: 0, at: now0 };
+      if(now0 - fails.at > FAIL_WINDOW){ fails.n = 0; fails.at = now0; }
+      if(now0 - all.at > FAIL_WINDOW){ all.n = 0; all.at = now0; }
+      if(fails.n >= FAIL_LIMIT || all.n >= GLOBAL_FAIL_LIMIT) return json(429, { error: 'Too many wrong tries. Please try again in 15 minutes.' });
+      const a = this.account, user = String(b.username || '').trim().toLowerCase();
+      const userOk = !user || ['owner', 'admin', 'manager'].includes(user) ||
+        [a.owner, a.phone, a.email].some(x => x && String(x).trim().toLowerCase() === user);
+      let found = false, viaOwner = false;
+      if(userOk && pw){
+        if(await this.ownerMatches(pw)) found = viaOwner = true;
+        else {
+          await this.ensureSecure();
+          let d = {};
+          try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+          found = await SEC.checkMaster(d, pw);       // owner password / manager admin PIN slots only, never staff PINs
+        }
       }
       if(!found){
-        await this.ensureSecure();
-        const pinMatch = await this.checkPin(pw);
-        if(pinMatch) found = true;
-      }
-      if(!found){
+        fails.n++; all.n++;
+        this.kvSet('fail:' + ip, fails);
+        this.kvSet('fail:*', all);
         return json(401, { error: 'Invalid Hotel ID, Username, or Password.' });
+      }
+      this.kvDel('fail:' + ip);
+      // New owner password: needed after a vendor-issued (temporary) password, allowed for a too-simple one.
+      // Only the owner password itself can change it, never the manager PIN slot.
+      const newPw = String(b.newPassword || '');
+      if(newPw && viaOwner){
+        if(passwordProblem(newPw)) return json(400, { error: passwordProblem(newPw), code: 'WEAK_NEW_PASSWORD' });
+        if(newPw === pw) return json(400, { error: 'Choose a password different from the temporary one.', code: 'SAME_PASSWORD' });
+        await this.setOwnerPassword(newPw, false);
+        this.saveAccount();
+      } else {
+        if(a.mustChange && viaOwner) return json(403, { error: 'MUST_CHANGE_PASSWORD', code: 'MUST_CHANGE_PASSWORD', hotelId: a.code, hotelName: a.name,
+          message: 'Please choose your own password to finish signing in.' });
+        if(isWeak(pw)) return json(403, { error: 'The owner password is too simple. Change it in Settings on the counter, or ask the vendor to reset it.', code: 'WEAK_PASSWORD' });
       }
 
       if(this.account.status === 'pending'){
@@ -3050,7 +3305,7 @@ export class SetuHotel extends DurableObject {
         });
       }
 
-      const token = this.newToken('admin', this.account.owner || b.username || 'Admin');
+      const token = this.newToken('admin', this.account.owner || 'Admin');
       const paidUntil = (this.account.paidUntil && this.account.paidUntil > Date.now())
         ? this.account.paidUntil
         : (this.account.status === 'active' ? (Date.now() + 365 * DAY) : (this.account.paidUntil || (Date.now() + 30 * DAY)));
@@ -3090,9 +3345,9 @@ export class SetuHotel extends DurableObject {
     if(path === '/internal/admin'){
       let notes;
       try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
-      const syncKey = this.issuedSyncKey;
-      this.issuedSyncKey = '';
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerHash2 || this.account.ownerHash) });
+      const syncKey = this.issuedSyncKey, ownerPassword = this.issuedOwnerPassword;
+      this.issuedSyncKey = ''; this.issuedOwnerPassword = '';
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), ...(ownerPassword ? { ownerPassword } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerHash2 || this.account.ownerHash), mustChange: !!this.account.mustChange });
     }
     if(path === '/internal/errors'){
       let d = null;
@@ -3274,24 +3529,42 @@ export class SetuHotel extends DurableObject {
       }
 
       const eventIds = Array.isArray(b.event_ids) ? b.event_ids :
-                       Array.isArray(b.acks) ? b.acks.map(a => typeof a === 'string' ? a : (a && a.id)).filter(Boolean) : [];
-      if(!eventIds.length){
-        return json(400, { error: 'event_ids or acks array required' });
+                       Array.isArray(b.acks) ? b.acks.map(a => typeof a === 'string' ? a : a?.id) : [];
+      if(!eventIds.length || eventIds.length > 100 ||
+         eventIds.some(id => typeof id !== 'string' || !/^evt_[0-9]+_[A-Za-z0-9_-]{1,64}$/.test(id))){
+        return json(400, { ok: false, error: 'INVALID_EVENT_ACKS' });
       }
-
-      const now = Date.now();
+      // A missing ID is never "acknowledged": reject the entire request.
+      const uniqueIds = [...new Set(eventIds)];
       let ackedCount = 0;
-      for(const id of eventIds){
-        if(typeof id === 'string' && id){
-          this.sql.exec('UPDATE sync_inbound_events SET acked = 1, acked_at = ? WHERE id = ?', now, id);
-          ackedCount++;
-        }
+      const now = Date.now();
+      try {
+        this.ctx.storage.transactionSync(() => {
+          for(const id of uniqueIds){
+            const row = this.sql.exec(
+              'SELECT id, acked FROM sync_inbound_events WHERE id = ?', id
+            ).toArray()[0];
+            if(!row) throw new Error('UNKNOWN_INBOUND_EVENT_ID');
+            if(!Number(row.acked)){
+              this.sql.exec(
+                'UPDATE sync_inbound_events SET acked = 1, acked_at = ? WHERE id = ? AND acked = 0',
+                now, id
+              );
+              ackedCount++;
+            }
+          }
+        });
+      } catch(err) {
+        return json(404, { ok: false, error: 'UNKNOWN_INBOUND_EVENT_ID' });
       }
-      const pendingCount = this.sql.exec('SELECT COUNT(*) AS c FROM sync_inbound_events WHERE acked = 0').toArray()[0]?.c || 0;
+      const pendingCount = this.sql.exec(
+        'SELECT COUNT(*) AS c FROM sync_inbound_events WHERE acked = 0'
+      ).toArray()[0]?.c || 0;
       return json(200, {
         ok: true,
         hotel: this.account.code,
-        acked_count: ackedCount,
+        acked_count: ackedCount,   // newly changed rows, not submitted count
+        acked_ids: uniqueIds,      // includes already-confirmed IDs for retry recovery
         pending_remaining: pendingCount
       });
     }
@@ -3906,7 +4179,7 @@ export class SetuHotel extends DurableObject {
     // Setu AI: owner / manager (or the counter PC) asks; the Worker adds the hotel's totals and asks Gemini
     if(method === 'POST' && path === '/api/ai'){
       if(!isAdmin) return json(403, { error: 'Setu AI is for the owner / manager only' });
-      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Talk to your vendor.' });
+      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Call the HoReCa One Helpline +91 91941 15127.' });
       const q = str(body().question, 500);
       if(q.length < 3) return json(400, { error: 'Type a question' });
       const c = await aiConf(this.env);
@@ -3925,7 +4198,7 @@ export class SetuHotel extends DurableObject {
     // Purchase bill photo → items, supplier, GST (counts as one AI question)
     if(method === 'POST' && path === '/api/ai/bill'){
       if(!isAdmin) return json(403, { error: 'Reading bill photos is for the owner / manager only' });
-      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Talk to your vendor.' });
+      if(!saasView(this.account).features.ai) return json(403, { error: 'Setu AI is not in your plan. Call the HoReCa One Helpline +91 91941 15127.' });
       const b = body(), image = String(b.image || ''), mime = ['image/jpeg', 'image/png', 'image/webp'].includes(b.mime) ? b.mime : 'image/jpeg';
       if(image.length < 1000 || image.length > 4000000 || !/^[A-Za-z0-9+/=]+$/.test(image.slice(0, 2000))) return json(400, { error: 'Send a photo of the bill (up to about 3 MB)' });
       const c = await aiConf(this.env);
@@ -4014,7 +4287,7 @@ function signupInput(b){
   if(out.name.length < 2 || !out.owner) return { error: 'Please enter the hotel and owner names' };
   if(out.phone.length !== 10) return { error: 'Please enter a 10-digit mobile number' };
   if(out.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) return { error: 'Invalid email address' };
-  if(out.password.length < 6 || isWeak(out.password)) return { error: 'Password must be at least 6 characters and not too simple' };
+  if(passwordProblem(out.password)) return { error: passwordProblem(out.password) };
   return out;
 }
 
@@ -4029,7 +4302,8 @@ async function createHotel(env, input, opts){
   const h = await hotelStub(env, code).fetch('https://hotel/internal/create', { method: 'POST', body: JSON.stringify({
     code, name: input.name, owner: input.owner, phone: input.phone, email: input.email, businessType: input.businessType, tier,
     installId: opts.installId || '', password: opts.installId ? '' : input.password, days: opts.days, paidUntil,
-    status: opts.status, plan: opts.plan, counterId: opts.counterId || '', lifetime: !!opts.lifetime, noKey: !!opts.noKey }) });
+    status: opts.status, plan: opts.plan, counterId: opts.counterId || '', lifetime: !!opts.lifetime, noKey: !!opts.noKey,
+    mustChange: !!opts.mustChange }) });
   if(!h.ok){
     await regCall(env, '/release', { code });
     return json(500, { error: 'Could not create the hotel. Please try again.' });
@@ -4039,6 +4313,10 @@ async function createHotel(env, input, opts){
 
 
 async function hotelRegister(request, env){
+  // New hotels are created by the vendor in Super Admin (Hotel ID + temporary password). Open self-registration
+  // only when the deployment sets PUBLIC_REGISTRATION = "on".
+  if(String(env.PUBLIC_REGISTRATION || '').toLowerCase() !== 'on')
+    return json(403, { error: 'New hotels are set up by your HoReCa One provider. Please contact them for your Hotel ID and password (Helpline +91 91941 15127).', code: 'REGISTRATION_CLOSED' });
   let b;
   try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
   const hotelName = String(b.hotelName || b.name || '').trim();
@@ -4046,11 +4324,12 @@ async function hotelRegister(request, env){
   const phone = String(b.phone || b.mobile || '').replace(/\D/g, '');
   const username = String(b.username || 'owner').trim();
   const password = String(b.password || '').trim();
+  const businessType = TEMPLATES[b.businessType] ? b.businessType : 'restaurant';
 
   if(hotelName.length < 2) return json(400, { error: 'Hotel Name must be at least 2 characters.' });
   if(ownerName.length < 2) return json(400, { error: 'Owner Name must be at least 2 characters.' });
   if(phone.length < 10) return json(400, { error: 'Valid 10-digit mobile number is required.' });
-  if(password.length < 4) return json(400, { error: 'Password must be at least 4 characters.' });
+  if(passwordProblem(password)) return json(400, { error: passwordProblem(password) });
 
   // Generate unique immutable Hotel ID (HOTEL + 4 numeric digits)
   let hotelId = '';
@@ -4076,7 +4355,7 @@ async function hotelRegister(request, env){
     status: 'pending',
     plan: 'pending',
     tier: 'premium',
-    btype: 'restaurant',
+    btype: businessType,
     customCode: hotelId,
     ip
   });
@@ -4094,7 +4373,7 @@ async function hotelRegister(request, env){
       owner: ownerName,
       phone,
       email: b.email || '',
-      businessType: 'restaurant',
+      businessType,
       tier: 'premium',
       password,
       days: 0,
@@ -4140,8 +4419,8 @@ async function hotelActivate(request, env){
     lic = await verifyLicense(env, key, installId || hotelId);
   } catch(e) {
     const msg = /expired/i.test(e.message)
-      ? 'This Activation Key has expired. Please contact your vendor for a valid key.'
-      : 'Invalid Activation Key. Please verify the key or contact your software vendor.';
+      ? 'This Activation Key has expired. Please call the HoReCa One Helpline +91 91941 15127 for a valid key.'
+      : 'Invalid Activation Key. Please verify the key or call the HoReCa One Helpline +91 91941 15127.';
     return json(400, { ok: false, error: msg });
   }
 
@@ -4183,7 +4462,7 @@ async function hotelLogin(request, env){
   let b;
   try{ b = await request.json(); }catch(e){ return json(400, { error: 'bad request' }); }
   const hotelId = String(b.hotelId || '').trim().toUpperCase();
-  const username = String(b.username || 'owner').trim();
+  const username = String(b.username || 'owner').trim().slice(0, 100);
   const password = String(b.password || '').trim();
 
   if(!hotelId) return json(400, { error: 'Please enter Hotel ID.' });
@@ -4191,13 +4470,13 @@ async function hotelLogin(request, env){
 
   const regCheck = await regJson(env, '/hotel/get', { code: hotelId });
   if(!regCheck || !regCheck.hotel){
-    return json(404, { error: 'Hotel ID not found. Please check your Hotel ID or register as a New Hotel.' });
+    return json(404, { error: 'Hotel ID not found. Please check the Hotel ID from your HoReCa One provider (Helpline +91 91941 15127).' });
   }
 
   const stub = hotelStub(env, hotelId);
   const authRes = await stub.fetch('https://hotel/internal/auth', {
     method: 'POST',
-    body: JSON.stringify({ username, password })
+    body: JSON.stringify({ username, password, newPassword: String(b.newPassword || '').trim(), ip: request.headers.get('CF-Connecting-IP') || 'unknown' })
   });
 
   const j = await authRes.json().catch(() => ({}));
@@ -4219,7 +4498,7 @@ async function signup(request, env){
     try{ lic = await verifyLicense(env, b.key, installId); }catch(e){
       return json(403, { error: /expired/.test(e.message) ? 'This Master Key has expired. Get a new one from your vendor.' : 'The key is not valid. Paste the full Master Key from your vendor.' });
     }
-    if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This phone has been blocked. Talk to your vendor.' });
+    if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This phone has been blocked. Call the HoReCa One Helpline +91 91941 15127.' });
     const have = (await regJson(env, '/byiid', { iid: installId })).code;
     if(have) return json(409, { error: `A hotel was already created from this phone (Hotel Code ${have}). Please sign in.`, code: have });
     const days = lic.lifetime ? 3650 : Math.max(1, Math.ceil((lic.until - Date.now()) / DAY));
@@ -4238,7 +4517,7 @@ async function counterLink(request, env){
   if(!/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(installId)) return json(400, { error: 'install id' });
   let lic;
   try{ lic = await verifyLicense(env, b.key, installId); }catch(e){ return json(403, { error: e.message }); }
-  if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This computer has been blocked. Talk to your vendor.' });
+  if((await regJson(env, '/blocked/check', { iid: installId })).blocked) return json(403, { error: 'This computer has been blocked. Call the HoReCa One Helpline +91 91941 15127.' });
   // Already joined (setu-cloud.json lost, Windows reinstalled): only the owner password may take it over
   const have = (await regJson(env, '/byiid', { iid: installId })).code;
   if(have) return json(409, { error: 'linked', code: have });
@@ -4361,16 +4640,61 @@ async function admin(request, env, path){
   if(path === '/api/admin/audit') return regCall(env, '/audit/list', { code: validCode(body.code) ? body.code : '' });
 
   if(path === '/api/admin/create'){
+    // The same form sent again (many taps, a retry) makes no second hotel: it gets the first one back
+    const idem = /^[A-Za-z0-9_-]{8,64}$/.test(String(body.idemKey || '')) ? String(body.idemKey) : '';
+    if(idem){
+      const c = await regJson(env, '/idem/claim', { k: 'create:' + idem });
+      if(c.busy) return json(409, { error: 'This hotel is already being created. Please wait.', code: 'IN_PROGRESS' });
+      if(c.done) return json(200, { ...c.result, duplicate: true });
+    }
+    try{
+    if(body.offline){
+      // Offline hotel: no cloud login. One form = hotel record (Offline) + the licence key for its counter PC
+      const done = r => idem ? regCall(env, '/idem/done', { k: 'create:' + idem, result: r }) : null;
+      const fail = async (s, e) => { await done(null); return json(s, { error: e }); };
+      const iid = String(body.installId || '').trim().toUpperCase();
+      if(!/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(iid)) return fail(400, 'Enter the Install ID shown on the counter PC (e.g. SETU-AB12-CD34)');
+      const lp = await licPriv(env);
+      if(!lp.pem) return fail(400, 'Keygen is not set up yet. First add the key file in Keygen → Setup.');
+      const pl = offlinePlan(body);
+      if(pl.error) return fail(400, pl.error);
+      if((await regJson(env, '/blocked/check', { iid })).blocked) return fail(403, 'This computer is blocked. Unblock it in More → Blocked computers first.');
+      const owner = (await regJson(env, '/byiid', { iid })).code;
+      if(owner) return fail(409, `This computer already belongs to hotel ${owner}. Open that hotel and use Renewal key.`);
+      const input = signupInput({ ...body, password: tempPassword() });
+      if(input.error) return fail(400, input.error);
+      const res = await createHotel(env, input, { days: pl.lifetime ? 3650 : pl.days, admin: true, tier: TIERS[body.tier] ? body.tier : undefined,
+        status: 'active', plan: 'offline', iid, installId: iid, noKey: true, lifetime: pl.lifetime });
+      if(!res.ok){ await done(null); return res; }
+      const { code } = await res.json();
+      const key = await makeLicenseKey(env, iid, pl.value, pl.kind, lp.pem);
+      const until = pl.lifetime ? 0 : Date.now() + pl.days * DAY;
+      await hotelCall(code, '/internal/activate', { key, days: pl.days || 3650, paidUntil: until || Date.now() + 3650 * DAY, lifetime: pl.lifetime, plan: 'offline', installId: iid });
+      await hotelCall(code, '/internal/admin', { offline: true });
+      await regCall(env, '/update', { code, lic: licText(pl.lifetime, until), iid });
+      const out = { code, offline: true, installId: iid, key, label: pl.label, until, lifetime: pl.lifetime };
+      await log('Offline hotel created', code, `${input.name} · ${input.businessType} · ${pl.label} · ${iid}`);
+      await done(out);
+      return json(200, out);
+    }
+    // Vendor-issued login: with no password typed, a temporary one is made; the owner must change it at first sign-in
+    const generated = !body.password ? tempPassword() : '';
+    if(generated) body.password = generated;
+    // A password the vendor typed is also temporary unless the request says otherwise (mustChange: false, e.g. a move)
+    const mustChange = !!generated || body.mustChange !== false;
     const input = signupInput(body);
-    if(input.error) return json(400, input);
+    if(input.error){ if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: null }); return json(400, input); }
     const days = Math.max(1, Math.min(3650, +body.days || 14));
     const res = await createHotel(env, input, { days, admin: true, tier: TIERS[body.tier] ? body.tier : undefined,
-      status: body.paid ? 'active' : 'trial', plan: body.paid ? 'manual' : 'trial' });
-    if(res.ok){
-      const j = await res.clone().json();
-      await log('Hotel created', j.code, `${input.name} · ${input.businessType} · ${days} days${body.paid ? ' (paid)' : ''}`);
-    }
-    return res;
+      status: body.paid ? 'active' : 'trial', plan: body.paid ? 'manual' : 'trial', mustChange: mustChange });
+    if(!res.ok){ if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: null }); return res; }
+    const j = await res.json();
+    await log('Hotel created', j.code, `${input.name} · ${input.businessType} · ${days} days${body.paid ? ' (paid)' : ''}`);
+    // A repeat of this request gets the hotel back, never the password or keys (shown once, here)
+    if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: { code: j.code, loginId: j.code, username: 'owner', mustChange } });
+    // The password is shown to the vendor once (Login Card); only its salted hash is stored
+    return json(200, { ...j, loginId: j.code, username: 'owner', ...(generated ? { ownerPassword: generated } : {}), mustChange });
+    }catch(e){ if(idem) await regCall(env, '/idem/done', { k: 'create:' + idem, result: null }).catch(() => {}); throw e; }
   }
 
   // ----- Setu AI settings (one Gemini key for all hotels) -----
@@ -4406,8 +4730,8 @@ async function admin(request, env, path){
       const d = Math.round(+body.days || 7);
       if(d < 1 || d > 30) return json(400, { error: 'A Master Key can be for 1 to 30 days' });
       const key = await makeLicenseKey(env, '', d, 6, lp.pem);
-      await log('Master Key banayi', '', `${d} days, usable ${MASTER_KEY_LIFE} days`);
-      return json(200, { key, label: `Master Key (${d} din)`, days: d, usableTill: Date.now() + MASTER_KEY_LIFE * DAY });
+      await log('Master Key made', '', `${d} days, usable ${MASTER_KEY_LIFE} days`);
+      return json(200, { key, label: `Master Key (${d} days)`, days: d, usableTill: Date.now() + MASTER_KEY_LIFE * DAY });
     }
     if(!body.installId) return json(200, { ready: !!lp.pem, from: lp.from, plans: Object.fromEntries(Object.entries(KEY_PLANS).map(([k, v]) => [k, v[2]])) });
     if(!lp.pem) return json(400, { error: 'Keygen is not set up yet. First add the key file in Keygen → Setup.' });
@@ -4428,7 +4752,7 @@ async function admin(request, env, path){
       if(!r.ok) return json(200, { key, label, sentTo: '', note: 'Could not send it to the hotel. Enter the key on the PC yourself.' });
       sentTo = to;
     }
-    await log('Key banayi', sentTo || '', `${label} · ${iid}${sentTo ? ' · sent to PC' : ''}`);
+    await log('Key made', sentTo || '', `${label} · ${iid}${sentTo ? ' · sent to PC' : ''}`);
     return json(200, { key, label, sentTo });
   }
   if(path === '/api/admin/tickets') return regCall(env, '/ticket/list', { code: validCode(body.code) ? body.code : '', read: body.read ? 'admin' : '' });
@@ -4442,6 +4766,33 @@ async function admin(request, env, path){
 
   const code = String(body.code || '').toUpperCase();
   if(!validCode(code)) return json(400, { error: 'code' });
+
+  // Offline hotel: a renewal key for the same counter PC. One Apply = one key, so its days are never added twice on the PC
+  if(path === '/api/admin/offline/renew'){
+    const op = /^[A-Za-z0-9_-]{8,64}$/.test(String(body.opId || '')) ? 'renew:' + code + ':' + body.opId : '';
+    if(!op) return json(400, { error: 'opId required' });
+    const c = await regJson(env, '/idem/claim', { k: op });
+    if(c.busy) return json(409, { error: 'This key is already being made. Please wait.', code: 'IN_PROGRESS' });
+    if(c.done) return json(200, { ...c.result, duplicate: true });
+    const done = r => regCall(env, '/idem/done', { k: op, result: r });
+    const h = (await regJson(env, '/hotel/get', { code })).hotel;
+    if(!h){ await done(null); return json(404, { error: 'hotel not found' }); }
+    if(!+h.offmode || !/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(h.iid || '')){ await done(null); return json(400, { error: 'Renewal key is for an Offline hotel with an Install ID. Use Keygen for this hotel.' }); }
+    const lp = await licPriv(env);
+    if(!lp.pem){ await done(null); return json(400, { error: 'Keygen is not set up yet. First add the key file in Keygen → Setup.' }); }
+    const pl = offlinePlan(body);
+    if(pl.error){ await done(null); return json(400, { error: pl.error }); }
+    const key = await makeLicenseKey(env, h.iid, pl.value, pl.kind, lp.pem);
+    // Same rule as the PC: days are added to the current licence, or start today when it has ended
+    const cur = h.lic && h.lic !== 'lifetime' ? Date.parse(h.lic) || 0 : 0;
+    const until = pl.lifetime ? 0 : Math.max(cur, Date.now()) + pl.days * DAY;
+    await hotelCall(code, '/internal/activate', { key, days: pl.days || 3650, paidUntil: until || Date.now() + 3650 * DAY, lifetime: pl.lifetime, plan: 'offline', installId: h.iid });
+    await regCall(env, '/update', { code, lic: licText(pl.lifetime || h.lic === 'lifetime', until) });
+    const out = { code, installId: h.iid, key, label: pl.label, until, lifetime: pl.lifetime || h.lic === 'lifetime' };
+    await log('Offline renewal key', code, `${pl.label} · ${h.iid}`);
+    await done(out);
+    return json(200, out);
+  }
 
   if(path === '/api/admin/ticket'){
     const r = await regCall(env, '/ticket/put', { code, by: 'admin', id: String(body.id || ''), text: body.reply || '', status: body.status });
@@ -4471,11 +4822,21 @@ async function admin(request, env, path){
   }
 
   if(path === '/api/admin/hotel'){
-    const r = await hotelCall(code, '/internal/admin', body.update || {});
+    // Changes that ADD (days, payment, WhatsApp credits) are applied once per operation id: a repeated tap or a
+    // network retry of the same "Apply" adds nothing more
+    const upd = body.update || {}, adds = ['days', 'amount', 'addWaCredits'].some(k => upd[k] !== undefined);
+    const op = adds && /^[A-Za-z0-9_-]{8,64}$/.test(String(body.opId || '')) ? 'upd:' + code + ':' + body.opId : '';
+    if(op){
+      const c = await regJson(env, '/idem/claim', { k: op });
+      if(c.busy) return json(409, { error: 'This change is already being applied. Please wait.', code: 'IN_PROGRESS' });
+      if(c.done){ const v = await hotelCall(code, '/internal/admin', {}); return json(200, { ...(await v.json()), duplicate: true }); }
+    }
+    const r = await hotelCall(code, '/internal/admin', upd);
+    if(op) await regCall(env, '/idem/done', { k: op, result: r.ok ? { ok: true } : null }).catch(() => {});
     if(!r.ok) return r;
     const j = await r.json();
     j.domains = (await regJson(env, '/domain/list', { code })).domains;
-    if(j.notes && j.notes.length) await log('Hotel badla', code, j.notes.join(', '));
+    if(j.notes && j.notes.length) await log('Hotel changed', code, j.notes.join(', '));
     return json(200, j);
   }
   if(path === '/api/admin/support'){
@@ -4509,7 +4870,7 @@ async function admin(request, env, path){
     const records = domainInstructions(env, ch);
     const r = await regCall(env, '/domain/put', { host, code, kind: 'custom', status: 'pending', cf_id: ch.id, info: { records } });
     if(!r.ok) return r;
-    await log('Custom domain joda', code, host);
+    await log('Custom domain added', code, host);
     return json(200, { host, status: 'pending', records });
   }
   if(path === '/api/admin/domain/check' || path === '/api/admin/domain/remove'){
@@ -4519,7 +4880,7 @@ async function admin(request, env, path){
     if(path === '/api/admin/domain/remove'){
       if(d.cf_id){ try{ await cfApi(env, 'DELETE', '/custom_hostnames/' + d.cf_id); }catch(e){} }
       await regCall(env, '/domain/remove', { host });
-      await log('Domain hataya', code, host);
+      await log('Domain removed', code, host);
       return json(200, { ok: true });
     }
     if(!d.cf_id) return json(200, { host, status: d.status, records: [] });
@@ -4627,7 +4988,7 @@ export default {
     }
     if(path === '/api/hotel/register' && request.method === 'POST') return hotelRegister(request, env);
     if(path === '/api/hotel/activate' && request.method === 'POST') return hotelActivate(request, env);
-    if((path === '/api/hotel/login' || path === '/api/hotel/auth') && request.method === 'POST') return hotelLogin(request, env);
+    if((path === '/api/hotel/login' || path === '/api/hotel/auth' || path === '/api/hotel/password') && request.method === 'POST') return hotelLogin(request, env);
     if(path === '/api/signup' && request.method === 'POST') return signup(request, env);
     if(path === '/api/counter/link' && request.method === 'POST') return counterLink(request, env);
     if(path === '/api/razorpay/webhook' && request.method === 'POST') return webhook(request, env);

@@ -303,11 +303,17 @@ also shows `setu-server.log` via `/api/log` (main counter only). Log every new f
 
 ## 16. Operator runbook (vendor)
 
-- **New client:** pendrive with `Setu-POS-Setup.exe` + `Setu-Master-Key.txt` → install → Sign Up (hotel, owner, user ID, password,
-  Master Key) → it shows in Super Admin within seconds (internet) → Hotel → Activate → plan → **Aaj se N din** → Key banao.
+- **New client (vendor-issued login, CHG-0035):** Super Admin → More → Create New Hotel (name, owner, mobile, Business Type, plan,
+  days, Paid; leave the password empty) → **Login Card** (Hotel ID, username `owner`, temporary password, website + installer links;
+  WhatsApp / Copy / Print; shown once, only a salted hash is stored). The owner signs in on the website or the counter PC with it and
+  must choose their own password (`MUST_CHANGE_PASSWORD` → `/api/hotel/password`; the counter proxies it and keeps the new password for
+  offline sign-in). Public self-registration (`/api/hotel/register`) is closed unless the Worker variable `PUBLIC_REGISTRATION = on`.
+  Old route (still works): pendrive with `Setu-POS-Setup.exe` + `Setu-Master-Key.txt` → Sign Up with the Master Key.
 - **Renew:** Hotel → Activate → plan → "Purani date mein jodo" (keeps remaining days) or "Aaj se N din" (exact date).
 - **Payment due:** Warning → Lock → Suspend; undo with Unlock / Activate.
-- **Owner forgot password:** Hotel → Password (works on the phone app now, on the PC after the next sync), or a Reset key.
+- **Owner forgot password:** Hotel → Sab settings → Owner Password → **Reset: make a temporary password** (or type one). The old
+  password stops at once; the owner signs in with the temporary one and must choose a new one. Only the owner password can change it
+  (never the manager PIN slot). Or a Reset key.
 - **New / formatted PC:** install → Settings → Hotel Setu Cloud → Restore (Hotel Code + owner password), or Restore from JSON backup.
 - **Which hotels need the new EXE:** version tag "purana" in Hotels.
 

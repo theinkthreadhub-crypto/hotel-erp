@@ -444,7 +444,10 @@ async function api(path, body, again){
   return j;
 }
 // Errors show in the page: the phone app has no native alert()
-const run = fn => async (...a) => { try{ await fn(...a); }catch(e){ toast(e.message, true); } };
+// Every action button: one press at a time. Taps while the first one is still working are ignored, so a
+// quick double / ten-fold tap can never add days, credits or hotels twice (the server checks again: opId / idemKey)
+const run = fn => { let busy = false; return async (...a) => { if(busy) return; busy = true; try{ await fn(...a); }catch(e){ toast(e.message, true); } finally { busy = false; } }; };
+const opId = () => 'o' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
 
 // ----- layers: Android back closes the top one -----
 let LAYERS = 0;
@@ -473,6 +476,8 @@ $('#sheet').onclick = e => { if(e.target.id === 'sheet') closeSheet(); };
 // In-page confirm: resolves with the box's input values ({id: value}) on OK, null on cancel
 let ASK = null;
 function ask(title, html, ok, danger){
+  // A box replaced by another counts as cancelled, so the action that waited for it finishes (run() unlocks)
+  if(ASK){ const old = ASK; ASK = null; old(null); }
   $('#abox').innerHTML = `<h2>${title}</h2>${html || ''}<div class="btns"><button class="g" onclick="popLayer()">Cancel</button><button class="${danger ? 'bad' : ''}" id="ask-ok">${ok || 'OK'}</button></div>`;
   layerIn($('#ask')); pushLayer();
   setTimeout(() => { const f = $('#abox input, #abox textarea'); f && f.focus(); }, 250);
@@ -529,6 +534,8 @@ async function loadHotels(){ const j = await api('/api/admin/hotels'); HOTELS = 
 // ---------------- hotels (simple list) ----------------
 const DAYMS = 864e5;
 // Counter licence from the hotel's data: 'lifetime' or a date (ISO)
+const RENEW_DAYS = 15;   // Offline hotel: renewal key is due this many days before the licence ends
+const renewDue = h => { if(!+h.offmode) return false; const d = licDays(h); return d !== null && d !== Infinity && d <= RENEW_DAYS; };
 const licDays = h => h.lic === 'lifetime' ? Infinity : h.lic ? Math.ceil((Date.parse(h.lic) - Date.now()) / DAYMS) : null;
 const payDays = h => h.paid_until ? Math.ceil((h.paid_until - Date.now()) / DAYMS) : null;
 const staleH = h => h.seen ? (Date.now() - h.seen) / 36e5 : 1e9;
@@ -554,7 +561,7 @@ const billsToday = h => +bdays(h)[istDay()] || 0;
 const bills7 = h => { const b = bdays(h), from = istDay(Date.now() - 6 * DAYMS); return Object.keys(b).filter(k => k >= from).reduce((a, k) => a + (+b[k] || 0), 0); };
 // Days since the last bill (null = no bill ever); a hotel joined less than 3 days ago is not "idle" yet
 const idleDays = h => h.lastbill ? Math.floor((Date.parse(istDay()) - Date.parse(h.lastbill)) / DAYMS) : null;
-const notUsing = h => state(h) !== 'suspended' && Date.now() - h.created > 3 * DAYMS && (idleDays(h) === null || idleDays(h) >= 3);
+const notUsing = h => !+h.offmode && state(h) !== 'suspended' && Date.now() - h.created > 3 * DAYMS && (idleDays(h) === null || idleDays(h) >= 3);
 // Last 7 days as small bars (oldest left, today right)
 function billBars(h){
   const b = bdays(h), days = [...Array(7)].map((_, i) => istDay(Date.now() - (6 - i) * DAYMS)), max = Math.max(1, ...days.map(d => +b[d] || 0));
@@ -563,7 +570,7 @@ function billBars(h){
     ${days.map(d => { const n = +b[d] || 0; return `<div style="flex:1;text-align:center;font-size:10px;color:var(--muted)"><div style="font-weight:700;color:var(--ink)">${n}</div>
       <div style="height:${Math.round(34 * n / max) + 2}px;border-radius:4px;background:${n ? 'var(--pri)' : 'var(--line)'};margin:2px 0"></div>${wd(d)}</div>`; }).join('')}</div>`;
 }
-const billTag = h => { const t = billsToday(h), w = bills7(h);
+const billTag = h => { if(+h.offmode) return ''; const t = billsToday(h), w = bills7(h);
   return `<span class="tag ${t ? 'ok' : notUsing(h) ? 'bad' : ''}">Today ${t} bills · 7 days ${w}</span>`; };
 
 // Hotels that need you come first: licence running out, no backup, open tickets
@@ -572,6 +579,7 @@ function urgency(h){
   let u = 0;
   if(d !== null && d !== Infinity){ if(d < 0) u = 200; else if(d <= 5) u = 150 - d; }
   if(p !== null && state(h) !== 'suspended' && h.plan !== 'counter'){ if(p < 0) u = Math.max(u, 120); else if(p <= 5) u = Math.max(u, 100 - p); }
+  if(renewDue(h)) u = Math.max(u, 140 - Math.max(0, licDays(h)));
   if(h.tickets) u = Math.max(u, 90);
   if(staleH(h) > 48 && h.seen) u = Math.max(u, 50);
   if(notUsing(h)) u = Math.max(u, 60);
@@ -579,8 +587,8 @@ function urgency(h){
   return u;
 }
 let KF = 'all';
-const KF_ICON = {all: 'hotels', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
-const KFS = {all: ['All', () => true], pending: ['Pending Activation', h => h.status === 'pending' || state(h) === 'pending'], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
+const KF_ICON = {all: 'hotels', pending: 'key', renew: 'key', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
+const KFS = {all: ['All', () => true], pending: ['Pending Activation', h => h.status === 'pending' || state(h) === 'pending'], renew: ['Renewal due (offline)', renewDue], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
   tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
 function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'All hotels' : KFS[k][0]; haptic('tick'); }
 async function drawHotels(){
@@ -607,6 +615,7 @@ function drawHotelsBody(){
 function hotelAlert(h){
   const d = licDays(h);
   if(d !== null && d !== Infinity && d < 0) return ['bad', 'Licence ' + d8(Date.parse(h.lic)) + ' — expired'];
+  if(renewDue(h)) return ['warn', `Offline hotel: licence ends in ${d} days (${d8(Date.parse(h.lic))}). Tap → Renewal key`];
   if(d !== null && d !== Infinity && d <= 5) return ['warn', 'Licence ends in ' + d + ' days (' + d8(Date.parse(h.lic)) + ')'];
   if(h.tickets) return ['warn', h.tickets + ' new ticket messages'];
   if(+h.errs){ const e = lastErr(h); return ['bad', `${h.errs} errors (24 hours)${e ? ' · ' + e.kya : ''}`]; }
@@ -627,7 +636,7 @@ const verTag = h => !h.appv ? '<span class="tag">Version -</span>' : `<span clas
 // Error Log from the hotel's devices (D.errSync): count in 24 hours + the newest error
 const lastErr = h => { try{ return h.lasterr ? JSON.parse(h.lasterr) : null; }catch(e){ return null; } };
 const errTag = h => +h.errs ? `<span class="tag bad">${h.errs} error</span>` : '';
-const seenTag = h => `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Not synced yet'}</span>`;
+const seenTag = h => +h.offmode ? '<span class="tag">Offline hotel · no internet</span>' : `<span class="tag ${!h.seen ? 'bad' : staleH(h) > 48 ? 'warn' : ''}">${h.seen ? 'Sync ' + ago(h.seen) : 'Not synced yet'}</span>`;
 function drawCards(){
   const q = ($('#q').value || '').trim().toLowerCase();
   const list = HOTELS.filter(KFS[KF][1]).filter(h => !q || [h.name, h.code, h.phone, h.owner, h.iid || ''].join(' ').toLowerCase().includes(q))
@@ -666,7 +675,7 @@ function hotelSheet(code){
     <div class="muted" style="font-size:12px;margin:-6px 0 4px">Bills in the last 7 days</div>${billBars(h)}
     <div class="tiles">
       ${tile('msg', 'Recharge WA', (h.wa_credits ?? 0) + ' msgs', `waRechargePrompt('${C}')`, 'blue')}
-      ${h.plan === 'counter' ? tile('key', 'Activate', 'Send key', `keygenFor('${C}')`, 'blue') : tile('key', 'Activate', 'Give days (mobile)', `cloudDays('${C}')`, 'blue')}
+      ${+h.offmode && h.iid ? tile('key', 'Renewal key', d === Infinity ? 'lifetime' : d === null ? 'make key' : d < 0 ? 'expired' : d + ' days left', `renewAsk('${C}')`, renewDue(h) ? 'amber on' : 'blue') : h.plan === 'counter' ? tile('key', 'Activate', 'Send key', `keygenFor('${C}')`, 'blue') : tile('key', 'Activate', 'Give days (mobile)', `cloudDays('${C}')`, 'blue')}
       ${lk === 2 ? tile('unlock', 'Unlock', 'Turn Setu on', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Turn Setu off', `lockAsk('${C}')`, 'red')}
       ${lk === 1 ? tile('warn', 'Remove warning', 'showing now', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu keeps running', `warnAsk('${C}')`, 'amber')}
       ${sus ? tile('play', 'Activate', 'account on', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account off', `suspendAsk('${C}')`, 'red')}
@@ -682,8 +691,8 @@ function hotelSheet(code){
     </div>
     <button class="g" style="width:100%;margin-top:14px;color:var(--bad)" onclick="delBox('${C}')">${'Delete hotel'}</button>`);
 }
-const adminUpdate = async (code, update, msg) => {
-  await api('/api/admin/hotel', {code, update});
+const adminUpdate = async (code, update, msg, op) => {
+  await api('/api/admin/hotel', {code, update, ...(op ? {opId: op} : {})});
   toast(msg);
   await loadHotels();
   if(VIEW === 'hotels') drawHotelsBody();
@@ -713,7 +722,9 @@ const cloudDaysSave = run(async code => {
   const amt = +($('#cd_amt') || {}).value || 0;
   if(!CD.life && !(CD.days >= 1)) return toast('Enter the days', true);
   const u = CD.life ? {lifetime: true} : CD.set ? {setDays: CD.days} : {days: CD.days, amount: amt};
-  await adminUpdate(code, u, CD.life ? 'Lifetime given' : 'Days applied. On the phone at once.');
+  CD.op = CD.op || opId();                                  // same Apply = same operation, even if sent again
+  await adminUpdate(code, u, CD.life ? 'Lifetime given' : 'Days applied. On the phone at once.', CD.op);
+  CD.op = '';
   hotelSheet(code);
 });
 
@@ -736,7 +747,7 @@ const waRechargePrompt = run(async code => {
   `, '+ Add Credits');
   if(!v) return;
   const n = +v.wa_prompt_credits || 500;
-  await api('/api/admin/hotel', {code, update: {addWaCredits: n}});
+  await api('/api/admin/hotel', {code, update: {addWaCredits: n}, opId: opId()});
   toast('+' + n + ' WhatsApp credits allotted to ' + h.name + '!');
   await drawHotels();
 });
@@ -767,7 +778,7 @@ const pwAsk = run(async code => {
   const v = await ask('New owner password', `<p class="muted" style="margin-top:0">Owner forgot the password? Type a new one. It works on the phone app at once and on the counter PC after the next sync (it is also the Manager PIN).</p><input id="pw" maxlength="40" placeholder="At least 6 characters" autocomplete="off">`, 'Set');
   if(!v) return;
   if(v.pw.trim().length < 6) return toast('Password: at least 6 characters', true);
-  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'New password: ' + v.pw.trim() + ' (tell the owner)');
+  await adminUpdate(code, {ownerPassword: v.pw.trim()}, 'Temporary password: ' + v.pw.trim() + ' (tell the owner; they change it at the next sign-in)');
 });
 function noticeBox(code){
   const h = hotelBy(code);
@@ -1133,7 +1144,7 @@ async function drawUpdates(){
     <p>Status: ${u.hold ? '<span class="err"><b>Paused</b>: no PC is offered this update</span>' : '<span class="ok"><b>Released</b> to all PCs</span>'}</p>
     <label>Message shown with the update (optional)</label><input id="up_notes" maxlength="300" value="${esc(u.notes || '')}">
     <div class="btns">${u.hold ? `<button onclick="updSet(false)">Release to all PCs</button>` : `<button class="g" style="color:var(--bad)" onclick="updSet(true)">Pause updates</button>`}<button class="g" onclick="updSet(null)">Save message</button></div>
-    ${u.version ? `<p class="muted" style="font-size:12px">Download link for new clients: <code>${esc(location.origin)}/download/Setu-POS-Setup.exe</code></p>` : ''}</div>
+    ${u.version ? `<p class="muted" style="font-size:12px">Download link for new clients: <code>${esc(PUBLIC)}/download/Setu-POS-Setup.exe</code></p>` : ''}</div>
     <div class="card"><h2>PCs on an older version (${behind.length})</h2>
     ${behind.map(h => `<div class="row" style="justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line)"><span><b>${esc(h.name)}</b> <span class="muted">${esc(h.code)}</span></span><span class="tag warn">v${esc(h.appv)}</span></div>`).join('') || '<p class="muted">All connected PCs are on the newest version.</p>'}</div>`;
 }
@@ -1211,8 +1222,11 @@ function drawAdd(){
   const tpl = Object.entries(META.templates).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
   const tiers = Object.entries(META.tiers).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
   $('#main').innerHTML = backBtn() + `<div class="card"><h2>Create New Hotel</h2>
-    <p class="muted">Customer → Business Type → Plan → Features → Login. The hotel signs in the first time with the Hotel Code and this password, then builds its own data.</p>
+    <p class="muted" id="a_help"></p>
     <form id="af"><div class="grid">
+      <div style="grid-column:1/-1"><label>Hotel type</label><select name="mode" id="a_mode"><option value="online">Online hotel: website login + counter PC with internet</option><option value="offline">Offline hotel (no internet): licence key for one counter PC</option></select></div>
+      <div class="offonly" style="grid-column:1/-1"><label>Install ID of the counter PC *</label><input name="installId" id="a_iid" placeholder="SETU-AB12-CD34" autocomplete="off" style="text-transform:uppercase"><small class="muted">Shown on the counter PC after installing Setu. The owner can read it to you on the phone.</small></div>
+      <div class="offonly"><label>Licence</label><select name="licPlan"><option value="1y">1 Year</option><option value="6m">6 Months</option><option value="3m">3 Months</option><option value="1m">1 Month</option><option value="life">Lifetime</option></select></div>
       <div><label>Hotel / Restaurant name *</label><input name="name" required></div>
       <div><label>Owner name *</label><input name="owner" required></div>
       <div><label>Mobile (10 digit) *</label><input name="phone" required pattern="[0-9]{10}" inputmode="numeric"></div>
@@ -1220,29 +1234,120 @@ function drawAdd(){
       <div><label>GSTIN (optional)</label><input name="gstin" maxlength="15" style="text-transform:uppercase"></div>
       <div><label>Business Type (Template)</label><select name="businessType" id="a_type">${tpl}</select></div>
       <div><label>Plan</label><select name="tier" id="a_tier">${tiers}</select></div>
-      <div><label>Days</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
-      <div><label>Payment</label><select name="paid"><option value="">Free trial</option><option value="1">Paid (cash / UPI received)</option></select></div>
-      <div><label>Owner initial password (6+ characters) *</label><input name="password" required minlength="6"></div>
+      <div class="ononly"><label>Days</label><input name="days" type="number" min="1" max="3650" value="${META.trialDays}"></div>
+      <div class="ononly"><label>Payment</label><select name="paid"><option value="">Free trial</option><option value="1">Paid (cash / UPI received)</option></select></div>
+      <div class="ononly"><label>Temporary password (leave empty to generate one)</label><input name="password" minlength="6" maxlength="40" autocomplete="off" placeholder="Generated automatically"></div>
     </div><div class="row" style="margin-top:12px"><button>Create Hotel</button><span id="ares"></span></div></form></div>`;
   $('#a_type').onchange = () => $('#a_tier').value = META.templates[$('#a_type').value].tier;
   $('#a_type').onchange();
+  const setMode = () => { const off = $('#a_mode').value === 'offline';
+    $('#a_help').textContent = off ? 'For a hotel without internet: install Setu on its counter PC (pen drive), ask the owner for the Install ID shown there, and choose the licence. You get an Offline Card with the licence key; no cloud login is made.'
+      : 'Customer → Business Type → Plan → Login Card. You give the owner the Hotel ID and a temporary password; at the first sign-in (website or counter PC) they choose their own password.';
+    document.querySelectorAll('#af .offonly').forEach(x => x.style.display = off ? '' : 'none');
+    document.querySelectorAll('#af .ononly').forEach(x => x.style.display = off ? 'none' : '');
+    $('#a_iid').required = off; };
+  $('#a_mode').onchange = setMode;
+  setMode();
+  const idemKey = 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);   // one hotel per opened form
+  let sending = false;
   $('#af').onsubmit = run(async e => {
     e.preventDefault();
+    if(sending) return;                                    // many taps on Create: one request
+    sending = true;
+    const btn = e.target.querySelector('button');
+    if(btn){ btn.disabled = true; btn.textContent = 'Creating…'; }
     const f = Object.fromEntries(new FormData(e.target));
     f.paid = !!f.paid;
+    f.idemKey = idemKey;
+    const offline = f.mode === 'offline'; delete f.mode;
+    if(offline){ f.offline = true; f.installId = (f.installId || '').trim().toUpperCase(); delete f.days; delete f.paid; delete f.password; }
+    else { delete f.installId; delete f.licPlan; }
     const gstin = (f.gstin || '').trim(); delete f.gstin;
     $('#ares').innerHTML = '<span class="muted">Creating…</span>';
     let j;
-    try{ j = await api('/api/admin/create', f); }catch(err){ $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err; }
+    try{ j = await api('/api/admin/create', f); }catch(err){
+      sending = false;
+      if(btn){ btn.disabled = false; btn.textContent = 'Create Hotel'; }
+      $('#ares').innerHTML = `<span class="err">${esc(err.message)}</span>`; throw err;
+    }
     if(gstin) await api('/api/admin/hotel', {code: j.code, update: {profile: {gstin}}});
-    $('#main').innerHTML = `<div class="card"><h2 class="ok">Hotel created: ${esc(f.name)}</h2>
-      <p>Send this to the owner on WhatsApp:</p>
-      <div class="card" style="background:var(--soft)" id="newmsg">Setu POS (mobile) — ${esc(f.name)}<br>1. Install <b>SetuPOS.apk</b>.<br>2. Open the app → <b>Over the internet (Hotel Setu Cloud)</b> → Open Cloud.<br>
-        3. Hotel Code: <b>${esc(j.code)}</b><br>4. Password: <b>${esc(f.password)}</b><br>(Also in a browser: ${esc(location.origin)}/hotel_erp.html)</div>
-      <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText($('#newmsg').innerText)">WhatsApp / Share</button><button class="g" onclick="copyText($('#newmsg').innerText, 'Message')">Copy</button></div>
-      <details class="muted" style="font-size:12px;margin-bottom:10px"><summary>If a computer is added later (Counter PC Sync Key)</summary><code>${esc(j.syncKey)}</code> (will not be shown again)</details>
-      <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Create Another</button></div></div>`;
+    if(offline) return offlineCard({...j, name: f.name});
+    if(j.duplicate && !j.ownerPassword && !f.password){
+      // A repeat of a form that already made the hotel: the password was shown once, a new one needs Reset
+      $('#main').innerHTML = `<div class="card"><h2>Already created: ${esc(j.code)}</h2><p class="muted">This form already made the hotel. Its temporary password was shown once. Open the hotel and use Owner Password → Reset for a new one.</p>
+        <div class="row"><button onclick="hotelSheet('${esc(j.code)}')">Open Hotel</button><button class="g" onclick="show('add')">Create Another</button></div></div>`;
+      return;
+    }
+    loginCard({name: f.name, code: j.code, username: j.username || 'owner', password: j.ownerPassword || f.password, syncKey: j.syncKey});
   });
+}
+
+// The one address customers see (website, table QR codes, PC installer); the workers.dev address keeps working
+const PUBLIC = 'https://hotel.setupro.in';
+const HELPLINE = '+91 91941 15127';   // HoReCa One helpline (call and WhatsApp)
+// Login Card: what the vendor gives the owner. The password is shown here once (only its hash is stored).
+function loginText(c){
+  return `HoReCa One — ${c.name}\n\nHotel ID: ${c.code}\nUsername: ${c.username}\nTemporary password: ${c.password}\n\n` +
+    `Sign in on the website: ${PUBLIC}\nOr install on the counter PC: ${PUBLIC}/download/Setu-POS-Setup.exe\n\n` +
+    `At the first sign-in you will choose your own password. Keep it private.\n\nHelpline (call / WhatsApp): ${HELPLINE}`;
+}
+function loginCard(c){
+  $('#main').innerHTML = `<div class="card"><h2 class="ok">Login Card: ${esc(c.name)}</h2>
+    <p class="muted" style="margin-top:-4px">The temporary password is shown only now. Send it to the owner, then close this page.</p>
+    <div class="card" style="background:var(--soft)" id="logincard">
+      <div class="row" style="justify-content:space-between"><span class="muted">Hotel ID</span><code style="font-size:18px" id="lc_code">${esc(c.code)}</code></div>
+      <div class="row" style="justify-content:space-between"><span class="muted">Username</span><code style="font-size:16px">${esc(c.username)}</code></div>
+      <div class="row" style="justify-content:space-between"><span class="muted">Temporary password</span><code style="font-size:18px" id="lc_pw">${esc(c.password)}</code></div>
+      <p class="muted" style="margin:8px 0 0;font-size:12px">Website: ${esc(PUBLIC)} · Counter PC: ${esc(PUBLIC)}/download/Setu-POS-Setup.exe<br>The owner chooses a new password at the first sign-in.<br>Helpline: ${esc(HELPLINE)}</p>
+    </div>
+    <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText(LOGIN_TXT)">WhatsApp / Share</button><button class="g" onclick="copyText(LOGIN_TXT, 'Login Card')">Copy</button><button class="g" onclick="printLoginCard()">Print</button></div>
+    ${c.syncKey ? `<details class="muted" style="font-size:12px;margin-bottom:10px"><summary>If a computer is linked by hand later (Counter PC Sync Key)</summary><code>${esc(c.syncKey)}</code> (will not be shown again)</details>` : ''}
+    <div class="row">${c.code ? `<button onclick="hotelSheet('${esc(c.code)}')">Open Hotel</button>` : ''}<button class="g" onclick="show('add')">Create Another</button></div></div>`;
+  window.LOGIN_TXT = loginText(c);
+}
+// Offline Card: what an Offline hotel (no internet) gets: its Hotel ID and the licence key for its counter PC
+const untilText = c => c.lifetime ? 'Lifetime' : d8(c.until);
+function offlineText(c){
+  return `HoReCa One — ${c.name || c.code} (Offline hotel)\n\nHotel ID: ${c.code}\nInstall ID: ${c.installId}\nLicence: ${c.label} · valid till ${untilText(c)}\n\nLicence key:\n${c.key}\n\n` +
+    `On the counter PC: open Setu → enter the licence key → Activate. No internet is needed.\n` +
+    `Backup: Settings → Auto Backup → choose a pen drive, and take the pen drive home once a week.\n\nHelpline (call / WhatsApp): ${HELPLINE}`;
+}
+function offlineCard(c, renewal){
+  $('#main').innerHTML = `<div class="card"><h2 class="ok">${renewal ? 'Renewal key' : 'Offline Card'}: ${esc(c.name || c.code)}</h2>
+    <p class="muted" style="margin-top:-4px">${renewal ? 'Send this key to the hotel. Its days are added to the current licence on that PC.' : 'Offline hotel created. Send this card to the owner, or type the key on the counter PC yourself.'}</p>
+    <div class="card" style="background:var(--soft)">
+      <div class="row" style="justify-content:space-between"><span class="muted">Hotel ID</span><code style="font-size:18px">${esc(c.code)}</code></div>
+      <div class="row" style="justify-content:space-between"><span class="muted">Install ID</span><code style="font-size:16px">${esc(c.installId)}</code></div>
+      <div class="row" style="justify-content:space-between"><span class="muted">Licence</span><b>${esc(c.label)} · ${esc(untilText(c))}</b></div>
+      <label style="margin-top:10px">Licence key</label><code id="oc_key" style="display:block;word-break:break-all;font-size:15px;padding:10px;border-radius:10px;background:var(--card)">${esc(c.key)}</code>
+      <p class="muted" style="margin:8px 0 0;font-size:12px">No internet needed. Backup on a pen drive (Settings → Auto Backup).<br>Helpline: ${esc(HELPLINE)}</p>
+    </div>
+    <div class="row" style="margin-bottom:8px"><button class="okb" onclick="shareText(OFFLINE_TXT)">WhatsApp / Share</button><button class="g" onclick="copyText(OFFLINE_KEY, 'Licence key')">Copy key</button><button class="g" onclick="copyText(OFFLINE_TXT, 'Offline Card')">Copy card</button><button class="g" onclick="printCard(OFFLINE_TXT, 'Offline Card')">Print</button></div>
+    <div class="row"><button onclick="hotelSheet('${esc(c.code)}')">Open Hotel</button>${renewal ? '' : `<button class="g" onclick="show('add')">Create Another</button>`}</div></div>`;
+  window.OFFLINE_TXT = offlineText(c); window.OFFLINE_KEY = c.key;
+}
+// Renewal key for an Offline hotel: one dialog = one key (a second tap returns the same key, so days never double)
+const renewAsk = run(async code => {
+  const h = hotelBy(code), d = licDays(h), op = opId();
+  const v = await ask('Renewal key: ' + esc(h.name), `<p class="muted" style="margin-top:0">Install ID <code>${esc(h.iid)}</code> · licence ${d === Infinity ? 'lifetime' : d === null ? 'unknown' : d < 0 ? 'expired on ' + d8(Date.parse(h.lic)) : 'till ' + d8(Date.parse(h.lic)) + ' (' + d + ' days left)'}.<br>The new days are added to the current licence, or start today if it has ended.</p>
+    <label>Licence</label><select id="licPlan"><option value="1y">1 Year</option><option value="6m">6 Months</option><option value="3m">3 Months</option><option value="1m">1 Month</option><option value="life">Lifetime</option></select>`, 'Make key');
+  if(!v) return;
+  const j = await api('/api/admin/offline/renew', {code, licPlan: v.licPlan, opId: op});
+  closeAll();
+  await loadHotels();
+  offlineCard({...j, name: h.name}, true);
+});
+function printCard(text, title){
+  const w = window.open('', '_blank', 'width=420,height=560');
+  if(!w) return toast('Allow pop-ups to print', true);
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(title)}</title><style>body{font-family:Inter,system-ui,sans-serif;padding:24px}pre{font:15px/1.6 Inter,system-ui,sans-serif;white-space:pre-wrap;word-break:break-all}</style><pre>${esc(text || '')}</pre>`);
+  w.document.close(); w.focus(); w.print();
+}
+function printLoginCard(){
+  const w = window.open('', '_blank', 'width=420,height=560');
+  if(!w) return toast('Allow pop-ups to print', true);
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Login Card</title><style>body{font-family:Inter,system-ui,sans-serif;padding:24px}pre{font:15px/1.6 Inter,system-ui,sans-serif;white-space:pre-wrap}</style><pre>${esc(window.LOGIN_TXT || '')}</pre>`);
+  w.document.close(); w.focus(); w.print();
 }
 
 // ---------------- audit ----------------
@@ -1298,15 +1403,15 @@ function tabOverview(){
     </div>
     <div class="row" style="margin-top:8px"><button class="g" onclick="update({profile:{name:p_name.value,owner:p_owner.value,phone:p_phone.value,email:p_email.value,gstin:p_gst.value}})">Save Profile</button></div>
     <h3>Owner Password</h3>
-    <p class="muted" style="margin-top:-4px">Owner forgot the password? Set a new one: it works on the phone app at once and on the counter PC after its next sync (it is also the Manager PIN there).</p>
-    <div class="row"><input id="o_pw2" placeholder="New owner password (6+ characters)" maxlength="40" style="min-width:240px">
-      <button onclick="ownerPw2()">Set Owner Password</button></div>
+    <p class="muted" style="margin-top:-4px">Owner forgot the password? Make a temporary one (or type one). The owner signs in with it and must choose a new password at once. It also becomes the Manager PIN on the counter PC after its next sync.</p>
+    <div class="row" style="margin-bottom:6px">Status: ${h.mustChange ? '<span class="tag warn">Temporary password: owner has not signed in yet</span>' : '<span class="tag ok">Owner uses their own password</span>'}</div>
+    <div class="row"><button onclick="ownerPwReset()">Reset: make a temporary password</button>
+      <input id="o_pw2" placeholder="Or type one (6+ characters)" maxlength="40" style="min-width:200px" autocomplete="off">
+      <button class="g" onclick="ownerPw2()">Set</button></div>
     <h3>Counter PC Connection</h3>
     <div class="row">Hotel Code: <code style="font-size:14px">${esc(h.code)}</code>
       Sync Key: ${h.storedSyncKey ? `<code style="font-size:14px">${esc(h.storedSyncKey)}</code><button class="g" onclick="copyText('${esc(h.storedSyncKey)}', 'Sync Key')">Copy</button>`
         : '<span class="muted">not stored (made before this option) — Support tab → New Counter PC Sync Key, or record the current key there</span>'}</div>
-    <div class="row" style="margin-top:6px">Owner password (last set by you): ${h.storedOwnerPass ? `<code style="font-size:14px">${esc(h.storedOwnerPass)}</code>` : '<span class="muted">not stored — set a new one below</span>'}
-      <span class="muted">(if the owner changed it in Setu Settings, theirs is newer)</span></div>
     ${(h.counter || {}).installId ? '' : `<p class="muted" style="margin:6px 0 0">Install ID appears here after the hotel's Setu connects: Setu → Settings (G) → Hotel Setu Cloud Sync → Hotel Code <b>${esc(h.code)}</b> + the Sync Key above → Save &amp; Connect.</p>`}
     <h3>Counter PC &amp; Backup</h3>
     <div class="grid">
@@ -1500,11 +1605,25 @@ const setSyncKey = run(async () => {
 const ownerPw2 = run(async () => {
   const pw = $('#o_pw2').value.trim();
   if(!pw) return;
-  if(!await ask('New owner password for ' + esc(CUR.name) + '?', '', 'Set')) return;
+  if(pw.length < 6) return toast('Password: at least 6 characters', true);
+  if(!await ask('Temporary password for ' + esc(CUR.name) + '?', '<p class="muted" style="margin-top:0">The owner must choose a new password at the next sign-in.</p>', 'Set')) return;
   CUR = await api('/api/admin/hotel', {code: CUR.code, update: {ownerPassword: pw}});
-  toast('Owner password set — tell the owner: ' + pw);
-  drawHotel();
+  showResetCard(pw);
 });
+const ownerPwReset = run(async () => {
+  if(!await ask('Reset the owner password of ' + esc(CUR.name) + '?', '<p class="muted" style="margin-top:0">The current password stops working. A temporary password is shown once; the owner must change it at the next sign-in.</p>', 'Reset', true)) return;
+  CUR = await api('/api/admin/hotel', {code: CUR.code, update: {resetOwnerPassword: true}});
+  showResetCard(CUR.ownerPassword);
+});
+function showResetCard(pw){
+  const c = {name: CUR.name, code: CUR.code, username: 'owner', password: pw};
+  window.LOGIN_TXT = loginText(c);
+  ask('New temporary password', `<p style="font-size:22px;font-weight:800;letter-spacing:1px;text-align:center;margin:8px 0"><code>${esc(pw)}</code></p>
+    <p class="muted">Hotel ID ${esc(CUR.code)} · Username owner. Shown only now.</p>
+    <div class="row"><button class="okb" onclick="shareText(LOGIN_TXT)">WhatsApp / Share</button><button class="g" onclick="copyText(LOGIN_TXT, 'Login Card')">Copy</button></div>`, 'Done');
+  delete CUR.ownerPassword;
+  drawHotel();
+}
 const supportOpen = run(async () => {
   if(!$('#s_why').value.trim()) return toast('Please enter a reason (visible to the hotel)', true);
   const j = await api('/api/admin/support', {code: CUR.code, minutes: +$('#s_min').value, reason: $('#s_why').value});

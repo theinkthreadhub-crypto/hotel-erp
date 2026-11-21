@@ -20,7 +20,11 @@ if errorlevel 1 (
 )
 
 echo Installing build tools (PyInstaller, pywebview)...
-python -m pip install --upgrade pyinstaller pywebview
+python -m pip install --upgrade pyinstaller pywebview "cryptography>=42,<48"
+if errorlevel 1 (
+    echo [ERROR] Licence verification dependency installation failed.
+    exit /b 1
+)
 echo.
 
 python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." app_main.py

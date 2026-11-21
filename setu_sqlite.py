@@ -20,6 +20,7 @@ Not here (Phase 3): cloud incremental sync. The outbox is written so Phase 3 can
 import gzip
 import hashlib
 import json
+import math
 import random
 import urllib.request
 import urllib.error
@@ -29,10 +30,12 @@ import sqlite3
 import threading
 import time
 import secrets
+from contextlib import nullcontext
 from decimal import Decimal, ROUND_HALF_UP
-from datetime import datetime
+from datetime import datetime, timezone
+from horeca_license_verify import verify_signed_license, InvalidLicence, TRUSTED_PUBLIC_KEYS
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 6
 DB_FILE = 'setu.sqlite'
 FLAG_FILE = 'setu-storage.json'
 
@@ -180,11 +183,26 @@ CREATE INDEX IF NOT EXISTS stock_movements_src_date ON stock_movements(source, d
 -- first copy stays in the books, every other copy is kept here for a Manager to review
 CREATE TABLE IF NOT EXISTS sync_conflicts (seq INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, k TEXT NOT NULL, rid TEXT, reason TEXT NOT NULL,
   kept TEXT, other TEXT, device TEXT, resolved INTEGER NOT NULL DEFAULT 0);
+-- Phase 3.5d (BUG-0010): data keys a save wrote that SYNC_MODULE_POLICY does not classify. The data itself is saved
+-- locally as usual; it is not sent to the cloud until a developer classifies the key (one row per key and section).
+CREATE TABLE IF NOT EXISTS sync_unclassified (k TEXT NOT NULL, section TEXT NOT NULL, reason TEXT NOT NULL, first_at INTEGER NOT NULL,
+  last_at INTEGER NOT NULL, last_op TEXT, count INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (k, section));
 
 -- ---------------- Schema 4 (Phase 3.4): Cloud Change Feed Inbound Sync ----------------
 CREATE TABLE IF NOT EXISTS inbound_events_applied (
-  id TEXT PRIMARY KEY, seq INTEGER NOT NULL, event_type TEXT NOT NULL, entity_id TEXT, applied_at INTEGER NOT NULL);
-CREATE INDEX IF NOT EXISTS idx_inbound_applied_seq ON inbound_events_applied(seq);
+  id TEXT PRIMARY KEY, seq INTEGER NOT NULL, event_type TEXT NOT NULL,
+  entity_id TEXT, applied_at INTEGER NOT NULL, acked_at INTEGER);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inbound_applied_seq ON inbound_events_applied(seq);
+CREATE TABLE IF NOT EXISTS inbound_cursor_state (
+  name TEXT PRIMARY KEY, seq INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS inbound_event_failures (
+  event_id TEXT PRIMARY KEY, seq INTEGER, reason TEXT NOT NULL,
+  occurred_at INTEGER NOT NULL, resolved INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS inbound_qr_orders (
+  order_id TEXT PRIMARY KEY, tbl TEXT NOT NULL, items_json TEXT NOT NULL,
+  guest_name TEXT, note TEXT, status TEXT NOT NULL DEFAULT 'pending',
+  kot_id TEXT, created_at INTEGER, updated_at INTEGER, cloud_applied_at INTEGER);
+CREATE INDEX IF NOT EXISTS idx_inbound_qr_pending ON inbound_qr_orders(status, created_at);
 """
 
 # ---------------------------------------------------------------------------------------------------------
@@ -231,7 +249,7 @@ SPECS = [
 SPEC_BY_KEY = {s.key: s for s in SPECS}
 # Maps with their own table: key -> (table, key column)
 MAP_TABLES = {'kaccha': ('table_orders', 'tbl'), 'cash': ('cash_drawer_sessions', 'date'), 'salarySheets': ('salary_records', 'month')}
-CONFIG_KEYS = ('settings', 'auth', 'secure', 'subscription', 'saas')
+CONFIG_KEYS = ('settings', 'auth', 'secure', 'subscription', 'saas', 'vendor_notices')
 GUARDED_FOR_DELETE_LOG = ('bills',)
 
 
@@ -284,6 +302,13 @@ class SqliteDoc:
             if ok != 'ok':
                 raise StoreError(f'database failed its integrity check: {ok}')
         con.executescript(SCHEMA)
+        # Upgrade existing Phase 3.4 installs without deleting event history.
+        prior_cols = {r[1] for r in con.execute('PRAGMA table_info(inbound_events_applied)')}
+        if 'acked_at' not in prior_cols:
+            con.execute('ALTER TABLE inbound_events_applied ADD COLUMN acked_at INTEGER')
+        qr_cols = {r[1] for r in con.execute('PRAGMA table_info(inbound_qr_orders)')}
+        if 'cloud_applied_at' not in qr_cols:
+            con.execute('ALTER TABLE inbound_qr_orders ADD COLUMN cloud_applied_at INTEGER')
         cur = self.meta('schema_version')
         if cur is not None and int(cur) > SCHEMA_VERSION:
             raise StoreError(f'database schema {cur} is newer than this program ({SCHEMA_VERSION})')
@@ -291,7 +316,9 @@ class SqliteDoc:
             # The new tables / indexes were created by the script above (IF NOT EXISTS); record each step once
             names = {1: 'initial relational schema', 2: 'change log for incremental saves; stock movement (source, date) index',
                      3: 'sync_conflicts: differing copies kept for review',
-                     4: 'inbound_events_applied: change feed and QR / licence sync'}
+                     4: 'inbound_events_applied: change feed and QR / licence sync',
+                     5: 'contiguous inbound cursor, pending ACK, QR approval staging',
+                     6: 'cloud KOT applied confirmation retry state'}
             with self.tx() as c:
                 for v in range(1 if cur is None else int(cur) + 1, SCHEMA_VERSION + 1):
                     c.execute('INSERT OR IGNORE INTO database_migrations VALUES (?, ?, ?)', (v, names[v], int(time.time() * 1000)))
@@ -928,6 +955,26 @@ class SqliteDoc:
                   (str(op), str(ref) if ref else None, int(doc_version), p_str, int(at)))
         return cur.lastrowid
 
+    @staticmethod
+    def enqueue_envelope(c, op, envelope, at=None):
+        """Queues a save's cloud envelope inside the save's own transaction (BUG-0010).
+        Keys the policy does not classify are recorded in sync_unclassified (the data is already saved locally).
+        A save that wrote only local keys queues nothing: there is nothing the cloud may receive."""
+        at = int(at if at is not None else time.time() * 1000)
+        op_id = envelope.get('op_id')
+        for u in envelope.get('unclassified') or ():
+            other = [sec for sec, keys in CLOUD_SYNC_MODULES.items() if u['k'] in keys]
+            why = (f"cloud module '{u['k']}' was written as {u['section']}, but the Worker ingests it only as {'/'.join(other)}"
+                   if other else f"key '{u['k']}' ({u['section']}) is not in SYNC_MODULE_POLICY v{SYNC_MODULE_POLICY_VERSION}")
+            c.execute(
+                "INSERT INTO sync_unclassified (k, section, reason, first_at, last_at, last_op, count) VALUES (?, ?, ?, ?, ?, ?, 1) "
+                "ON CONFLICT(k, section) DO UPDATE SET last_at = excluded.last_at, last_op = excluded.last_op, count = count + 1",
+                (u['k'], u['section'], why + ": saved on the counter, not sent to the cloud. Classify it in "
+                 "CLOUD_SYNC_MODULES (with Worker support) or LOCAL_ONLY_MODULES in setu_sqlite.py.", at, at, op_id))
+        if not (envelope.get('integrity') or {}).get('keys'):
+            return None
+        return SqliteDoc.append_outbox(c, op, op_id, envelope['doc_version'], envelope, at)
+
     def get_pending_outbox(self, con=None, limit=100, include_legacy=True):
         if con is None:
             con = self.con()
@@ -979,7 +1026,13 @@ class SqliteDoc:
         if not valid_acks:
             return 0
 
-        pending = con.execute("SELECT seq, ref, payload FROM sync_outbox WHERE sent_at IS NULL").fetchall()
+        # Only the rows of the acknowledged ops (ref = op_id, indexed); never the whole pending queue (BUG-0012)
+        ids = list(valid_acks)
+        pending = []
+        for i in range(0, len(ids), 500):
+            part = ids[i:i + 500]
+            pending += con.execute(f"SELECT seq, ref, payload FROM sync_outbox WHERE sent_at IS NULL AND ref IN ({','.join('?' * len(part))})",
+                                   part).fetchall()
         matched = []
         for seq, ref, p_str in pending:
             try:
@@ -1194,28 +1247,45 @@ class SqliteDoc:
         return {'file': dest_gz, 'bytes': size, 'sha256': h.hexdigest(), 'bills': bills, 'verified': bool(ok), 'seconds': round(time.time() - t0, 2)}
 
 
-def restore_backup(backup_gz, dest_db):
-    """Decompress a backup next to `dest_db`, check it, then move it into place (old file kept aside)."""
+def restore_backup(backup_gz, dest_db, expected_hotel_id=None):
+    """Verify and restore a backup into an *empty* destination, offline only.
+
+    Never overwrite a running counter database (or its WAL), and validate
+    tenant identity when an expected Hotel ID is provided. An administrator
+    must separately change the installed data path after checking results.
+    """
+    if not str(expected_hotel_id or '').strip():
+        raise StoreError('expected Hotel ID is required before restore')
+    if any(os.path.exists(dest_db + ext) for ext in ('', '-wal', '-shm', '.restore')):
+        raise StoreError("restore requires an empty destination: use a new folder")
+    if not os.path.isdir(os.path.dirname(os.path.abspath(dest_db))):
+        raise StoreError("restore directory does not exist")
     tmp = dest_db + '.restore'
-    with gzip.open(backup_gz, 'rb') as g, open(tmp, 'wb') as f:
-        shutil.copyfileobj(g, f)
-        f.flush()
-        os.fsync(f.fileno())
-    con = sqlite3.connect(tmp)
-    ok = con.execute('PRAGMA integrity_check').fetchone()[0]
-    bills = con.execute('SELECT COUNT(*) FROM bills').fetchone()[0]
-    con.close()
-    if ok != 'ok':
-        os.remove(tmp)
-        raise StoreError('backup failed its integrity check: ' + ok)
-    if os.path.exists(dest_db):
-        aside = dest_db + '.before-restore-' + time.strftime('%Y%m%d-%H%M%S')
-        os.replace(dest_db, aside)
-        for ext in ('-wal', '-shm'):
-            if os.path.exists(dest_db + ext):
-                os.replace(dest_db + ext, aside + ext)
-    os.replace(tmp, dest_db)
-    return {'bills': bills, 'integrity': ok}
+    try:
+        with gzip.open(backup_gz, 'rb') as source, open(tmp, 'xb') as out:
+            shutil.copyfileobj(source, out)
+            out.flush()
+            os.fsync(out.fileno())
+        con = sqlite3.connect(f'file:{tmp}?mode=ro', uri=True)
+        try:
+            integrity = con.execute('PRAGMA integrity_check').fetchone()[0]
+            if integrity != 'ok':
+                raise StoreError('backup failed integrity check: ' + str(integrity))
+            hotel_row = con.execute("SELECT v FROM meta WHERE k='hotel_id'").fetchone()
+            bills = con.execute('SELECT COUNT(*) FROM bills').fetchone()[0]
+        finally:
+            con.close()
+        hotel = str(hotel_row[0] or '').strip().upper() if hotel_row else ''
+        if not hotel:
+            raise StoreError('backup has no Hotel ID; refuse unsafe restore')
+        if expected_hotel_id and hotel != str(expected_hotel_id).strip().upper():
+            raise StoreError('backup Hotel ID mismatch: refuse cross-hotel restore')
+        os.replace(tmp, dest_db)
+        return {'bills': bills, 'integrity': 'ok', 'hotel_id': hotel}
+    except Exception:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
 
 
 def norm_ph(p):
@@ -1344,6 +1414,55 @@ def _normalize_numbers(obj):
     return obj
 
 
+# ---------------- Cloud sync module policy (BUG-0010) ----------------
+# Every data key a save writes is classified here. Only CLOUD_SYNC_MODULES go into the cloud envelope; it mirrors the
+# Worker whitelist (cloud/src/worker.js handleSyncOps, SUPPORTED_*_MODULES) exactly, section by section, and
+# tests/phase35d_bug0010_test.py fails if the two drift. One save stays ONE op (one op_id, one doc_version): the
+# envelope only leaves out local keys, so a bill and its stock / seq changes still reach the cloud atomically.
+# A key in neither table is kept locally, left out of the envelope and recorded in sync_unclassified.
+# Worker rejections that can never succeed on retry (SYNC-004): held for review, never resent in a loop
+PERMANENT_SYNC_REJECTIONS = frozenset({
+    'CONFLICT_OP_ID_PAYLOAD_MISMATCH', 'CONFLICT_STALE_RECORD', 'SAME_VERSION_MUTATION_CONFLICT', 'UNSUPPORTED_BUSINESS_MODULE',
+    'INVALID_CREDIT_NOTE', 'CREDIT_NOTE_IMMUTABLE', 'CREDIT_NOTE_EXCEEDS_BILL',
+})
+SYNC_MODULE_POLICY_VERSION = 2   # v2 (Phase 3.5e): cnotes moved to the cloud after Worker ingestion of credit notes
+CLOUD_SYNC_MODULES = {
+    'records': frozenset({'bills', 'vouchers', 'txns', 'stock', 'stock_movements', 'moves', 'kots', 'purchases', 'orders', 'cnotes'}),
+    'maps': frozenset({'tables', 'kaccha'}),
+    'values': frozenset({'settings', 'seq', 'auth'}),
+}
+# reason 'private': must never leave the counter. 'not_ingested': business data the Worker cannot ingest yet
+# (TD-0008 / TD-0013); kept on the counter and in counter backups until a Worker change adds it to CLOUD_SYNC_MODULES.
+LOCAL_ONLY_MODULES = {
+    'secure': 'private', 'staff': 'private', 'sessions': 'private', 'subscription': 'private', 'saas': 'private',
+    'wa': 'private', 'waMessages': 'private', 'errSync': 'private', 'demoCleanupDone': 'private', 'monthlySent': 'private',
+    'menu': 'not_ingested', 'custList': 'not_ingested', 'cash': 'not_ingested',
+    'att': 'not_ingested', 'salaryDays': 'not_ingested', 'salarySheets': 'not_ingested', 'reservations': 'not_ingested',
+    'assets': 'not_ingested', 'gasLog': 'not_ingested', 'onlineOrders': 'not_ingested', 'qrOrders': 'not_ingested',
+    'qrDone': 'not_ingested', 'qrLog': 'not_ingested', 'audit': 'not_ingested', 'expTpl': 'not_ingested',
+    'supAlias': 'not_ingested', 'stockAlias': 'not_ingested', 'supInfo': 'not_ingested', 'outlets': 'not_ingested',
+}
+_SECRET_WORDS = ('pin', 'pass', 'hash', 'secret', 'key', 'otp')
+
+
+def classify_sync_key(section, k):
+    """'cloud', 'local' or 'unclassified' for a key written in an envelope section ('records' / 'maps' / 'values')."""
+    if k in CLOUD_SYNC_MODULES.get(section, ()):
+        return 'cloud'
+    if k in LOCAL_ONLY_MODULES:
+        return 'local'
+    return 'unclassified'
+
+
+def _scrub_secrets(v, words=_SECRET_WORDS):
+    """Drops, at any depth, every field whose name looks like a credential (settings / auth values)."""
+    if isinstance(v, dict):
+        return {k: _scrub_secrets(x, words) for k, x in v.items() if not any(w in str(k).lower() for w in words)}
+    if isinstance(v, list):
+        return [_scrub_secrets(x, words) for x in v]
+    return v
+
+
 def make_sync_envelope(
     op_id,
     hotel_id,
@@ -1365,8 +1484,20 @@ def make_sync_envelope(
     """
     clean_rec = {}
     total_records = 0
+    local_keys, unclassified = set(), []
+
+    def _cloud(section, k):
+        cls = classify_sync_key(section, k)
+        if cls == 'local':
+            local_keys.add(k)
+        elif cls == 'unclassified':
+            unclassified.append({'k': str(k), 'section': section})
+        return cls == 'cloud'
+
     if writes_rec:
         for k, val in writes_rec.items():
+            if not _cloud('records', k):
+                continue
             if isinstance(val, (list, tuple)) and len(val) == 3:
                 kind, ups, rms = val
             elif isinstance(val, dict):
@@ -1395,6 +1526,8 @@ def make_sync_envelope(
     clean_map = {}
     if writes_map:
         for k, val in writes_map.items():
+            if not _cloud('maps', k):
+                continue
             if isinstance(val, (list, tuple)) and len(val) == 3:
                 kind, s_, d_ = val
             elif isinstance(val, dict):
@@ -1412,12 +1545,12 @@ def make_sync_envelope(
     clean_values = {}
     if writes_whole:
         for k, v in writes_whole.items():
-            if k in ('secure', 'adminPin', 'password', 'token'):
+            if not _cloud('values', k):
                 continue
             if k == 'settings' and isinstance(v, dict):
-                clean_values[k] = {sk: sv for sk, sv in v.items() if not any(x in sk.lower() for x in ('pin', 'pass', 'hash', 'secret', 'key'))}
+                clean_values[k] = _scrub_secrets(v)
             elif k == 'auth' and isinstance(v, dict):
-                clean_values[k] = {ak: av for ak, av in v.items() if not any(x in ak.lower() for x in ('pin', 'pass', 'hash', 'secret'))}
+                clean_values[k] = _scrub_secrets(v, _SECRET_WORDS + ('token',))
             else:
                 clean_values[k] = v
 
@@ -1462,10 +1595,190 @@ def make_sync_envelope(
             'checksum': f'sha256:{checksum}',
             'record_count': total_records,
             'keys': sorted(set(clean_rec) | set(clean_map) | set(clean_values))
-        }
+        },
+        # Outside the checksummed payload; the Worker ignores both. local_only lists what this save kept on the counter.
+        'sync_policy': {'version': SYNC_MODULE_POLICY_VERSION, 'local_only': sorted(local_keys)},
     }
+    if unclassified:
+        envelope['unclassified'] = unclassified
     return envelope
 
+
+
+def _later_outbox_entities(con, after_seq):
+    """Records and whole keys carried by outbox rows queued after `after_seq` that are not held (sent or pending)."""
+    recs, keys = set(), set()
+    for (raw,) in con.execute("SELECT payload FROM sync_outbox WHERE seq > ? AND (sent_at IS NULL OR sent_at > 0)", (after_seq,)):
+        try:
+            p = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        recs |= get_envelope_entities(p)
+        pl = p.get('payload') or {}
+        keys |= {('values', k) for k in (pl.get('values') or {})}
+    return recs, keys
+
+
+def plan_held_op_replay(sdb):
+    """Read-only plan for outbox ops held after a cloud rejection (BUG-0010 recovery). Nothing is changed.
+
+    An op held only because it carried a module the Worker does not ingest is rebuilt with the SAME op_id,
+    hotel_id and doc_version and only its cloud-ingestible part (SYNC_MODULE_POLICY). A record or whole value
+    that a later, non-held op already carries is left out: the later op holds the newer state, and sending the
+    older one would be refused as stale. Anything else (payload mismatch, stale record, another hotel, legacy
+    format) is listed under needs_review and never replayed automatically."""
+    con = sdb.con()
+    hotel = str(sdb.meta('hotel_id') or '').strip().upper()
+    plan = {'policy_version': SYNC_MODULE_POLICY_VERSION, 'hotel_id': hotel, 'replay': [], 'needs_review': [], 'nothing_to_send': [],
+            'already_replayed': []}
+    held = con.execute("SELECT seq, ref, payload FROM sync_outbox WHERE sent_at < 0 ORDER BY seq").fetchall()
+    for seq, ref, raw in held:
+        item = {'outbox_seq': seq, 'op_id': ref}
+        try:
+            env = json.loads(raw or '{}')
+        except ValueError:
+            env = {}
+        op_id = str(env.get('op_id') or ref or '')
+        item['op_id'] = op_id
+        conflict = con.execute("SELECT seq, reason, resolved FROM sync_conflicts WHERE rid = ? ORDER BY seq LIMIT 1", (op_id,)).fetchone()
+        item['reason'] = conflict[1] if conflict else None
+        if con.execute("SELECT 1 FROM sync_outbox WHERE ref = ? AND op = 'replay' AND seq > ?", (op_id, seq)).fetchone():
+            plan['already_replayed'].append(item)
+            continue
+        if env.get('envelope_version') != 1 or not op_id:
+            plan['needs_review'].append(dict(item, why='not a Phase 3 envelope'))
+            continue
+        if str(env.get('hotel_id') or '').strip().upper() != hotel:
+            plan['needs_review'].append(dict(item, why=f"envelope hotel {env.get('hotel_id')!r} is not this counter's hotel {hotel!r}"))
+            continue
+        if item['reason'] != 'UNSUPPORTED_BUSINESS_MODULE':
+            plan['needs_review'].append(dict(item, why=f"held for {item['reason']!r}: needs a person to compare the counter and cloud copies"))
+            continue
+        later_recs, later_keys = _later_outbox_entities(con, seq)
+        pl = env.get('payload') or {}
+        new_pl, dropped = {'records': {}, 'maps': {}, 'values': {}}, []
+        for section in ('records', 'maps', 'values'):
+            for k, v in (pl.get(section) or {}).items():
+                cls = classify_sync_key(section, k)
+                if cls != 'cloud':
+                    dropped.append({'section': section, 'k': k, 'why': 'local_only' if cls == 'local' else 'unclassified'})
+                    continue
+                if section == 'records':
+                    ups = [r for r in v.get('ups') or [] if not (isinstance(r, dict) and (k, str(r.get('id'))) in later_recs)]
+                    rms = [x for x in v.get('rm') or [] if (k, str(x)) not in later_recs]
+                    gone = len(v.get('ups') or []) + len(v.get('rm') or []) - len(ups) - len(rms)
+                    if gone:
+                        dropped.append({'section': section, 'k': k, 'why': f'{gone} record(s) superseded by a later op'})
+                    if ups or rms:
+                        new_pl['records'][k] = {'kind': v.get('kind', 'rec'), 'ups': ups, 'rm': rms}
+                elif section == 'maps':
+                    st = {mk: mv for mk, mv in (v.get('set') or {}).items() if (k, str(mk)) not in later_recs}
+                    dl = [mk for mk in v.get('del') or [] if (k, str(mk)) not in later_recs]
+                    if len(st) + len(dl) < len(v.get('set') or {}) + len(v.get('del') or []):
+                        dropped.append({'section': section, 'k': k, 'why': 'entries superseded by a later op'})
+                    if st or dl:
+                        new_pl['maps'][k] = {'kind': v.get('kind', 'map'), 'set': st, 'del': dl}
+                elif ('values', k) in later_keys:
+                    dropped.append({'section': section, 'k': k, 'why': 'superseded by a later op'})
+                else:
+                    new_pl['values'][k] = v
+        item['dropped'] = dropped
+        keys = sorted(set(new_pl['records']) | set(new_pl['maps']) | set(new_pl['values']))
+        if not keys:
+            plan['nothing_to_send'].append(item)
+            continue
+        new_pl = _normalize_numbers(new_pl)
+        checksum = hashlib.sha256(json.dumps(new_pl, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode('utf-8')).hexdigest()
+        new_env = {k: v for k, v in env.items() if k not in ('payload', 'integrity', 'sync_policy', 'unclassified', 'replay_of')}
+        new_env.update(payload=new_pl,
+                       integrity={'checksum': f'sha256:{checksum}', 'keys': keys,
+                                  'record_count': sum(len(r['ups']) + len(r['rm']) for r in new_pl['records'].values())},
+                       sync_policy={'version': SYNC_MODULE_POLICY_VERSION, 'local_only': sorted(d['k'] for d in dropped if d['why'] == 'local_only')},
+                       replay_of={'outbox_seq': seq, 'original_checksum': (env.get('integrity') or {}).get('checksum')})
+        item.update(envelope=new_env, bills=[str(b.get('id')) for b in new_pl['records'].get('bills', {}).get('ups', [])])
+        plan['replay'].append(item)
+    return plan
+
+
+def apply_held_op_replay(sdb, plan, now=None):
+    """Queues the planned replays in one local transaction. The held rows and their sync_conflicts rows stay as
+    they were (audit history); each conflict is marked resolved and a 'REPLAYED' audit row points to the new outbox
+    row. The dispatcher then sends them like any op and marks them sent only on an exact (op_id, hotel, checksum)
+    ack. Running it twice queues nothing new (already_replayed)."""
+    now = int(now if now is not None else time.time() * 1000)
+    queued = []
+    with sdb.tx() as c:
+        for item in plan.get('replay') or ():
+            op_id = item['op_id']
+            if c.execute("SELECT 1 FROM sync_outbox WHERE ref = ? AND op = 'replay' AND seq > ?", (op_id, item['outbox_seq'])).fetchone():
+                continue
+            env = item['envelope']
+            new_seq = SqliteDoc.append_outbox(c, 'replay', op_id, env['doc_version'], env, now)
+            c.execute("UPDATE sync_conflicts SET resolved = 1 WHERE rid = ? AND resolved = 0", (op_id,))
+            c.execute("INSERT INTO sync_conflicts (at, k, rid, reason, kept, other, device, resolved) VALUES (?, 'replay', ?, ?, ?, ?, ?, 1)",
+                      (now, op_id, 'REPLAYED_CLOUD_PART (BUG-0010)', json.dumps({'outbox_seq': new_seq, 'checksum': env['integrity']['checksum']}),
+                       json.dumps({'held_outbox_seq': item['outbox_seq'], 'dropped': item.get('dropped')}, ensure_ascii=False),
+                       env.get('device_id') or 'counter'))
+            queued.append({'op_id': op_id, 'outbox_seq': new_seq})
+    return queued
+
+
+def local_synced_credit_note_totals(sdb):
+    """Counter-side credit-note totals for the credit notes that went into a Phase 3 envelope, with the Worker's rule:
+    a credit note counts while its original bill is not cancelled (paise, same rounding as the Worker)."""
+    con = sdb.con()
+    ids = set()
+    for (raw,) in con.execute("SELECT payload FROM sync_outbox WHERE payload LIKE '%\"cnotes\"%'"):
+        try:
+            p = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        if p.get('envelope_version') == 1:
+            ids |= {str(c.get('id')) for c in (((p.get('payload') or {}).get('records') or {}).get('cnotes') or {}).get('ups') or [] if isinstance(c, dict)}
+    out = {'count': 0, 'total_p': 0, 'taxable_p': 0, 'tax_p': 0, 'refunded_p': 0, 'on_cancelled_count': 0, 'on_cancelled_p': 0}
+    recs = sdb.get_records(con, 'cnotes', sorted(ids)) if ids else {}
+    p_ = lambda v: int(math.floor(abs(float(v or 0)) * 100 + 0.5)) * (1 if float(v or 0) >= 0 else -1)
+    for c in recs.values():
+        b = sdb.get_records(con, 'bills', [str(c.get('billId'))]).get(str(c.get('billId')))
+        if b and b.get('cancelled'):
+            out['on_cancelled_count'] += 1
+            out['on_cancelled_p'] += p_(c.get('total'))
+            continue
+        out['count'] += 1
+        out['total_p'] += p_(c.get('total'))
+        out['taxable_p'] += p_(c.get('taxable'))
+        out['tax_p'] += p_(c.get('tax'))
+        if c.get('refund') != 'none':
+            out['refunded_p'] += p_(c.get('total'))
+    out['adjusted_p'] = out['total_p'] - out['refunded_p']
+    return out
+
+
+def local_synced_bill_totals(sdb):
+    """Counter-side totals for the bills that went into any Phase 3 envelope (what the cloud should hold),
+    in paise, with the same rounding as the Worker's sales report."""
+    con = sdb.con()
+    ids = set()
+    for (raw,) in con.execute("SELECT payload FROM sync_outbox"):
+        try:
+            p = json.loads(raw or '{}')
+        except ValueError:
+            continue
+        if p.get('envelope_version') == 1:
+            ids |= {str(b.get('id')) for b in (((p.get('payload') or {}).get('records') or {}).get('bills') or {}).get('ups') or [] if isinstance(b, dict)}
+    out = {'bill_count': 0, 'gross_sales_p': 0, 'cancelled_bill_count': 0, 'cancelled_amount_p': 0, 'ids': sorted(ids)}
+    for i in range(0, len(ids), 500):
+        part = sorted(ids)[i:i + 500]
+        for total, canc in con.execute(f"SELECT total, is_cancelled FROM bills WHERE id IN ({','.join('?' * len(part))})", part):
+            x = float(total or 0) * 100
+            p_ = int(math.floor(abs(x) + 0.5)) * (1 if x >= 0 else -1)   # SQLite ROUND(): half away from zero
+            if canc:
+                out['cancelled_bill_count'] += 1
+                out['cancelled_amount_p'] += p_
+            else:
+                out['bill_count'] += 1
+                out['gross_sales_p'] += p_
+    return out
 
 
 class OutboxSyncDispatcher:
@@ -1576,11 +1889,18 @@ class OutboxSyncDispatcher:
         if doc_hotel and doc_hotel.strip().upper() != self.hotel:
             return False, f'Hotel identity mismatch: database belongs to {doc_hotel}, configured for {self.hotel}.'
 
+        # Rows never change format once queued, so only rows newer than the last clean check are read (BUG-0012:
+        # reading every pending payload on each cycle grew memory and held the read lock for seconds in a long outage).
         with sdb.rlock():
-            pending_raw = sdb.con().execute("SELECT payload FROM sync_outbox WHERE sent_at IS NULL").fetchall()
-            for (p_raw,) in pending_raw:
+            cur = sdb.con().execute("SELECT seq, payload FROM sync_outbox WHERE sent_at IS NULL AND seq > ? ORDER BY seq",
+                                    (getattr(self, '_legacy_clear_seq', 0),))
+            last = None
+            for seq, p_raw in cur:
                 if is_legacy_outbox(p_raw):
                     return False, 'Unresolved legacy summary outbox records found. Baseline migration must be reconciled before Phase 3 activation.'
+                last = seq
+            if last is not None:
+                self._legacy_clear_seq = last
 
         return True, 'OK'
 
@@ -1735,7 +2055,10 @@ class OutboxSyncDispatcher:
                     continue
             elif status == 'rejected':
                 err = op_res.get('error')
-                if err in ('CONFLICT_OP_ID_PAYLOAD_MISMATCH', 'CONFLICT_STALE_RECORD'):
+                # Permanent rejections are held for Manager review (payload kept, sent_at < 0). Left pending, an
+                # unsupported-module op would be resent forever and, at the head of the queue, starve every
+                # later bill (BUG-35D-01, shown by tests/phase35d_local_e2e.py).
+                if err in PERMANENT_SYNC_REJECTIONS:
                     conflicts.append({'op_id': op_id, 'reason': err, 'payload': env})
 
         # 5. Persist acknowledgments and conflicts atomically in local SQLite
@@ -1795,6 +2118,9 @@ class OutboxSyncDispatcher:
             self.stats['state'] = 'running'
             self._thread = threading.Thread(target=self._run_loop, daemon=True, name='SetuOutboxDispatcher')
             self._thread.start()
+            safe, _ = self.is_activation_safe()
+            if safe:
+                self.inbound.start()
 
     def stop(self, timeout=5.0):
         with self._lock:
@@ -1806,6 +2132,7 @@ class OutboxSyncDispatcher:
             self.stats['state'] = 'stopped'
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=timeout)
+        self.inbound.stop(timeout=timeout)
 
     def wake(self):
         self._wake_event.set()
@@ -1847,6 +2174,11 @@ class OutboxSyncDispatcher:
 
 
 
+class InboundApplyError(ValueError):
+    """Permanent invalid inbound event: never commit or ACK."""
+    pass
+
+
 class InboundSyncReceiver:
     """
     Phase 3.4 Inbound Cloud Change Feed Sync Receiver.
@@ -1866,7 +2198,10 @@ class InboundSyncReceiver:
     def __init__(self, store, url=None, hotel=None, key=None, enabled=False,
                  batch_size=50, poll_interval=5.0, max_backoff=30.0,
                  http_get_fn=None, http_post_fn=None):
-        self.store = store
+        # SqliteSetuStore (live counter) wraps SqliteDoc (tests).
+        # Keep the wrapper to publish committed inbound changes to LAN clients.
+        self.live_store = store if hasattr(store, '_reload_after_inbound') else None
+        self.store = getattr(store, 'sdb', store)
         self.url = (url or '').rstrip('/')
         self.hotel = (hotel or '').strip().upper()
         self.key = (key or '').strip()
@@ -1924,14 +2259,27 @@ class InboundSyncReceiver:
         return True
 
     def get_last_applied_seq(self):
-        with self.store.rlock():
-            row = self.store.con().execute("SELECT COALESCE(MAX(seq), 0) FROM inbound_events_applied").fetchone()
-            return row[0] if row else 0
+        """Durable contiguous cursor, not MAX(seq): never hide missing events."""
+        with self.store.tx() as c:
+            row = c.execute("SELECT seq FROM inbound_cursor_state WHERE name = 'inbound'").fetchone()
+            if row:
+                return int(row[0])
+            expected = 1
+            # One-time migration for Phase 3.4 databases; stop at first gap.
+            for (seq,) in c.execute("SELECT seq FROM inbound_events_applied ORDER BY seq ASC"):
+                if int(seq) != expected:
+                    break
+                expected += 1
+            cursor = expected - 1
+            c.execute("INSERT OR IGNORE INTO inbound_cursor_state(name,seq) VALUES('inbound',?)", (cursor,))
+            return cursor
 
     def get_pending_qr_count(self):
         with self.store.rlock():
-            row = self.store.con().execute("SELECT COUNT(*) FROM kots WHERE status = 'pending' AND extra LIKE ?", ('%"src": "qr"%',)).fetchone()
-            return row[0] if row else 0
+            row = self.store.con().execute(
+                "SELECT COUNT(*) FROM inbound_qr_orders WHERE status = 'pending'"
+            ).fetchone()
+            return int(row[0]) if row else 0
 
     def get_pending_licence_count(self):
         with self.store.rlock():
@@ -1956,278 +2304,473 @@ class InboundSyncReceiver:
             'inbound_cursor': self.get_last_applied_seq()
         }
 
+    def _ack_pending(self):
+        """Resend committed event ACKs until cloud confirms exact event IDs."""
+        with self.store.rlock():
+            ids = [r[0] for r in self.store.con().execute(
+                "SELECT id FROM inbound_events_applied WHERE acked_at IS NULL "
+                "ORDER BY seq ASC LIMIT ?", (self.batch_size,)
+            ).fetchall()]
+        if not ids:
+            return 0
+        payload = json.dumps({'hotel_id': self.hotel, 'event_ids': ids}).encode('utf-8')
+        headers = {
+            'X-Setu-Hotel': self.hotel, 'X-Setu-Sync': self.key,
+            'Content-Type': 'application/json'
+        }
+        try:
+            status, response = self.http_post_fn(self.url, '/api/sync/inbound/ack', payload, headers)
+            if status != 200:
+                raise OSError('Inbound ACK HTTP ' + str(status))
+            parsed = json.loads(response)
+            if not isinstance(parsed, dict) or parsed.get('ok') is not True:
+                raise ValueError('invalid ACK response')
+            if parsed.get('hotel') != self.hotel:
+                raise ValueError('ACK tenant mismatch')
+            confirmed = set(parsed.get('acked_ids') or [])
+            confirmed.intersection_update(ids)
+            if not confirmed:
+                raise ValueError('No event IDs confirmed by cloud ACK')
+            now = int(time.time() * 1000)
+            with self.store.tx() as c:
+                for evt_id in confirmed:
+                    c.execute(
+                        "UPDATE inbound_events_applied SET acked_at = ? "
+                        "WHERE id = ? AND acked_at IS NULL", (now, evt_id)
+                    )
+            return len(confirmed)
+        except (OSError, ValueError, TypeError) as exc:
+            self.stats['errors'] += 1
+            self.stats['last_error'] = 'Inbound ACK pending retry: ' + str(exc)
+            return 0
+
+    def _report_cloud_applied(self):
+        """Tell the guest cloud *only after* an accepted KOT is durable locally.
+
+        Cloud may be offline or the HTTP response lost. Unconfirmed orders
+        remain in inbound_qr_orders and are retried on later poll/restarts.
+        This is independent of inbound event ACK and never affects bills.
+        """
+        with self.store.rlock():
+            rows = self.store.con().execute("""
+                SELECT q.order_id, CAST(k.no AS TEXT)
+                FROM inbound_qr_orders q
+                JOIN kots k ON k.id = q.kot_id
+                WHERE q.status='accepted' AND q.cloud_applied_at IS NULL
+                ORDER BY q.created_at, q.order_id
+                LIMIT ?
+            """, (self.batch_size,)).fetchall()
+        done = 0
+        headers = {
+            'X-Setu-Hotel': self.hotel, 'X-Setu-Sync': self.key,
+            'Content-Type': 'application/json'
+        }
+        for order_id, kot_no in rows:
+            try:
+                status, raw = self.http_post_fn(
+                    self.url, '/api/qr/applied',
+                    json.dumps({'id': order_id, 'kot': kot_no}).encode('utf-8'),
+                    headers
+                )
+                if status != 200:
+                    raise OSError('QR applied cloud HTTP ' + str(status))
+                reply = json.loads(raw)
+                if not isinstance(reply, dict) or reply.get('ok') is not True or \
+                   reply.get('id') != order_id or str(reply.get('kot')) != kot_no:
+                    raise ValueError('cloud did not confirm this QR/KOT pair')
+                with self.store.tx() as c:
+                    c.execute(
+                        "UPDATE inbound_qr_orders SET cloud_applied_at=? "
+                        "WHERE order_id=? AND status='accepted' AND kot_id IN "
+                        "(SELECT id FROM kots WHERE CAST(no AS TEXT)=?) "
+                        "AND cloud_applied_at IS NULL",
+                        (int(time.time()*1000), order_id, kot_no)
+                    )
+                done += 1
+            except (OSError, ValueError, TypeError) as exc:
+                # Keep pending; do not ack, delete or change the kitchen KOT.
+                self.stats['last_error'] = 'QR cloud KOT confirmation pending: ' + str(exc)
+        return done
+
+    def _record_inbound_failure(self, event_id, seq, reason):
+        self.stats['errors'] += 1
+        self.stats['last_error'] = str(reason)
+        with self.store.tx() as c:
+            c.execute(
+                "INSERT INTO inbound_event_failures(event_id,seq,reason,occurred_at,resolved) "
+                "VALUES (?,?,?,?,0) ON CONFLICT(event_id) DO UPDATE SET "
+                "reason=excluded.reason, occurred_at=excluded.occurred_at",
+                (str(event_id or 'unknown')[:128],
+                 int(seq) if isinstance(seq, int) and not isinstance(seq, bool) else 0,
+                 str(reason)[:400], int(time.time()*1000))
+            )
+
     def fetch_and_apply_once(self):
         if not self.is_activation_safe():
             self.stats['state'] = 'inactive'
             return {'status': 'inactive'}
 
         self.stats['state'] = 'syncing'
+        # Retry unconfirmed ACKs even when the previously committed event
+        # is outside the GET cursor window. Lost HTTP responses cannot strand ACKs.
+        pre_acked = self._ack_pending()
+        self._report_cloud_applied()
         last_seq = self.get_last_applied_seq()
-
         headers = {
-            'X-Setu-Hotel': self.hotel,
-            'X-Setu-Sync': self.key,
-            'Authorization': f'Bearer {self.key}',
+            'X-Setu-Hotel': self.hotel, 'X-Setu-Sync': self.key,
             'Accept': 'application/json'
         }
-
         path = f'/api/sync/inbound?since={last_seq}&limit={self.batch_size}'
         try:
-            http_status, resp_text = self.http_get_fn(self.url, path, headers)
-        except OSError as e:
-            self._consecutive_failures += 1
+            http_status, response = self.http_get_fn(self.url, path, headers)
+        except OSError as exc:
             self.stats['errors'] += 1
-            self.stats['last_error'] = str(e)
+            self.stats['last_error'] = str(exc)
             self.stats['state'] = 'offline'
-            return {'status': 'network_error', 'error': str(e)}
-
-        if http_status == 402:
-            self._consecutive_failures += 1
-            self.stats['errors'] += 1
-            self.stats['last_error'] = 'Subscription expired or account suspended (HTTP 402)'
-            self.stats['state'] = 'offline'
-            return {'status': 'payment_required', 'http_code': 402}
-
-        if http_status in (401, 403):
-            self._consecutive_failures += 1
-            self.stats['errors'] += 1
-            self.stats['last_error'] = f'Authentication or tenant mismatch failure (HTTP {http_status})'
-            self.stats['state'] = 'offline'
-            return {'status': 'unauthorized', 'http_code': http_status}
+            return {'status': 'network_error', 'error': str(exc), 'acked': pre_acked}
 
         if http_status != 200:
-            self._consecutive_failures += 1
             self.stats['errors'] += 1
-            self.stats['last_error'] = f'Cloud returned HTTP {http_status}: {resp_text[:200]}'
+            self.stats['last_error'] = f'Inbound HTTP {http_status}'
             self.stats['state'] = 'offline'
-            return {'status': 'http_error', 'http_code': http_status}
+            return {
+                'status': 'payment_required' if http_status == 402 else
+                          'unauthorized' if http_status in (401, 403) else 'http_error',
+                'http_code': http_status, 'acked': pre_acked
+            }
 
         try:
-            body = json.loads(resp_text)
-        except Exception as e:
+            body = json.loads(response)
+            if not isinstance(body, dict) or body.get('ok') is not True:
+                raise ValueError('invalid inbound response')
+            if body.get('hotel') and str(body['hotel']).upper() != self.hotel:
+                raise ValueError('wrong hotel in inbound response')
+            events = body.get('events')
+            if not isinstance(events, list) or len(events) > self.batch_size:
+                raise ValueError('invalid event batch')
+        except (TypeError, ValueError) as exc:
             self.stats['errors'] += 1
-            self.stats['last_error'] = f'Invalid JSON from cloud: {e}'
+            self.stats['last_error'] = str(exc)
             self.stats['state'] = 'offline'
-            return {'status': 'invalid_response', 'error': str(e)}
-
-        events = body.get('events', [])
-        if not events:
-            self._consecutive_failures = 0
-            self.stats['state'] = 'connected'
-            self.stats['last_sync_at'] = int(time.time() * 1000)
-            return {'status': 'idle', 'processed': 0, 'applied': 0, 'acked': 0}
+            return {'status': 'invalid_response', 'error': str(exc), 'acked': pre_acked}
 
         applied_count = 0
-        event_ids_to_ack = []
-
-        # Process each event in its own transaction or combined batch
         for evt in events:
-            evt_id = evt.get('id')
-            evt_seq = evt.get('seq', 0)
-            evt_type = evt.get('event_type')
-            entity_id = evt.get('entity_id')
-            payload = evt.get('payload') or {}
-            if isinstance(payload, str):
-                try:
+            evt_id = evt.get('id') if isinstance(evt, dict) else None
+            evt_seq = evt.get('seq') if isinstance(evt, dict) else None
+            try:
+                if not isinstance(evt_id, str) or not evt_id or len(evt_id) > 128:
+                    raise InboundApplyError('INVALID_EVENT_ID')
+                if type(evt_seq) is not int or evt_seq != last_seq + 1:
+                    raise InboundApplyError(f'INBOUND_CURSOR_GAP expected {last_seq + 1}, got {evt_seq}')
+                evt_type = evt.get('event_type')
+                if evt_type not in ('qr_order', 'qr_status', 'licence_update', 'vendor_message'):
+                    raise InboundApplyError('UNKNOWN_INBOUND_EVENT_TYPE')
+                if evt.get('hotel_id') and str(evt['hotel_id']).upper() != self.hotel:
+                    raise InboundApplyError('INBOUND_HOTEL_MISMATCH')
+                payload = evt.get('payload')
+                if isinstance(payload, str):
                     payload = json.loads(payload)
-                except Exception:
-                    payload = {}
+                if not isinstance(payload, dict):
+                    raise InboundApplyError('INVALID_EVENT_PAYLOAD')
 
-            with self.store.tx() as c:
-                # Deduplication check
-                already = c.execute("SELECT 1 FROM inbound_events_applied WHERE id = ?", (evt_id,)).fetchone()
-                if not already:
-                    if evt_type == 'qr_order':
-                        self._apply_qr_order(c, payload)
-                        applied_count += 1
-                    elif evt_type == 'qr_status':
-                        self._apply_qr_status(c, payload)
-                        applied_count += 1
-                    elif evt_type == 'licence_update':
-                        self._apply_licence_update(c, payload)
-                        applied_count += 1
-                    elif evt_type == 'vendor_message':
-                        self._apply_vendor_message(c, payload)
-                        applied_count += 1
+                # Counter writes hold store.lock before SqliteDoc.wlock. Use
+                # the same lock order to prevent an outbound edit overwriting
+                # a cloud event while server memory is being refreshed.
+                app_lock = self.live_store.lock if self.live_store else nullcontext()
+                with app_lock:
+                    dirty_keys = []
+                    with self.store.tx() as c:
+                        existing = c.execute(
+                            "SELECT seq FROM inbound_events_applied WHERE id = ?", (evt_id,)
+                        ).fetchone()
+                        if existing:
+                            if int(existing[0]) != evt_seq:
+                                raise InboundApplyError('REPLAYED_EVENT_ID_NEW_SEQUENCE')
+                        else:
+                            if evt_type == 'qr_order':
+                                self._apply_qr_order(c, payload)
+                                # Pending QR orders have their own review endpoint.
+                            elif evt_type == 'qr_status':
+                                self._apply_qr_status(c, payload)
+                                ordrow = c.execute(
+                                    "SELECT tbl,status,kot_id FROM inbound_qr_orders WHERE order_id=?",
+                                    (str(payload.get('order_id') or ''),)
+                                ).fetchone()
+                                if ordrow and ordrow[1] == 'accepted':
+                                    dirty_keys = [
+                                        ('kaccha', ordrow[0]), ('kots', ordrow[2]), ('seq', '')
+                                    ]
+                            elif evt_type == 'licence_update':
+                                self._apply_licence_update(c, payload)
+                                dirty_keys = [('subscription', '')]
+                            elif evt_type == 'vendor_message':
+                                self._apply_vendor_message(c, payload)
+                                dirty_keys = [('vendor_notices', '')]
+                            now_ms = int(time.time() * 1000)
+                            # Phase 2b LAN /api/changes uses doc_version as its
+                            # notification clock. Update it atomically with the
+                            # inbound business data AND durable applied marker.
+                            next_version = int(self.store.meta('doc_version') or 0) + 1
+                            self.store.set_version(c, next_version, now_ms)
+                            if dirty_keys:
+                                for key, rid in dirty_keys:
+                                    self.store.log_change(c, next_version, key, rid)
+                            else:
+                                self.store.log_change(c, next_version, 'inbound_qr', '')
+                            c.execute(
+                                "INSERT INTO inbound_events_applied"
+                                "(id,seq,event_type,entity_id,applied_at,acked_at) "
+                                "VALUES(?,?,?,?,?,NULL)",
+                                (evt_id, evt_seq, evt_type, str(evt.get('entity_id') or ''),
+                                 now_ms)
+                            )
+                            applied_count += 1
+                        changed = c.execute(
+                            "UPDATE inbound_cursor_state SET seq=? "
+                            "WHERE name='inbound' AND seq=?",
+                            (evt_seq, last_seq)
+                        ).rowcount
+                        if changed != 1:
+                            raise InboundApplyError('CONCURRENT_INBOUND_CURSOR_CHANGE')
+                    if self.live_store and not existing:
+                        self.live_store._reload_after_inbound()
+                last_seq = evt_seq
+            except (InboundApplyError, ValueError, TypeError) as exc:
+                self._record_inbound_failure(evt_id, evt_seq, str(exc))
+                self.stats['state'] = 'blocked'
+                acked = pre_acked + self._ack_pending()
+                return {
+                    'status': 'blocked', 'processed': applied_count,
+                    'applied': applied_count, 'failed_event': evt_id,
+                    'error': str(exc), 'acked': acked, 'cursor': last_seq
+                }
 
-                    now_ms = int(time.time() * 1000)
-                    c.execute("""
-                        INSERT INTO inbound_events_applied (id, seq, event_type, entity_id, applied_at)
-                        VALUES (?, ?, ?, ?, ?)
-                    """, (evt_id, evt_seq, evt_type, str(entity_id or ''), now_ms))
-
-            event_ids_to_ack.append(evt_id)
-
-        # Send ACK to cloud only after local commits
-        ack_success = False
-        try:
-            ack_payload = json.dumps({'hotel_id': self.hotel, 'event_ids': event_ids_to_ack}).encode('utf-8')
-            ack_headers = {
-                'X-Setu-Hotel': self.hotel,
-                'X-Setu-Sync': self.key,
-                'Authorization': f'Bearer {self.key}',
-                'Content-Type': 'application/json'
-            }
-            ack_status, _ = self.http_post_fn(self.url, '/api/sync/inbound/ack', ack_payload, ack_headers)
-            if ack_status == 200:
-                ack_success = True
-        except Exception as e:
-            self.stats['errors'] += 1
-            self.stats['last_error'] = f'Inbound ACK failed: {e}'
-
-        self._consecutive_failures = 0
+        acked = pre_acked + self._ack_pending()
+        self._report_cloud_applied()
         self.stats['applied_events'] += applied_count
-        if ack_success:
-            self.stats['acked_events'] += len(event_ids_to_ack)
-        self.stats['last_sync_at'] = int(time.time() * 1000)
+        self.stats['acked_events'] += acked
+        self.stats['last_sync_at'] = int(time.time()*1000)
         self.stats['state'] = 'connected'
-
         return {
-            'status': 'ok',
-            'processed': len(events),
-            'applied': applied_count,
-            'acked': len(event_ids_to_ack) if ack_success else 0,
-            'cursor': events[-1].get('seq', last_seq)
+            'status': 'ok' if events else 'idle',
+            'processed': len(events), 'applied': applied_count,
+            'acked': acked, 'cursor': last_seq
         }
 
     def _apply_qr_order(self, c, payload):
-        tbl = str(payload.get('table', '1')).strip()
-        items = payload.get('items', [])
-        order_id = str(payload.get('order_id', ''))
-        guest_name = str(payload.get('guest_name', '')).strip()
-        note = str(payload.get('note', '')).strip()
-
-        # A. Update table_orders (kaccha running order)
-        row = c.execute("SELECT data FROM table_orders WHERE tbl = ?", (tbl,)).fetchone()
-        t_data = json.loads(row[0]) if row and row[0] else {'cart': [], 'cust': '', 'note': '', 'qr': []}
-
-        cart = t_data.get('cart', [])
+        """Stage guest order for approval. NEVER add pending items to bill cart."""
+        order_id = str(payload.get('order_id') or '').strip()
+        tbl = str(payload.get('table') or '').strip()
+        items = payload.get('items')
+        if not order_id or len(order_id) > 90 or not tbl or len(tbl) > 90:
+            raise InboundApplyError('QR_ORDER_ID_OR_TABLE_INVALID')
+        if not isinstance(items, list) or not 1 <= len(items) <= 40:
+            raise InboundApplyError('QR_ORDER_ITEMS_INVALID')
+        clean_items = []
         for it in items:
-            mid = str(it.get('mid', ''))
-            qty = float(it.get('qty', 1))
-            name = str(it.get('name', ''))
+            if not isinstance(it, dict) or not str(it.get('mid') or ''):
+                raise InboundApplyError('QR_ORDER_ITEM_INVALID')
+            qty = float(it.get('qty', 0))
             price = float(it.get('price', 0))
-            found = False
-            for c_it in cart:
-                if str(c_it.get('mid', '')) == mid:
-                    c_it['qty'] = round(float(c_it.get('qty', 0)) + qty, 2)
-                    found = True
-                    break
-            if not found:
-                cart.append({'mid': mid, 'name': name, 'price': price, 'qty': qty})
-        t_data['cart'] = cart
-
-        if guest_name and not t_data.get('cust'):
-            t_data['cust'] = guest_name
-        if note:
-            existing_note = t_data.get('note', '')
-            t_data['note'] = (existing_note + ' | ' + note).strip(' |')
-
-        qr_list = t_data.get('qr', [])
-        if order_id and order_id not in qr_list:
-            qr_list.append(order_id)
-        t_data['qr'] = qr_list
-
+            if not 0 < qty <= 50 or not 0 <= price <= 1000000:
+                raise InboundApplyError('QR_ORDER_QUANTITY_OR_PRICE_INVALID')
+            clean_items.append({
+                'mid': str(it['mid'])[:90], 'name': str(it.get('name') or '')[:120],
+                'price': price, 'qty': qty
+            })
+        # Duplicate order IDs may arrive via retry; conflicting content must
+        # never be silently ignored under a reused ID.
+        prior = c.execute(
+            "SELECT tbl,items_json FROM inbound_qr_orders WHERE order_id=?",
+            (order_id,)
+        ).fetchone()
+        if prior and (prior[0] != tbl or json.loads(prior[1]) != clean_items):
+            raise InboundApplyError('QR_ORDER_ID_CONTENT_CONFLICT')
         c.execute("""
-            INSERT INTO table_orders (tbl, ord, data) VALUES (?, ?, ?)
-            ON CONFLICT(tbl) DO UPDATE SET data = excluded.data
-        """, (tbl, int(time.time() * 1000), json.dumps(t_data)))
-
-        # B. Insert KOT and KOT items
-        max_no = c.execute("SELECT COALESCE(MAX(CAST(no AS INTEGER)), 0) FROM kots").fetchone()[0]
-        kot_no = max_no + 1
-        now_ms = int(time.time() * 1000)
-        kot_id = f"kot_{now_ms}_{kot_no}"
-        now_date = datetime.now().strftime('%Y-%m-%d')
-        now_time = datetime.now().strftime('%H:%M:%S')
-        extra = json.dumps({'src': 'qr', 'qr': order_id, 'guest_name': guest_name})
-
-        c.execute("""
-            INSERT INTO kots (id, ord, no, date, time, "table", channel, status, arrays, extra)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (kot_id, now_ms, str(kot_no), now_date, now_time, tbl, 'Dine-In', 'pending', '', extra))
-
-        for idx, it in enumerate(items):
-            it_extra = json.dumps({'price': float(it.get('price', 0))})
-            c.execute("""
-                INSERT INTO kot_items (kot_id, line, mid, name, qty, extra)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (kot_id, idx, str(it.get('mid', '')), str(it.get('name', '')), float(it.get('qty', 1)), it_extra))
+            INSERT OR IGNORE INTO inbound_qr_orders
+              (order_id, tbl, items_json, guest_name, note, status, kot_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', NULL, ?, ?)
+        """, (order_id, tbl, json.dumps(clean_items),
+              str(payload.get('guest_name') or '')[:80],
+              str(payload.get('note') or '')[:200],
+              int(payload.get('at') or time.time() * 1000),
+              int(time.time() * 1000)))
+        # No table_orders, KOT, bill, payment or inventory writes here.
 
     def _apply_qr_status(self, c, payload):
-        status = payload.get('status')
-        order_id = str(payload.get('order_id', ''))
-        if status == 'rejected':
-            rows = c.execute("SELECT id FROM kots WHERE extra LIKE ? AND status = 'pending'", (f'%"qr": "{order_id}"%',)).fetchall()
-            for r in rows:
-                c.execute("UPDATE kots SET status = 'cancelled' WHERE id = ?", (r[0],))
-                c.execute("INSERT INTO kot_status_history (kot_id, old_status, new_status, at) VALUES (?, 'pending', 'cancelled', ?)",
-                          (r[0], int(time.time() * 1000)))
+        """Accepted orders alone reach the running cart and kitchen ticket."""
+        order_id = str(payload.get('order_id') or '').strip()
+        state = str(payload.get('status') or '').lower()
+        if not order_id or state not in ('accepted', 'rejected'):
+            raise InboundApplyError('QR_STATUS_INVALID')
+        row = c.execute(
+            "SELECT tbl,items_json,guest_name,note,status,kot_id FROM inbound_qr_orders "
+            "WHERE order_id = ?", (order_id,)
+        ).fetchone()
+        if not row:
+            raise InboundApplyError('QR_STATUS_BEFORE_ORDER')
+        tbl, items_json, guest_name, note, current, kot_id = row
+        if current == state:
+            return  # Same decision delivered again; no double KOT/cart.
+        if current != 'pending':
+            raise InboundApplyError('QR_DECISION_ALREADY_FINAL')
+
+        now_ms = int(time.time() * 1000)
+        if state == 'rejected':
+            # Pending order never entered running cart, so waiter quantities
+            # and previously billed items remain unchanged.
+            c.execute(
+                "UPDATE inbound_qr_orders SET status='rejected', updated_at=? "
+                "WHERE order_id=? AND status='pending'", (now_ms, order_id)
+            )
+            return
+
+        items = json.loads(items_json)
+        old = c.execute("SELECT data FROM table_orders WHERE tbl = ?", (tbl,)).fetchone()
+        order = json.loads(old[0]) if old and old[0] else {
+            'cart': [], 'cust': '', 'note': '', 'qr': []
+        }
+        cart = list(order.get('cart') or [])
+        # Do not merge QR quantities with waiter-created lines. Provenance
+        # makes later removal/reconciliation possible without guessing.
+        for it in items:
+            cart.append({
+                **it, 'src': 'qr', 'qr_order_id': order_id
+            })
+        order['cart'] = cart
+        order['table'] = tbl
+        # The cloud-approved QR quantities already have a kitchen ticket.
+        # Extend the prior 'sent' quantities, not every cart line, so waiter
+        # items that still need sending are not accidentally marked as sent.
+        already_sent = dict(order.get('sent') or {})
+        for it in items:
+            mid = it['mid']
+            already_sent[mid] = round(float(already_sent.get(mid, 0) or 0) + float(it['qty']), 3)
+        order['sent'] = already_sent
+        if guest_name and not order.get('cust'):
+            order['cust'] = guest_name
+        if note:
+            order['note'] = (str(order.get('note') or '') + ' | ' + note).strip(' |')
+        qr_ids = list(order.get('qr') or [])
+        if order_id not in qr_ids:
+            qr_ids.append(order_id)
+        order['qr'] = qr_ids
+        # Keep these two data-object keys registered so /api/db and
+        # /api/changes can export inbound mutations to all LAN devices.
+        self.store.register_key(c, 'kaccha', 'maptable')
+        self.store.register_key(c, 'kots', 'spec')
+        c.execute("""
+            INSERT INTO table_orders (tbl, ord, data) VALUES (?, ?, ?)
+            ON CONFLICT(tbl) DO UPDATE SET data=excluded.data
+        """, (tbl, now_ms, json.dumps(order)))
+
+        kot_id = 'qrkot_' + hashlib.sha256(order_id.encode('utf-8')).hexdigest()[:24]
+        last_no = c.execute(
+            "SELECT COALESCE(MAX(CAST(no AS INTEGER)),0) FROM kots"
+        ).fetchone()[0]
+        seq_row = c.execute(
+            "SELECT n FROM sequences WHERE name = 'kot'"
+        ).fetchone()
+        try:
+            configured_kot_no = int(seq_row[0]) if seq_row else 0
+        except (TypeError, ValueError):
+            configured_kot_no = 0
+        kot_no = max(int(last_no), configured_kot_no) + 1
+        now = datetime.now()
+        # One established serializer owns the arrays flags and child-table
+        # rows; raw INSERTs left 'arrays' empty and hid KOT items from exports.
+        self.store.upsert(c, 'kots', 'spec', {
+            'id': kot_id,
+            'no': kot_no,
+            'date': now.strftime('%Y-%m-%d'),
+            'time': now.strftime('%H:%M:%S'),
+            'table': tbl,
+            'channel': 'Dine-In',
+            'status': 'new',
+            'at': now_ms,
+            'items': [dict(it) for it in items],
+            'src': 'qr',
+            'qr': order_id,
+            'guest_name': guest_name
+        })
+        # Preserve the existing sequence map and keep KOT numbers unique
+        # across waiter-created and cloud-created tickets.
+        self.store.register_key(c, 'seq', 'seq')
+        if seq_row is None:
+            ord_row = c.execute(
+                "SELECT COALESCE(MAX(ord),-1)+1 FROM sequences"
+            ).fetchone()
+            c.execute(
+                "INSERT INTO sequences(name,n,t,ord) VALUES('kot',?,NULL,?)",
+                (kot_no, int(ord_row[0]))
+            )
+        else:
+            c.execute("UPDATE sequences SET n=?,t=NULL WHERE name='kot'", (kot_no,))
+        c.execute("""
+            UPDATE inbound_qr_orders SET status='accepted', kot_id=?, updated_at=?
+            WHERE order_id=? AND status='pending'
+        """, (kot_id, now_ms, order_id))
 
     def _apply_licence_update(self, c, payload):
-        # 1. Hotel tenant verification
-        h_id = payload.get('hotel_id')
-        if h_id and str(h_id).strip().upper() != self.hotel:
-            self.stats['errors'] += 1
-            self.stats['last_error'] = f'Licence hotel mismatch: {h_id} != {self.hotel}'
-            return
+        """Fail-closed cryptographic verification of installation-bound SETU keys."""
+        if not isinstance(payload, dict):
+            raise InboundApplyError("INVALID_LICENCE_PAYLOAD")
+        h_id = str(payload.get('hotel_id', '')).strip().upper()
+        if h_id != self.hotel:
+            raise InboundApplyError("LICENCE_HOTEL_MISMATCH")
 
-        # 2. Installation ID check (if present)
-        inst_id = payload.get('install_id')
-        if inst_id:
-            row = c.execute("SELECT v FROM hotel_settings WHERE k = 'settings'").fetchone()
-            if row and row[0]:
-                try:
-                    local_inst = json.loads(row[0]).get('installId')
-                    if local_inst and local_inst != inst_id:
-                        self.stats['errors'] += 1
-                        self.stats['last_error'] = f'Licence install_id mismatch: {inst_id} != {local_inst}'
-                        return
-                except Exception:
-                    pass
+        row = c.execute("SELECT v FROM hotel_settings WHERE k = 'settings'").fetchone()
+        try:
+            local_settings = json.loads(row[0]) if row and row[0] else {}
+        except (ValueError, TypeError) as exc:
+            raise InboundApplyError("LICENCE_INSTALL_SETTINGS_INVALID") from exc
+        install_id = str(local_settings.get('installId') or '')
+        if len(install_id) < 8:
+            raise InboundApplyError("LICENCE_INSTALL_ID_MISSING")
+        cloud_inst = str(payload.get('install_id') or '')
+        if cloud_inst and cloud_inst.upper() != install_id.upper():
+            raise InboundApplyError("LICENCE_INSTALL_ID_MISMATCH")
 
-        # 3. Forged / invalid signature check
-        sig = str(payload.get('signature', ''))
-        if sig.startswith('forged') or sig.startswith('invalid'):
-            self.stats['errors'] += 1
-            self.stats['last_error'] = 'Invalid or forged licence signature rejected'
-            return
+        key = str(payload.get('key') or '')
+        try:
+            licence = verify_signed_license(
+                key, install_id,
+                public_keys=getattr(self, 'license_public_keys', TRUSTED_PUBLIC_KEYS)
+            )
+        except InvalidLicence as exc:
+            raise InboundApplyError("INVALID_SIGNED_LICENCE: " + str(exc)) from exc
 
-        # 4. Anti-downgrade check
         row = c.execute("SELECT v FROM hotel_settings WHERE k = 'subscription'").fetchone()
-        cur_sub = json.loads(row[0]) if row and row[0] else {}
-        if cur_sub.get('isLifetime') and not payload.get('lifetime'):
-            self.stats['errors'] += 1
-            self.stats['last_error'] = 'Cannot downgrade lifetime licence'
-            return
+        try:
+            cur_sub = json.loads(row[0]) if row and row[0] else {}
+        except (ValueError, TypeError) as exc:
+            raise InboundApplyError("LICENCE_SUBSCRIPTION_CORRUPT") from exc
 
-        # 5. Apply valid licence update
+        if bool(payload.get('lifetime')) and not licence['lifetime']:
+            raise InboundApplyError("UNSIGNED_LIFETIME_CLAIM")
+        if cur_sub.get('isLifetime') and not licence['lifetime']:
+            raise InboundApplyError("LICENCE_LIFETIME_DOWNGRADE")
+
+        keys = list(cur_sub.get('cloudKeys') or [])
+        if key in keys:
+            return  # Duplicate delivery cannot activate/extend the same key twice.
+
         new_sub = dict(cur_sub)
-        new_sub['planName'] = payload.get('plan', new_sub.get('planName', 'active'))
-        if payload.get('lifetime'):
-            new_sub['isLifetime'] = True
-            new_sub['status'] = 'lifetime'
-            new_sub['validUntil'] = '2099-12-31'
+        new_sub['planName'] = str(payload.get('plan') or cur_sub.get('planName') or 'active')[:80]
+        if licence['lifetime']:
+            new_sub.update({'isLifetime': True, 'status': 'lifetime', 'validUntil': '2099-12-31'})
         else:
-            paid_until = payload.get('paid_until')
-            if isinstance(paid_until, (int, float)):
-                dt = datetime.fromtimestamp(paid_until / 1000.0)
-                new_sub['validUntil'] = dt.strftime('%Y-%m-%d')
-            elif isinstance(paid_until, str):
-                new_sub['validUntil'] = paid_until.split('T')[0]
+            signed_until = datetime.fromtimestamp(
+                licence['valid_until_ms'] / 1000, timezone.utc
+            ).strftime('%Y-%m-%d')
+            prev = str(cur_sub.get('validUntil') or '')
+            # Never shorten a previously confirmed valid subscription.
+            new_sub['validUntil'] = max(prev, signed_until) if len(prev) == 10 else signed_until
             new_sub['status'] = 'active'
-
-        k = payload.get('key')
-        if k:
-            keys = new_sub.get('cloudKeys', [])
-            if k not in keys:
-                keys.append(k)
-            new_sub['cloudKeys'] = keys
-
-        c.execute("""
-            INSERT INTO hotel_settings (k, v) VALUES ('subscription', ?)
-            ON CONFLICT(k) DO UPDATE SET v = excluded.v
-        """, (json.dumps(new_sub),))
+        keys.append(key)
+        new_sub['cloudKeys'] = keys
+        self.store.set_value(c, 'subscription', 'setting', new_sub, cur_sub)
 
     def _apply_vendor_message(self, c, payload):
         msg_id = payload.get('id')
@@ -2235,10 +2778,7 @@ class InboundSyncReceiver:
         notices = json.loads(row[0]) if row and row[0] else []
         if not any(n.get('id') == msg_id for n in notices):
             notices.append(payload)
-            c.execute("""
-                INSERT INTO hotel_settings (k, v) VALUES ('vendor_notices', ?)
-                ON CONFLICT(k) DO UPDATE SET v = excluded.v
-            """, (json.dumps(notices),))
+            self.store.set_value(c, 'vendor_notices', 'setting', notices, notices[:-1])
 
     def start(self):
         with self._lock:

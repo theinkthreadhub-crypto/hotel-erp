@@ -9,13 +9,14 @@
 
 [Setup]
 AppId={{7B3C2E51-5A9D-4C1E-9F0B-2D6A8E4F1C73}
-AppName=Setu POS
+AppName=HoReCa One
 AppVersion={#AppVersion}
-AppVerName=Setu POS {#AppVersion}
+AppVerName=HoReCa One {#AppVersion}
 AppPublisher=Aghanya Devanya Enterprises
+AppSupportPhone=+91 91941 15127
 DefaultDirName={localappdata}\Programs\AghanyaDevanyaERP
 DisableDirPage=yes
-DefaultGroupName=Setu POS
+DefaultGroupName=HoReCa One
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ; Setu is a 64-bit program (Python 3.12): Windows 8.1 / 10 / 11, 64-bit. Older or 32-bit Windows get a clear message instead of a broken install.
@@ -25,7 +26,7 @@ OutputDir=..\Output
 OutputBaseFilename=Setu-POS-Setup
 SetupIconFile=..\favicon.ico
 UninstallDisplayIcon={app}\Aghanya-Devanya-Hotel-ERP.exe
-UninstallDisplayName=Setu POS - Restaurant & Hotel POS
+UninstallDisplayName=HoReCa One - Restaurant & Hotel POS
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -33,7 +34,7 @@ CloseApplications=force
 RestartApplications=no
 
 [Tasks]
-Name: "desktopicon"; Description: "Desktop par Setu POS ka icon banayein"; GroupDescription: "Shortcuts:"
+Name: "desktopicon"; Description: "Create a HoReCa One icon on the desktop"; GroupDescription: "Shortcuts:"
 
 [Files]
 Source: "..\dist\Aghanya-Devanya-Hotel-ERP.exe"; DestDir: "{app}"; Flags: ignoreversion
@@ -48,13 +49,13 @@ Source: "..\whatsapp\*"; DestDir: "{app}\whatsapp"; Flags: ignoreversion recurse
 Source: "MicrosoftEdgeWebview2Setup.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: NeedsWebView2
 
 [Icons]
-Name: "{group}\Setu POS"; Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"
-Name: "{group}\Uninstall Setu POS"; Filename: "{uninstallexe}"
-Name: "{userdesktop}\Setu POS"; Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
+Name: "{group}\HoReCa One"; Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"
+Name: "{group}\Uninstall HoReCa One"; Filename: "{uninstallexe}"
+Name: "{userdesktop}\HoReCa One"; Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; WorkingDir: "{app}"; IconFilename: "{app}\favicon.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Microsoft WebView2 install ho raha hai (internet chahiye)..."; Check: NeedsWebView2; Flags: waituntilterminated
-Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Description: "Setu POS abhi kholein"; Flags: nowait postinstall skipifsilent
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing Microsoft WebView2 (requires an internet connection)..."; Check: NeedsWebView2; Flags: waituntilterminated
+Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Description: "Open HoReCa One now"; Flags: nowait postinstall skipifsilent
 ; Update from inside Setu (silent install): start Setu again by itself
 Filename: "{app}\Aghanya-Devanya-Hotel-ERP.exe"; Flags: nowait; Check: WizardSilent
 

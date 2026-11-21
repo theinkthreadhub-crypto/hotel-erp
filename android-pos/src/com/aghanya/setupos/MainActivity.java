@@ -29,7 +29,7 @@ import java.io.OutputStream;
 // Setu POS on the phone: the restaurant's Setu from the counter PC (restaurant WiFi) or from Hotel Setu Cloud.
 // The first screen (assets/start.html) picks one; the choice is remembered. SA bridge: save / share files, print, copy.
 public class MainActivity extends Activity {
-    static final String CLOUD = "https://setu-cloud.theinkthreadhub.workers.dev/hotel_erp.html";
+    static final String CLOUD = "https://hotel.setupro.in/hotel_erp";
     static final String START = "file:///android_asset/start.html";
     WebView web;
     SharedPreferences prefs;
