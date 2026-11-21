@@ -525,3 +525,17 @@
 - **Date:** 2026-11-19 · **Reported by:** owner (screenshots)
 - **Files:** `hotel_erp.html` (`listEditor` / `lsAdd` / `lsDel` / `listVals`: one box per item with ×, + Add / Enter, duplicate check, live count, on the Masters screen and the Settings card; WhatsApp Center explains that only the Manager / Owner sees the link QR instead of a broken image; 21 Hindi labels removed; `sw.js` v105); new `tests/ui_lists_whatsapp_e2e.cjs` + `tests/fixtures/fake_whatsapp_helper.py`; CI.
 - **Kept:** the Hindi sample line in the printer test (it checks Hindi printing) and the Hindi words the menu import recognises as headings.
+
+### CHG-0045: HoReCa One Helpline Everywhere; EULA Draft
+- **Date:** 2026-11-20 · **Asked by:** owner
+- **Files:** `hotel_erp.html` (`HELPLINE` +91 91941 15127 on Help & Support with Call / WhatsApp links, licence lock, login, suspended notice, save error, WhatsApp quota; old +91 79872 45831 removed), `cloud/src/worker.js` (vendor-contact errors name the helpline), `cloud/static/admin.html` (Login Card), `installer/setu-setup.iss` (`AppSupportPhone`), `docs/legal/EULA.md` (draft v1.0 for lawyer review).
+
+### CHG-0046: Offline Hotel (No Internet) in Super Admin
+- **Date:** 2026-11-21 · **Asked by:** owner
+- **What:** Create New Hotel → Hotel type **Offline hotel (no internet)** → Install ID + licence (1 month … lifetime) → one request makes the hotel record (Offline, plan `offline`, Install ID, licence date in the registry) and the signed licence key for that PC → **Offline Card** (Hotel ID, Install ID, licence, key, helpline, pen-drive backup note; WhatsApp / Copy / Print). No cloud login or password is made.
+- **Renewal:** hotel sheet → **Renewal key** (`/api/admin/offline/renew`): days are added to the current licence (or start today if it ended), the same rule as the counter PC; one `opId` = one key, so a double tap never adds the days twice. Lifetime stays lifetime.
+- **List:** Offline hotels show "Offline hotel · no internet" instead of "Not synced yet" / "No bill made yet"; a new filter **Renewal due (offline)** and an alert 15 days before the licence ends.
+- **Refused:** a bad Install ID, an unknown plan, an Install ID that already belongs to a hotel (names it), a blocked PC, Keygen not set up.
+- **Also:** Super Admin audit log lines in English ("Key made", "Hotel changed", "Domain removed"…).
+- **Tests (new):** `tests/offline_hotel_e2e.py` 9/9 (real key bytes checked with the test public key: signature, kind, days, Install ID hash), `tests/offline_hotel_browser_e2e.cjs` 11/11 (form, card, list, renewal double tap = one key). Regression: Super Admin app 17/17, vendor login 10/10 + browser, rapid taps all pass.
+- **Not tested here:** typing the key on a real counter PC: the counter verifies with the production public key, which a local test key cannot match. The key is made by the same `makeLicenseKey()` that Keygen already uses in production.

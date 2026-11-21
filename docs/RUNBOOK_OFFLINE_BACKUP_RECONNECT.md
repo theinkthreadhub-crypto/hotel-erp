@@ -21,6 +21,16 @@ For the vendor and support staff. Every statement below is backed by code and a 
 - A second sync adds nothing.
 - The cloud stops accepting saves only when the **paid period** ends, plus 3 grace days (`GRACE_DAYS`). Billing on the PC still continues then.
 
+## 1a. A hotel with no internet at all (Offline hotel)
+
+1. Install Setu on the counter PC from a pen drive. Note the **Install ID** shown on the screen.
+2. Super Admin → Create New Hotel → Hotel type **Offline hotel (no internet)** → Install ID + licence → Create.
+3. Type the licence key from the **Offline Card** on the PC → Activate. No internet is needed after this.
+4. Settings → Auto Backup → choose a pen drive. The owner takes it home once a week.
+5. Renewal: the hotel shows under **Renewal due (offline)** 15 days before the licence ends → hotel → **Renewal key** → send the key.
+- The 20/30-day cloud check never applies to an Offline hotel. Setu runs until its licence key ends.
+- Not available offline: owner app, cloud and Google Drive backups, WhatsApp receipts, Setu AI, table QR and online orders.
+
 ## 2. Backups: four independent copies
 
 | Copy | Where | How often | Kept |

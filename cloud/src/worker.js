@@ -306,6 +306,15 @@ const pemBytes = pem => Uint8Array.from(atob(String(pem).replace(/-----[^-]+----
 // Keygen in Super Admin: the LICENSE_PRIVATE_KEY secret, or the key file the vendor pasted once (Super Admin -> Keygen)
 const KEY_PLANS = { '1m': [1, 30, '1 Month'], '3m': [1, 90, '3 Months'], '6m': [1, 180, '6 Months'], '1y': [1, 365, '1 Year'],
   life: [3, 0, 'Lifetime'], demo1h: [2, 60, 'Demo 1 Hour'], demo24h: [2, 1440, 'Demo 24 Hours'], reset: [4, 0, 'Owner Password Reset'] };
+// Offline hotel (no internet): its licence key is the only thing that keeps Setu running, so the vendor makes it here
+const OFFLINE_PLANS = ['1m', '3m', '6m', '1y', 'life'];
+function offlinePlan(b){
+  if(OFFLINE_PLANS.includes(b.licPlan)){ const [kind, value, label] = KEY_PLANS[b.licPlan]; return { kind, value, label, days: kind === 3 ? 0 : value, lifetime: kind === 3 }; }
+  const d = Math.round(+b.licDays || 0);
+  if(!(d >= 1 && d <= 3650)) return { error: 'Choose a licence plan (1 month to lifetime) or 1 to 3650 days' };
+  return { kind: 1, value: d, label: d + ' Days', days: d, lifetime: false };
+}
+const licText = (lifetime, until) => lifetime ? 'lifetime' : new Date(until).toISOString();
 async function licPriv(env){
   if(env.LICENSE_PRIVATE_KEY) return { pem: env.LICENSE_PRIVATE_KEY, from: 'secret' };
   const v = (await regJson(env, '/conf/get', { k: 'licpriv' })).v;
@@ -4639,6 +4648,35 @@ async function admin(request, env, path){
       if(c.done) return json(200, { ...c.result, duplicate: true });
     }
     try{
+    if(body.offline){
+      // Offline hotel: no cloud login. One form = hotel record (Offline) + the licence key for its counter PC
+      const done = r => idem ? regCall(env, '/idem/done', { k: 'create:' + idem, result: r }) : null;
+      const fail = async (s, e) => { await done(null); return json(s, { error: e }); };
+      const iid = String(body.installId || '').trim().toUpperCase();
+      if(!/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(iid)) return fail(400, 'Enter the Install ID shown on the counter PC (e.g. SETU-AB12-CD34)');
+      const lp = await licPriv(env);
+      if(!lp.pem) return fail(400, 'Keygen is not set up yet. First add the key file in Keygen → Setup.');
+      const pl = offlinePlan(body);
+      if(pl.error) return fail(400, pl.error);
+      if((await regJson(env, '/blocked/check', { iid })).blocked) return fail(403, 'This computer is blocked. Unblock it in More → Blocked computers first.');
+      const owner = (await regJson(env, '/byiid', { iid })).code;
+      if(owner) return fail(409, `This computer already belongs to hotel ${owner}. Open that hotel and use Renewal key.`);
+      const input = signupInput({ ...body, password: tempPassword() });
+      if(input.error) return fail(400, input.error);
+      const res = await createHotel(env, input, { days: pl.lifetime ? 3650 : pl.days, admin: true, tier: TIERS[body.tier] ? body.tier : undefined,
+        status: 'active', plan: 'offline', iid, installId: iid, noKey: true, lifetime: pl.lifetime });
+      if(!res.ok){ await done(null); return res; }
+      const { code } = await res.json();
+      const key = await makeLicenseKey(env, iid, pl.value, pl.kind, lp.pem);
+      const until = pl.lifetime ? 0 : Date.now() + pl.days * DAY;
+      await hotelCall(code, '/internal/activate', { key, days: pl.days || 3650, paidUntil: until || Date.now() + 3650 * DAY, lifetime: pl.lifetime, plan: 'offline', installId: iid });
+      await hotelCall(code, '/internal/admin', { offline: true });
+      await regCall(env, '/update', { code, lic: licText(pl.lifetime, until), iid });
+      const out = { code, offline: true, installId: iid, key, label: pl.label, until, lifetime: pl.lifetime };
+      await log('Offline hotel created', code, `${input.name} · ${input.businessType} · ${pl.label} · ${iid}`);
+      await done(out);
+      return json(200, out);
+    }
     // Vendor-issued login: with no password typed, a temporary one is made; the owner must change it at first sign-in
     const generated = !body.password ? tempPassword() : '';
     if(generated) body.password = generated;
@@ -4692,8 +4730,8 @@ async function admin(request, env, path){
       const d = Math.round(+body.days || 7);
       if(d < 1 || d > 30) return json(400, { error: 'A Master Key can be for 1 to 30 days' });
       const key = await makeLicenseKey(env, '', d, 6, lp.pem);
-      await log('Master Key banayi', '', `${d} days, usable ${MASTER_KEY_LIFE} days`);
-      return json(200, { key, label: `Master Key (${d} din)`, days: d, usableTill: Date.now() + MASTER_KEY_LIFE * DAY });
+      await log('Master Key made', '', `${d} days, usable ${MASTER_KEY_LIFE} days`);
+      return json(200, { key, label: `Master Key (${d} days)`, days: d, usableTill: Date.now() + MASTER_KEY_LIFE * DAY });
     }
     if(!body.installId) return json(200, { ready: !!lp.pem, from: lp.from, plans: Object.fromEntries(Object.entries(KEY_PLANS).map(([k, v]) => [k, v[2]])) });
     if(!lp.pem) return json(400, { error: 'Keygen is not set up yet. First add the key file in Keygen → Setup.' });
@@ -4714,7 +4752,7 @@ async function admin(request, env, path){
       if(!r.ok) return json(200, { key, label, sentTo: '', note: 'Could not send it to the hotel. Enter the key on the PC yourself.' });
       sentTo = to;
     }
-    await log('Key banayi', sentTo || '', `${label} · ${iid}${sentTo ? ' · sent to PC' : ''}`);
+    await log('Key made', sentTo || '', `${label} · ${iid}${sentTo ? ' · sent to PC' : ''}`);
     return json(200, { key, label, sentTo });
   }
   if(path === '/api/admin/tickets') return regCall(env, '/ticket/list', { code: validCode(body.code) ? body.code : '', read: body.read ? 'admin' : '' });
@@ -4728,6 +4766,33 @@ async function admin(request, env, path){
 
   const code = String(body.code || '').toUpperCase();
   if(!validCode(code)) return json(400, { error: 'code' });
+
+  // Offline hotel: a renewal key for the same counter PC. One Apply = one key, so its days are never added twice on the PC
+  if(path === '/api/admin/offline/renew'){
+    const op = /^[A-Za-z0-9_-]{8,64}$/.test(String(body.opId || '')) ? 'renew:' + code + ':' + body.opId : '';
+    if(!op) return json(400, { error: 'opId required' });
+    const c = await regJson(env, '/idem/claim', { k: op });
+    if(c.busy) return json(409, { error: 'This key is already being made. Please wait.', code: 'IN_PROGRESS' });
+    if(c.done) return json(200, { ...c.result, duplicate: true });
+    const done = r => regCall(env, '/idem/done', { k: op, result: r });
+    const h = (await regJson(env, '/hotel/get', { code })).hotel;
+    if(!h){ await done(null); return json(404, { error: 'hotel not found' }); }
+    if(!+h.offmode || !/^SETU-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(h.iid || '')){ await done(null); return json(400, { error: 'Renewal key is for an Offline hotel with an Install ID. Use Keygen for this hotel.' }); }
+    const lp = await licPriv(env);
+    if(!lp.pem){ await done(null); return json(400, { error: 'Keygen is not set up yet. First add the key file in Keygen → Setup.' }); }
+    const pl = offlinePlan(body);
+    if(pl.error){ await done(null); return json(400, { error: pl.error }); }
+    const key = await makeLicenseKey(env, h.iid, pl.value, pl.kind, lp.pem);
+    // Same rule as the PC: days are added to the current licence, or start today when it has ended
+    const cur = h.lic && h.lic !== 'lifetime' ? Date.parse(h.lic) || 0 : 0;
+    const until = pl.lifetime ? 0 : Math.max(cur, Date.now()) + pl.days * DAY;
+    await hotelCall(code, '/internal/activate', { key, days: pl.days || 3650, paidUntil: until || Date.now() + 3650 * DAY, lifetime: pl.lifetime, plan: 'offline', installId: h.iid });
+    await regCall(env, '/update', { code, lic: licText(pl.lifetime || h.lic === 'lifetime', until) });
+    const out = { code, installId: h.iid, key, label: pl.label, until, lifetime: pl.lifetime || h.lic === 'lifetime' };
+    await log('Offline renewal key', code, `${pl.label} · ${h.iid}`);
+    await done(out);
+    return json(200, out);
+  }
 
   if(path === '/api/admin/ticket'){
     const r = await regCall(env, '/ticket/put', { code, by: 'admin', id: String(body.id || ''), text: body.reply || '', status: body.status });
@@ -4771,7 +4836,7 @@ async function admin(request, env, path){
     if(!r.ok) return r;
     const j = await r.json();
     j.domains = (await regJson(env, '/domain/list', { code })).domains;
-    if(j.notes && j.notes.length) await log('Hotel badla', code, j.notes.join(', '));
+    if(j.notes && j.notes.length) await log('Hotel changed', code, j.notes.join(', '));
     return json(200, j);
   }
   if(path === '/api/admin/support'){
@@ -4805,7 +4870,7 @@ async function admin(request, env, path){
     const records = domainInstructions(env, ch);
     const r = await regCall(env, '/domain/put', { host, code, kind: 'custom', status: 'pending', cf_id: ch.id, info: { records } });
     if(!r.ok) return r;
-    await log('Custom domain joda', code, host);
+    await log('Custom domain added', code, host);
     return json(200, { host, status: 'pending', records });
   }
   if(path === '/api/admin/domain/check' || path === '/api/admin/domain/remove'){
@@ -4815,7 +4880,7 @@ async function admin(request, env, path){
     if(path === '/api/admin/domain/remove'){
       if(d.cf_id){ try{ await cfApi(env, 'DELETE', '/custom_hostnames/' + d.cf_id); }catch(e){} }
       await regCall(env, '/domain/remove', { host });
-      await log('Domain hataya', code, host);
+      await log('Domain removed', code, host);
       return json(200, { ok: true });
     }
     if(!d.cf_id) return json(200, { host, status: d.status, records: [] });
