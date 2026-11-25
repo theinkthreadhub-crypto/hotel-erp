@@ -30,3 +30,19 @@ time flat. See TD-0017. Not run here: a physical 4 GB Windows PC with an HDD.
 - **Saves over 200 MB were refused** (BUG-0033): at about 250,000+ bills the counter dropped the save. Now accepted up to 1 GB.
 - **Daily backups ~14 GB → about 0.6–0.8 GB** at 300,000 bills (BUG-0034): today's copy plain (237 MB), 13 compressed days and up to 12 compressed month copies (~22 MB each).
 - Still true on the JSON engine: every save rewrites the whole file (2.5–2.7 s here) and the counter + screen need 3 GB+ memory at 300,000 bills. The lasting fix is SQLite with incremental cloud sync (Phase 3).
+
+## Real Windows installer (2026-11-25, run `45570330969`, GitHub `windows-latest`: 4 CPU, 16 GB, VM)
+
+`tools/bench/win_counter_scale.py`: 300,000 synthetic bills (237 MB), the published installer (v1.0.140) first, then this
+branch's installer over it (upgrade, same data). Results: `counter-scale-windows` artifact.
+
+| | Published v1.0.140 | This branch |
+|---|---|---|
+| Program start | 18.6 s | 14.3 s |
+| One whole-data save (as the screen sends it, 237–240 MB) | **refused** (connection aborted), not in the file | **3 of 3 saved**, 11.6–12.6 s each |
+| Program memory | 296 MB idle, 1,701 MB peak | 296 MB idle, **3,623 MB peak** |
+| Yesterday's daily copy | — | 237 MB plain → **21.5 MB** `.json.gz` |
+| 8-day-old copy from before the upgrade | — | left as it is (removed later by the retention) |
+
+All 5 checks passed. A save of 12 s and 3.6 GB of memory is still too heavy for a busy counter with 300,000 bills on
+the JSON engine: such hotels need SQLite with incremental cloud sync (Phase 3).
