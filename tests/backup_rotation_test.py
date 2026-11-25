@@ -113,6 +113,20 @@ class Rotation(unittest.TestCase):
         self.assertEqual(len(st.data()['bills']), 50)
         self.assertTrue(any(x.startswith('setu-db.json.corrupt-') for x in os.listdir(self.dir)), 'damaged file kept aside')
 
+    def test_06_sqlite_engine_backups_same_retention(self):
+        today = date(2026, 11, 25)
+        days = [(today - timedelta(days=i)).isoformat() for i in range(60)]
+        for d in days:
+            with open(os.path.join(self.bk, f'setu-{d}.sqlite.gz'), 'wb') as f:
+                f.write(b'x')
+        with open(os.path.join(self.bk, 'setu-2026-11-20.json'), 'w') as f:   # other kinds are not touched here
+            f.write('{}')
+        A.rotate_sqlite_backups(self.bk, today.isoformat())
+        kept = sorted(x[5:15] for x in os.listdir(self.bk) if x.endswith('.sqlite.gz'))
+        self.assertEqual(set(kept), set(days[:14]) | {'2026-11-01', '2026-10-01', '2026-09-27'}, '14 days + the first copy of each month')
+        self.assertTrue(os.path.exists(os.path.join(self.bk, 'setu-2026-11-20.json')))
+
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

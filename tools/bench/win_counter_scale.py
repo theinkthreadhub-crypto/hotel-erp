@@ -183,8 +183,9 @@ def main():
     R['dataFileMB'] = round(os.path.getsize(os.path.join(DATA, 'setu-db.json')) / MB, 1)
 
     a, b = R['A_old'].get('save', {}), R['B_new']['saves']
+    # Information: the published installer before v1.0.142 refused this save (run 45570330969); from v1.0.142 it is fixed
+    R['publishedRefusedBigSave'] = a.get('saveStatus') != 200 and not a.get('inFile')
     R['checks'] = {
-        'old installer refused the big save': a.get('saveStatus') != 200 and not a.get('inFile'),
         'new installer: 3 of 3 saves reached setu-db.json': all(s.get('saveStatus') == 200 and s.get('inFile') for s in b),
         "yesterday's copy compressed": f'setu-{y}.json.gz' in R['backupsAfter'] and f'setu-{y}.json' not in R['backupsAfter'],
         'older pre-upgrade copy left as it is': f'setu-{o}.json' in R['backupsAfter'],

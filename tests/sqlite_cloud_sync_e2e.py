@@ -281,6 +281,75 @@ class SqliteCounterCloudSync(LoopbackBase):
         ids = [b['id'] for b in got]
         self.assertEqual(len(ids), len(set(ids)), 'no bill twice')
 
+    def restart_counter(self, d, port, ok_days_ago=None):
+        p = self.procs.pop()
+        p.terminate()
+        p.wait(10)
+        if ok_days_ago is not None:
+            sp = os.path.join(d, 'setu-cloud-state.json')
+            with open(sp) as f:
+                st = json.load(f)
+            st['okAt'] = int((time.time() - ok_days_ago * 86400) * 1000)
+            with open(sp, 'w') as f:
+                json.dump(st, f)
+        q = subprocess.Popen([sys.executable, 'app_main.py', '--server', '--port', str(port), '--data', d], cwd=ROOT,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env={**os.environ, 'SETU_BACKUP': 'off', 'SETU_CLOUD_URL': self.base})
+        self.procs.append(q)
+        self.assertTrue(wait(lambda: self._up(f'http://127.0.0.1:{port}'), 60))
+
+    def test_11_fifteen_days_offline_then_reconnect(self):
+        import sqlite3
+        cu, h, d = self.counter(self.doc(2))
+        port = int(cu.rsplit(':', 1)[1])
+        self.assertTrue(wait(lambda: self.cloud_doc().get('version')), 'linked and synced')
+        self.assertTrue(wait(lambda: os.path.exists(os.path.join(d, 'setu-cloud-state.json')) and
+                             (json.load(open(os.path.join(d, 'setu-cloud-state.json'))).get('okAt') or 0) > 0, 30), 'first good sync recorded')
+        # No internet: the cloud is gone; 15 days of bills (split payments, cancellations) on the counter
+        type(self).proc.terminate()
+        type(self).proc.wait(10)
+        made = []
+        for dd in range(15, 0, -1):
+            date = time.strftime('%Y-%m-%d', time.localtime(time.time() - dd * 86400))
+            for k in range(60):
+                i = len(made)
+                b = {'id': f'off-{self.code}-{i}', 'table': '', 'channel': 'Takeaway', 'date': date, 'time': '12:%02d' % (k % 60), 'used': [],
+                     'items': [{'mid': 'm1', 'name': 'Paneer Tikka', 'price': 100 + i % 7, 'qty': 1 + i % 3}]}
+                sub = b['items'][0]['price'] * b['items'][0]['qty']
+                b.update(sub=sub, tax=round(sub * 0.05, 2), total=round(sub * 1.05))
+                if i % 4 == 0:
+                    b.update(mode='Split', pays=[{'mode': 'Cash', 'amt': b['total'] - 50}, {'mode': 'UPI', 'amt': 50}])
+                else:
+                    b['mode'] = ['Cash', 'UPI', 'Card'][i % 3]
+                s, r = http(cu, 'POST', '/api/bill/settle', {'idemKey': f'idem-off-{self.code}-{i}', 'bill': b}, h)
+                self.assertEqual(s, 200, r)
+                made.append(r['bill']['id'])
+        for bid in made[5:10]:
+            self.assertEqual(http(cu, 'POST', '/api/bill/cancel', {'billId': bid, 'idemKey': 'cx-' + bid}, h)[0], 200)
+        # The 30-day check while offline: no warning at 15 days, warning band at 21, lock band at 31; nothing deleted
+        self.restart_counter(d, port, 15)
+        g = http(cu, 'GET', '/api/ping')[1].get('grace')
+        self.assertTrue(g is not None and 14.9 <= g < 20, f'15 days offline: no warning yet ({g})')
+        self.restart_counter(d, port, 21)
+        self.assertTrue(20 <= http(cu, 'GET', '/api/ping')[1].get('grace') < 30)
+        self.restart_counter(d, port, 31)
+        self.assertGreaterEqual(http(cu, 'GET', '/api/ping')[1].get('grace'), 30)
+        # Internet back
+        type(self)._start_worker()
+        self.assertTrue(wait(lambda: http(cu, 'GET', '/api/q/status', None, h)[1].get('outboxPending') == 0, 300), 'every op reached the cloud')
+        con = sqlite3.connect(f'file:{os.path.join(d, "setu.sqlite")}?mode=ro', uri=True)
+        local = __import__('setu_sqlite').local_synced_bill_totals(type('R', (), {'con': lambda self_: con})())
+        con.close()
+        cloud = self.sales()
+        for k in ('bill_count', 'gross_sales_p', 'cancelled_bill_count', 'cancelled_amount_p'):
+            self.assertEqual(cloud[k], local[k], f'{k}: cloud {cloud[k]} vs counter {local[k]}')
+        self.assertEqual(local['bill_count'] + local['cancelled_bill_count'], 900, 'all 900 offline bills counted once')
+        s, a = http(self.base, 'POST', '/api/admin/hotel', {'code': self.code}, ADMIN)
+        self.assertEqual(a.get('status'), 'active', 'the hotel is still active')
+        self.assertTrue(wait(lambda: (lambda g: g is not None and g < 1)(http(cu, 'GET', '/api/ping')[1].get('grace')), 120), 'the 30-day clock started again')
+        before = self.sales()
+        time.sleep(12)
+        self.assertEqual(self.sales(), before, 'a repeated sync adds nothing')
+
     def test_04_unlinked_sqlite_counter_does_not_reach_the_cloud(self):
         d = migrated(tempfile.mkdtemp(dir=self.tmp), self.doc(1))
         port = free_port()

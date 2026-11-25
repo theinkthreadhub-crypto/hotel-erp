@@ -71,6 +71,7 @@ DAILY_KEEP = 14
 MONTHLY_KEEP = 12
 COMPRESS_DAYS = 7
 _DAY_RE = re.compile(r'^setu-(\d{4}-\d{2}-\d{2})\.json(\.gz)?$')
+_SQ_DAY_RE = re.compile(r'^setu-(\d{4}-\d{2}-\d{2})\.sqlite\.gz$')
 print_lock = threading.Lock()  # one print job at a time keeps receipts from interleaving
 
 # ---------------- Resend Email Service for Password & PIN Recovery ----------------
@@ -1967,7 +1968,8 @@ class SqliteSetuStore(SetuStore):
             self._backup_due, self._backing_up, self._last_copy = 0, True, now
             try:
                 os.makedirs(self.backup_dir, exist_ok=True)
-                self.sdb.backup_to(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.sqlite.gz'), self.version, KEEP_BACKUPS)
+                self.sdb.backup_to(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.sqlite.gz'), self.version, 0)
+                rotate_sqlite_backups(self.backup_dir, time.strftime('%Y-%m-%d'))
                 self.backup_stats = {'at': int(time.time() * 1000), 'waitedSeconds': round(now - due), 'tookSeconds': round(time.time() - now, 1)}
                 with self.sdb.wlock:
                     self.sdb.con().execute('PRAGMA wal_checkpoint(TRUNCATE)')
@@ -5186,6 +5188,25 @@ def read_launch_key(data_dir):
             return f.read().strip()
     except OSError:
         return ''
+
+
+def _keep_days(days, today):
+    """DAILY_KEEP newest days + the first day of each of the last MONTHLY_KEEP months (+ today)."""
+    days = sorted(set(days), reverse=True)
+    months = {}
+    for d in sorted(days):
+        months.setdefault(d[:7], d)
+    return set(days[:DAILY_KEEP]) | set(sorted(months.values(), reverse=True)[:MONTHLY_KEEP]) | {today}
+
+
+def rotate_sqlite_backups(folder, today):
+    """SQLite engine daily backups (Backups/setu-YYYY-MM-DD.sqlite.gz, already compressed): same retention as the
+    JSON engine copies: DAILY_KEEP days + the first copy of each of MONTHLY_KEEP months."""
+    names = [x for x in os.listdir(folder) if _SQ_DAY_RE.match(x)]
+    keep = _keep_days([_SQ_DAY_RE.match(x).group(1) for x in names], today)
+    for x in names:
+        if _SQ_DAY_RE.match(x).group(1) not in keep:
+            os.remove(os.path.join(folder, x))
 
 
 def rotate_daily_backups(folder, today):
