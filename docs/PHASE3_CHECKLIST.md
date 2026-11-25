@@ -12,7 +12,7 @@ roles, vouchers, …) is the small working document, merged with the cloud copy 
 |---|---|---|---|
 | P3-1 | SQLite counter syncs with the cloud in the real program (ops + document without bills); old cloud bills kept; counter bill history never shrinks | **Done (not live)** | `tests/sqlite_cloud_sync_e2e.py` (fails 4 of 5 on the old code); regression suites listed in CHG-0048 |
 | P3-2 | Menu and settings in the cloud; table QR menu and guest order reach the SQLite counter | **Done (not live)** | `test_01`, `test_06` (guest sees the counter menu; order reaches the counter review queue, price from the menu) |
-| P3-3 | Other modules (cash, attendance, salary, reservations, online orders, …) | **Done by P3-1 for the cloud copy** (document); cloud reports for them: pending | — |
+| P3-3 | Other modules (cash, attendance, salary sheets, reservations, customers, …) reach the owner's cloud copy | **Done (not live)** | `test_07`; modules outside the hotel's plan stay out of the cloud, as for JSON hotels |
 | P3-4 | Owner app, cloud reports, cloud backup, website emergency billing, restore onto a new PC for SQLite hotels | Pending | Restore from the cloud is refused on a SQLite PC until bill history download exists |
 | P3-5 | Full test: Windows installer, 300,000 bills, 15-day offline, two devices, rapid taps — on SQLite with sync on | Pending | — |
 | P3-6 | New installs start on SQLite; verified move for existing hotels | Pending (needs the owner's go-ahead) | — |

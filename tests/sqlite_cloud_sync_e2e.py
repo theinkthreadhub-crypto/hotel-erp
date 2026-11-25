@@ -183,6 +183,27 @@ class SqliteCounterCloudSync(LoopbackBase):
         self.assertTrue(rows, 'the guest order reached the counter review queue')
         self.assertEqual((rows[0]['items'][0]['qty'], float(rows[0]['items'][0]['price'])), (2, 220.0), 'quantity from the guest, price from the menu')
 
+    def test_07_other_modules_reach_the_cloud_copy(self):
+        # Modules the op ingestion does not take (TD-0013) travel in the document: the owner's cloud copy has them.
+        # (Zomato / Swiggy and Multi-Outlet are not in this hotel's plan: the cloud keeps those out, as for JSON hotels.)
+        cu, h, _ = self.counter(self.doc(1))
+        self.assertTrue(wait(lambda: self.cloud_doc().get('version')), 'linked')
+        vals = {
+            'cash': [{'id': 'c1', 'date': '2026-11-25', 'open': 2000, 'close': 5400}],
+            'att': [{'id': 'a1', 'date': '2026-11-25', 'staff': 'Ravi', 'in': '09:00', 'out': '18:00'}],
+            'salarySheets': [{'id': 'ss1', 'month': '2026-10', 'rows': [{'name': 'Ravi', 'net': 12000}]}],
+            'reservations': [{'id': 'r1', 'date': '2026-11-30', 'time': '20:00', 'name': 'Sharma', 'pax': 6, 'table': 'T-4'}],
+            'custList': [{'id': 'cu1', 'name': 'Meena', 'phone': '9876500077'}],
+        }
+        s, db = http(cu, 'GET', '/api/db', None, h)
+        self.assertEqual(s, 200, db)
+        s, r = http(cu, 'POST', '/api/ops', {'bv': db['version'], 'ops': [{'k': k, 'set': v} for k, v in vals.items()]}, h)
+        self.assertEqual(s, 200, r)
+        def arrived():
+            d = self.cloud_doc()['data'] or {}
+            return all(d.get(k) == v for k, v in vals.items())
+        self.assertTrue(wait(arrived, 90), {k: (self.cloud_doc()['data'] or {}).get(k) for k in vals})
+
     def test_04_unlinked_sqlite_counter_does_not_reach_the_cloud(self):
         d = migrated(tempfile.mkdtemp(dir=self.tmp), self.doc(1))
         port = free_port()
