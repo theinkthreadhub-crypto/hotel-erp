@@ -15,7 +15,8 @@ roles, vouchers, …) is the small working document, merged with the cloud copy 
 | P3-3 | Other modules (cash, attendance, salary sheets, reservations, customers, …) reach the owner's cloud copy | **Done (not live)** | `test_07`; modules outside the hotel's plan stay out of the cloud, as for JSON hotels |
 | P3-4 | Owner app / website shows the counter's bills (last 60 days from the sync tables; older in the cloud reports); website bills reach the counter once; restore onto a new SQLite PC brings every bill (cancelled stay cancelled) | **Done (not live)** | `test_08`, `test_09`, `test_10`; cloud reports, ingestion and inbound suites pass |
 | P3-4b | Super Admin "Backup download" of a SQLite hotel | Open | The download holds the document (settings, menu, …) but not the counter's bill history; the bills are in the cloud sync tables (restore uses them) and in the counter's own daily backups |
-| P3-5 | Full test: Windows installer, 300,000 bills, 15-day offline, two devices, rapid taps — on SQLite with sync on | Pending | — |
-| P3-6 | New installs start on SQLite; verified move for existing hotels | Pending (needs the owner's go-ahead) | — |
+| P3-5 | Full test on SQLite with sync on | **Done** | Windows installer, 300,000 bills (run `45602419398`): migration 174 s (peak 2.9 GB, once), then **300 bills: 34 ms median, 57 ms at 95%, 110 ms max, 187 MB memory, 0 errors** (JSON engine: ~12 s and 3.6 GB per save). 15 days offline with sync (`test_11`): 900 bills, totals equal to the paisa. Two devices and rapid taps pass on SQLite. |
+| P3-6a | New installs of the Windows program start on SQLite; a PC with data (or with daily copies to recover from) keeps its storage | **Done (not live)** | `tests/new_install_engine_test.py` 4/4; Windows check in `win_sqlite_scale.py` |
+| P3-6b | Moving existing JSON hotels to SQLite (verified, one by one, from Super Admin) | Open: needs the owner's decision | `setu_migrate.py` is verified; 4 GB PCs with 3+ lakh bills need the move before they reach that size (migration peak ~2.9 GB) |
 
 Nothing in this file is live until the owner says so; the default storage stays JSON until P3-6.

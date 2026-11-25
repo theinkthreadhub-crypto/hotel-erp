@@ -77,6 +77,26 @@ def main():
     R['installExit'] = subprocess.run([INST, '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', '/NOCANCEL'], timeout=900).returncode
     time.sleep(3)
     subprocess.run(['taskkill', '/F', '/IM', 'Aghanya-Devanya-Hotel-ERP.exe'], capture_output=True)
+    # A new install (empty data folder, no SETU_STORAGE): the installed program starts on SQLite by itself
+    fresh = os.path.join(WORK, 'fresh')
+    shutil.rmtree(fresh, ignore_errors=True)
+    os.makedirs(fresh)
+    with open(os.path.join(fresh, 'setu-devices.json'), 'w', encoding='utf-8') as f:
+        json.dump({TOKEN: 'admin'}, f)
+    env0 = {k: v for k, v in os.environ.items() if k not in ('SETU_STORAGE', 'SETU_NEW_ENGINE')}
+    p0 = subprocess.Popen([EXE, '--server', '--port', str(PORT), '--data', fresh], env=dict(env0, SETU_CLOUD_URL='http://127.0.0.1:9', SETU_BACKUP='off'),
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    for _ in range(300):
+        try:
+            urllib.request.urlopen(U + '/api/ping', timeout=2).read()
+            break
+        except Exception:
+            time.sleep(0.5)
+    R['newInstallEngine'] = http('GET', '/api/q/status')[1].get('engine') or 'json'
+    subprocess.run(['taskkill', '/F', '/T', '/PID', str(p0.pid)], capture_output=True)
+    subprocess.run(['taskkill', '/F', '/IM', 'Aghanya-Devanya-Hotel-ERP.exe'], capture_output=True)
+    time.sleep(2)
+    log('new install engine', R['newInstallEngine'])
     shutil.rmtree(DATA, ignore_errors=True)
     out = subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'db-benchmark', 'make_dataset.py'), DATA, '300000', '--per-day', '300',
                           '--end', date.today().isoformat()], capture_output=True, text=True, timeout=3600)
@@ -134,6 +154,7 @@ def main():
     subprocess.run(['taskkill', '/F', '/T', '/PID', str(p.pid)], capture_output=True)
     subprocess.run(['taskkill', '/F', '/IM', 'Aghanya-Devanya-Hotel-ERP.exe'], capture_output=True)
     R['checks'] = {
+        'a new install starts on SQLite': R.get('newInstallEngine') == 'sqlite',
         'migrated to SQLite': R['engine'] == 'sqlite',
         '300 bills, no error': errors == 0,
         'a bill in under 1 second (95%)': R['settle']['p95ms'] < 1000,

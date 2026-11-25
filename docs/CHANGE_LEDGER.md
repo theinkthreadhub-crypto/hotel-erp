@@ -557,3 +557,8 @@
 - **Worker:** an account is marked `sqliteCounter` on its first `nobills` save; the website / owner app gets the stored bills plus the counter's bills of the last 60 days from `sync_bills` (`withCounterBills`, cancellations applied, the counter's copy wins); a website save never stores the counter's bills again and tags its new bills `web`; `GET /api/db` (nobills) carries `webBills` of the last 30 days; `GET /api/sync/bills?part=doc|sync` pages the whole bill history (main counter only).
 - **Counter:** website bills are settled once (`idemKey`, counter number); a restore or an empty SQLite PC downloads the bill history in pages and replaces its data once.
 - **Tests:** `tests/sqlite_cloud_sync_e2e.py` now 10 cases (QR menu + guest order, other modules, owner app, website bill once, restore with a cancelled bill). Full regression listed in the session report: all pass.
+
+### CHG-0050: Phase 3 P3-5 / P3-6a — Full SQLite Tests, SQLite Backup Retention, New Installs on SQLite
+- **Date:** 2026-11-25
+- **Files:** `app_main.py` (`rotate_sqlite_backups`: 14 days + 12 month copies; `new_install_engine()`: the Windows EXE starts an empty data folder on SQLite, source runs stay JSON unless `SETU_NEW_ENGINE`; a folder with data or with daily copies is never switched), `tests/sqlite_cloud_sync_e2e.py` `test_11` (15 days offline with sync), `tests/new_install_engine_test.py`, `tests/backup_rotation_test.py` `test_06`, `tools/bench/win_sqlite_scale.py`, CI.
+- **Windows result (run `45602419398`, 4 CPU / 16 GB VM, 300,000 bills):** SQLite 34 ms median per bill, 57 ms at 95 %, 187 MB memory, 0 errors; JSON engine on the same data: 11.6–12.6 s per save, 3.6 GB.

@@ -5266,9 +5266,34 @@ def open_store(data_dir):
         SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE), create=True).close()
         SQ.write_flag(data_dir, {'engine': 'sqlite', 'created': int(time.time() * 1000), 'note': 'empty test folder (SETU_STORAGE=sqlite)'})
         flag = SQ.read_flag(data_dir)
+    elif flag.get('engine') != 'sqlite' and new_install_engine() == 'sqlite' and not os.path.exists(os.path.join(data_dir, 'setu-db.json')) \
+            and not os.path.exists(os.path.join(data_dir, SQ.DB_FILE)) and not flag and not _has_json_backups(data_dir):
+        # A new install (no data yet) starts on SQLite: light and fast at any size; synced with the cloud by ops.
+        # A PC that already has data keeps its storage (moving it is a separate, verified step).
+        os.makedirs(data_dir, exist_ok=True)
+        SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE), create=True).close()
+        SQ.write_flag(data_dir, {'engine': 'sqlite', 'created': int(time.time() * 1000), 'note': 'new install'})
+        flag = SQ.read_flag(data_dir)
     if flag.get('engine') == 'sqlite':
         return SqliteSetuStore(data_dir)
     return SetuStore(data_dir)
+
+
+def _has_json_backups(data_dir):
+    # A folder whose setu-db.json is gone but whose daily copies are there is a recovery, not a new install
+    try:
+        return any(_DAY_RE.match(x) for x in os.listdir(os.path.join(data_dir, 'Backups')))
+    except OSError:
+        return False
+
+
+def new_install_engine():
+    """Storage for a data folder with no data yet. The Windows program (EXE) starts new installs on SQLite; running
+    from source (development, tests) stays on JSON unless SETU_NEW_ENGINE says otherwise."""
+    v = os.environ.get('SETU_NEW_ENGINE', '').strip().lower()
+    if v in ('sqlite', 'json'):
+        return v
+    return 'sqlite' if getattr(sys, 'frozen', False) else 'json'
 
 
 def start_server(base_dir, data_dir, port):
