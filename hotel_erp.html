@@ -19259,6 +19259,13 @@ function saasNotices(){
       <div class="btns" style="justify-content:center"><button class="btn g" onclick="backup()">Backup Download</button></div>
       <div style="margin-top:12px;font-size:11px;color:#64748b">Powered by Aghanya Devanya Enterprises</div></div>`;
   } else if(l) l.remove();
+  // Super Admin asked this main counter PC to move its data to the faster storage (SQLite): done at the next start
+  let mv = $('#saas-move');
+  if(c.moveStorage === 'sqlite' && SRV.local && SRV.engine !== 'sqlite'){
+    if(!mv){ mv = document.createElement('div'); mv.id = 'saas-move'; document.body.prepend(mv); }
+    mv.style.cssText = 'background:#0369a1;color:#fff;padding:8px 16px;font-weight:600;font-size:13px;text-align:center';
+    mv.textContent = 'A faster storage for this PC is ready. At closing time, close Setu and open it again: the move takes a few minutes and keeps all your data. Helpline ' + HELPLINE;
+  } else if(mv) mv.remove();
   const n = c.notice;
   if(n && n.t && activeUser && !isModal() && lsGet('setu_notice_seen') !== String(n.at)){
     lsSet('setu_notice_seen', String(n.at));

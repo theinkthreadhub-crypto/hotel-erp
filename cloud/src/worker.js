@@ -239,6 +239,8 @@ function saasView(a){
   Object.keys(FEATURES).forEach(k => features[k] = k in (c.overrides || {}) ? !!c.overrides[k] : TIERS[tier].features.includes(k));
   return { hotel: a.code, tier, tierLabel: TIERS[tier].label, businessType: c.businessType, features, billing: c.billing, rules: c.rules, ver: c.ver || 1,
     notice: a.notice || null, offline: !!a.offline,
+    // Super Admin asked this counter PC to move its data to SQLite (done at the next start of Setu on that PC)
+    ...(a.moveStorage && !a.sqliteCounter ? { moveStorage: 'sqlite' } : {}),
     waCredits: typeof a.waCredits === 'number' ? a.waCredits : 0,
     waTotalSent: a.waTotalSent || 0,
     waCreditSeq: a.waCreditRechargeSeq || 0,
@@ -517,6 +519,8 @@ export class SetuRegistry extends DurableObject {
     // Library-ERP style Super Admin: licence on the counter, message / lock shown in the app
     if(!cols.includes('lic')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lic TEXT');
     if(!cols.includes('notice')) this.sql.exec('ALTER TABLE hotel ADD COLUMN notice TEXT');
+    // Counter storage for Super Admin: 'json', 'moving' (asked to move to SQLite) or 'sqlite'
+    if(!cols.includes('store')) this.sql.exec('ALTER TABLE hotel ADD COLUMN store TEXT');
     if(!cols.includes('lockv')) this.sql.exec('ALTER TABLE hotel ADD COLUMN lockv INTEGER DEFAULT 0');
     if(!cols.includes('appv')) this.sql.exec('ALTER TABLE hotel ADD COLUMN appv TEXT');
     // Usage for Super Admin: bills per day (last 8 days, JSON), all bills, date of the last bill
@@ -684,7 +688,7 @@ export class SetuRegistry extends DurableObject {
       return json(200, { ok: true });
     }
     if(path === '/update'){
-      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill', 'errs', 'lasterr', 'lastbk', 'bkn', 'bksize', 'dsize', 'offmode', 'wa_credits', 'wa_sent'].filter(c => c in body);
+      const cols = ['name', 'owner', 'phone', 'email', 'paid_until', 'status', 'plan', 'version', 'seen', 'tier', 'btype', 'iid', 'lic', 'notice', 'lockv', 'appv', 'bdays', 'ball', 'lastbill', 'errs', 'lasterr', 'lastbk', 'bkn', 'bksize', 'dsize', 'offmode', 'wa_credits', 'wa_sent', 'store'].filter(c => c in body);
       if(cols.length) this.sql.exec(`UPDATE hotel SET ${cols.map(c => c + ' = ?').join(', ')} WHERE code = ?`, ...cols.map(c => body[c]), body.code);
       return json(200, { ok: true });
     }
@@ -1042,7 +1046,8 @@ export class SetuHotel extends DurableObject {
     // Best effort: the registry copy is only for the Super Admin list
     this.ctx.waitUntil(regCall(this.env, '/update', { code: a.code, name: a.name, owner: a.owner, phone: a.phone, email: a.email,
       paid_until: a.paidUntil, status: a.status, plan: a.plan, version: this.meta.version, tier: a.config.tier, btype: a.config.businessType,
-      notice: a.notice ? a.notice.t : '', lockv: a.lock ? a.lock.lv : 0, offmode: a.offline ? 1 : 0 }).catch(() => {}));
+      notice: a.notice ? a.notice.t : '', lockv: a.lock ? a.lock.lv : 0, offmode: a.offline ? 1 : 0,
+      store: a.sqliteCounter ? 'sqlite' : a.moveStorage ? 'moving' : 'json' }).catch(() => {}));
   }
 
   readSlot(slot){
@@ -1863,6 +1868,10 @@ export class SetuHotel extends DurableObject {
     if(b.webMax !== undefined){ a.webMax = Math.max(0, Math.min(500, Math.round(+b.webMax) || 0)); notes.push('website limit ' + a.webMax + ' a day'); }
     // Offline hotel: no internet at the hotel, so the 30-day cloud check is off and the licence key decides
     if(b.offline !== undefined){ a.offline = !!b.offline; notes.push(a.offline ? 'offline hotel' : 'online hotel'); }
+    if(b.moveStorage !== undefined){
+      a.moveStorage = b.moveStorage === 'sqlite' && !a.sqliteCounter ? { to: 'sqlite', at: Date.now() } : null;
+      notes.push(a.moveStorage ? 'move to SQLite asked' : 'move to SQLite cancelled');
+    }
     if(b.applyTemplate && TEMPLATES[b.applyTemplate]){
       a.config = { ...newConfig(b.applyTemplate, b.tier), ver: (c.ver || 1) + 1 };
       notes.push('template ' + b.applyTemplate);
@@ -3384,7 +3393,7 @@ export class SetuHotel extends DurableObject {
       try{ notes = await this.adminUpdate(body()); }catch(e){ return json(400, { error: e.message }); }
       const syncKey = this.issuedSyncKey, ownerPassword = this.issuedOwnerPassword;
       this.issuedSyncKey = ''; this.issuedOwnerPassword = '';
-      return json(200, { ...this.billingInfo(), config: this.account.config, notes, ...(syncKey ? { syncKey } : {}), ...(ownerPassword ? { ownerPassword } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerHash2 || this.account.ownerHash), mustChange: !!this.account.mustChange });
+      return json(200, { ...this.billingInfo(), config: this.account.config, notes, store: this.account.sqliteCounter ? 'sqlite' : this.account.moveStorage ? 'moving' : 'json', ...(syncKey ? { syncKey } : {}), ...(ownerPassword ? { ownerPassword } : {}), storedSyncKey: this.account.syncKey || '', hasOwnerPass: !!(this.account.ownerHash2 || this.account.ownerHash), mustChange: !!this.account.mustChange });
     }
     if(path === '/internal/errors'){
       let d = null;
@@ -4128,7 +4137,7 @@ export class SetuHotel extends DurableObject {
       if(!data || typeof data !== 'object' || Array.isArray(data) || !('settings' in data)) return json(400, { error: 'invalid data' });
       // SQLite counter: the document comes without bills (they arrive through /api/sync/ops); the stored ones stay
       const keepBills = this.noBills(role, request) && !('bills' in data);
-      if(this.noBills(role, request) && !this.account.sqliteCounter){ this.account.sqliteCounter = true; this.saveAccount(); }
+      if(this.noBills(role, request) && !this.account.sqliteCounter){ this.account.sqliteCounter = true; this.account.moveStorage = null; this.saveAccount(); }
       if(this.account.sqliteCounter && role !== 'sync' && Array.isArray(data.bills)){
         // The website shows the counter's bills from the sync tables; they are the counter's, never stored here again
         let oldIds = new Set();

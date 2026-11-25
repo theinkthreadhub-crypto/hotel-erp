@@ -562,3 +562,9 @@
 - **Date:** 2026-11-25
 - **Files:** `app_main.py` (`rotate_sqlite_backups`: 14 days + 12 month copies; `new_install_engine()`: the Windows EXE starts an empty data folder on SQLite, source runs stay JSON unless `SETU_NEW_ENGINE`; a folder with data or with daily copies is never switched), `tests/sqlite_cloud_sync_e2e.py` `test_11` (15 days offline with sync), `tests/new_install_engine_test.py`, `tests/backup_rotation_test.py` `test_06`, `tools/bench/win_sqlite_scale.py`, CI.
 - **Windows result (run `45602419398`, 4 CPU / 16 GB VM, 300,000 bills):** SQLite 34 ms median per bill, 57 ms at 95 %, 187 MB memory, 0 errors; JSON engine on the same data: 11.6–12.6 s per save, 3.6 GB.
+
+### CHG-0051: Phase 3 Live (v1.0.147) and "Move to SQLite" in Super Admin (P3-6b)
+- **Date:** 2026-11-25 · **Asked by:** owner ("dono cheez karo, pehle Phase 3 live karo, option bana do")
+- **Live:** Phase 3 (CHG-0048 … CHG-0050) deployed: Worker + website + installer v1.0.147 (SHA-256 `eabfee6d…4151`), checked live.
+- **P3-6b:** Super Admin hotel sheet tile **Storage**: JSON → "Move to SQLite" (confirm) → the cloud keeps `moveStorage` and sends it in `saas`; a JSON counter (v1.0.147+) writes `setu-move-sqlite.json`; at the next start of Setu the verified `setu_migrate` runs before the data opens; success = SQLite, failure (e.g. memory on a small PC) = JSON untouched, retried at the next 2 starts, then given up; the result is in `setu-move-result.json`, a failure reaches the Error Log. The registry shows `store` = json / moving / sqlite; filter "JSON storage (can move)". The counter screen shows a blue bar asking to close and reopen Setu at closing time.
+- **Tests:** `test_12` (JSON counter with 120 bills → Super Admin move → restart → SQLite, every bill kept, numbers continue at 121, cloud bills kept, owner app shows old and new), `new_install_engine_test` `test_05` (failure keeps JSON; 3 tries); Super Admin app 17/17; full regression passes.

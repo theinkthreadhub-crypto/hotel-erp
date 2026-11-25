@@ -3121,6 +3121,8 @@ class CloudSync:
         # The vendor's part (plan, message, warning / lock) always comes from the cloud
         if isinstance(theirs, dict) and 'saas' in theirs:
             merged['saas'] = theirs['saas']
+            if (theirs['saas'] or {}).get('moveStorage') == 'sqlite' and not self.nobills():
+                ask_move_to_sqlite(self.store.dir, 'Super Admin')
         cloud_added = False
         if theirs is None or not jeq(merged, theirs):
             body = '{"baseVersion": %d, "force": false, "data": %s}' % (cv, json.dumps(merged, ensure_ascii=False))
@@ -5248,10 +5250,54 @@ def rotate_daily_backups(folder, today):
             os.remove(p)
 
 
+MOVE_FILE = 'setu-move-sqlite.json'      # Super Admin asked this PC to move to SQLite; done at the next start
+MOVE_RESULT = 'setu-move-result.json'
+
+
+def ask_move_to_sqlite(data_dir, by):
+    p = os.path.join(data_dir, MOVE_FILE)
+    if os.path.exists(p) or SQ.read_flag(data_dir).get('engine') == 'sqlite':
+        return
+    _write_json(p, {'at': int(time.time() * 1000), 'by': by, 'tries': 0})
+    try:
+        with open(os.path.join(data_dir, 'setu-server.log'), 'a', encoding='utf-8') as f:
+            f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + f'Move to SQLite asked by {by}: done at the next start of Setu\n')
+    except OSError:
+        pass
+
+
+def _move_to_sqlite_now(data_dir):
+    """At start, before the data is opened: the verified migration (setu_migrate). Success = SQLite from now on;
+    failure (for example not enough memory on a small PC) = the JSON data stays in charge, untouched."""
+    p = os.path.join(data_dir, MOVE_FILE)
+    req = _read_json(p, {}) or {}
+    req['tries'] = int(req.get('tries') or 0) + 1
+    _write_json(p, req)
+    import setu_migrate
+    SetuStore(data_dir)                    # like an installed counter: credentials hashed etc. first
+    try:
+        rep = setu_migrate.migrate(data_dir, cutover=True)
+    except Exception as e:                 # MemoryError on a small PC, disk full, ...
+        rep = {'status': 'FAILED', 'message': repr(e)[:300]}
+    ok = rep.get('status') == 'MIGRATED'
+    _write_json(os.path.join(data_dir, MOVE_RESULT), {'at': int(time.time() * 1000), 'ok': ok, 'tries': req['tries'],
+                                                      'status': rep.get('status'), 'message': str(rep.get('message') or '')[:300]})
+    if ok or req['tries'] >= 3:
+        os.remove(p)                       # done, or given up after 3 starts (JSON stays; Super Admin can ask again)
+    try:
+        with open(os.path.join(data_dir, 'setu-server.log'), 'a', encoding='utf-8') as f:
+            f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + f"Move to SQLite: {rep.get('status')} {str(rep.get('message') or '')[:200]}\n")
+    except OSError:
+        pass
+
+
 def open_store(data_dir):
     """JSON file (default) or SQLite: setu-storage.json {"engine": "sqlite"} is written only by a verified migration
     (setu_migrate.py --cutover). SETU_STORAGE=sqlite (development / tests only) migrates a test folder first."""
     flag = SQ.read_flag(data_dir)
+    if flag.get('engine') != 'sqlite' and os.path.exists(os.path.join(data_dir, MOVE_FILE)) and os.path.exists(os.path.join(data_dir, 'setu-db.json')):
+        _move_to_sqlite_now(data_dir)
+        flag = SQ.read_flag(data_dir)
     if os.environ.get('SETU_STORAGE') == 'sqlite' and flag.get('engine') != 'sqlite' and os.path.exists(os.path.join(data_dir, 'setu-db.json')):
         import setu_migrate
         # Start once on the JSON file first, exactly like an installed counter (credential hashing etc.), then migrate

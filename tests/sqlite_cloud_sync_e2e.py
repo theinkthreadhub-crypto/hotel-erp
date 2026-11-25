@@ -350,6 +350,59 @@ class SqliteCounterCloudSync(LoopbackBase):
         time.sleep(12)
         self.assertEqual(self.sales(), before, 'a repeated sync adds nothing')
 
+    def test_12_super_admin_moves_a_json_counter_to_sqlite(self):
+        # A JSON counter (today's customers) with 120 bills, linked and synced
+        d = tempfile.mkdtemp(dir=self.tmp)
+        doc = self.doc(0)
+        doc['auth']['password'] = 'Loop@Test2026x'
+        doc['bills'] = [{'id': f'js-{i}', 'idemKey': f'idem-js-{i}', 'no': i + 1, 'date': '2026-11-%02d' % (1 + i % 20), 'time': '12:00', 'table': '',
+                         'channel': 'Takeaway', 'mode': 'Cash', 'items': [{'mid': 'm1', 'name': 'Paneer Tikka', 'price': 100, 'qty': 1}],
+                         'sub': 100, 'tax': 5, 'total': 105, 'used': []} for i in range(120)]
+        doc['seq'] = {'bill': 120, 'kot': 120}
+        with open(os.path.join(d, 'setu-db.json'), 'w', encoding='utf-8') as f:
+            json.dump({'version': 3, 'savedAt': 1, 'data': doc}, f)
+        with open(os.path.join(d, 'setu-cloud.json'), 'w', encoding='utf-8') as f:
+            json.dump({'url': self.base, 'hotel': self.code, 'key': self.key, 'enabled': True}, f)
+        tok = 'mv-' + os.urandom(5).hex()
+        with open(os.path.join(d, 'setu-devices.json'), 'w', encoding='utf-8') as f:
+            json.dump({tok: 'admin'}, f)
+        self.dirs = getattr(self, 'dirs', []) + [d]
+        port = free_port()
+        env = {**{k: v for k, v in os.environ.items() if k != 'SETU_STORAGE'}, 'SETU_BACKUP': 'off', 'SETU_CLOUD_URL': self.base}
+        def start():
+            p = subprocess.Popen([sys.executable, 'app_main.py', '--server', '--port', str(port), '--data', d], cwd=ROOT,
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
+            self.procs.append(p)
+            self.assertTrue(wait(lambda: self._up(f'http://127.0.0.1:{port}'), 120))
+        start()
+        cu, h = f'http://127.0.0.1:{port}', {'X-Setu-Token': tok}
+        self.assertTrue(wait(lambda: len(self.cloud_doc()['data'].get('bills') or []) == 120 if self.cloud_doc().get('version') else False, 90), 'JSON counter synced')
+        reg = lambda: next(x for x in http(self.base, 'POST', '/api/admin/hotels', {}, ADMIN)[1]['hotels'] if x['code'] == self.code)
+        # Super Admin: Move to SQLite
+        s, v = http(self.base, 'POST', '/api/admin/hotel', {'code': self.code, 'update': {'moveStorage': 'sqlite'}}, ADMIN)
+        self.assertEqual((s, v.get('store')), (200, 'moving'), v)
+        self.assertEqual(reg().get('store'), 'moving')
+        self.assertTrue(wait(lambda: os.path.exists(os.path.join(d, 'setu-move-sqlite.json')), 90), 'the counter got the request')
+        self.assertEqual(http(cu, 'GET', '/api/q/status', None, h)[0], 404, 'still JSON until the next start')
+        # Next start of Setu on the PC: moved, verified, every bill kept
+        p = self.procs.pop(); p.terminate(); p.wait(10)
+        start()
+        s, st = http(cu, 'GET', '/api/q/status', None, h)
+        self.assertEqual((s, st.get('engine')), (200, 'sqlite'), st)
+        res = json.load(open(os.path.join(d, 'setu-move-result.json')))
+        self.assertTrue(res['ok'], res)
+        self.assertFalse(os.path.exists(os.path.join(d, 'setu-move-sqlite.json')))
+        s, q = http(cu, 'GET', '/api/q/bills?from=2000-01-01&to=2100-01-01&limit=1000', None, h)
+        self.assertEqual(sorted(b['id'] for b in q['rows']), sorted(f'js-{i}' for i in range(120)), 'every bill on the counter after the move')
+        # New bills after the move: numbers continue, they reach the cloud; the JSON-time cloud bills stay
+        r = self.settle(cu, h, 900)
+        self.assertEqual(r['bill']['no'], 121, 'bill numbers continue')
+        self.assertTrue(wait(lambda: reg().get('store') == 'sqlite', 90), 'Super Admin shows SQLite')
+        self.assertTrue(wait(lambda: self.sales()['bill_count'] >= 1, 90), 'the new bill reached the cloud reports')
+        self.assertEqual(len(self.cloud_doc()['data'].get('bills') or []), 120, 'the JSON-time cloud bills are kept')
+        owner = {b['id'] for b in self.owner_db()['data']['bills']}
+        self.assertTrue({f'js-{i}' for i in range(120)} | {r['bill']['id']} <= owner, 'the owner app shows old and new bills')
+
     def test_04_unlinked_sqlite_counter_does_not_reach_the_cloud(self):
         d = migrated(tempfile.mkdtemp(dir=self.tmp), self.doc(1))
         port = free_port()

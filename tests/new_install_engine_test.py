@@ -113,6 +113,27 @@ class NewInstallEngine(unittest.TestCase):
         base, h = self.start('json')
         self.assertFalse(os.path.exists(os.path.join(self.dir, A.SQ.DB_FILE)))
 
+    def test_05_failed_move_keeps_json_and_gives_up_after_three_starts(self):
+        import setu_migrate
+        with open(os.path.join(self.dir, 'setu-db.json'), 'w', encoding='utf-8') as f:
+            json.dump({'version': 7, 'savedAt': 1, 'data': {'settings': {'name': 'Small PC Hotel'}, 'bills': [{'id': 'b1', 'no': 1, 'total': 100}]}}, f)
+        before = open(os.path.join(self.dir, 'setu-db.json'), encoding='utf-8').read()
+        A.ask_move_to_sqlite(self.dir, 'Super Admin')
+        real = setu_migrate.migrate
+        setu_migrate.migrate = lambda *a, **k: (_ for _ in ()).throw(MemoryError('not enough memory'))   # a 4 GB PC with many bills
+        try:
+            for i in range(1, 4):
+                st = A.open_store(self.dir)
+                self.assertIs(type(st), A.SetuStore, 'the JSON data stays in charge')
+                res = json.load(open(os.path.join(self.dir, A.MOVE_RESULT)))
+                self.assertEqual((res['ok'], res['tries']), (False, i))
+                self.assertIn('MemoryError', res['message'])
+                self.assertEqual(os.path.exists(os.path.join(self.dir, A.MOVE_FILE)), i < 3, 'retried at the next start, given up after 3')
+        finally:
+            setu_migrate.migrate = real
+        self.assertEqual(json.loads(before)['data']['bills'], A.SetuStore(self.dir).data()['bills'], 'no bill lost')
+        self.assertFalse(os.path.exists(os.path.join(self.dir, A.SQ.DB_FILE)))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

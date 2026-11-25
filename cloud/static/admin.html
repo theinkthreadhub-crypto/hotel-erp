@@ -587,8 +587,8 @@ function urgency(h){
   return u;
 }
 let KF = 'all';
-const KF_ICON = {all: 'hotels', pending: 'key', renew: 'key', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
-const KFS = {all: ['All', () => true], pending: ['Pending Activation', h => h.status === 'pending' || state(h) === 'pending'], renew: ['Renewal due (offline)', renewDue], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
+const KF_ICON = {json: 'gear', all: 'hotels', pending: 'key', renew: 'key', need: 'warn', locked: 'lock', tk: 'ticket', idle: 'pause', err: 'block', stale: 'cloud'};
+const KFS = {all: ['All', () => true], json: ['JSON storage (can move)', h => (h.store || 'json') === 'json' && h.iid], pending: ['Pending Activation', h => h.status === 'pending' || state(h) === 'pending'], renew: ['Renewal due (offline)', renewDue], need: ['Needs attention', h => urgency(h) > 0], locked: ['Locked / Suspended', h => +h.lockv === 2 || state(h) === 'suspended'],
   tk: ['Tickets', h => h.tickets > 0], idle: ['No bills (3+ days)', notUsing], err: ['Errors (24 hours)', h => +h.errs > 0], stale: ['No backup', h => staleH(h) > 48]};
 function setKF(k){ KF = k; drawHotelsBody(); const t = $('.sec b'); if(t) t.textContent = k === 'all' ? 'All hotels' : KFS[k][0]; haptic('tick'); }
 async function drawHotels(){
@@ -679,6 +679,7 @@ function hotelSheet(code){
       ${lk === 2 ? tile('unlock', 'Unlock', 'Turn Setu on', `setLock('${C}', 0)`, 'green on') : tile('lock', 'Lock', 'Turn Setu off', `lockAsk('${C}')`, 'red')}
       ${lk === 1 ? tile('warn', 'Remove warning', 'showing now', `setLock('${C}', 0)`, 'amber on') : tile('warn', 'Warning', 'Setu keeps running', `warnAsk('${C}')`, 'amber')}
       ${sus ? tile('play', 'Activate', 'account on', `setSuspend('${C}', false)`, 'green on') : tile('pause', 'Suspend', 'account off', `suspendAsk('${C}')`, 'red')}
+      ${h.store === 'sqlite' ? tile('gear', 'Storage: SQLite', 'fast at any size', `storageInfo('${C}')`, 'green on') : h.store === 'moving' ? tile('gear', 'Moving to SQLite', 'at the next start of Setu · tap to cancel', `moveAsk('${C}', false)`, 'amber on') : tile('gear', 'Storage: JSON', 'move to SQLite (faster)', `moveAsk('${C}', true)`)}
       ${+h.offmode ? tile('cloud', 'Offline hotel', 'licence key only · tap for online', `setOffline('${C}', false)`, 'amber on') : tile('cloud', 'Online hotel', '30-day cloud check · tap if no internet', `setOffline('${C}', true)`)}
       ${h.plan === 'counter' ? tile('play', 'Website billing', '5 a day · unlock 24 h', `webUnlock('${C}')`) : ''}
       ${tile('msg', 'Message', h.notice ? 'showing' : 'send a popup', `noticeBox('${C}')`)}
@@ -758,6 +759,14 @@ const suspendAsk = run(async code => {
     await adminUpdate(code, {status: 'suspended'}, 'Suspended. The lock shows as soon as the PC is online.');
 });
 // Offline hotel: no internet at the hotel, so no 30-day cloud check; renew it with a licence key (Keygen)
+// Counter storage: move a JSON counter PC to SQLite (Phase 3). The PC does it at its next start, verified; data is kept.
+const moveAsk = run(async (code, on) => {
+  const h = hotelBy(code);
+  if(on && !(await ask('Move to SQLite storage?', `<p class="muted" style="margin-top:0">${esc(h.name)}: the counter PC moves its data to the faster storage the next time Setu starts there (closing time is best). It takes a few minutes for a big hotel, checks every bill, and keeps the old file. If the PC cannot finish (for example a small PC with very many bills), it stays as it is and the reason shows in this hotel's Error Log.<br><br>Needs Setu v1.0.147 or newer on that PC${h.appv ? ' (it has v' + esc(h.appv) + ')' : ''}.</p>`, 'Move at next start'))) return;
+  if(!on && !(await ask('Cancel the move?', `<p class="muted" style="margin-top:0">${esc(h.name)} stays on its current storage.</p>`, 'Cancel the move'))) return;
+  await adminUpdate(code, {moveStorage: on ? 'sqlite' : null}, on ? 'Move asked: done at the next start of Setu on the counter PC' : 'Move cancelled');
+});
+function storageInfo(code){ toast(hotelBy(code).name + ': SQLite storage, bills sync to the cloud as they are made'); }
 const setOffline = run(async (code, on) => {
   if(on && !(await ask('Make this an Offline hotel?', `<p class="muted" style="margin-top:0">${esc(hotelBy(code).name)}: for a hotel without internet. Setu will not lock after 30 days without the cloud; it runs until its licence key ends. Renew with Keygen. The PC must sync once more to get this change.</p>`, 'Offline hotel'))) return;
   await adminUpdate(code, {offline: on}, on ? 'Offline hotel. Reaches the PC on its next sync.' : 'Online hotel (30-day cloud check)');
