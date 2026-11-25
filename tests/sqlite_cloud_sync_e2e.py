@@ -163,6 +163,26 @@ class SqliteCounterCloudSync(LoopbackBase):
             time.sleep(6)
         self.assertEqual(count(), n0 + 3, 'every old bill still on the counter, plus the 3 new ones')
 
+    def test_06_table_qr_menu_and_order_reach_the_sqlite_counter(self):
+        cu, h, _ = self.counter(self.doc(1))
+        self.assertTrue(wait(lambda: ((self.cloud_doc()['data'] or {}).get('menu') or [])), 'menu in the cloud')
+        sync = {'X-Setu-Hotel': self.code, 'X-Setu-Sync': self.key, 'X-Setu-Caps': 'secure1'}
+        s, j = http(self.base, 'POST', '/api/qr/table', {'table': 'T-7', 'action': 'new'}, sync)
+        self.assertEqual(s, 200, j)
+        tok = j['tables']['T-7']['token']
+        s, menu = http(self.base, 'GET', f'/api/guest/menu?t={tok}', None, {'X-Setu-Hotel': self.code})
+        self.assertEqual(s, 200, menu)
+        self.assertEqual(sorted(m['name'] for m in menu['items']), ['Dal Makhani', 'Paneer Tikka'], 'the guest sees the counter menu')
+        oid = 'p3qr' + os.urandom(4).hex()
+        s, o = http(self.base, 'POST', '/api/guest/order', {'t': tok, 'id': oid, 'items': [{'mid': 'm2', 'qty': 2}]}, {'X-Setu-Hotel': self.code})
+        self.assertEqual(s, 200, o)
+        def at_counter():
+            s2, q = http(cu, 'GET', '/api/q/inbound-qr?status=all', None, h)
+            return [r for r in (q.get('rows') or []) if r.get('order_id') == 'g' + oid] if s2 == 200 else None
+        rows = wait(at_counter, 90)
+        self.assertTrue(rows, 'the guest order reached the counter review queue')
+        self.assertEqual((rows[0]['items'][0]['qty'], float(rows[0]['items'][0]['price'])), (2, 220.0), 'quantity from the guest, price from the menu')
+
     def test_04_unlinked_sqlite_counter_does_not_reach_the_cloud(self):
         d = migrated(tempfile.mkdtemp(dir=self.tmp), self.doc(1))
         port = free_port()

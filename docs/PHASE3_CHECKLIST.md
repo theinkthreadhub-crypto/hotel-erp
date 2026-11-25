@@ -10,8 +10,8 @@ roles, vouchers, …) is the small working document, merged with the cloud copy 
 
 | # | Step | Status | Evidence |
 |---|---|---|---|
-| P3-1 | SQLite counter syncs with the cloud in the real program (ops + document without bills); old cloud bills kept; counter bill history never shrinks | **Done (not live)** | `tests/sqlite_cloud_sync_e2e.py` 5/5 (fails 4/5 before); regression suites listed in CHG-0048 |
-| P3-2 | Menu and settings in the cloud for the table QR menu | **Done by P3-1** (the document carries `menu`); QR page check pending | `test_01` (menu in the cloud document) |
+| P3-1 | SQLite counter syncs with the cloud in the real program (ops + document without bills); old cloud bills kept; counter bill history never shrinks | **Done (not live)** | `tests/sqlite_cloud_sync_e2e.py` (fails 4 of 5 on the old code); regression suites listed in CHG-0048 |
+| P3-2 | Menu and settings in the cloud; table QR menu and guest order reach the SQLite counter | **Done (not live)** | `test_01`, `test_06` (guest sees the counter menu; order reaches the counter review queue, price from the menu) |
 | P3-3 | Other modules (cash, attendance, salary, reservations, online orders, …) | **Done by P3-1 for the cloud copy** (document); cloud reports for them: pending | — |
 | P3-4 | Owner app, cloud reports, cloud backup, website emergency billing, restore onto a new PC for SQLite hotels | Pending | Restore from the cloud is refused on a SQLite PC until bill history download exists |
 | P3-5 | Full test: Windows installer, 300,000 bills, 15-day offline, two devices, rapid taps — on SQLite with sync on | Pending | — |
