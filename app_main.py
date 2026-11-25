@@ -1593,7 +1593,9 @@ class SqliteSetuStore(SetuStore):
     Cloud full-document sync is switched off in this mode (sync_blocked) until Phase 3 incremental sync.
     """
 
-    sync_blocked = 'Cloud sync is paused on this PC: the local SQLite database needs incremental cloud sync (Phase 3).'
+    # Cloud sync on SQLite (Phase 3): bills go as ops (OutboxSyncDispatcher -> /api/sync/ops); everything else is the
+    # small working document merged with the cloud copy by CloudSync (X-Setu-Caps "nobills"). Nothing is blocked any more.
+    sync_blocked = None
     engine = 'sqlite'
 
     def __init__(self, data_dir):
@@ -2686,7 +2688,8 @@ class SqliteSetuStore(SetuStore):
                     'lastBackup': getattr(self, 'backup_stats', None),
                     'conflictsOpen': con.execute('SELECT COUNT(*) FROM sync_conflicts WHERE resolved = 0').fetchone()[0],
                     'backups': rows('SELECT file, at, bytes, bills, verified, note FROM backup_manifest ORDER BY at DESC LIMIT 10', (), ['file', 'at', 'bytes', 'bills', 'verified', 'note']),
-                    'cloudSync': self.sync_blocked}
+                    'cloudSync': 'Phase 3 incremental cloud sync: ' + (self.dispatcher.stats.get('state', 'stopped') if getattr(self, 'dispatcher', None) else 'not linked'),
+                    'cloudOps': dict(self.dispatcher.stats) if getattr(self, 'dispatcher', None) else None}
         return None
 
 
@@ -2915,12 +2918,32 @@ class CloudSync:
         self.status = {'ok': None, 'at': 0, 'error': '', 'cloudVersion': self.state.get('cv', -1)}
         self.wake.set()
 
+    def nobills(self):
+        # SQLite counter: bills are not part of the merged document (they travel as ops)
+        return getattr(self.store, 'engine', '') == 'sqlite'
+
+    def ensure_ops_sync(self):
+        """SQLite counter: the op dispatcher (bills etc. -> /api/sync/ops, licence / QR orders back) runs whenever this PC
+        is linked, with the link's credentials; stopped when the link is turned off or changed."""
+        if not self.nobills() or not hasattr(self.store, 'start_cloud_sync'):
+            return
+        want = (self.cfg.get('url'), self.cfg.get('hotel'), self.cfg.get('key')) if self.configured() else None
+        if want == getattr(self, '_ops_cfg', None):
+            return
+        self._ops_cfg = want
+        if want:
+            self.store.start_cloud_sync(want[0], want[1], want[2], enabled=True)
+            self.store.log(f'Cloud sync (ops) started for {want[1]}')
+        else:
+            self.store.stop_cloud_sync()
+
     def _request(self, method, path, body=None, url=None, key=None, hotel=None):
         req = urllib.request.Request(
             (url or self.cfg['url']) + path,
             data=body.encode('utf-8') if body is not None else None,
             method=method,
-            headers={'X-Setu-Sync': key or self.cfg['key'], 'X-Setu-Hotel': hotel or self.cfg['hotel'], 'X-Setu-Caps': 'secure1',
+            headers={'X-Setu-Sync': key or self.cfg['key'], 'X-Setu-Hotel': hotel or self.cfg['hotel'],
+                     'X-Setu-Caps': 'secure1,nobills' if self.nobills() else 'secure1',
                      'Content-Type': 'application/json',
                      'User-Agent': 'Setu-Main-Counter/1.0'})
         try:
@@ -2936,9 +2959,12 @@ class CloudSync:
             woken = self.wake.is_set()
             self.wake.clear()
             if getattr(self.store, 'sync_blocked', None):
-                # Whole-database cloud sync would undo the incremental storage: off until Phase 3
                 self.status = {'ok': False, 'error': self.store.sync_blocked}
                 continue
+            try:
+                self.ensure_ops_sync()
+            except Exception as e:
+                self.store.log('CLOUD OPS SYNC: ' + repr(e))
             if not self.configured():
                 # Turned off by the owner ("enabled": false) = stay off
                 # Every save wakes this loop: try at most once a minute then, else every 30 minutes
@@ -3017,6 +3043,8 @@ class CloudSync:
                 raise OSError(f'Cloud HTTP {code}')
             doc = json.loads(text)
             cv, theirs = doc['version'], (doc['data'] if doc['version'] else None)
+            if self.nobills() and isinstance(theirs, dict):
+                theirs.pop('bills', None)    # an older cloud without "nobills" support: never merge its bills here
         else:
             theirs = copy.deepcopy(base)     # cloud unchanged since the last sync
         with self.store.lock:
@@ -3039,6 +3067,10 @@ class CloudSync:
             merged = merge3(base, theirs, local)
         if not isinstance(merged, dict) or 'settings' not in merged:
             raise OSError('Data looked wrong after merging, sync stopped')
+        if self.nobills():
+            # SQLite counter: never a "bills" key here. The cloud keeps its stored bills, and on this PC a document
+            # with "bills" is a whole replacement (restore) that would drop the bill history.
+            merged.pop('bills', None)
         # The vendor's part (plan, message, warning / lock) always comes from the cloud
         if isinstance(theirs, dict) and 'saas' in theirs:
             merged['saas'] = theirs['saas']
@@ -3073,6 +3105,8 @@ class CloudSync:
             else:
                 # The counter saved while we talked to the cloud: put its new edits on top
                 final = merge3(local, merged, self.store.data())
+                if self.nobills():
+                    final.pop('bills', None)
                 self.store.write(final)
             new_lv = self.store.version
         _write_json(self.base_path, merged)
@@ -4104,8 +4138,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not self.counter_ok() or not cloud:
                     return self.send_json(403, {'error': 'main counter only'})
                 if getattr(store, 'sync_blocked', None):
-                    # SQLite counter: whole-data cloud sync would undo incremental saves (Phase 3 dependency)
                     return self.send_json(409, {'error': store.sync_blocked})
+                if path == '/api/cloud/restore' and getattr(store, 'engine', '') == 'sqlite':
+                    # The cloud copy a SQLite counter merges has no bill history yet (P3-4): restore from a backup file
+                    return self.send_json(409, {'error': 'Restore from the cloud is not available on this PC yet. Use Settings -> Restore from backup file, or call the HoReCa One Helpline.'})
                 try:
                     body = self.read_json()
                     if path == '/api/cloud/restore':

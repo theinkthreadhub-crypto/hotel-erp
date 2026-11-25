@@ -218,4 +218,5 @@ jobs:
           SETU_REQUIRE_WRANGLER=1 python tests/commercial_finance_e2e.py
           SETU_REQUIRE_WRANGLER=1 python tests/vendor_login_e2e.py
           SETU_REQUIRE_WRANGLER=1 python tests/offline_hotel_e2e.py
+          SETU_REQUIRE_WRANGLER=1 python tests/sqlite_cloud_sync_e2e.py
           SETU_REQUIRE_WRANGLER=1 python tests/long_offline_reconnect_e2e.py

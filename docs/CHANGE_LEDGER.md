@@ -545,3 +545,9 @@
 - **Files:** `app_main.py` (`MAX_DB_BODY` 1 GB for `POST /api/db`, refused saves logged; `rotate_daily_backups`: `DAILY_KEEP` 14, `MONTHLY_KEEP` 12, `COMPRESS_DAYS` 7, background compression; damaged-file recovery reads `.json.gz`); new `tests/big_save_test.py`, `tests/backup_rotation_test.py`; CI; `tools/bench/counter_scale_check.cjs` (plain CDP).
 - **Bugs:** BUG-0033, BUG-0034. `big_save_test` fails on `752c29c` and passes now; no existing test was changed.
 - **Not changed:** the default storage stays JSON. SQLite is lighter at 300,000 bills but its cloud sync is still off (Phase 3), so making it the default would cut new hotels off from Super Admin, the owner app and cloud backups.
+
+### CHG-0048: Phase 3 P3-1 — SQLite Counter Syncs With the Cloud
+- **Date:** 2026-11-25 · **Asked by:** owner ("installer website jaisa")
+- **Files:** `app_main.py` (`SqliteSetuStore.sync_blocked` removed; `CloudSync.nobills()`, `ensure_ops_sync()` starts the `OutboxSyncDispatcher` with the link's credentials; the merged document never carries `bills` on a SQLite PC — a `bills` key there would be a whole replacement that drops the bill history; cloud restore refused on a SQLite PC for now; status shows the ops state), `cloud/src/worker.js` (`X-Setu-Caps: nobills`: GET `/api/db` without bills, POST keeps the stored bills), `tests/sqlite_cloud_sync_e2e.py` (new), CI, `docs/PHASE3_CHECKLIST.md`.
+- **Found while testing:** `merge3` adds an empty `bills` list; on a SQLite PC that would have replaced the bill history. Guarded in both write paths and covered by `test_05`.
+- **Verification:** new E2E 5/5 (4 fail on the old code); sqlite 2 / 2b, counter integration, BUG-0010 policy, dispatcher, 3.5d loopback, 3.5e credit notes, security, finance, vendor login, offline hotel, 15-day offline, backup restore, DB safety, upgrade, two devices, rapid taps, P0 security: all pass. Default storage unchanged (JSON).

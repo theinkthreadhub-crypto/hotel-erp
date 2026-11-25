@@ -1105,7 +1105,18 @@ export class SetuHotel extends DurableObject {
   // Counter PC sync: the full data incl. hashes, but only for a counter that understands them
   dbFor(role, request, extra = ''){
     if(role !== 'sync') return this.dbPublic(extra);
+    if(this.noBills(role, request)){
+      // SQLite counter (Phase 3): its bills travel as ops into the sync tables; the document it merges is everything else
+      let d = {};
+      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      delete d.bills;
+      return `{${extra}"version": ${this.meta.version}, "savedAt": ${this.meta.savedAt}, "noBills": true, "data": ${JSON.stringify(d)}}`;
+    }
     return this.dbText(extra);
+  }
+  // A SQLite counter says so with X-Setu-Caps "nobills": the document it reads and saves leaves out bills
+  noBills(role, request){
+    return role === 'sync' && String(request.headers.get('X-Setu-Caps') || '').split(',').map(x => x.trim()).includes('nobills');
   }
   legacySync(role, request){
     return role === 'sync' && !String(request.headers.get('X-Setu-Caps') || '').split(',').map(x => x.trim()).includes('secure1');
@@ -4065,6 +4076,8 @@ export class SetuHotel extends DurableObject {
       try{ up = JSON.parse(text); }catch(e){ return json(400, { error: 'bad request' }); }
       const data = up.data;
       if(!data || typeof data !== 'object' || Array.isArray(data) || !('settings' in data)) return json(400, { error: 'invalid data' });
+      // SQLite counter: the document comes without bills (they arrive through /api/sync/ops); the stored ones stay
+      const keepBills = this.noBills(role, request) && !('bills' in data);
       if(Array.isArray(data.bills)){
         const seenIdem = new Set();
         const deduped = [];
@@ -4099,6 +4112,7 @@ export class SetuHotel extends DurableObject {
       // change settings, logins, licence, audit or past records (put back from the stored copy)
       let old = {};
       try{ old = this.meta.version ? (JSON.parse(this.data()) || {}) : {}; }catch(e){}
+      if(keepBills) data.bills = Array.isArray(old.bills) ? old.bills : [];
       const elev = this.elevated(request);
       const secChanged = await SEC.absorbSecrets(data, old, isAdmin || elev, role === 'sync');
       const blockedW = force ? [] : SEC.sanitizeWrite(role, old, data, elev);
