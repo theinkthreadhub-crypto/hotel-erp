@@ -204,6 +204,83 @@ class SqliteCounterCloudSync(LoopbackBase):
             return all(d.get(k) == v for k, v in vals.items())
         self.assertTrue(wait(arrived, 90), {k: (self.cloud_doc()['data'] or {}).get(k) for k in vals})
 
+    def owner_db(self):
+        s, j = http(self.base, 'GET', '/api/db', None, self.owner)
+        self.assertEqual(s, 200, j)
+        return j
+
+    def test_08_owner_app_sees_the_counter_bills(self):
+        cu, h, _ = self.counter(self.doc(2))
+        self.assertTrue(wait(lambda: self.cloud_doc().get('version')), 'linked')
+        ids = [self.settle(cu, h, 300 + i)['bill']['id'] for i in range(4)]
+        self.assertTrue(wait(lambda: set(ids) <= {b['id'] for b in self.owner_db()['data'].get('bills') or []}, 90),
+                        "the owner app (website) shows the counter's new bills")
+        stored = self.cloud_doc()['data'].get('bills') or []
+        self.assertFalse(set(ids) & {b['id'] for b in stored}, 'they are not copied into the stored document')
+
+    def test_09_website_bill_reaches_the_counter_once(self):
+        cu, h, _ = self.counter(self.doc(2))
+        self.assertTrue(wait(lambda: self.cloud_doc().get('version')), 'linked')
+        self.settle(cu, h, 400)
+        self.assertTrue(wait(lambda: any(b['id'] == f'p3-{self.code}-400' for b in self.owner_db()['data'].get('bills') or []), 90))
+        cur = self.owner_db()
+        web = {'id': 'web-' + os.urandom(4).hex(), 'no': 999, 'table': '', 'channel': 'Takeaway', 'mode': 'Cash', 'date': time.strftime('%Y-%m-%d'),
+               'time': '13:00', 'items': [{'mid': 'm2', 'name': 'Dal Makhani', 'price': 200, 'qty': 1}], 'sub': 200, 'tax': 10, 'total': 210, 'used': []}
+        data = cur['data']
+        data['bills'] = (data.get('bills') or []) + [web]
+        s, r = http(self.base, 'POST', '/api/db', {'baseVersion': cur['version'], 'data': data}, self.owner)
+        self.assertEqual(s, 200, r)
+        stored = self.cloud_doc()['data'].get('bills') or []
+        self.assertEqual([b['id'] for b in stored if b['id'] == web['id']], [web['id']], 'the website bill is stored')
+        self.assertNotIn(f'p3-{self.code}-400', {b['id'] for b in stored}, "the counter's bill is not stored again from the website save")
+        def on_counter():
+            s2, q = http(cu, 'GET', '/api/q/bills?from=2000-01-01&to=2100-01-01&limit=1000', None, h)
+            return [b for b in q.get('rows') or [] if b.get('id') == web['id']] if s2 == 200 else None
+        rows = wait(on_counter, 90)
+        self.assertEqual(len(rows or []), 1, 'the website bill is on the counter once')
+        time.sleep(8)                                                  # more sync rounds: still once
+        self.assertEqual(len(on_counter()), 1)
+        mine = [b for b in self.owner_db()['data']['bills'] if b['id'] == web['id']]
+        self.assertEqual(len(mine), 1, 'the owner app shows it once')
+
+    def test_10_restore_onto_a_new_sqlite_pc_brings_every_bill(self):
+        # The cloud holds JSON-time bills (stored document) and the SQLite counter's bills (sync tables)
+        old = self.doc(0)
+        old['bills'] = [{'id': f'jt-{i}', 'no': i + 1, 'date': '2026-01-05', 'time': '10:00', 'total': 210, 'sub': 200, 'tax': 10, 'mode': 'Cash',
+                         'items': [{'mid': 'm2', 'name': 'Dal Makhani', 'price': 200, 'qty': 1}], 'used': []} for i in range(3)]
+        self.assertEqual(http(self.base, 'POST', '/api/db', {'baseVersion': 0, 'data': old}, {'X-Setu-Hotel': self.code, 'X-Setu-Sync': self.key, 'X-Setu-Caps': 'secure1'})[0], 200)
+        mine = self.doc(2)
+        mine['auth']['password'] = 'Loop@Test2026x'          # the owner password on the counter (hashed by the program)
+        cu, h, d1 = self.counter(mine)
+        new = [self.settle(cu, h, 500 + i)['bill']['id'] for i in range(6)]
+        s, r = http(cu, 'POST', '/api/bill/cancel', {'billId': new[0], 'idemKey': 'cx-' + new[0]}, h)
+        self.assertEqual(s, 200, r)
+        self.assertTrue(wait(lambda: self.sales()['bill_count'] >= 5 and self.sales()['cancelled_bill_count'] >= 1, 90), f'counter bills in the cloud {self.sales()}')
+        # A new PC (empty SQLite folder) restores with the Hotel Code and the owner password
+        d2 = tempfile.mkdtemp(dir=self.tmp)
+        tok = 'p3-new-' + os.urandom(4).hex()
+        with open(os.path.join(d2, 'setu-devices.json'), 'w', encoding='utf-8') as f:
+            json.dump({tok: 'admin'}, f)
+        port = free_port()
+        p = subprocess.Popen([sys.executable, 'app_main.py', '--server', '--port', str(port), '--data', d2], cwd=ROOT, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, env={**os.environ, 'SETU_BACKUP': 'off', 'SETU_CLOUD_URL': self.base, 'SETU_STORAGE': 'sqlite'})
+        self.procs.append(p)
+        self.dirs = getattr(self, 'dirs', []) + [d2]
+        cu2 = f'http://127.0.0.1:{port}'
+        self.assertTrue(wait(lambda: self._up(cu2), 60))
+        launch = {'X-Setu-Launch': open(os.path.join(d2, 'setu-launch.key')).read().strip()}
+        s, r = http(cu2, 'POST', '/api/cloud/restore', {'hotel': self.code, 'password': 'Loop@Test2026x'}, launch)
+        self.assertEqual(s, 200, r)
+        def bills2():
+            s2, q = http(cu2, 'GET', '/api/q/bills?from=2000-01-01&to=2100-01-01&limit=1000', None, {**launch, 'X-Setu-Token': tok})
+            return q.get('rows') if s2 == 200 else None
+        want = {f'jt-{i}' for i in range(3)} | set(new)
+        got = wait(lambda: (lambda rows: rows if rows and want <= {b['id'] for b in rows} else None)(bills2()), 120)
+        self.assertTrue(got, f'every bill restored (have {sorted(b["id"] for b in (bills2() or []))})')
+        self.assertTrue(next(b for b in got if b['id'] == new[0]).get('cancelled'), 'a cancelled bill comes back cancelled')
+        ids = [b['id'] for b in got]
+        self.assertEqual(len(ids), len(set(ids)), 'no bill twice')
+
     def test_04_unlinked_sqlite_counter_does_not_reach_the_cloud(self):
         d = migrated(tempfile.mkdtemp(dir=self.tmp), self.doc(1))
         port = free_port()

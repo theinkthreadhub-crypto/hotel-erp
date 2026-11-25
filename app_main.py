@@ -2937,6 +2937,40 @@ class CloudSync:
         else:
             self.store.stop_cloud_sync()
 
+    def _cloud_bills(self):
+        """Every bill the cloud holds for this hotel: the stored document's (older JSON time, website) and the counter's
+        from the sync tables (the newer copy of a bill wins)."""
+        out = {}
+        for part in ('doc', 'sync'):
+            after = 0
+            while True:
+                code, text = self._request('GET', f'/api/sync/bills?part={part}&after={after}&limit=2000')
+                if code != 200:
+                    raise OSError(f'Bill history download failed (HTTP {code})')
+                j = json.loads(text)
+                for b in j.get('bills') or []:
+                    if isinstance(b, dict) and b.get('id'):
+                        out[b['id']] = b
+                after = j.get('next') or 0
+                if not after:
+                    break
+        return sorted(out.values(), key=lambda b: (str(b.get('date') or ''), _num(b.get('no'))))
+
+    def _take_web_bills(self, bills):
+        """SQLite counter: bills made on the website (emergency billing) become counter bills, once each (idemKey);
+        the counter gives them its next number, and they reach the cloud reports as ops like any bill."""
+        n = 0
+        for b in bills:
+            if not isinstance(b, dict) or not b.get('id'):
+                continue
+            code, res = self.store.settle_bill({'idemKey': b.get('idemKey') or 'idem_' + str(b['id']), 'bill': b})
+            if code == 200 and not res.get('alreadySettled'):
+                n += 1
+            elif code != 200:
+                self.store.log(f'Website bill {b.get("id")} not taken: {res}')
+        if n:
+            self.store.log(f'{n} website bill(s) added to this counter')
+
     def _request(self, method, path, body=None, url=None, key=None, hotel=None):
         req = urllib.request.Request(
             (url or self.cfg['url']) + path,
@@ -3045,6 +3079,7 @@ class CloudSync:
             cv, theirs = doc['version'], (doc['data'] if doc['version'] else None)
             if self.nobills() and isinstance(theirs, dict):
                 theirs.pop('bills', None)    # an older cloud without "nobills" support: never merge its bills here
+                self._take_web_bills(doc.get('webBills') or [])
         else:
             theirs = copy.deepcopy(base)     # cloud unchanged since the last sync
         with self.store.lock:
@@ -3062,11 +3097,21 @@ class CloudSync:
             merged.setdefault('settings', {})['installId'] = (local.get('settings') or {}).get('installId') or merged['settings'].get('installId')
             if isinstance(local.get('subscription'), dict):
                 merged['subscription'] = local['subscription']
+
         else:
             # Cloud as "mine" so bills already printed at this counter keep their numbers
             merged = merge3(base, theirs, local)
         if not isinstance(merged, dict) or 'settings' not in merged:
             raise OSError('Data looked wrong after merging, sync stopped')
+        if self.nobills() and theirs is not None and (self.state.get('restore') or local is None):
+            # SQLite PC taking over a hotel from the cloud (restore / empty PC): the bill history comes in pages,
+            # then one whole replacement; the bills are not sent back (they are the cloud's already)
+            full = dict(merged, bills=self._cloud_bills())
+            with self.store.lock:
+                self.store.replace_all(full)
+                lv = self.store.version
+                local = self.store.data()
+            self.store.log(f"Hotel Setu Cloud: {len(full['bills'])} bills restored onto this PC")
         if self.nobills():
             # SQLite counter: never a "bills" key here. The cloud keeps its stored bills, and on this PC a document
             # with "bills" is a whole replacement (restore) that would drop the bill history.
@@ -4139,9 +4184,6 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(403, {'error': 'main counter only'})
                 if getattr(store, 'sync_blocked', None):
                     return self.send_json(409, {'error': store.sync_blocked})
-                if path == '/api/cloud/restore' and getattr(store, 'engine', '') == 'sqlite':
-                    # The cloud copy a SQLite counter merges has no bill history yet (P3-4): restore from a backup file
-                    return self.send_json(409, {'error': 'Restore from the cloud is not available on this PC yet. Use Settings -> Restore from backup file, or call the HoReCa One Helpline.'})
                 try:
                     body = self.read_json()
                     if path == '/api/cloud/restore':

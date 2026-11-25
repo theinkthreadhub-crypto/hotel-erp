@@ -32,6 +32,7 @@ const GRACE_DAYS = 3;                 // saving keeps working this long after th
 const WEAK_PINS = new Set(['1234', '1111', '0000', '4321', '9999', '123456', '111111', '000000', 'demo', 'admin', 'password']);
 const MAX_BODY = 100 * 1024 * 1024;
 const DAY = 864e5;
+const COUNTER_BILL_DAYS = 60;           // SQLite-counter hotel: days of counter bills the website / owner app gets
 const WEB_BILLS_PER_DAY = 5;            // hotel with a counter PC: bills a day from the website (emergency only)
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const LIC_EPOCH = Date.UTC(2026, 0, 1);
@@ -1104,15 +1105,40 @@ export class SetuHotel extends DurableObject {
 
   // Counter PC sync: the full data incl. hashes, but only for a counter that understands them
   dbFor(role, request, extra = ''){
-    if(role !== 'sync') return this.dbPublic(extra);
+    if(role !== 'sync') return this.account && this.account.sqliteCounter ? this.withCounterBills(this.dbPublic(extra)) : this.dbPublic(extra);
     if(this.noBills(role, request)){
-      // SQLite counter (Phase 3): its bills travel as ops into the sync tables; the document it merges is everything else
+      // SQLite counter (Phase 3): its bills travel as ops into the sync tables; the document it merges is everything else.
+      // Bills made on the website (emergency billing) go to the counter as webBills; it settles them once (idemKey).
       let d = {};
       try{ d = JSON.parse(this.data()) || {}; }catch(e){}
+      const from = istDay(Date.now() - 30 * DAY);
+      const web = (Array.isArray(d.bills) ? d.bills : []).filter(b => b && b.web && String(b.date || '') >= from);
       delete d.bills;
-      return `{${extra}"version": ${this.meta.version}, "savedAt": ${this.meta.savedAt}, "noBills": true, "data": ${JSON.stringify(d)}}`;
+      return `{${extra}"version": ${this.meta.version}, "savedAt": ${this.meta.savedAt}, "noBills": true, "webBills": ${JSON.stringify(web)}, "data": ${JSON.stringify(d)}}`;
     }
     return this.dbText(extra);
+  }
+  // Website / owner app of a hotel whose counter runs on SQLite: the stored bills (website-made, older JSON time) plus the
+  // counter's bills of the last COUNTER_BILL_DAYS days from the sync tables; older figures come from the cloud reports.
+  withCounterBills(text){
+    let doc;
+    try{ doc = JSON.parse(text); }catch(e){ return text; }
+    if(!doc || !doc.data) return text;
+    const from = istDay(Date.now() - COUNTER_BILL_DAYS * DAY);
+    const rows = this.sql.exec('SELECT raw_json, cancelled, cancelled_by FROM sync_bills WHERE date >= ? ORDER BY date DESC, no DESC LIMIT 20000', from).toArray();
+    const add = [], ids = new Set();
+    for(const r of rows){
+      let b;
+      try{ b = JSON.parse(r.raw_json); }catch(e){ continue; }
+      if(!b || !b.id || ids.has(b.id)) continue;
+      if(+r.cancelled){ b.cancelled = true; if(r.cancelled_by) b.cancelledBy = r.cancelled_by; }
+      ids.add(b.id);
+      add.push(b);
+    }
+    // A website bill the counter has taken over shows as the counter stored it (its number)
+    doc.data.bills = [...(Array.isArray(doc.data.bills) ? doc.data.bills : []).filter(b => !b || !ids.has(b.id)), ...add.reverse()];
+    doc.counterBillsFrom = from;
+    return JSON.stringify(doc);
   }
   // A SQLite counter says so with X-Setu-Caps "nobills": the document it reads and saves leaves out bills
   noBills(role, request){
@@ -3454,6 +3480,30 @@ export class SetuHotel extends DurableObject {
       try{ b = JSON.parse(text || '{}'); }catch(e){ return json(400, { error: 'bad request: invalid json' }); }
       return this.handleSyncOps(b);
     }
+    // Restore onto a new SQLite counter PC: the whole bill history in pages (the stored document's bills, then the
+    // counter's bills from the sync tables, cancellations applied). Main counter credentials only.
+    if(method === 'GET' && path === '/api/sync/bills'){
+      if(role !== 'sync') return json(403, { error: 'main counter only' });
+      const part = url.searchParams.get('part') === 'doc' ? 'doc' : 'sync';
+      const after = Math.max(0, parseInt(url.searchParams.get('after') || '0', 10) || 0);
+      const limit = Math.min(5000, Math.max(1, parseInt(url.searchParams.get('limit') || '2000', 10) || 2000));
+      if(part === 'doc'){
+        let all = [];
+        try{ all = (JSON.parse(this.data()) || {}).bills || []; }catch(e){}
+        const page = all.slice(after, after + limit);
+        return json(200, { bills: page, next: after + page.length < all.length ? after + page.length : 0 });
+      }
+      const rows = this.sql.exec('SELECT rowid AS r, raw_json, cancelled, cancelled_by FROM sync_bills WHERE rowid > ? ORDER BY rowid LIMIT ?', after, limit).toArray();
+      const bills = [];
+      for(const r of rows){
+        try{
+          const b = JSON.parse(r.raw_json);
+          if(+r.cancelled){ b.cancelled = true; if(r.cancelled_by) b.cancelledBy = r.cancelled_by; }
+          bills.push(b);
+        }catch(e){}
+      }
+      return json(200, { bills, next: rows.length === limit ? Number(rows[rows.length - 1].r) : 0 });
+    }
     if(method === 'GET' && path === '/api/sync/state'){
       const latestVer = this.sql.exec("SELECT value FROM sync_checkpoints WHERE name = 'latest_doc_version'").toArray()[0]?.value || this.meta.version;
       const lastOp = this.sql.exec("SELECT value FROM sync_checkpoints WHERE name = 'last_sync_op_id'").toArray()[0]?.value || '';
@@ -4078,6 +4128,15 @@ export class SetuHotel extends DurableObject {
       if(!data || typeof data !== 'object' || Array.isArray(data) || !('settings' in data)) return json(400, { error: 'invalid data' });
       // SQLite counter: the document comes without bills (they arrive through /api/sync/ops); the stored ones stay
       const keepBills = this.noBills(role, request) && !('bills' in data);
+      if(this.noBills(role, request) && !this.account.sqliteCounter){ this.account.sqliteCounter = true; this.saveAccount(); }
+      if(this.account.sqliteCounter && role !== 'sync' && Array.isArray(data.bills)){
+        // The website shows the counter's bills from the sync tables; they are the counter's, never stored here again
+        let oldIds = new Set();
+        try{ oldIds = new Set(((JSON.parse(this.data()) || {}).bills || []).map(b => b && b.id)); }catch(e){}
+        data.bills = data.bills.filter(b => !b || oldIds.has(b.id) || !this.sql.exec('SELECT 1 AS x FROM sync_bills WHERE id = ?', String(b.id || '')).toArray().length);
+        // A new bill made here (not on the counter) is a website bill: the counter takes it over once (webBills)
+        data.bills.forEach(b => { if(b && b.id && !oldIds.has(b.id) && !b.web) b.web = 1; });
+      }
       if(Array.isArray(data.bills)){
         const seenIdem = new Set();
         const deduped = [];
