@@ -364,3 +364,11 @@
 - **Fix:** every `run()` action in `admin.html` takes one press at a time; Create Hotel sends an `idemKey` per opened form and disables its button; adding actions send an `opId`; the Worker keeps the result per key in the registry Durable Object (`/idem/claim`, `/idem/done`, no await between check and set) so the same key creates or adds once; a repeat gets the first hotel back without the password or keys.
 - **Counter side (checked, no bug):** Settle, Save running order (KOT), Voucher, Expense, Purchase, Credit Note and Cancel tapped ×10 each make one record on both storage engines.
 
+
+### BUG-0033 (P0 for big hotels): Counter Refused Saves Bigger Than 200 MB (JSON Engine)
+- **Evidence:** the JSON engine sends the whole data on every save. At 300,000 bills the save is 208 MB (`docs/qa/COUNTER_SCALE_300K.md`); `read_json` refused anything over `MAX_BODY` (200 MB) before reading it, with no log line. `tests/big_save_test.py` (real counter program, 260,000 bills, 211 MB): before the fix the connection is closed (`Broken pipe`) and the bills never reach `setu-db.json`.
+- **Fix:** whole-data saves (`POST /api/db`) from a signed-in device may be up to 1 GB (`MAX_DB_BODY`); other requests keep the 200 MB limit; a refused save is now logged with its size.
+
+### BUG-0034: Daily Backup Copies Took ~14 GB for a Big Hotel (JSON Engine)
+- **Evidence:** 60 plain copies of `setu-db.json` were kept; at 300,000 bills that is 60 × 237 MB ≈ 14 GB.
+- **Fix:** today's copy stays plain (written with the save); the copies of the last 7 days are compressed to `.json.gz` in the background (checked to read back to the same size before the plain copy is removed); 14 days plus the first copy of each of 12 months are kept. A damaged `setu-db.json` now also comes back from a compressed copy. Plain copies from before the upgrade are not converted; they leave with the retention. Test: `tests/backup_rotation_test.py`.

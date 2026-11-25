@@ -539,3 +539,9 @@
 - **Also:** Super Admin audit log lines in English ("Key made", "Hotel changed", "Domain removed"…).
 - **Tests (new):** `tests/offline_hotel_e2e.py` 9/9 (real key bytes checked with the test public key: signature, kind, days, Install ID hash), `tests/offline_hotel_browser_e2e.cjs` 11/11 (form, card, list, renewal double tap = one key). Regression: Super Admin app 17/17, vendor login 10/10 + browser, rapid taps all pass.
 - **Not tested here:** typing the key on a real counter PC: the counter verifies with the production public key, which a local test key cannot match. The key is made by the same `makeLicenseKey()` that Keygen already uses in production.
+
+### CHG-0047: Counter at Scale: Saves Over 200 MB, Compressed Daily Backups
+- **Date:** 2026-11-25 · **Asked by:** owner ("jo website me kiya wahi installer me karo")
+- **Files:** `app_main.py` (`MAX_DB_BODY` 1 GB for `POST /api/db`, refused saves logged; `rotate_daily_backups`: `DAILY_KEEP` 14, `MONTHLY_KEEP` 12, `COMPRESS_DAYS` 7, background compression; damaged-file recovery reads `.json.gz`); new `tests/big_save_test.py`, `tests/backup_rotation_test.py`; CI; `tools/bench/counter_scale_check.cjs` (plain CDP).
+- **Bugs:** BUG-0033, BUG-0034. `big_save_test` fails on `752c29c` and passes now; no existing test was changed.
+- **Not changed:** the default storage stays JSON. SQLite is lighter at 300,000 bills but its cloud sync is still off (Phase 3), so making it the default would cut new hotels off from Super Admin, the owner app and cloud backups.

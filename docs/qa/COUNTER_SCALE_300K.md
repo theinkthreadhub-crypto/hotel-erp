@@ -24,3 +24,9 @@ Earlier Windows run (365,000 bills): migration peak 3,443 MB; fails safely under
 **Conclusion:** the JSON storage is fine for small hotels (50,000 bills ≈ 21 MB, one save ≈ 0.3 s, measured earlier) but
 not for 300,000 bills: about 3.5 s per bill on a fast PC, 2+ GB memory, ~15 GB of backups. SQLite keeps memory and save
 time flat. See TD-0017. Not run here: a physical 4 GB Windows PC with an HDD.
+
+## Fixed on 2026-11-25 (CHG-0047)
+
+- **Saves over 200 MB were refused** (BUG-0033): at about 250,000+ bills the counter dropped the save. Now accepted up to 1 GB.
+- **Daily backups ~14 GB → about 0.6–0.8 GB** at 300,000 bills (BUG-0034): today's copy plain (237 MB), 13 compressed days and up to 12 compressed month copies (~22 MB each).
+- Still true on the JSON engine: every save rewrites the whole file (2.5–2.7 s here) and the counter + screen need 3 GB+ memory at 300,000 bills. The lasting fix is SQLite with incremental cloud sync (Phase 3).

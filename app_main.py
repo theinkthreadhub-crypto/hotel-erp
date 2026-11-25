@@ -31,6 +31,7 @@ import base64
 import copy
 import hashlib
 import atexit
+import gzip
 import setu_security as SEC
 import setu_media as MEDIA
 import setu_sqlite as SQ
@@ -59,8 +60,17 @@ def http_cloud_post(path, obj, hotel=None, timeout=12):
         return None, {'error': str(e)}
 
 AUTO_LINK_EVERY = 30 * 60   # seconds between join attempts while offline / not licensed yet
-MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one database upload
-KEEP_BACKUPS = 60              # daily backup files kept
+MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one request body
+# The JSON engine sends the whole data on every save: a hotel with ~250,000+ bills is bigger than 200 MB, and refusing that
+# save would leave the counter behind the screen. Whole-data saves from a signed-in device may be up to 1 GB.
+MAX_DB_BODY = 1024 * 1024 * 1024
+KEEP_BACKUPS = 60              # SQLite engine: daily backup files kept
+# JSON engine daily copies: today's is a plain copy (written with the save); older days are compressed (.json.gz) and kept
+# for DAILY_KEEP days, plus the first copy of each month for MONTHLY_KEEP months. A big hotel then needs about 1 GB, not 15.
+DAILY_KEEP = 14
+MONTHLY_KEEP = 12
+COMPRESS_DAYS = 7
+_DAY_RE = re.compile(r'^setu-(\d{4}-\d{2}-\d{2})\.json(\.gz)?$')
 print_lock = threading.Lock()  # one print job at a time keeps receipts from interleaving
 
 # ---------------- Resend Email Service for Password & PIN Recovery ----------------
@@ -534,12 +544,14 @@ class SetuStore:
                 pass
             self.version, self.raw = 0, 'null'
             try:
-                files = sorted((x for x in os.listdir(self.backup_dir) if x.startswith('setu-') and x.endswith('.json')), reverse=True)
+                # Newest day first; on one day the plain copy before the compressed one
+                files = sorted((x for x in os.listdir(self.backup_dir) if _DAY_RE.match(x)), key=lambda x: (_DAY_RE.match(x).group(1), not x.endswith('.gz')), reverse=True)
             except OSError:
                 files = []
             for name in files:
                 try:
-                    with open(os.path.join(self.backup_dir, name), 'r', encoding='utf-8') as f:
+                    opener = gzip.open if name.endswith('.gz') else open
+                    with opener(os.path.join(self.backup_dir, name), 'rt', encoding='utf-8') as f:
                         doc = json.load(f)
                     if not isinstance(doc.get('data'), dict):
                         continue
@@ -606,11 +618,24 @@ class SetuStore:
                 return
             self._last_copy = time.time()
             shutil.copy2(self.path, os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json'))
-            files = sorted(x for x in os.listdir(self.backup_dir) if x.startswith('setu-') and x.endswith('.json'))
-            for old in files[:-KEEP_BACKUPS]:
-                os.remove(os.path.join(self.backup_dir, old))
+            self._rotate_later()
         except Exception:
             pass
+
+    def _rotate_later(self):
+        # Compressing a big copy takes seconds: never on the save path, one rotation at a time
+        if getattr(self, '_rotating', False):
+            return
+        self._rotating = True
+
+        def run():
+            try:
+                rotate_daily_backups(self.backup_dir, time.strftime('%Y-%m-%d'))
+            except Exception as e:
+                self.log(f'Backup rotation: {e!r}')
+            finally:
+                self._rotating = False
+        threading.Thread(target=run, daemon=True).start()
 
     def check_pin(self, pin):
         try:
@@ -3385,9 +3410,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             self.end_headers()
             self.wfile.write(body)
 
-        def read_json(self):
+        def read_json(self, limit=MAX_BODY):
             n = int(self.headers.get('Content-Length') or 0)
-            if n <= 0 or n > MAX_BODY:
+            if n <= 0 or n > limit:
                 raise ValueError('bad length')
             return json.loads(self.rfile.read(n).decode('utf-8'))
 
@@ -4738,8 +4763,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not role:
                     return self.send_json(401, {'error': 'pin required'})
                 try:
-                    body = self.read_json()
-                except Exception:
+                    body = self.read_json(MAX_DB_BODY)
+                except Exception as e:
+                    store.log(f'Save refused: {e!r} ({int(self.headers.get("Content-Length") or 0) // 1048576} MB)')
                     return self.send_json(400, {'error': 'bad request'})
                 if getattr(store, 'engine', '') == 'sqlite' and not body.get('force') and store.version:
                     # Normal saves on SQLite go through /api/ops; a whole upload here is an out-of-date page
@@ -5082,6 +5108,45 @@ def read_launch_key(data_dir):
             return f.read().strip()
     except OSError:
         return ''
+
+
+def rotate_daily_backups(folder, today):
+    """JSON engine daily copies (Backups/setu-YYYY-MM-DD.json[.gz]): compress the plain copies of the last DAILY_KEEP days
+    except today's, keep DAILY_KEEP days and the first copy of each of the last MONTHLY_KEEP months, delete the rest.
+    Only plain copies of the last COMPRESS_DAYS days are compressed (the ones this version writes day by day); older plain
+    copies, e.g. from before an upgrade, are left as they are until the retention removes them.
+    A plain copy is deleted only after its compressed copy is complete and reads back to the same size."""
+    from datetime import date as _d, timedelta as _td
+    recent = (_d.fromisoformat(today) - _td(days=COMPRESS_DAYS)).isoformat()
+    names = [x for x in os.listdir(folder) if _DAY_RE.match(x)]
+    days = sorted({_DAY_RE.match(x).group(1) for x in names}, reverse=True)
+    daily = set(days[:DAILY_KEEP])
+    months = {}
+    for d in sorted(days):
+        months.setdefault(d[:7], d)
+    monthly = set(sorted(months.values(), reverse=True)[:MONTHLY_KEEP])
+    keep = daily | monthly | {today}
+    for x in names:
+        day = _DAY_RE.match(x).group(1)
+        p = os.path.join(folder, x)
+        if day not in keep:
+            os.remove(p)
+            continue
+        if x.endswith('.json') and day != today and day in daily and day >= recent:
+            gz = p + '.gz'
+            if not os.path.exists(gz):
+                part = gz + '.part'
+                with open(p, 'rb') as src, gzip.open(part, 'wb', compresslevel=6) as dst:
+                    shutil.copyfileobj(src, dst, 1 << 20)
+                n = 0
+                with gzip.open(part, 'rb') as chk:
+                    for chunk in iter(lambda: chk.read(1 << 20), b''):
+                        n += len(chunk)
+                if n != os.path.getsize(p):
+                    os.remove(part)
+                    continue
+                os.replace(part, gz)
+            os.remove(p)
 
 
 def open_store(data_dir):

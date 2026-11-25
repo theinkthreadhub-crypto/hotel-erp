@@ -29,7 +29,8 @@ async function cdpPage(port){
   await new Promise(r => ws.onopen = r);
   let id = 0; const wait = {};
   ws.onmessage = ev => { const m = JSON.parse(ev.data); if(m.id && wait[m.id]){ wait[m.id](m); delete wait[m.id]; } };
-  const send = (method, params = {}) => new Promise(r => { const i = ++id; wait[i] = r; ws.send(JSON.stringify({ id: i, method, params })); });
+  const send = (method, params = {}) => new Promise((r, j) => { const i = ++id; wait[i] = r; ws.send(JSON.stringify({ id: i, method, params })); setTimeout(() => { if(wait[i]){ delete wait[i]; j(new Error('CDP timeout: ' + method)); } }, 300000); });
+  ws.onclose = () => { for(const k in wait){ wait[k]({ result: { result: { value: 'CLOSED' } } }); delete wait[k]; } };
   const ev = async expr => { const m = await send('Runtime.evaluate', { expression: expr, awaitPromise: true, returnByValue: true }); return m.result && m.result.result ? m.result.result.value : m; };
   return { ws, send, ev };
 }
@@ -45,7 +46,8 @@ async function cdpPage(port){
   out.counterMemMB_idle = rssMb(srv.pid);
   const launch = fs.readFileSync(path.join(DIR, 'setu-launch.key'), 'utf8').trim();
   const dport = await freePort(), prof = fs.mkdtempSync(path.join(os.tmpdir(), 'scale-prof-'));
-  const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', `--remote-debugging-port=${dport}`, `--user-data-dir=${prof}`, '--window-size=1366,768', 'about:blank'], { stdio: 'ignore' });
+  const chrome = spawn(CHROME, ['--headless=new', '--no-sandbox', `--remote-debugging-port=${dport}`, `--user-data-dir=${prof}`, '--window-size=1366,768', 'about:blank'], { stdio: ['ignore', 'ignore', fs.openSync(path.join(prof, 'chrome.log'), 'w')] });
+  chrome.on('exit', c => console.error('chrome exited', c, 'log', path.join(prof, 'chrome.log')));
   let peak = out.counterMemMB_idle; const mon = setInterval(() => { const r = rssMb(srv.pid); if(r > peak) peak = r; }, 250);
   try{
     const { ws, send, ev } = await cdpPage(dport);
@@ -62,6 +64,19 @@ async function cdpPage(port){
     out.engine = await ev('typeof SRV !== "undefined" ? (SRV.engine || "json") : "?"');
     out.pageSaveWorkS = await ev('(() => { const t = performance.now(); const s = JSON.stringify(D); return Math.round(performance.now() - t) / 1000; })()');
     out.saveSendsMB = await ev('Math.round(JSON.stringify(D).length / 1048576 * 10) / 10');
+    if(process.env.SAVE_CHECK){
+      // One real save through the page (as a new bill does): does it reach the counter's file?
+      const f = path.join(DIR, 'setu-db.json'), before = fs.existsSync(f) ? fs.statSync(f).mtimeMs : 0;
+      t0 = Date.now();
+      await ev('(() => { D.settings = D.settings || {}; D.settings.scaleCheck = Date.now(); save(); return 1; })()');
+      let saved = false;
+      for(let i = 0; i < 240 && !saved; i++){ await sleep(500); saved = (fs.existsSync(f) ? fs.statSync(f).mtimeMs : 0) !== before; }
+      out.saveReachedCounter = saved;
+      out.saveS = saved ? (Date.now() - t0) / 1000 : null;
+      await sleep(3000);
+      out.pageSaveStatus = await ev('typeof SRV !== "undefined" ? JSON.stringify({dirty: !!SRV.dirty, err: String(SRV.err || SRV.lastError || "")}) : ""');
+      out.counterLogTail = fs.readFileSync(path.join(DIR, 'setu-server.log'), 'utf8').trim().split('\n').slice(-3);
+    }
     out.counterMemMB_peak = peak;
     ws.close();
   }finally{

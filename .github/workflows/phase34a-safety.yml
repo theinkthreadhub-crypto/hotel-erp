@@ -60,6 +60,8 @@ jobs:
           python tests/commercial_security_unit_test.py
           python tests/commercial_upgrade_test.py
           python tests/qa_db_safety_test.py
+          python tests/backup_rotation_test.py
+          python tests/big_save_test.py
           python tests/secret_scan_test.py
       - name: Phase 3.5d ESC/POS byte-stream validation (software only, no printer)
         run: node tests/phase35d_escpos_test.mjs
