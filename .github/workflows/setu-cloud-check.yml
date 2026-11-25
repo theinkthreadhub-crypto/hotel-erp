@@ -86,6 +86,6 @@ jobs:
       - name: Helpline and Offline hotel are live (read-only)
         run: |
           for U in https://hotel.setupro.in https://setu-cloud.theinkthreadhub.workers.dev; do
-            echo "LIVE $U pos-helpline=$(curl -sL -m 30 $U/hotel_erp.html | grep -c '91941 15127') admin-offline=$(curl -sL -m 30 $U/admin | grep -c 'Offline hotel (no internet)') admin-helpline=$(curl -sL -m 30 $U/admin | grep -c '91941 15127')"
+            echo "LIVE $U pos-helpline=$(curl -sL -m 30 $U/hotel_erp.html | grep -c '91941 15127') admin-offline=$(curl -sL -m 30 $U/admin | grep -c 'Offline hotel (no internet)') admin-helpline=$(curl -sL -m 30 $U/admin | grep -c "91941 15127") admin-move=$(curl -sL -m 30 $U/admin | grep -c "Move to SQLite storage") pos-move=$(curl -sL -m 30 $U/hotel_erp.html | grep -c "A faster storage for this PC")"
           done
 
