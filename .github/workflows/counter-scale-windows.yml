@@ -1,0 +1,73 @@
+# Big hotel (300,000 bills) on the real Windows installer: the published installer vs this branch's installer.
+# Builds the program and installer like build-exe.yml, tests them with synthetic data only. Publishes NOTHING:
+# no release upload, no cloud deploy; results are a build artifact and are printed in the log.
+name: Counter scale on Windows (300,000 bills)
+
+on:
+  push:
+    branches: [feature/horeca-one-phase34a-safety]
+    paths:
+      - 'tools/bench/win_counter_scale.py'
+      - '.github/workflows/counter-scale-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read   # to download the published setu-latest installer (read only)
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build and test tools
+        run: python -m pip install --upgrade pyinstaller pywebview certifi psutil
+
+      # Same build as build-exe.yml (keep flags in sync); version marked as a test build
+      - name: Build EXE
+        shell: cmd
+        run: |
+          python installer\stamp-version.py 1.0.8${{ github.run_number }}
+          python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "food;food" app_main.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: WhatsApp helper (installer content)
+        shell: pwsh
+        run: |
+          cd whatsapp
+          npm ci --omit=dev --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Copy-Item (Get-Command node).Source node.exe
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile installer\MicrosoftEdgeWebview2Setup.exe
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=1.0.8${{ github.run_number }}" installer\setu-setup.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Published installer (setu-latest, read only)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download setu-latest -p Setu-POS-Setup.exe -D old-installer
+          Get-ChildItem old-installer
+
+      - name: 300,000 bills - published installer, then this installer over it
+        shell: pwsh
+        run: python tools\bench\win_counter_scale.py (Resolve-Path Output\Setu-POS-Setup.exe).Path (Resolve-Path old-installer\Setu-POS-Setup.exe).Path "$env:RUNNER_TEMP\scale" win-scale.json
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: counter-scale-windows
+          path: win-scale.json
