@@ -27,7 +27,7 @@ if errorlevel 1 (
 )
 echo.
 
-python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." app_main.py
+python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "horeca-icon-dark.png;." --add-data "horeca-icon-trans.png;." --add-data "horeca-logo-dark.png;." --add-data "horeca-logo-full.png;." app_main.py
 
 if exist "dist\Aghanya-Devanya-Hotel-ERP.exe" (
     copy /Y "dist\Aghanya-Devanya-Hotel-ERP.exe" "Aghanya-Devanya-Hotel-ERP.exe" >nul

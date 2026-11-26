@@ -5177,6 +5177,7 @@ class AutoBackup:
 
 # Static files the local server may hand out (an allow-list; everything else is 404)
 PUBLIC_FILES = {'/', '/index.html', '/hotel_erp.html', '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.ico',
+                '/horeca-icon-dark.png', '/horeca-icon-trans.png', '/horeca-logo-dark.png', '/horeca-logo-full.png',
                 '/food/food-match.js', '/food/manifest.json', '/food/Foodpiolet_Manifest.json',
                 '/Foodpiolet_Real_Photo_Licenses_And_Status.csv', '/Foodpiolet_Missing_Images_Report.md', '/Foodpiolet_Real_Photos.zip'}
 MEDIA_PATH_RE = re.compile(r'^/api/media/(m_[0-9a-f]{32})(\.t)?$')

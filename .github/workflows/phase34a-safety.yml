@@ -124,7 +124,7 @@ jobs:
       - name: Build isolated EXE without publishing a release
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --onefile --console --name "HoReCaOne-QA" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." app_main.py
+          python -m PyInstaller --noconfirm --onefile --console --name "HoReCaOne-QA" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "horeca-icon-dark.png;." --add-data "horeca-icon-trans.png;." --add-data "horeca-logo-dark.png;." --add-data "horeca-logo-full.png;." app_main.py
           if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
       - name: Boot EXE in local SQLite mode, verify HTTP server
         shell: pwsh

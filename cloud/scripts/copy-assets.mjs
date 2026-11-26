@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, '..', '..');
 const out = join(here, '..', 'public');
-const FILES = ['hotel_erp.html', 'sw.js', 'manifest.json', 'favicon.ico', 'icon-192.png', 'icon-512.png', 'logo.png', 'Foodpiolet_Real_Photo_Licenses_And_Status.csv', 'Foodpiolet_Missing_Images_Report.md', 'Foodpiolet_Real_Photos.zip'];
+const FILES = ['hotel_erp.html', 'sw.js', 'manifest.json', 'favicon.ico', 'icon-192.png', 'icon-512.png', 'logo.png', 'horeca-icon-dark.png', 'horeca-icon-trans.png', 'horeca-logo-dark.png', 'horeca-logo-full.png', 'Foodpiolet_Real_Photo_Licenses_And_Status.csv', 'Foodpiolet_Missing_Images_Report.md', 'Foodpiolet_Real_Photos.zip'];
 // Kept out of git (.gitignore), so CI never has it: copy when present, never fail the deploy
 const OPTIONAL = ['Foodpiolet_Real_Photos.zip'];
 

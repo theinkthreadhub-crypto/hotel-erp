@@ -34,7 +34,7 @@ jobs:
         shell: cmd
         run: |
           python installer\stamp-version.py 1.0.8${{ github.run_number }}
-          python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "food;food" app_main.py
+          python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "horeca-icon-dark.png;." --add-data "horeca-icon-trans.png;." --add-data "horeca-logo-dark.png;." --add-data "horeca-logo-full.png;." --add-data "food;food" app_main.py
 
       - uses: actions/setup-node@v4
         with:

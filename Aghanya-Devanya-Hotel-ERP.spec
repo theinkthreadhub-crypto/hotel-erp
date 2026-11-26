@@ -5,7 +5,7 @@ a = Analysis(
     ['app_main.py'],
     pathex=[],
     binaries=[],
-    datas=[('hotel_erp.html', '.'), ('manifest.json', '.'), ('sw.js', '.'), ('icon-192.png', '.'), ('icon-512.png', '.'), ('logo.png', '.'), ('favicon.ico', '.'), ('food', 'food')],
+    datas=[('hotel_erp.html', '.'), ('manifest.json', '.'), ('sw.js', '.'), ('icon-192.png', '.'), ('icon-512.png', '.'), ('logo.png', '.'), ('favicon.ico', '.'), ('horeca-icon-dark.png', '.'), ('horeca-icon-trans.png', '.'), ('horeca-logo-dark.png', '.'), ('horeca-logo-full.png', '.'), ('food', 'food')],
     hiddenimports=['horeca_license_verify', 'cryptography.hazmat.primitives.asymmetric.ec'],
     hookspath=[],
     hooksconfig={},
