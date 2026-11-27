@@ -19,7 +19,7 @@ const FILE = 'file://' + path.resolve(__dirname, '..', 'hotel_erp.html');
   const page = await (await browser.newContext({ serviceWorkers: 'block' })).newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  page.on('dialog', d => d.dismiss());
+  page.on('dialog', d => d.dismiss()); await require('./lib/branded_dialogs.cjs').answerBrandedDialogs(page, 'dismiss');
   await page.goto(FILE, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof calc === 'function' && typeof summary === 'function' && typeof D === 'object' && D && D.settings, null, { timeout: 30000 });
 

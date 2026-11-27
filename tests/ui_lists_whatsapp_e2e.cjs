@@ -38,7 +38,7 @@ const HINDI = /[ऀ-ॿ]/;
     const key = fs.readFileSync(path.join(DIR, 'setu-launch.key'), 'utf8').trim();
     const open = async (pin, launch) => {
       const page = await (await browser.newContext({ viewport: { width: 1440, height: 950 }, serviceWorkers: 'block' })).newPage();
-      page.errors = []; page.on('pageerror', e => page.errors.push(e.message)); page.on('dialog', d => d.accept());
+      page.errors = []; page.on('pageerror', e => page.errors.push(e.message)); page.on('dialog', d => d.accept()); await require('./lib/branded_dialogs.cjs').answerBrandedDialogs(page, 'accept');
       await page.goto(`${U}/hotel_erp.html${launch ? '#launch=' + key : ''}`, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => typeof openWaModal === 'function' && typeof SRV === 'object', null, { timeout: 30000 });
       await page.waitForTimeout(2000);

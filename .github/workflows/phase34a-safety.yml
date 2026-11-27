@@ -107,6 +107,10 @@ jobs:
         run: SETU_REQUIRE_WRANGLER=1 node tests/qr_call_popup_e2e.cjs
       - name: Every money / stock / admin button tapped 10 times = one record (JSON, SQLite, Super Admin)
         run: SETU_REQUIRE_WRANGLER=1 node tests/rapid_tap_idempotency_e2e.cjs
+      - name: Desktop branding, branded dialogs, connection status (Standalone/Online/Offline/Syncing/LAN), restart, reconnect - JSON
+        run: SETU_REQUIRE_WRANGLER=1 node tests/desktop_branding_e2e.cjs
+      - name: Desktop branding and connection status - SQLite
+        run: SETU_REQUIRE_WRANGLER=1 SETU_STORAGE=sqlite node tests/desktop_branding_e2e.cjs
 
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke

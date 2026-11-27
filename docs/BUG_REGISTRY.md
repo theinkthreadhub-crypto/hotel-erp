@@ -41,6 +41,7 @@
 | **BUG-0030** | Super Admin App: "Pending Activation" Filter Chip Had No Icon (SVG error on every list draw) | P3 (Low) | RESOLVED | CHG-0040 | `tests/admin-app.e2e.cjs` A14 |
 | **BUG-0031** | WhatsApp Center Showed a Broken QR Image to a Cashier (the server hides the QR from non-managers) | P2 (Medium) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` |
 | **BUG-0032** | Hindi Text Left in the Product UI (21 labels: Day Book, WhatsApp, Masters) Against the English-Only Rule | P3 (Low) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` (English-only checks) |
+| **BUG-0038** | Connection Indicator Showed a Raw Server Address; Sync Details Button Did Nothing (`srvShowSyncDetails` undefined) | P2 (Medium) | RESOLVED | CHG-0055 | `tests/desktop_branding_e2e.cjs` |
 
 ---
 
@@ -381,3 +382,8 @@
 - **Evidence (owner; `tests/qr_call_popup_e2e.cjs`, real counter + local Worker + Chromium):** on the JSON counter a guest call only played a sound and a 2-second message; on the SQLite counter there was no sound, no message and no popup at all (calls were only counted on the QR button, every 15 s). 7 of 14 checks fail on the old code.
 - **Fix:** `qrCallAlert()`: a new call plays the sound, shows the table and the request, and opens the QR panel as a popup with **Done**; if another window is open (a bill being made) it is not pushed aside and the popup opens as soon as that window closes. Calls are checked every 5–6 s on both engines.
 - **Also found:** a hotel whose data had no `cash` (Cash Counter) object could not open the dashboard ("This screen could not open"); `ensureGrowth` now fills the missing lists and maps.
+
+### BUG-0038: Connection Indicator Showed a Raw Server Address; Sync Details Button Did Nothing
+- **Evidence (`tests/desktop_branding_e2e.cjs`, real counter + local Worker + Chromium):** the header showed technical text and `http://127.0.0.1:PORT` / Wi-Fi addresses on customer-facing screens; the header pill called `srvShowSyncDetails()`, which did not exist; there was no Standalone / Offline / Syncing / LAN state from a real check. The test times out on the old code.
+- **Fix:** one header pill driven by real health checks (`/api/ping`, `/api/cloud`, and on SQLite `/api/q/status`): Online, Offline, Syncing, LAN, Standalone; technical details moved to Settings → System Information.
+

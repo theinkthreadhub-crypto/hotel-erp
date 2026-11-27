@@ -576,3 +576,10 @@
 ### CHG-0054: QR Calls Pop Up on the Counter (BUG-0037)
 - **Date:** 2026-11-27 · **Reported by:** owner
 - **Files:** `hotel_erp.html` (`qrCallAlert`, calls every 5–6 s, `ensureGrowth` defaults for `cash`, `kaccha`, `menu`, `stock`, `bills`, `txns`, `onlineOrders`; `sw.js` v107), new `tests/qr_call_popup_e2e.cjs` (both engines), CI. Regression: UI lists / WhatsApp, two devices, rapid taps, vendor login, offline hotel, POS workflow 17/17, money precision.
+
+### CHG-0055: Desktop Branding, Branded Dialogs, Real Connection Status (BUG-0038)
+- **Date:** 2026-11-27 · **Asked by:** owner
+- **Files:** `app_main.py` (window title "HoReCa One – Business Management ERP", message box titles, `/api/info` system details for the counter only), `hotel_erp.html` (`uiDialog` / `uiAlert` / `uiConfirm` / `uiPrompt` replace every native alert / confirm / prompt; header pill `connCheck()` every 10 s and at once when a change is being saved; `srvShowSyncDetails()`; Settings → System Information with server address, data folder, Wi-Fi addresses, hotel code, last sync; addresses removed from the other screens), `sw.js` v108, new `tests/desktop_branding_e2e.cjs` + `tests/lib/branded_dialogs.cjs`, CI (both engines).
+- **Unchanged:** billing, storage engines, sign-in, security and sync code paths; the local server already started before the window.
+- **Tests:** `desktop_branding_e2e` all pass on JSON and SQLite (Standalone, Online, Offline with the cloud stopped, 5 offline bills, restart, reconnect, bills reach the cloud, Syncing, LAN phone, staff logout and bill cancel with branded dialogs, no native dialog, no address on 39 screens). Existing browser tests that pressed OK on native dialogs now press the branded dialog's button (same intent). Regression: POS workflow 17/17, rapid taps, two devices, lists / WhatsApp, money precision, QR call popup, vendor login, offline hotel, master QA 18/18, gate1/gate2 16/16, P0 security, Python safety suites.
+

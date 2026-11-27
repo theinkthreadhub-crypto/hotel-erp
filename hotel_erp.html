@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title>
+<title>HoReCa One – Business Management ERP</title>
 <meta name="theme-color" content="#0284c7">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -4712,6 +4712,20 @@ html[data-theme] #main .modes button.split.on,
 .ls-x:hover{background:#fee2e2;color:#dc2626}
 .ls-add{display:flex;gap:6px;align-items:center}
 .ls-add input{flex:1;min-width:0;margin:0 !important;font-size:13px !important;padding:7px 10px !important;border-style:dashed !important;height:auto !important}
+
+#ui-dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.55);z-index:2147483000;padding:16px}
+#ui-dlg.open{display:flex}
+.ui-dlg-box{background:var(--surface,#fff);color:var(--text,#0f172a);border:1px solid var(--border,#e2e8f0);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.35);width:100%;max-width:440px;padding:18px 20px;font-family:Inter,system-ui,sans-serif}
+.ui-dlg-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:15px}
+.ui-dlg-logo{width:28px;height:28px;border-radius:8px}
+.ui-dlg-msg{font-size:14px;line-height:1.55;margin-bottom:14px;white-space:normal;word-break:break-word}
+.ui-dlg-in{width:100%;margin:0 0 14px;padding:10px 12px;border-radius:10px;border:1px solid var(--border,#cbd5e1);font-size:15px}
+.ui-dlg-btns{display:flex;gap:8px;justify-content:flex-end}
+
+#cloud-pill.conn-online .cloud-dot{background:#22c55e}#cloud-pill.conn-syncing .cloud-dot{background:#f59e0b;animation:connPulse 1s infinite}
+#cloud-pill.conn-offline .cloud-dot{background:#ef4444}#cloud-pill.conn-lan .cloud-dot{background:#3b82f6}#cloud-pill.conn-standalone .cloud-dot{background:#94a3b8}
+#cloud-pill.conn-wait .cloud-dot{background:#cbd5e1}
+@keyframes connPulse{50%{opacity:.35}}
 </style>
 </head>
 <body>
@@ -5132,9 +5146,9 @@ html[data-theme] #main .modes button.split.on,
     <span class="lic-chip ok" id="lictext">License: Active</span>
   </span>
 
-  <span class="cloud-pill" id="cloud-pill" onclick="srvShowSyncDetails()" title="Cloud Live Sync Active">
+  <span class="cloud-pill conn-wait" id="cloud-pill" onclick="srvShowSyncDetails()" title="Checking the connection…" role="button" tabindex="0">
     <span class="cloud-dot"></span>
-    <span class="cloud-t" id="cloud-pill-text">All saved</span>
+    <span class="cloud-t" id="cloud-pill-text">Checking…</span>
   </span>
 
   <button class="ho-guide-header" onclick="triggerPWAInstall()" title="Install Native PC/Desktop App" aria-label="Install PC App" style="margin-left:4px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-weight:700">Install PC App</button>
@@ -5607,6 +5621,7 @@ function save(){
     // LAN/desktop mode: the main-counter PC keeps the database on disk
     SRV.edits++;
     SRV.dirty = true;
+    try{ connMarkSaving(); }catch(e){}
     clearTimeout(SRV.timer);
     SRV.timer = setTimeout(srvPush, 150);
   } else {
@@ -5615,12 +5630,12 @@ function save(){
       json = JSON.stringify(D);
       localStorage.setItem(KEY, json);
     }catch(e){
-      alert('Data could not be saved: ' + e.message + '\n\nPlease download a backup now (Settings → Download JSON Backup) and call the HoReCa One Helpline ' + HELPLINE + '. The Desktop App (EXE) does not have this limit.');
+      uiAlert('Data could not be saved: ' + e.message + '\n\nPlease download a backup now (Settings → Download JSON Backup) and call the HoReCa One Helpline ' + HELPLINE + '. The Desktop App (EXE) does not have this limit.');
     }
     // Browser storage is ~5M characters; warn well before it fills up
     if(json.length > 4000000 && !save.warned){
       save.warned = true;
-      setTimeout(() => alert('Browser storage is almost full (' + Math.round(json.length / 50000) + '%). Please take a backup and move to the Setu Desktop App (EXE), which stores data in a file.'), 50);
+      setTimeout(() => uiAlert('Browser storage is almost full (' + Math.round(json.length / 50000) + '%). Please take a backup and move to the Setu Desktop App (EXE), which stores data in a file.'), 50);
     }
     mirrorToIndexedDB(D);
   }
@@ -5847,7 +5862,92 @@ function srvStatus(ok){
     ? (ok ? 'Hotel Setu Cloud · Connected' : 'No internet. Data is not being saved; please keep this page open.')
     : (ok ? (SRV.local ? 'Main Counter · LAN Server ON' : 'Connected to Main Counter') : 'Connection to Main Counter lost. Data is not being saved.');
   e.style.color = ok && !SRV.blocked ? '#34d399' : '#ef4444';
+  connCheck().catch(() => {});
 }
+
+/* ================= CONNECTION STATUS (header) ================= */
+// One word the staff understand, from real checks (not assumed): Online, Syncing, Offline, LAN, Standalone.
+//  Main Counter PC: its own program answers /api/ping, and the cloud link reports its last sync (/api/cloud, outbox).
+//  Phone / tablet on the Wi-Fi: the Main Counter answers.  Website: the cloud answers.  No server: Standalone.
+// Addresses and ports are never shown here; they are in Settings -> System Information.
+const CONN = {state: '', label: '', detail: '', at: 0, pending: 0, lastSync: 0};
+const CONN_TEXT = {online: 'Online', syncing: 'Syncing', offline: 'Offline', lan: 'LAN', standalone: 'Standalone'};
+async function connProbe(path){
+  try{
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+    const r = await srvFetch(path, {signal: ctl.signal});
+    clearTimeout(t);
+    return r.ok ? await r.json().catch(() => ({})) : null;
+  }catch(e){ return null; }
+}
+// A change is being saved right now: the header shows "Syncing" at once (the next real check confirms the state)
+function connMarkSaving(){
+  if(typeof CONN !== 'object' || !(CONN.state === 'online' || CONN.state === 'lan')) return;
+  const el = $('#cloud-pill');
+  CONN.state = 'syncing'; CONN.label = CONN_TEXT.syncing;
+  CONN.detail = SRV.local || SRV.cloud ? 'Saving the latest changes…' : 'Saving to the Main Counter…';
+  if(el){ el.className = 'cloud-pill conn-syncing'; el.dataset.state = 'syncing'; el.title = CONN.detail; const t = $('#cloud-pill-text'); if(t) t.textContent = CONN.label; }
+}
+async function connCheck(){
+  let state = 'standalone', detail = '', pending = 0, lastSync = 0;
+  if(!SRV.on){
+    detail = 'This device works on its own. Data is kept in this browser.';
+  }else if(SRV.cloud){
+    const p = navigator.onLine === false ? null : await connProbe('/api/ping');
+    pending = SRV.dirty ? 1 : 0;
+    state = !p ? 'offline' : SRV.dirty || SRV.busy ? 'syncing' : 'online';
+    detail = !p ? 'No internet. Changes stay on this device and are saved when the internet is back.' : state === 'syncing' ? 'Saving the latest changes to Hotel Setu Cloud…' : 'Connected to Hotel Setu Cloud. Everything is saved.';
+  }else if(SRV.local){
+    const p = await connProbe('/api/ping');
+    if(!p){ state = 'offline'; detail = 'The Setu program on this PC is not answering. Close Setu and open it again.'; }
+    else{
+      const c = await connProbe('/api/cloud');
+      let ops = 0;
+      if(SRV.engine === 'sqlite'){ const q = await connProbe('/api/q/status'); ops = q ? +q.outboxPending || 0 : 0; }
+      lastSync = c && (c.okAt || c.at) || 0;
+      if(!c || !c.configured || (D && D.saas && D.saas.offline)){
+        state = 'standalone';
+        detail = 'This PC works on its own (not linked to Hotel Setu Cloud). Billing, printing and reports work normally.';
+      }else if(c.ok === false){
+        state = 'offline';
+        pending = ops || (c.pending ? 1 : 0);
+        detail = 'No internet. Billing goes on; every bill is kept on this PC and goes to the cloud when the internet is back.';
+      }else if(c.pending || ops || SRV.dirty){
+        state = 'syncing'; pending = ops || 1;
+        detail = 'Saving the latest bills to Hotel Setu Cloud…';
+      }else if(c.ok === true){
+        state = 'online';
+        detail = 'Connected to Hotel Setu Cloud. Everything is saved.';
+      }else{ state = 'syncing'; detail = 'Connecting to Hotel Setu Cloud…'; }
+    }
+  }else{
+    const p = await connProbe('/api/ping');
+    state = !p ? 'offline' : SRV.dirty ? 'syncing' : 'lan';
+    detail = !p ? 'The Main Counter PC is not reachable. Check the Wi-Fi and that Setu is open on the Main Counter.' : state === 'syncing' ? 'Saving to the Main Counter…' : 'Connected to the Main Counter PC over the restaurant Wi-Fi.';
+  }
+  Object.assign(CONN, {state, label: CONN_TEXT[state], detail, at: Date.now(), pending, lastSync});
+  const el = $('#cloud-pill');
+  if(el){
+    el.className = 'cloud-pill conn-' + state;
+    el.title = detail;
+    el.dataset.state = state;
+    const t = $('#cloud-pill-text');
+    if(t) t.textContent = CONN.label;
+  }
+  return CONN;
+}
+function srvShowSyncDetails(){
+  const last = CONN.lastSync ? new Date(CONN.lastSync).toLocaleString('en-IN', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'}) : '';
+  modal('Connection: ' + (CONN.label || 'Checking'), `<p style="font-size:14px;margin-top:0">${esc(CONN.detail || 'Checking the connection…')}</p>
+    ${last ? `<p class="muted" style="margin:0 0 8px">Last saved to the cloud: ${esc(last)}</p>` : ''}
+    <div class="btns"><button class="btn ok" onclick="connCheck().then(srvShowSyncDetails)">Check again</button>
+    ${activeUser && activeUser.access === 'manager' ? `<button class="btn g" onclick="closeModal();go('settings');setTimeout(()=>{const c=document.getElementById('sysinfo-card');c&&c.scrollIntoView({behavior:'smooth'})},400)">System Information</button>` : ''}
+    <button class="btn g" onclick="closeModal()">Close</button></div>`);
+}
+setInterval(() => { connCheck().catch(() => {}); }, 10000);
+setTimeout(() => { connCheck().catch(() => {}); }, 1500);
+window.addEventListener('online', () => connCheck().catch(() => {}));
+window.addEventListener('offline', () => connCheck().catch(() => {}));
 
 async function srvLoad(text){
   const j = JSON.parse(text);
@@ -6027,7 +6127,7 @@ async function srvPush(){
         if(/limit/i.test(why)){
           // Website bill over the daily limit: the cloud did not keep it; show the cloud's copy again
           SRV.dirty = false; SRV.version = -1;
-          alert(why);
+          uiAlert(why);
           setTimeout(srvPoll, 300);
           return;
         }
@@ -6035,7 +6135,7 @@ async function srvPush(){
         SRV.forceNext = false;
         SRV.dirty = false;
         SRV.version = -1;   // next poll reloads the server copy
-        alert('Backup restore / reset is allowed only from the Main Counter PC or a Manager device.');
+        uiAlert('Backup restore / reset is allowed only from the Main Counter PC or a Manager device.');
         return;
       }
       throw new Error('HTTP ' + r.status);
@@ -6684,11 +6784,11 @@ async function cloudBilling(){
 }
 
 async function payPlan(planId){
-  if(!activeUser || activeUser.access !== 'manager') return alert('Payments can be made only from a Manager / Owner login.');
+  if(!activeUser || activeUser.access !== 'manager') return uiAlert('Payments can be made only from a Manager / Owner login.');
   try{
     const r = await srvFetch('/api/billing/subscribe', {method: 'POST', body: JSON.stringify({plan: planId})});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok) return alert(j.error || 'Payment could not be started');
+    if(!r.ok) return uiAlert(j.error || 'Payment could not be started');
     await loadRazorpay();
     new Razorpay({
       key: j.keyId,
@@ -6704,28 +6804,28 @@ async function payPlan(planId){
             paymentId: resp.razorpay_payment_id, subscriptionId: resp.razorpay_subscription_id, signature: resp.razorpay_signature})});
           if(!v.ok) throw new Error();
           toast('Payment successful. Renewing your license...');
-        }catch(e){ alert('Payment received. Confirmation may take a moment; please refresh the page in 2 minutes.'); }
+        }catch(e){ uiAlert('Payment received. Confirmation may take a moment; please refresh the page in 2 minutes.'); }
         SRV.version = -1;   // pull the new license key right away
         await srvPoll();
         drawCloudCard();
       }
     }).open();
-  }catch(e){ alert(e.message || 'Payment could not be started'); }
+  }catch(e){ uiAlert(e.message || 'Payment could not be started'); }
 }
 
 async function cancelAutoPay(){
-  if(!confirm('Turn off auto-renew? Your paid period will continue until it ends.')) return;
+  if(!await uiConfirm('Turn off auto-renew? Your paid period will continue until it ends.')) return;
   const r = await srvFetch('/api/billing/cancel', {method: 'POST', body: '{}'});
   const j = await r.json().catch(() => ({}));
-  if(!r.ok) alert(j.error || 'Could not turn off'); else toast('Auto-renew turned off');
+  if(!r.ok) uiAlert(j.error || 'Could not turn off'); else toast('Auto-renew turned off');
   drawCloudCard();
 }
 
 async function newSyncKey(){
-  if(!confirm('Generate a new Counter PC Sync Key? Sync on the counter PC using the old key will stop until the new key is entered there.')) return;
+  if(!await uiConfirm('Generate a new Counter PC Sync Key? Sync on the counter PC using the old key will stop until the new key is entered there.')) return;
   const r = await srvFetch('/api/synckey', {method: 'POST', body: '{}'});
   const j = await r.json().catch(() => ({}));
-  if(!r.ok) return alert(j.error || 'Could not generate the key');
+  if(!r.ok) return uiAlert(j.error || 'Could not generate the key');
   audit('Cloud Sync Key Changed', j.hotel);
   save();
   modal('Counter PC Sync Key', `<p>On the counter PC, enter this under Settings (G) → Hotel Setu Cloud Sync:</p>
@@ -7163,7 +7263,7 @@ async function handleAdminGate1Unlock(e, targetView){
   const pass = ($('#admin_unlock_pass')?.value || '').trim();
   const errBox = $('#admin_unlock_err');
   const btn = $('#btn-admin-unlock');
-  const showErr = (m) => { if(errBox){ errBox.textContent = m; errBox.style.display = 'block'; } else alert(m); };
+  const showErr = (m) => { if(errBox){ errBox.textContent = m; errBox.style.display = 'block'; } else uiAlert(m); };
 
   if(!pass){
     showErr('Please enter the Admin Master Password.');
@@ -7241,12 +7341,12 @@ async function handleExistingPullSubmit(e){
   const showErr = (msg) => {
     if(okBox) okBox.style.display = 'none';
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
   const showOk = (msg) => {
     if(errBox) errBox.style.display = 'none';
     if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotel || !password){
@@ -7395,7 +7495,7 @@ async function handleGate1Submit(e){
       err.textContent = msg;
       err.style.display = 'block';
     } else {
-      alert(msg);
+      uiAlert(msg);
     }
   };
 
@@ -7538,7 +7638,7 @@ async function handleGate1Submit(e){
 async function handleGate2Submit(e){
   e.preventDefault();
   const err = $('#gate2_err');
-  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
+  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else uiAlert(msg); };
 
   const gate1 = getGate1Session();
   if(!gate1 || !gate1.hotelId){
@@ -7622,7 +7722,7 @@ async function handleSignUpSubmit(e){
   const key = ($('#signup_key')?.value || '').trim().toUpperCase();
 
   const err = $('#signup_err');
-  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
+  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else uiAlert(msg); };
 
   if(!hotelName || !ownerName || !phone || !userId || !pass || !cpass || !key){
     showErr('Please fill in all required (*) fields.');
@@ -7716,8 +7816,8 @@ function finishLogin(){
   }
 }
 
-function logoutStaff(){
-  if(!confirm('Log out current staff member? (Hotel session remains active)')) return;
+async function logoutStaff(){
+  if(!await uiConfirm('Log out current staff member? (Hotel session remains active)')) return;
   audit('Staff Logout', activeUser ? activeUser.name : '');
   activeUser = null;
   SRV.token = '';
@@ -7733,8 +7833,8 @@ function logoutHotel(){
   promptAdminForGate1('exit');
 }
 
-function switchHotel(){
-  if(!confirm('Switch or reconfigure hotel? This will log out current hotel.')) return;
+async function switchHotel(){
+  if(!await uiConfirm('Switch or reconfigure hotel? This will log out current hotel.')) return;
   audit('Switch Hotel', activeUser ? activeUser.name : '');
   activeUser = null;
   SRV.token = '';
@@ -7974,7 +8074,7 @@ async function handleLockScreenActivation(e){
       err.textContent = act.message;
       err.style.display = 'block';
     } else {
-      alert(act.message);
+      uiAlert(act.message);
     }
     return;
   }
@@ -8055,7 +8155,7 @@ async function submitModalKey(){
   }
   const act = await activateLicenseKey(key, 'Manual Modal Key Activation');
   if(!act.success){
-    alert(act.message);
+    uiAlert(act.message);
     return;
   }
   closeModal();
@@ -8136,10 +8236,59 @@ function modal(title, html){
 }
 function closeModal(){ $('#modal').classList.remove('open'); }
 const isModal = () => $('#modal').classList.contains('open');
+
+/* ================= BRANDED DIALOGS (replace the browser's alert / confirm / prompt) ================= */
+// The desktop window must never show a grey browser box with the server address in its title. These open on their own
+// layer above any screen window, one at a time (queued), and return a Promise: await uiConfirm(...) / await uiPrompt(...).
+const UI_DLG_Q = [];
+let UI_DLG_OPEN = false;
+function uiDialog(kind, message, opts = {}){
+  return new Promise(resolve => { UI_DLG_Q.push({kind, message: String(message ?? ''), opts, resolve}); uiDialogNext(); });
+}
+function uiDialogNext(){
+  if(UI_DLG_OPEN || !UI_DLG_Q.length) return;
+  const d = UI_DLG_Q.shift();
+  UI_DLG_OPEN = true;
+  let el = document.getElementById('ui-dlg');
+  if(!el){ el = document.createElement('div'); el.id = 'ui-dlg'; document.body.appendChild(el); }
+  const title = d.opts.title || (d.kind === 'alert' ? 'HoReCa One' : d.kind === 'prompt' ? 'Please enter' : 'Please confirm');
+  const okText = d.opts.ok || (d.kind === 'confirm' ? 'Yes' : 'OK'), cancelText = d.opts.cancel || 'Cancel';
+  if(d.opts.danger === undefined && d.kind === 'confirm') d.opts.danger = /^(delete|cancel|remove|reset|disconnect|unlink|restore|turn off|log out|switch)/i.test(d.message);
+  el.innerHTML = `<div class="ui-dlg-box" role="dialog" aria-modal="true" aria-labelledby="ui-dlg-t">
+      <div class="ui-dlg-head"><img src="horeca-icon-dark.png" alt="" class="ui-dlg-logo"><b id="ui-dlg-t">${esc(title)}</b></div>
+      <div class="ui-dlg-msg">${esc(d.message).replace(/\n/g, '<br>')}</div>
+      ${d.kind === 'prompt' ? `<input id="ui-dlg-in" class="ui-dlg-in" value="${esc(d.opts.value ?? '')}" autocomplete="off">` : ''}
+      <div class="ui-dlg-btns">${d.kind !== 'alert' ? `<button class="btn g" id="ui-dlg-no">${esc(cancelText)}</button>` : ''}<button class="btn ${d.opts.danger ? 'bad' : 'ok'}" id="ui-dlg-yes">${esc(okText)}</button></div>
+    </div>`;
+  el.classList.add('open');
+  const done = v => {
+    el.classList.remove('open'); el.innerHTML = '';
+    document.removeEventListener('keydown', key, true);
+    UI_DLG_OPEN = false;
+    d.resolve(v);
+    setTimeout(uiDialogNext, 0);
+  };
+  const yes = () => done(d.kind === 'prompt' ? $('#ui-dlg-in').value : d.kind === 'confirm' ? true : undefined);
+  const no = () => done(d.kind === 'prompt' ? null : d.kind === 'confirm' ? false : undefined);
+  const key = e => {
+    if(e.key === 'Escape'){ e.preventDefault(); e.stopImmediatePropagation(); no(); }
+    else if(e.key === 'Enter'){ e.preventDefault(); e.stopImmediatePropagation(); yes(); }
+    else e.stopImmediatePropagation();       // screen hotkeys stay quiet while a dialog is open
+  };
+  document.addEventListener('keydown', key, true);
+  $('#ui-dlg-yes').onclick = yes;
+  if($('#ui-dlg-no')) $('#ui-dlg-no').onclick = no;
+  setTimeout(() => { const f = $('#ui-dlg-in') || $('#ui-dlg-yes'); f && f.focus(); if($('#ui-dlg-in')) $('#ui-dlg-in').select(); }, 20);
+}
+const uiAlert = (message, opts) => uiDialog('alert', message, opts);
+const uiConfirm = (message, opts) => uiDialog('confirm', message, opts);
+const uiPrompt = (message, value, opts) => uiDialog('prompt', message, {...(opts || {}), value});
+// Anything that still calls the browser's alert (older add-ons) gets the branded box too
+window.alert = message => { uiAlert(message); };
 // Unsaved bulk menu rows must not vanish on a stray click or Esc
-function tryCloseModal(){
+async function tryCloseModal(){
   const typed = [...document.querySelectorAll('#mbox .bulk-row .bk-name')].some(i => i.value.trim());
-  if(typed && !confirm('The menu items you typed are not saved yet. Close anyway?')) return;
+  if(typed && !await uiConfirm('The menu items you typed are not saved yet. Close anyway?')) return;
   closeModal();
 }
 $('#modal').addEventListener('mousedown', e => { if(e.target.id === 'modal') tryCloseModal(); });
@@ -8756,20 +8905,20 @@ function customers(){
   });
 }
 
-function walletTopup(phone){
-  const ph = normPh(prompt('Customer 10-digit mobile number', phone || '') || '');
+async function walletTopup(phone){
+  const ph = normPh(await uiPrompt('Customer 10-digit mobile number', phone || '') || '');
   if(ph.length !== 10){ if(ph) toast('Please enter a valid 10-digit number'); return; }
   const known = customers().find(c => c.phone === ph);
-  const name = (prompt('Customer name', known?.name || '') || '').trim();
-  const v = +prompt(`Amount to add to wallet (₹)
+  const name = (await uiPrompt('Customer name', known?.name || '') || '').trim();
+  const v = +await uiPrompt(`Amount to add to wallet (₹)
 Current balance: ${money(walletBal(ph))}`);
   if(!(v > 0)) return;
-  const mode = confirm('Received in cash? (Cancel = UPI)') ? 'Cash' : 'UPI';
+  const mode = await uiConfirm('How was the money received?', {title: 'Payment mode', ok: 'Cash', cancel: 'UPI'}) ? 'Cash' : 'UPI';
   D.txns.push({id: uid(), type: 'Receipt', date: today(), time: nowTime(), head: 'Customer Wallet Topup', desc: name, party: name, phone: ph, amount: v, mode});
   save();
   toast(`${money(v)} added to ${name || ph} wallet · Balance ${money(walletBal(ph))}`);
   if(cur === 'customers') scrCustomers();
-  if(confirm('Send the wallet balance to the customer on WhatsApp?')){
+  if(await uiConfirm('Send the wallet balance to the customer on WhatsApp?')){
     waOpen(ph, `Dear ${name || 'Customer'},
 ₹${v} has been added to your ${D.settings.name} wallet.
 Wallet balance: ₹${walletBal(ph)}
@@ -9513,11 +9662,11 @@ function saveCreditNote(id){
     audit('Credit Note', `CN-${cn.no} on bill #${b.no} · ${reason}`, cn.total, cn.id, by);
     save(); closeModal();
     // Announce and print the number the server kept (another device may have used CN-n at the same moment)
-    const done = () => {
+    const done  = async () => {
       const c = cnotes().find(x => x.id === cn.id) || cn, tx = D.txns.find(x => x.cn === c.id);
       if(tx && !tx.desc.startsWith(`Credit Note CN-${c.no} `)){ tx.desc = `Credit Note CN-${c.no} on bill #${b.no}`; save(); }
       toast(`Credit Note CN-${c.no} saved — ${money(c.total)}`);
-      if(confirm('Print the credit note?')) printDoc([cnHTML(c)]);
+      if(await uiConfirm('Print the credit note?')) printDoc([cnHTML(c)]);
       if(cur === 'bills') scrBills(); else if(cur === 'gst') scrGst();
     };
     if(SRV.on && !SRV.readOnly) srvFlush(8000).then(done); else done();
@@ -11496,7 +11645,7 @@ function officialOrderImported(o){
   return (D.onlineOrders||[]).some(x=>x.source==='authenticated_partner_webhook' && x.platform===o.platform && x.orderId===o.orderId) ||
     (D.bills||[]).some(b=>b.source==='authenticated_partner_webhook' && b.channel.toLowerCase()===o.platform && b.orderId===o.orderId);
 }
-function importOfficialOrder(provider,id){
+async function importOfficialOrder(provider,id){
   const o=officialAggOrders.find(o=>o.platform===provider && o.orderId===id);
   if(!o)return toast('Refresh the partner inbox');
   if(officialOrderImported(o))return toast('Already imported');
@@ -11510,7 +11659,7 @@ function importOfficialOrder(provider,id){
   }
   const itemTotal=r2(mapped.reduce((n,x)=>n+x.price*x.qty,0));
   if(Math.abs(itemTotal-o.total)>0.01)return toast('Provider total has additional charges/discounts. Reconcile first.');
-  if(!confirm('Confirm '+provider.toUpperCase()+' #'+o.orderId+' is already accepted on the OFFICIAL PARTNER TABLET, then import for KOT?'))return;
+  if(!await uiConfirm('Confirm '+provider.toUpperCase()+' #'+o.orderId+' is already accepted on the OFFICIAL PARTNER TABLET, then import for KOT?'))return;
   const channel=provider==='zomato'?'Zomato':'Swiggy';
   D.onlineOrders=D.onlineOrders||[];
   D.onlineOrders.push({id:uid(),source:'authenticated_partner_webhook',platform:provider,outletId:o.outletId,
@@ -11778,10 +11927,10 @@ function handoverOnlineOrder(id){
   scrOnline();
 }
 
-function rejectOnlineOrder(id){
+async function rejectOnlineOrder(id){
   const o=(D.onlineOrders||[]).find(x=>x.id===id);
   if(o?.source==='authenticated_partner_webhook')return toast('Reject on the partner app, and retain the Setu audit trail');
-  if(!confirm('Reject this online order?')) return;
+  if(!await uiConfirm('Reject this online order?')) return;
   D.onlineOrders = (D.onlineOrders || []).filter(x => x.id !== id);
   save();
   toast('Order rejected');
@@ -12114,7 +12263,7 @@ function scrBill(){
         </button>
 
         <div style="display:flex;gap:8px;margin-top:2px">
-          <button class="btn g sm" style="flex:1" onclick="if(confirm('Clear the cart?')){B=newB(B.table, B.channel);scrBill();}">Clear Cart</button>
+          <button class="btn g sm" style="flex:1" onclick="uiConfirm('Clear the cart?').then(ok=>{if(ok){B=newB(B.table, B.channel);scrBill();}})">Clear Cart</button>
           ${isCurrentTableKaccha && B.channel==='Dine-In' ? `
             <button class="btn bad sm" style="flex:1" onclick="cancelKacchaOrder('${esc(B.table)}')">Cancel Order</button>
           ` : ''}
@@ -12355,7 +12504,7 @@ function drawTotals(){
 }
 
 /* ================= TABLE SWITCHING & KACCHA BILL OPERATIONS ================= */
-function switchTable(tbl){
+async function switchTable(tbl){
   tbl = (tbl || 'T-1').trim();
   if(!tbl) tbl = 'T-1';
   B.channel = 'Dine-In';
@@ -12367,7 +12516,7 @@ function switchTable(tbl){
   }
 
   if(B.cart.length && B.table && B.table !== tbl && !D.kaccha[B.table]){
-    if(confirm(`The order for table ${B.table} is not saved. Save it as a running order?`)){
+    if(await uiConfirm(`The order for table ${B.table} is not saved. Save it as a running order?`)){
       saveKacchaBill(true);
     }
   }
@@ -12473,8 +12622,8 @@ function saveKacchaBill(silent = false, noRender = false){
   if(!noRender) scrBill();
 }
 
-function cancelKacchaOrder(tbl){
-  if(!confirm(`Cancel the running order for table ${tbl}? The table will be freed.`)) return;
+async function cancelKacchaOrder(tbl){
+  if(!await uiConfirm(`Cancel the running order for table ${tbl}? The table will be freed.`)) return;
   withManager(`Cancel running order for table ${tbl}`, by => {
     const k = D.kaccha[tbl];
     if(k) audit('Running Table Cancel', `${tbl}: ${k.cart.map(i => i.name + '×' + i.qty).join(', ')}`, calc(k.cart, k.disc, gstRate()).total, tbl, by);
@@ -13423,10 +13572,10 @@ function saveBillEdit(id){
     if(cur === 'bills') scrBills();
   });
 }
-function remakeBill(id){
+async function remakeBill(id){
   const b = getBill(id);
   if(!b || b.cancelled || cnBlocksCancel(b)) return;
-  if(!confirm(`Cancel bill #${b.no} and open its items for correction?`)) return;
+  if(!await uiConfirm(`Cancel bill #${b.no} and open its items for correction?`)) return;
   withManager(`Bill #${b.no} cancel & re-make`, by => {
     b.cancelled = true;
     b.cancelledBy = by;
@@ -13442,10 +13591,10 @@ function remakeBill(id){
   });
 }
 
-function cancelBill(id){
+async function cancelBill(id){
   const b = getBill(id);
   if(!b || b.cancelled || cnBlocksCancel(b)) return;
-  if(!confirm(`Cancel bill #${b.no} (${money(b.total)})? Stock will be restored.`)) return;
+  if(!await uiConfirm(`Cancel bill #${b.no} (${money(b.total)})? Stock will be restored.`)) return;
   withManager(`Bill #${b.no} cancel`, by => {
     b.cancelled = true;
     b.cancelledBy = by;
@@ -13552,7 +13701,7 @@ function pfSet(i, k, v, soft){
   scrPurchase();
 }
 function pfDefaults(){ scrPurchase(); }
-function savePurchase(){
+async function savePurchase(){
   const lines = PF.lines.filter(l => l.sid && +l.qty > 0);
   if(!lines.length){ toast('Enter at least one item and its quantity'); return; }
   if(PF.lines.some(l => l.sid && !(+l.qty > 0))){ toast('Enter the quantity for every item'); return; }
@@ -13566,7 +13715,7 @@ function savePurchase(){
   }
   if(t.pending > 0 && !party){ toast('A supplier name is required for an unpaid balance'); return; }
   const noExp = lines.filter(l => (stockItem(l.sid) || {}).exp && !l.exp);
-  if(noExp.length && !confirm(`No expiry date for: ${noExp.map(l => stockItem(l.sid).name).join(', ')}.\nSave without it?`)) return;
+  if(noExp.length && !await uiConfirm(`No expiry date for: ${noExp.map(l => stockItem(l.sid).name).join(', ')}.\nSave without it?`)) return;
   if(t.total < 0){ toast('The total cannot be negative'); return; }
   const invId = uid(), time = PF.date === today() ? nowTime() : '12:00', credit = t.pending > 0, adj = r2(t.total - t.items);
   let left = adj;
@@ -13595,9 +13744,9 @@ function receiveOrder(id){
   toast('Check quantities / rates, then Save Purchase');
   scrPurchase();
 }
-function cancelOrder(id){
+async function cancelOrder(id){
   const o = D.orders.find(x => x.id === id);
-  if(!o || !confirm('Cancel this order?')) return;
+  if(!o || !await uiConfirm('Cancel this order?')) return;
   o.status = 'cancelled'; o.cancelledBy = curUser();
   save(); scrPurchase();
 }
@@ -13618,11 +13767,11 @@ function purList(){
     <tfoot><tr><td colspan="5">Total</td><td class="n">${money(sum(ps, 'amount'))}</td><td></td></tr></tfoot></table></div>`;
 }
 // Delete a voucher (a purchase invoice goes with all its lines and its payment). Old entries give their stock back as a movement.
-function delTx(id){
+async function delTx(id){
   const t = D.txns.find(x => x.id === id);
   if(!t) return;
   const group = t.inv && t.inv.id ? D.txns.filter(x => x.inv && x.inv.id === t.inv.id) : [t];
-  if(!confirm(group.length > 1 ? `Delete the ${group.length} entries of this invoice?` : 'Delete this entry?')) return;
+  if(!await uiConfirm(group.length > 1 ? `Delete the ${group.length} entries of this invoice?` : 'Delete this entry?')) return;
   withManager(`${t.type} entry delete`, by => {
     group.forEach(x => { if(x.type === 'Purchase' && x.sid && !x.mv && +x.qty) addMove(x.sid, -x.qty, 'del', `Old purchase entry deleted (${x.party || ''})`, {ref: x.id}); });
     const ids = new Set(group.map(x => x.id));
@@ -13874,10 +14023,10 @@ function gasEmpty(){
   D.gasLog.push({id: uid(), date: today(), time: nowTime(), type: 'empty', n: 1, size: sz, by: curUser()});
   save(); toast('1 empty cylinder recorded'); scrExpense();
 }
-function gasDeposit(dir){
-  const v = prompt(dir > 0 ? 'Deposit paid (₹)? This is not an expense; it is refundable.' : 'Deposit refunded (₹)?');
+async function gasDeposit(dir){
+  const v = await uiPrompt(dir > 0 ? 'Deposit paid (₹)? This is not an expense; it is refundable.' : 'Deposit refunded (₹)?');
   if(!v || !(+v > 0)) return;
-  const party = prompt('Gas agency name', (gasRefills().slice(-1)[0] || {}).party || '') || '';
+  const party = await uiPrompt('Gas agency name', (gasRefills().slice(-1)[0] || {}).party || '') || '';
   D.txns.push({id: uid(), type: dir > 0 ? 'Expense' : 'Receipt', date: today(), time: nowTime(), head: dir > 0 ? DEPOSIT_HEAD : DEPOSIT_BACK, desc: 'Cylinder deposit', party, amount: +v, mode: 'Cash', by: curUser()});
   save(); toast('Deposit entry save'); scrExpense();
 }
@@ -14908,13 +15057,13 @@ function stockDupHint(id){
   el.textContent = sim.length ? `A similar item already exists: ${sim.map(x => x.name).join(', ')}. Use it, or Save if this one is different.` : '';
 }
 
-function saveStock(id){
+async function saveStock(id){
   const name = $('#s_name').value.trim();
   if(!name){ toast('Please enter a name'); return; }
   const same = D.stock.find(x => x.id !== id && !x.merged && x.name.trim().toLowerCase() === name.toLowerCase());
   if(same){ toast(`An item named "${same.name}" already exists`); return; }
   const sim = similarItems(name, id);
-  if(!id && sim.length && !confirm(`A similar item already exists: ${sim.map(x => x.name).join(', ')}.\nCreate a new item anyway?`)) return;
+  if(!id && sim.length && !await uiConfirm(`A similar item already exists: ${sim.map(x => x.name).join(', ')}.\nCreate a new item anyway?`)) return;
   const cu = $('#s_cu').value.trim(), cf = +$('#s_cf').value;
   const v = {
     name, type: $('#s_type').value, cat: $('#s_cat').value.trim(), unit: $('#s_unit').value.trim() || 'pcs',
@@ -14949,10 +15098,10 @@ function mergeStock(id){
     <p class="muted" style="font-size:12px">Both should have the same unit (e.g. kg and kg).</p>
     <div class="btns"><button class="btn bad" onclick="doMerge('${id}')">Merge</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function doMerge(id){
+async function doMerge(id){
   const s = D.stock.find(x => x.id === id), t = D.stock.find(x => x.id === $('#mg_to').value);
   if(!s || !t) return;
-  if((s.unit || '').toLowerCase() !== (t.unit || '').toLowerCase() && !confirm(`The units differ (${s.unit} / ${t.unit}). Merge anyway?`)) return;
+  if((s.unit || '').toLowerCase() !== (t.unit || '').toLowerCase() && !await uiConfirm(`The units differ (${s.unit} / ${t.unit}). Merge anyway?`)) return;
   withManager(`Item merge: ${s.name} → ${t.name}`, by => {
     D.stockAlias[s.id] = t.id;
     s.merged = t.id; s.active = false;
@@ -14982,10 +15131,10 @@ function stockOut(id, kind){
     ${kind === 'return' ? '<p class="muted" style="font-size:12px">This only reduces stock. If the supplier refunds money, record a Receipt (I); if your dues go down, record it with Pay in Suppliers (U).</p>' : ''}
     <div class="btns"><button class="btn ok" onclick="saveStockOut('${s.id}','${kind}')">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function saveStockOut(id, kind){
+async function saveStockOut(id, kind){
   const s = stockItem(id), q = r3((+$('#so_q').value || 0) * (+$('#so_u').value || 1));
   if(!s || !(q > 0)){ toast('Enter the quantity'); return; }
-  if(q > +s.qty && !confirm(`Stock is only ${fq(s.qty)} ${s.unit}. Take out ${fq(q)} anyway? (stock will go negative)`)) return;
+  if(q > +s.qty && !await uiConfirm(`Stock is only ${fq(s.qty)} ${s.unit}. Take out ${fq(q)} anyway? (stock will go negative)`)) return;
   const reason = $('#so_r').value, loc = ($('#so_loc') || {}).value || '', sup = ($('#so_sup') || {}).value || '', note = $('#so_n').value.trim();
   const cost = r2(q * avgCost(s.id));
   addMove(s.id, -q, kind, [reason, note].filter(Boolean).join(' · '), {reason, ...(loc ? {loc} : {}), ...(sup ? {party: sup} : {}), cost});
@@ -15150,7 +15299,7 @@ function bulkMenu(){
   setTimeout(() => $('#bk_rows .bk-name')?.focus(), 40);
 }
 
-function saveBulkMenu(){
+async function saveBulkMenu(){
   const rows = [...document.querySelectorAll('.bulk-row')].map(r => ({
     el: r,
     name: r.querySelector('.bk-name').value.trim(),
@@ -15173,7 +15322,7 @@ function saveBulkMenu(){
     if(existing.has(k) || seen.has(k)) dup.push(r.name);
     seen.add(k);
   });
-  if(dup.length && !confirm(`These dishes already exist or are entered twice:\n• ${dup.join('\n• ')}\n\nSave anyway?`)) return;
+  if(dup.length && !await uiConfirm(`These dishes already exist or are entered twice:\n• ${dup.join('\n• ')}\n\nSave anyway?`)) return;
 
   rows.forEach(r => D.menu.push({id: uid(), name: r.name, cat: r.cat, price: +r.price, recipe: []}));
   save();
@@ -15377,8 +15526,8 @@ function saveMenu(id){
   scrMenu();
 }
 
-function delMenu(id){
-  if(!confirm('Delete this menu item?')) return;
+async function delMenu(id){
+  if(!await uiConfirm('Delete this menu item?')) return;
   D.menu = D.menu.filter(x => x.id !== id);
   save();
   closeModal();
@@ -16091,7 +16240,7 @@ function scrKitchen(){
       <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;margin-right:4px"></span> Ready · 
       <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:4px"></span> Overdue > ${late} min · Auto-refreshes every 15s
     </div>
-    ${allKs.length ? `<button class="btn g" onclick="if(confirm('Mark all KOTs as served?')){pendingKots().forEach(k=>k.status='served');save();scrKitchen();}">Mark All Served</button>` : ''}
+    ${allKs.length ? `<button class="btn g" onclick="uiConfirm('Mark all KOTs as served?').then(ok=>{if(ok){pendingKots().forEach(k=>k.status='served');save();scrKitchen();}})">Mark All Served</button>` : ''}
   </div>`;
 
   kdsTimer = setInterval(() => {
@@ -16510,7 +16659,7 @@ function importOrder(txt){
     saveKacchaBill(true);
     toast(`Table ${B.table} order saved and KOT sent to the Kitchen Display`);
   }
-  if(miss.length) setTimeout(() => alert('These items are not on the menu; please add them manually:\n• ' + miss.join('\n• ')), 100);
+  if(miss.length) setTimeout(() => uiAlert('These items are not on the menu; please add them manually:\n• ' + miss.join('\n• ')), 100);
 }
 
 function printTableQR(){
@@ -16826,12 +16975,12 @@ function saveSalaryDays(silent){
   return true;
 }
 
-function payAllSalary(){
+async function payAllSalary(){
   const due = D.staff.map(s => ({s, m: staffMonth(s, stMonth)})).filter(x => x.m.payable > 0);
   if(!due.length){ toast('No salary is pending for this month'); scrStaff(); return; }
   const total = sum(due, x => x.m.payable);
-  if(!confirm(`${stMonth} — total salary ${money(total)} for ${due.length} staff:\n\n` + due.map(x => `${x.s.name}: ${x.m.worked} days → ${money(x.m.payable)}`).join('\n') + '\n\nPay everyone now?')){ scrStaff(); return; }
-  const mode = confirm('Paid in cash? (Cancel = UPI / Bank)') ? 'Cash' : 'UPI';
+  if(!await uiConfirm(`${stMonth} — total salary ${money(total)} for ${due.length} staff:\n\n` + due.map(x => `${x.s.name}: ${x.m.worked} days → ${money(x.m.payable)}`).join('\n') + '\n\nPay everyone now?')){ scrStaff(); return; }
+  const mode = await uiConfirm('How was it paid?', {title: 'Payment mode', ok: 'Cash', cancel: 'UPI / Bank'}) ? 'Cash' : 'UPI';
   due.forEach(({s, m}) => D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: m.payable, mode, staffId: s.id, salMonth: stMonth}));
   audit('Salary Paid', `${stMonth}: ${due.length} staff (${mode})`, total);
   salarySnap(stMonth);
@@ -16855,9 +17004,9 @@ function markAllPresent(){
   scrStaff();
 }
 
-function staffAdv(id){
+async function staffAdv(id){
   const s = D.staff.find(x => x.id === id);
-  const v = +prompt(`Advance paid to ${s.name} (₹, cash)`);
+  const v = +await uiPrompt(`Advance paid to ${s.name} (₹, cash)`);
   if(!(v > 0)) return;
   D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Advance', desc: s.name, party: s.name, amount: v, mode: 'Cash', staffId: id});
   save();
@@ -16865,11 +17014,11 @@ function staffAdv(id){
   scrStaff();
 }
 
-function paySalary(id){
+async function paySalary(id){
   const s = D.staff.find(x => x.id === id), m = staffMonth(s, stMonth);
-  const v = +prompt(`${s.name} — ${stMonth} salary\nEarned ${m.earned} − Advance ${m.adv} − Paid ${m.paid}\n\nAmount to pay (₹)`, m.payable);
+  const v = +await uiPrompt(`${s.name} — ${stMonth} salary\nEarned ${m.earned} − Advance ${m.adv} − Paid ${m.paid}\n\nAmount to pay (₹)`, m.payable);
   if(!(v > 0)) return;
-  const mode = confirm('Paid in cash? (Cancel = UPI)') ? 'Cash' : 'UPI';
+  const mode = await uiConfirm('How was it paid?', {title: 'Payment mode', ok: 'Cash', cancel: 'UPI'}) ? 'Cash' : 'UPI';
   D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: v, mode, staffId: id, salMonth: stMonth});
   salarySnap(stMonth);
   save();
@@ -17078,8 +17227,8 @@ function importOutlets(files){
   });
 }
 
-function removeOutlet(code){
-  if(!confirm('Remove this outlet from the dashboard?')) return;
+async function removeOutlet(code){
+  if(!await uiConfirm('Remove this outlet from the dashboard?')) return;
   delete D.outlets[code];
   save();
   scrOutlets();
@@ -17120,7 +17269,7 @@ function scrCaptain(){
   const n = sum(cap.cart, 'qty');
   main.innerHTML = `
   <div class="title">
-    <button class="btn g sm" onclick="if(!cap.cart.length||confirm('New items have not been sent. Go back anyway?')){cap.table='';cap.cart=[];scrCaptain()}">← Tables</button>
+    <button class="btn g sm" onclick="(cap.cart.length?uiConfirm('New items have not been sent. Go back anyway?'):Promise.resolve(true)).then(ok=>{if(ok){cap.table='';cap.cart=[];scrCaptain()}})">← Tables</button>
     <span>${esc(cap.table)}</span>
     <span class="r">${k ? `Running: <b>${money(calc(k.cart, k.disc, gstRate()).total)}</b>` : 'New order'}</span>
   </div>
@@ -17229,7 +17378,7 @@ function scrReservations(){
   <p class="muted">Tables booked for today are shown as "Reserved" in Billing and the Captain App.</p>`;
 }
 
-function saveRsv(){
+async function saveRsv(){
   const name = $('#rv_name').value.trim(), date = $('#rv_date').value, time = $('#rv_time').value;
   if(!name || !date || !time){ toast('Please enter name, date and time'); return; }
   const r = {id: uid(), name, phone: $('#rv_phone').value.trim(), date, time, people: +$('#rv_people').value || 1, table: $('#rv_table').value, note: $('#rv_note').value.trim(), status: 'booked', createdAt: Date.now()};
@@ -17238,7 +17387,7 @@ function saveRsv(){
   rsvDate = date;
   toast('Booking saved');
   scrReservations();
-  if(r.phone && confirm('Send a booking confirmation to the customer on WhatsApp?')) waRsv(r.id);
+  if(r.phone && await uiConfirm('Send a booking confirmation to the customer on WhatsApp?')) waRsv(r.id);
 }
 
 function setRsv(id, st){
@@ -17249,8 +17398,8 @@ function setRsv(id, st){
   scrReservations();
 }
 
-function delRsv(id){
-  if(!confirm('Delete this booking?')) return;
+async function delRsv(id){
+  if(!await uiConfirm('Delete this booking?')) return;
   D.reservations = D.reservations.filter(x => x.id !== id);
   save();
   scrReservations();
@@ -17369,12 +17518,12 @@ function editSupplier(key){
     ${key && others.length ? `<div style="grid-column:1/-1"><label>Duplicate? Merge into this supplier</label><select id="su_to"><option value="">— no —</option>${others.map(x => `<option value="${esc(x.key)}">${esc(x.name)}</option>`).join('')}</select></div>` : ''}
   </div><div class="btns"><button class="btn ok" onclick="saveSupplier(${key ? JSON.stringify(key).replace(/"/g, '&quot;') : "''"})">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function saveSupplier(key){
+async function saveSupplier(key){
   const name = $('#su_n').value.trim();
   if(!name){ toast('Enter the name'); return; }
   const k = key || supKey(name), to = ($('#su_to') || {}).value;
   if(to){
-    if(!confirm('Both suppliers will be combined into one account. Old entries do not change. OK?')) return;
+    if(!await uiConfirm('Both suppliers will be combined into one account. Old entries do not change. OK?')) return;
     D.supAlias[k] = to;
     audit('Supplier Merge', `${name} → ${(suppliers().find(x => x.key === to) || {}).name || to}`);
   } else {
@@ -17395,10 +17544,10 @@ function paySupplier(key){
     <div><label>Note</label><input id="sp_n" placeholder="e.g. Invoice 123"></div></div>
     <div class="btns"><button class="btn ok" onclick="savePaySupplier(${JSON.stringify(key).replace(/"/g, '&quot;')})">Save Payment</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function savePaySupplier(key){
+async function savePaySupplier(key){
   const s = suppliers().find(x => x.key === key), v = +$('#sp_a').value, d = $('#sp_d').value || today();
   if(!s || !(v > 0)) return;
-  if(v > s.due + 0.01 && !confirm(`Only ${money(s.due)} is due. Record ${money(v)} anyway (advance)?`)) return;
+  if(v > s.due + 0.01 && !await uiConfirm(`Only ${money(s.due)} is due. Record ${money(v)} anyway (advance)?`)) return;
   D.txns.push({id: uid(), type: 'Expense', date: d, time: d === today() ? nowTime() : '12:00', head: 'Supplier Payment', desc: $('#sp_n').value.trim() || 'Credit settled', party: s.name, amount: v, mode: $('#sp_m').value, by: curUser()});
   save(); closeModal();
   toast(`Payment of ${money(v)} to ${s.name} saved`);
@@ -17474,10 +17623,10 @@ function scrSettlement(){
   <p class="muted">Change commission % in Settings (G). Actual payouts may also deduct ads, packaging and TDS; reconcile any difference with the partner payout statement.</p>`;
 }
 
-function addSettlement(ch){
-  const v = +prompt(`Amount received from ${ch} in the bank (₹)`);
+async function addSettlement(ch){
+  const v = +await uiPrompt(`Amount received from ${ch} in the bank (₹)`);
   if(!(v > 0)) return;
-  const ref = prompt('UTR / Reference (optional)', '') || '';
+  const ref = await uiPrompt('UTR / Reference (optional)', '') || '';
   D.txns.push({id: uid(), type: 'Receipt', date: today(), time: nowTime(), head: ch + ' Settlement', desc: `${dmy(stlFrom)}–${dmy(stlTo)}${ref ? ' · ' + ref : ''}`, party: ch, amount: v, mode: 'UPI'});
   save();
   toast(`${ch} settlement ${money(v)} save`);
@@ -18044,7 +18193,7 @@ function renderWaDirectScanner(){
             ${isConnected ? `Connected: +${w.me || 'Active'}` : (isQrReady ? 'QR Code Ready to Scan' : (isStarting ? 'Starting Gateway...' : 'Disconnected'))}
           </span>
           <button class="btn g sm" onclick="waStatus().then(()=>scrWaReports())" title="Check server socket">🔄 Refresh Status</button>
-          ${isConnected ? `<button class="btn bad sm" onclick="if(confirm('Unlink this WhatsApp number from Setu?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>scrWaReports());}">Unlink Device</button>` : ''}
+          ${isConnected ? `<button class="btn bad sm" onclick="uiConfirm('Unlink this WhatsApp number from Setu?').then(ok=>{if(ok){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>scrWaReports());}})">Unlink Device</button>` : ''}
         </div>
       </div>
 
@@ -18862,7 +19011,7 @@ async function retryWaMessage(id){
     return;
   }
   
-  if(!confirm(`Retry sending WhatsApp message to ${waMaskPhone(m.phone)} (Bill #${m.billNo})?`)) return;
+  if(!await uiConfirm(`Retry sending WhatsApp message to ${waMaskPhone(m.phone)} (Bill #${m.billNo})?`)) return;
 
   if(SRV.on){
     try{
@@ -19586,7 +19735,7 @@ async function delRun(){
   if(!list.length) return;
   if(!/^\d{6}$/.test(code)){ toast('Enter the 6-digit delete code from Aghanya Devanya Enterprises'); return; }
   if(!SRV.on || !(SRV.cloud || SRV.local)){ toast('Delete needs this Setu connected to Hotel Setu Cloud (the code is checked online)'); return; }
-  if(!confirm(`Delete ${list.length} entries (${k.label})?\nA backup file is downloaded first. This cannot be undone in Setu.`)) return;
+  if(!await uiConfirm(`Delete ${list.length} entries (${k.label})?\nA backup file is downloaded first. This cannot be undone in Setu.`)) return;
   const what = `${k.label}: ${list.length}${k.dates ? ` · ${DELF.from} to ${DELF.to}` : ''}${DELF.cat ? ' · ' + DELF.cat : ''}${DELF.only ? ' · imported only' : ''}`;
   let ref;
   try{
@@ -19766,7 +19915,7 @@ async function qrDecide(id, action, auto){
   if(QR_BUSY.has(id)) return;
   let reason = '';
   if(action === 'reject' && !auto){
-    reason = prompt('Reason (the guest sees it):', 'Sorry, this item is not available now');
+    reason = await uiPrompt('Reason (the guest sees it):', 'Sorry, this item is not available now');
     if(reason === null) return;
   }
   QR_BUSY.add(id);
@@ -19885,7 +20034,7 @@ ${qrNativeMode() ? '<span class="muted" style="font-size:12px">Manual approval i
 const T_ON = t => QRS && QRS.tables && QRS.tables[t] && QRS.tables[t].on !== false;
 const qrSet = async v => { try{ await qrApi('settings', v); toast('Saved'); }catch(e){ toast(e.message); } drawQrDirect(); qrPoll(); };
 async function qrTable(t, action, ask){
-  if(ask && !confirm(`Make a new QR for table ${t}? The old printed QR stops working.`)) return;
+  if(ask && !await uiConfirm(`Make a new QR for table ${t}? The old printed QR stops working.`)) return;
   try{
     await qrApi('table', {table: t, action});
     if((action === 'new' || action === 'on') && (!QRS || !QRS.on)){
@@ -21218,8 +21367,8 @@ function saveListsAndTables(){
   toast('All Masters & Dropdown lists saved successfully!');
 }
 
-function resetListsDefaults(){
-  if(!confirm('Reset all categories to Setu system defaults?')) return;
+async function resetListsDefaults(){
+  if(!await uiConfirm('Reset all categories to Setu system defaults?')) return;
   D.settings.lists = {};
   save();
   toast('Reset to default lists');
@@ -21383,7 +21532,7 @@ async function prDel(i, which){
   else body = {ids: which};
   if(body.ids && !body.ids.length){ toast('Tick a job first'); return; }
   const n = body.all ? p.jobs.length : body.ids.length;
-  if(!confirm(`${p.name}: ${n} print jobs to remove? They will not print.`)) return;
+  if(!await uiConfirm(`${p.name}: ${n} print jobs to remove? They will not print.`)) return;
   try{
     const r = await srvFetch('/api/printer-jobs', {method: 'POST', body: JSON.stringify({printer: p.name, ...body})});
     const j = await r.json().catch(() => ({}));
@@ -21556,7 +21705,7 @@ async function supPost(body){
 async function supSend(){
   const subject = $('#sup_sub').value.trim(), text = $('#sup_txt').value.trim();
   if(!text) return toast('Poori baat likhein');
-  try{ await supPost({subject, text}); toast('Ticket sent. The reply will appear here.'); scrSupport(); }catch(e){ alert(e.message); }
+  try{ await supPost({subject, text}); toast('Ticket sent. The reply will appear here.'); scrSupport(); }catch(e){ uiAlert(e.message); }
 }
 function supOpen(id){
   const t = SUP.find(x => x.id === id);
@@ -21571,7 +21720,7 @@ function supOpen(id){
 async function supReply(id, resolve){
   const text = ($('#sup_rep')?.value || '').trim();
   if(!text && !resolve) return toast('Jawab likhein');
-  try{ await supPost({id, text, ...(resolve ? {status: 'resolved'} : {})}); closeModal(); toast('Sent'); scrSupport(); }catch(e){ alert(e.message); }
+  try{ await supPost({id, text, ...(resolve ? {status: 'resolved'} : {})}); closeModal(); toast('Sent'); scrSupport(); }catch(e){ uiAlert(e.message); }
 }
 
 /* ================= SETTINGS & SECURITY ================= */
@@ -21652,6 +21801,7 @@ function scrSettings(){
   <nav class="horeca-settings-jump" aria-label="Settings sections"><button type="button" onclick="document.getElementById('print-card').scrollIntoView({behavior:'smooth'})">Printer Setup</button><button type="button" onclick="document.getElementById('net-card').scrollIntoView({behavior:'smooth'})">Devices</button><button type="button" onclick="document.getElementById('cloud-card').scrollIntoView({behavior:'smooth'})">Cloud Sync</button><button type="button" onclick="document.getElementById('look-card').scrollIntoView({behavior:'smooth'})">Appearance</button><button type="button" onclick="document.getElementById('horeca-property-card').scrollIntoView({behavior:'smooth'})">Property Details</button></nav>
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
+  <div class="card" id="sysinfo-card"><h3 style="margin-top:0">System Information</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="update-card" style="border-left:4px solid #16a34a;display:none"></div>
   <div class="card" id="ab-card" style="border-left:4px solid #0284c7;display:none"></div>
@@ -21964,6 +22114,7 @@ function scrSettings(){
     <div class="btns"><button class="btn g" onclick="mediaBackup()">Download Photos Backup</button><label class="btn g" style="margin:0;cursor:pointer">Restore Photos Backup<input type="file" accept=".json" style="display:none" onchange="mediaRestore(this.files[0]);this.value=''"></label></div>
   </div>`;
   drawNetCard();
+  drawSysInfo();
   drawPrintCard();
   drawCloudCard();
   drawUpdateCard();
@@ -22056,6 +22207,37 @@ function savePrintSettings(silent){
   if(!silent) toast('Printer settings saved');
 }
 
+// Settings -> System Information: the technical details kept out of the rest of the screen (server, ports, addresses)
+async function drawSysInfo(){
+  const el = $('#sysinfo-card');
+  if(!el) return;
+  await connCheck().catch(() => {});
+  const info = SRV.on && !SRV.cloud ? await connProbe('/api/info') || {} : {};
+  const cl = SRV.on && SRV.local ? await connProbe('/api/cloud') || {} : {};
+  const row = (k, v) => v === undefined || v === '' || v === null ? '' : `<tr><td class="muted" style="padding:4px 12px 4px 0;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;font-family:'JetBrains Mono',monospace;font-size:12.5px;word-break:break-all">${esc(String(v))}</td></tr>`;
+  const port = info.port || location.port || '';
+  const mode = !SRV.on ? 'Browser only (standalone)' : SRV.cloud ? 'Website (Hotel Setu Cloud)' : SRV.local ? 'Main Counter PC (desktop)' : 'Device on the restaurant Wi-Fi';
+  el.innerHTML = `<h3 style="margin-top:0">System Information</h3>
+    <p class="muted" style="margin-top:0">For the HoReCa One Helpline (${esc(HELPLINE)}). Staff do not need these details.</p>
+    <table style="border-collapse:collapse">
+      ${row('Connection', CONN.label + ' · ' + CONN.detail)}
+      ${row('This device', mode)}
+      ${row('HoReCa One version', info.version || APP_VERSION)}
+      ${row('Storage', info.engine ? (info.engine === 'sqlite' ? 'SQLite' : 'JSON file') : '')}
+      ${row('Data version', info.dbVersion)}
+      ${row('Data folder', info.dataDir)}
+      ${row('Local server', SRV.local && port ? 'http://127.0.0.1:' + port + ' (starts with HoReCa One)' : '')}
+      ${row('Wi-Fi address for phones', (info.ips || []).map(ip => 'http://' + ip + ':' + port + '/hotel_erp.html').join('  '))}
+      ${row('Hotel Setu Cloud', cl.configured ? (cl.url || '') : SRV.cloud ? location.origin : '')}
+      ${row('Hotel Code', cl.hotel || (SRV.cloud ? SRV.hotel : ''))}
+      ${row('Last cloud sync', cl.okAt ? new Date(cl.okAt).toLocaleString('en-IN') : '')}
+      ${row('Cloud sync error', cl.ok === false ? cl.error : '')}
+      ${row('Install ID', (D.settings || {}).installId)}
+      ${row('Program', info.frozen ? 'Windows program (EXE)' : info.python ? 'Python ' + info.python + ' · ' + info.platform : '')}
+    </table>
+    <div class="btns"><button class="btn g sm" onclick="drawSysInfo()">Refresh</button></div>`;
+}
+
 async function drawNetCard(){
   const el = $('#net-card');
   if(!el) return;
@@ -22072,8 +22254,7 @@ async function drawNetCard(){
       <div class="qrbox">${qrSvg(urls[0])}<small>Scan with a phone</small></div>
       <div style="font-size:13px;line-height:1.7">
         <b>1.</b> Connect the phone / tablet to the <b>same restaurant Wi-Fi</b>.<br>
-        <b>2.</b> Scan the QR code or open this link:<br>
-        ${urls.map(u => `<code style="font-size:13px;font-weight:700">${esc(u)}</code>`).join('<br>')}<br>
+        <b>2.</b> Scan the QR code with the phone camera (the address is in System Information below).<br>
         <b>3.</b> Enter a Manager or Cashier PIN → open <b>Captain App (N)</b> or <b>Kitchen Display (T)</b>.<br>
         <span class="muted">If Windows Firewall asks, allow access on "Private networks". Other devices stop working when this PC is off.</span>
       </div>
@@ -22704,7 +22885,7 @@ function getWaConnectionCardHTML(w, st, isConnected){
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <input id="wa_modal_test_num" placeholder="10-digit number for test" style="width:220px">
           <button class="btn g" onclick="waSend($('#wa_modal_test_num').value, 'Test message from ' + (D.settings.name || 'Setu') + ' ✅').then(r=>toast(r.ok?'Test message sent!':'Send failed: '+r.error))">Send Test</button>
-          <button class="btn bad" onclick="if(confirm('Disconnect WhatsApp?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}">Disconnect WhatsApp</button>
+          <button class="btn bad" onclick="uiConfirm('Disconnect WhatsApp?').then(ok=>{if(ok){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}})">Disconnect WhatsApp</button>
         </div>
       ` : st === 'qr' && !w.qr ? `
         <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;line-height:1.6">
@@ -22980,8 +23161,8 @@ async function abNow(){
   toast('Backing up…');
   try{ drawAutoBackup(await abCall({action: 'now'})); toast('Backup done'); }catch(e){ toast('Backup failed: ' + e.message); }
 }
-function abRestore(name){
-  if(!confirm(`Put back the data from ${name}?\n\nEverything entered after that time will be replaced. (The data of now is backed up first.)`)) return;
+async function abRestore(name){
+  if(!await uiConfirm(`Put back the data from ${name}?\n\nEverything entered after that time will be replaced. (The data of now is backed up first.)`)) return;
   withManager('Restore backup ' + name, async () => {
     try{ await abCall({action: 'restore', name}); toast('Restored. Reloading…'); setTimeout(() => location.reload(), 1200); }catch(e){ toast('Restore failed: ' + e.message); }
   });
@@ -23008,7 +23189,7 @@ async function updDo(a){
     if(a === 'install'){
       const open = Object.keys(D.kaccha || {}).length, cart = typeof B !== 'undefined' && B && B.cart && B.cart.length;
       if(cart){ toast('Finish or clear the bill on the screen first'); return; }
-      if(!confirm(`Install the update now? Setu will close and open again in about a minute.${open ? `\n\n${open} running table order(s) are saved and will be there after the update.` : ''}`)) return;
+      if(!await uiConfirm(`Install the update now? Setu will close and open again in about a minute.${open ? `\n\n${open} running table order(s) are saved and will be there after the update.` : ''}`)) return;
       save();
       // Let the last edits reach the counter's database file before Setu closes
       for(let i = 0; i < 40 && (SRV.dirty || SRV.busy); i++) await new Promise(r => setTimeout(r, 250));
@@ -23128,9 +23309,9 @@ async function cloudJoin(){
   try{
     const r = await srvFetch('/api/cloud/join', {method: 'POST', body: '{}'});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok) alert(j.error || ('HTTP ' + r.status));
+    if(!r.ok) uiAlert(j.error || ('HTTP ' + r.status));
     else if((j.auto || {}).state === 'joined'){ audit('Cloud Sync On', 'joined ' + j.auto.code); save(); toast('Connected to the cloud. Hotel Code: ' + j.auto.code); }
-  }catch(e){ alert('Could not reach the Main Counter server'); }
+  }catch(e){ uiAlert('Could not reach the Main Counter server'); }
   drawCloudCard();
   setTimeout(drawCloudCard, 6000);
 }
@@ -23138,31 +23319,31 @@ async function cloudJoin(){
 async function cloudRestore(){
   const hotel = ($('#cr_hotel')?.value || '').trim().toUpperCase(), password = $('#cr_pass')?.value || '';
   if(!hotel || !password) return toast('Enter both the Hotel Code and the owner password');
-  if(!confirm('The cloud data will come to this PC. This PC’s current data will be replaced by the cloud data. Continue?')) return;
+  if(!await uiConfirm('The cloud data will come to this PC. This PC’s current data will be replaced by the cloud data. Continue?')) return;
   toast('Bringing data from the cloud...');
   try{
     const r = await srvFetch('/api/cloud/restore', {method: 'POST', body: JSON.stringify({hotel, password})});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok){ alert(j.error || ('HTTP ' + r.status)); return; }
+    if(!r.ok){ uiAlert(j.error || ('HTTP ' + r.status)); return; }
     toast('Connected to the cloud. Data arrives in a few seconds.');
-  }catch(e){ alert('Could not reach the Main Counter server'); return; }
+  }catch(e){ uiAlert('Could not reach the Main Counter server'); return; }
   drawCloudCard();
   setTimeout(drawCloudCard, 6000);
 }
 
 async function saveCloud(enabled){
   const body = {enabled, url: ($('#cl_url')?.value || '').trim(), hotel: ($('#cl_hotel')?.value || '').trim().toUpperCase(), key: ($('#cl_key')?.value || '').trim()};
-  if(enabled && body.key && !/^[0-9a-f]{40}$/i.test(body.key)){ alert('The Cloud Sync Key is 40 characters (letters a-f and numbers). Copy it exactly from the Super Admin / your vendor.'); return; }
-  if(!enabled && !confirm('Turn off Cloud Sync? Internet access from phones will stop. (Data stays safe on this PC.)')) return;
+  if(enabled && body.key && !/^[0-9a-f]{40}$/i.test(body.key)){ uiAlert('The Cloud Sync Key is 40 characters (letters a-f and numbers). Copy it exactly from the Super Admin / your vendor.'); return; }
+  if(!enabled && !await uiConfirm('Turn off Cloud Sync? Internet access from phones will stop. (Data stays safe on this PC.)')) return;
   toast(enabled ? 'Connecting to the cloud...' : 'Turning off...');
   try{
     const r = await srvFetch('/api/cloud', {method: 'POST', body: JSON.stringify(body)});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok){ alert(j.error || ('Could not save cloud settings (HTTP ' + r.status + ')')); return; }
+    if(!r.ok){ uiAlert(j.error || ('Could not save cloud settings (HTTP ' + r.status + ')')); return; }
     audit(enabled ? 'Cloud Sync On' : 'Cloud Sync Off', body.url);
     save();
     toast(enabled ? 'Cloud Sync enabled' : 'Cloud Sync turned off');
-  }catch(e){ alert('Could not reach the Main Counter server'); }
+  }catch(e){ uiAlert('Could not reach the Main Counter server'); }
   drawCloudCard();
   setTimeout(drawCloudCard, 6000);
 }
@@ -23175,7 +23356,7 @@ async function activateSettingsKey(){
   }
   const act = await activateLicenseKey(key, 'Settings Key Activation');
   if(!act.success){
-    alert(act.message);
+    uiAlert(act.message);
     return;
   }
   toast('License activated successfully');
@@ -23185,7 +23366,7 @@ async function activateSettingsKey(){
 async function runWaCleanup(){
   if(!isManager()) return toast('Manager permission required for retention cleanup');
   const days = +($('#st_waRetention')?.value || D.settings.waRetention || 90);
-  if(!confirm(`Clean up WhatsApp message logs older than ${days} days?`)) return;
+  if(!await uiConfirm(`Clean up WhatsApp message logs older than ${days} days?`)) return;
   if(SRV.on){
     try{
       const res = await srvFetch('/api/wa/cleanup', {method: 'POST', body: JSON.stringify({retentionDays: days})});
@@ -23373,15 +23554,15 @@ function pickBackup(f, cb){
   const r = new FileReader();
   r.onload = () => {
     let x;
-    try{ x = readBackup(r.result); }catch(e){ alert('This is not a Setu backup file.'); return; }
+    try{ x = readBackup(r.result); }catch(e){ uiAlert('This is not a Setu backup file.'); return; }
     cb(x);
   };
   r.readAsText(f);
 }
 
-function restore(f){
-  pickBackup(f, x => {
-    if(!confirm('Restore this backup? All current data on this PC will be replaced.\n\n' + backupSummary(x))) return;
+async function restore(f){
+  pickBackup(f, async x => {
+    if(!await uiConfirm('Restore this backup? All current data on this PC will be replaced.\n\n' + backupSummary(x))) return;
     applyBackup(x, f.name);
     toast('Backup restored');
     go('gateway');
@@ -23389,18 +23570,18 @@ function restore(f){
 }
 
 // New PC: bring the whole hotel in from a backup before signing up
-function restoreFresh(f){
+async function restoreFresh(f){
   pickBackup(f, async x => {
-    if(!confirm('Restore this hotel data on this PC?\n\n' + backupSummary(x) + '\n\nAfter restoring, sign in with the owner ID and password from the old PC.')) return;
+    if(!await uiConfirm('Restore this hotel data on this PC?\n\n' + backupSummary(x) + '\n\nAfter restoring, sign in with the owner ID and password from the old PC.')) return;
     const moved = applyBackup(x, f.name);
     if(SRV.on){ SRV.dirty = true; await srvPush(); }
-    alert('Data restored.' + (moved ? '\n\nThis is a new PC: after signing in, enter an activation key for this PC\'s Install ID.' : ''));
+    await uiAlert('Data restored.' + (moved ? '\n\nThis is a new PC: after signing in, enter an activation key for this PC\'s Install ID.' : ''));
     location.reload();
   });
 }
 
-function resetAll(){
-  if(prompt('All data will be deleted. Type RESET to confirm') !== 'RESET') return;
+async function resetAll(){
+  if(await uiPrompt('All data will be deleted. Type RESET to confirm') !== 'RESET') return;
   D = ensureGrowth(seed());
   audit('Reset All Data', 'All data erased');
   SRV.forceNext = true;
@@ -23518,8 +23699,8 @@ function uploadHotelLogo(file){
   reader.readAsDataURL(file);
 }
 
-function removeHotelLogo(){
-  if(!confirm('Remove hotel logo? Default icon will be used.')) return;
+async function removeHotelLogo(){
+  if(!await uiConfirm('Remove hotel logo? Default icon will be used.')) return;
   delete D.settings.logo;
   save();
   const prev = $('#st_logo_prev');
@@ -23563,12 +23744,12 @@ async function handleUnifiedLogin(e){
   const showErr = (msg) => {
     if(okBox) okBox.style.display = 'none';
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
   const showOk = (msg) => {
     if(errBox) errBox.style.display = 'none';
     if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotel || !password){
@@ -23756,7 +23937,7 @@ async function handleNewHotelRegister(e){
 
   const showErr = (msg) => {
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotelName || !ownerName || !mobile || !password){
@@ -23843,12 +24024,12 @@ async function handleNewHotelActivate(e){
   const showErr = (msg) => {
     if(okBox) okBox.style.display = 'none';
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
   const showOk = (msg) => {
     if(errBox) errBox.style.display = 'none';
     if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotelId){
@@ -23952,13 +24133,13 @@ async function handleNewHotelActivate(e){
   }
 }
 
-function copyNewHotelId(){
+async function copyNewHotelId(){
   const hid = $('#disp_new_hotel_id')?.textContent;
   if(!hid) return;
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(hid).then(() => toast('Hotel ID copied to clipboard: ' + hid));
   } else {
-    prompt('Copy your Hotel ID:', hid);
+    await uiPrompt('Copy your Hotel ID:', hid);
   }
 }
 

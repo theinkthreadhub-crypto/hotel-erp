@@ -3544,7 +3544,12 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(403, {'error': 'main counter only'})
                 return self.send_json(200, cloud.public() if cloud else {'configured': False})
             if path == '/api/info':
-                return self.send_json(200, {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()})
+                info = {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()}
+                if self.counter_ok():
+                    # Settings -> System Information on the main counter only (never to other devices)
+                    info.update(version=APP_VERSION, engine=getattr(store, 'engine', '') or 'json', dataDir=store.dir, dbVersion=store.version,
+                                python=sys.version.split()[0], platform=sys.platform, frozen=bool(getattr(sys, 'frozen', False)))
+                return self.send_json(200, info)
             if path == '/api/hotel/info':
                 with store.lock:
                     d = store.data() or {}
@@ -5414,7 +5419,7 @@ def main():
             if not server_only:
                 try:
                     import ctypes
-                    ctypes.windll.user32.MessageBoxW(0, msg, 'Setu', 0x10)
+                    ctypes.windll.user32.MessageBoxW(0, msg, 'HoReCa One', 0x10)
                 except Exception:
                     pass
             sys.exit(1)
@@ -5458,7 +5463,7 @@ def main():
                'Close this message to continue billing; Setu keeps running.')
         try:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(0, msg, 'Setu', 0x40)
+            ctypes.windll.user32.MessageBoxW(0, msg, 'HoReCa One', 0x40)
         except Exception:
             print(msg)
         if already:
@@ -5518,6 +5523,9 @@ def log_line(data_dir, msg):
         pass
 
 
+WINDOW_TITLE = 'HoReCa One \u2013 Business Management ERP'   # desktop window title (no address, no port)
+
+
 def open_window(base_dir, data_dir, url):
     import webview  # only needed for the desktop window
 
@@ -5527,7 +5535,7 @@ def open_window(base_dir, data_dir, url):
 
     # Create native desktop window
     webview.create_window(
-        title='Setu - Restaurant & Hotel POS',
+        title=WINDOW_TITLE,
         url=url,
         width=1340,
         height=860,

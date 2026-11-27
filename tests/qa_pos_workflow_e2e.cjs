@@ -63,7 +63,7 @@ async function openApp(browser, pin) {
   const page = await (await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })).newPage();
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
-  page.on('dialog', d => d.accept());
+  page.on('dialog', d => d.accept()); await require('./lib/branded_dialogs.cjs').answerBrandedDialogs(page, 'accept');
   await page.goto(`${U}/hotel_erp.html#launch=${key}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => typeof newB === 'function' && typeof finalizePakkaBill === 'function' && typeof SRV === 'object', null, { timeout: 30000 });
   await page.waitForTimeout(2500);
