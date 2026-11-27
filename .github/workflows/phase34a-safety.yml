@@ -111,6 +111,8 @@ jobs:
         run: SETU_REQUIRE_WRANGLER=1 node tests/desktop_branding_e2e.cjs
       - name: Desktop branding and connection status - SQLite
         run: SETU_REQUIRE_WRANGLER=1 SETU_STORAGE=sqlite node tests/desktop_branding_e2e.cjs
+      - name: Wi-Fi device signs in with the staff PIN, loads the counter data and saves a bill (both storage engines, no internet)
+        run: node tests/lan_device_signin_e2e.cjs
 
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke
