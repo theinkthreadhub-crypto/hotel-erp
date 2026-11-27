@@ -3103,6 +3103,7 @@ class CloudSync:
         else:
             # Cloud as "mine" so bills already printed at this counter keep their numbers
             merged = merge3(base, theirs, local)
+            keep_counter_wa_balance(merged, local)
         if not isinstance(merged, dict) or 'settings' not in merged:
             raise OSError('Data looked wrong after merging, sync stopped')
         if self.nobills() and theirs is not None and (self.state.get('restore') or local is None):
@@ -3121,6 +3122,7 @@ class CloudSync:
         # The vendor's part (plan, message, warning / lock) always comes from the cloud
         if isinstance(theirs, dict) and 'saas' in theirs:
             merged['saas'] = theirs['saas']
+            apply_wa_allotment(merged)
             if (theirs['saas'] or {}).get('moveStorage') == 'sqlite' and not self.nobills():
                 ask_move_to_sqlite(self.store.dir, 'Super Admin')
         cloud_added = False
@@ -3173,6 +3175,41 @@ def _ver(v):
         return tuple(int(x) for x in str(v).split('.'))
     except ValueError:
         return ()
+
+
+def keep_counter_wa_balance(merged, local):
+    """The counter sends the WhatsApp messages and counts them, so its balance wins over the cloud copy's, unless the
+    cloud copy carries a newer Super Admin allotment (that one is applied by apply_wa_allotment) (BUG-0039)."""
+    try:
+        ls = (local or {}).get('settings') or {}
+        ms = merged.setdefault('settings', {})
+        if not isinstance(ls.get('waCredits'), (int, float)):
+            return
+        if int(ls.get('lastWaCreditSeq') or 0) >= int(ms.get('lastWaCreditSeq') or 0):
+            ms['waCredits'] = ls['waCredits']
+            ms['lastWaCreditSeq'] = int(ls.get('lastWaCreditSeq') or 0)
+            if 'waTotalSent' in ls:
+                ms['waTotalSent'] = ls['waTotalSent']
+    except (TypeError, ValueError, AttributeError):
+        pass
+
+
+def apply_wa_allotment(d):
+    """WhatsApp credits added in Super Admin (saas.waCredits, numbered by saas.waCreditSeq) become this PC's balance
+    once: a newer allotment replaces the balance; messages sent after it count down from it (BUG-0039)."""
+    try:
+        sv = d.get('saas') or {}
+        if not isinstance(sv.get('waCredits'), (int, float)):
+            return False
+        st = d.setdefault('settings', {})
+        seq = int(sv.get('waCreditSeq') or 0)
+        if seq > int(st.get('lastWaCreditSeq') or 0) or st.get('waCredits') is None:
+            st['waCredits'] = max(0, int(round(sv['waCredits'])))
+            st['lastWaCreditSeq'] = seq
+            return True
+    except (TypeError, ValueError, AttributeError):
+        pass
+    return False
 
 
 class Updater:
@@ -4330,7 +4367,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                                                 st['waCredits'] = max(0, int(c_credits))
                                                 st['lastWaCreditSeq'] = c_seq
                                                 store.write(d)
-                                        return self.send_json(200, {'ok': True, 'credits': int(c_credits), 'synced': True})
+                                            # This PC's balance (messages sent here since the last allotment count down from it)
+                                            cur_c = max(0, int(st.get('waCredits') or 0))
+                                            cur_seq = int(st.get('lastWaCreditSeq') or 0)
+                                        return self.send_json(200, {'ok': True, 'credits': cur_c, 'seq': cur_seq, 'synced': True})
                             except Exception as e:
                                 store.log(f'Cloud WA balance refresh exception: {e}')
                         with store.lock:

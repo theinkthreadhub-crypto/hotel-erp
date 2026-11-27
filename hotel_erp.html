@@ -8660,6 +8660,12 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
       });
       save();
       toast('Status Unknown — Check Status (Outcome unconfirmed)');
+    } else if(SRV.cloud && (j.error === 'WA_NOT_LINKED' || j.status === 'not_configured')){
+      // Website without its own WhatsApp sender: open WhatsApp with the receipt ready (nothing was sent, no credit used)
+      trackWaMessage({ id: reqId, billId: bill.id, status: 'CANCELLED', note: 'Opened in WhatsApp to send by hand' });
+      save();
+      waOpen(cleanPh, billText(bill));
+      toast('WhatsApp opened with the receipt. Press Send there.');
     } else {
       trackWaMessage({
         id: reqId,
@@ -18006,13 +18012,8 @@ async function requestWaPairingCode(){
       });
       j = await r.json().catch(() => null);
     }catch(netErr){}
-    if(!j || !j.code){
-      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-      let c1 = '', c2 = '';
-      for(let i = 0; i < 4; i++) c1 += chars.charAt(Math.floor(Math.random() * chars.length));
-      for(let i = 0; i < 4; i++) c2 += chars.charAt(Math.floor(Math.random() * chars.length));
-      j = { ok: true, code: `${c1}-${c2}` };
-    }
+    // Only a real pairing code from WhatsApp is shown (BUG-0040): no made-up code
+    if(!j) j = { ok: false, error: 'The pairing code could not be made right now. Please try again in a minute.' };
     if(j.ok && j.code){
       waPairingCode = j.code;
       toast('✓ Pairing Code Generated! Type it in WhatsApp.');
@@ -18058,28 +18059,34 @@ function startWaGateway(){
 }
 
 async function startOnlineBaileys(){
-  toast('Starting Baileys WhatsApp Gateway...');
-  if(typeof WA !== 'undefined') WA.state = 'starting';
+  if(typeof WA !== 'undefined' && WA) WA.state = 'starting';
   scrWaReports();
   try{
-    await waApi('start', {}).catch(() => null);
+    const r = await waApi('start', {}).catch(e => ({ok: false, error: e.message}));
     const st = await waStatus();
     if(st && st.qr){
-      toast('✓ QR Code generated! Scan with your WhatsApp.');
-      scrWaReports();
-      return;
+      toast('QR code ready. Scan it with WhatsApp → Linked devices.');
+    }else if(st && (st.state === 'open' || st.connected)){
+      toast('WhatsApp is connected.');
+    }else{
+      // Only a real QR from WhatsApp is ever shown (BUG-0040): no made-up code
+      WA = {...(st || {}), state: (st && st.state === 'unavailable') ? 'unavailable' : 'off', qr: ''};
+      uiAlert((r && r.error) || 'The WhatsApp QR code could not be made right now. Please try again in a minute.', {title: 'WhatsApp'});
     }
-    const hotelCode = (D && D.settings && D.settings.hotelCode) || 'SETU';
-    const qrData = '2@' + btoa(hotelCode + ':' + Date.now() + ':' + Math.random().toString(36).substring(2)) + ',SetuPOS,1';
-    const qrSvgString = qrSvg(qrData);
-    WA = WA || {};
-    WA.state = 'qr';
-    WA.qr = 'data:image/svg+xml;utf8,' + encodeURIComponent(qrSvgString);
-    scrWaReports();
-    toast('✓ WhatsApp QR Code Ready to Scan!');
   }catch(e){
-    toast('Error starting gateway: ' + e.message);
+    uiAlert('The WhatsApp QR code could not be made: ' + e.message, {title: 'WhatsApp'});
   }
+  scrWaReports();
+}
+
+// Website (Hotel Setu Cloud) without a WhatsApp sender of its own: say so plainly (BUG-0040)
+function waWebsiteInfo(w){
+  return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:18px;padding:22px;max-width:760px">
+    <b style="font-size:16px;color:var(--text);display:block;margin-bottom:8px">WhatsApp is linked on the Main Counter PC</b>
+    <p style="font-size:13.5px;line-height:1.6;margin:0 0 10px">The website cannot hold a WhatsApp link of its own. Open the <b>HoReCa One Desktop App</b> on the Main Counter PC → <b>WhatsApp</b> → <b>Scan QR</b>, and scan it from the restaurant's WhatsApp (Settings → Linked devices → Link a device).</p>
+    <p style="font-size:13.5px;line-height:1.6;margin:0 0 14px">From this website you can still send any bill on WhatsApp with the <b>WhatsApp</b> button on the bill: it opens WhatsApp with the receipt ready to send.</p>
+    <p class="muted" style="font-size:12px;margin:0">Need help? HoReCa One Helpline ${esc(HELPLINE)}.</p>
+  </div>`;
 }
 
 function renderWaDirectScanner(){
@@ -18088,6 +18095,7 @@ function renderWaDirectScanner(){
   const isConnected = (w.state === 'open');
   const isQrReady = (w.state === 'qr' && Boolean(w.qr));
   const isStarting = (w.state === 'starting' || w.state === 'connecting');
+  if(w.state === 'unavailable') return waWebsiteInfo(w);
 
   return `
     <style>
@@ -22643,6 +22651,11 @@ function getWaCredits(){
 }
 
 function deductWaCredit(qty = 1){
+  if(SRV.on && !SRV.cloud){
+    // Main Counter: the counter program counts the message itself when it sends it; show its balance (BUG-0039)
+    waBalanceFromCounter();
+    return Math.max(0, getWaCredits() - qty);
+  }
   const curBal = getWaCredits();
   const nextBal = Math.max(0, curBal - qty);
   if(D && D.settings){
@@ -22654,6 +22667,16 @@ function deductWaCredit(qty = 1){
   return nextBal;
 }
 
+
+async function waBalanceFromCounter(){
+  try{
+    const j = await (await srvFetch('/api/wa/balance')).json();
+    if(typeof j.credits !== 'number') return;
+    // The counter's value is the saved one: the page's copy and its sync base both take it, so no save sends an old balance back
+    [D, SRV.base].forEach(x => { if(x && x.settings){ x.settings.waCredits = j.credits; if(typeof j.totalSent === 'number') x.settings.waTotalSent = j.totalSent; } });
+    updateWaHeader();
+  }catch(e){}
+}
 
 const WA_VOUCHER_SALT = 'SetuPro-Aghanya-Devanya-WhatsApp-Vendor-Key-2026';
 
@@ -22792,11 +22815,11 @@ function rechargeWaCredits(amount, code = 'DIRECT', note = ''){
 async function syncWaFromCloud(interactive = false){
   try{
     if(interactive) toast('Checking latest credits from SetuPro Cloud...');
-    const r = await fetch('/api/wa/cloud-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const r = await srvFetch('/api/wa/cloud-refresh', { method: 'POST', body: '{}' });
     if(r.ok){
       const j = await r.json();
       if(j.credits !== undefined){
-        if(D && D.settings) D.settings.waCredits = j.credits;
+        if(D && D.settings){ D.settings.waCredits = j.credits; if(typeof j.seq === 'number') D.settings.lastWaCreditSeq = j.seq; }
         save();
         updateWaHeader();
         if(interactive){

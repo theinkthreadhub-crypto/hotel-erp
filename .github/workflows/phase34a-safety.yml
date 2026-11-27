@@ -111,6 +111,8 @@ jobs:
         run: SETU_REQUIRE_WRANGLER=1 node tests/desktop_branding_e2e.cjs
       - name: Desktop branding and connection status - SQLite
         run: SETU_REQUIRE_WRANGLER=1 SETU_STORAGE=sqlite node tests/desktop_branding_e2e.cjs
+      - name: WhatsApp credits from Super Admin reach the counter; website shows no made-up QR (both engines)
+        run: SETU_REQUIRE_WRANGLER=1 node tests/wa_credits_counter_e2e.cjs
 
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke

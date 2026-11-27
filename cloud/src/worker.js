@@ -1218,7 +1218,9 @@ export class SetuHotel extends DurableObject {
       if('lastSeen' in d.subscription){ delete d.subscription.lastSeen; changed = true; }
     }
     // If client reported waCredits in settings, sync down credit usage:
-    if(d.settings && typeof d.settings.waCredits === 'number'){
+    // Only from a copy that has seen the latest Super Admin allotment (lastWaCreditSeq): an older copy still holds the
+    // balance from before a recharge, and taking it would cancel the credits just added (BUG-0039)
+    if(d.settings && typeof d.settings.waCredits === 'number' && (+d.settings.lastWaCreditSeq || 0) >= (a.waCreditRechargeSeq || 0)){
       const localCredits = Math.max(0, Math.round(d.settings.waCredits));
       if(typeof a.waCredits === 'number' && localCredits < a.waCredits){
         const sentDiff = a.waCredits - localCredits;
@@ -1227,6 +1229,12 @@ export class SetuHotel extends DurableObject {
         this.saveAccount();
         regCall(this.env, '/update', { code: a.code, wa_credits: a.waCredits, wa_sent: a.waTotalSent }).catch(() => {});
       }
+    }
+    // A copy from before the latest allotment carries the allotment from here on (the cloud's balance is the one in force)
+    if(d.settings && typeof a.waCredits === 'number' && (+d.settings.lastWaCreditSeq || 0) < (a.waCreditRechargeSeq || 0)){
+      d.settings.waCredits = a.waCredits;
+      d.settings.lastWaCreditSeq = a.waCreditRechargeSeq || 0;
+      changed = true;
     }
     // Modules that are off: their data stays as the server has it
     const view = saasView(a);
@@ -3944,15 +3952,9 @@ export class SetuHotel extends DurableObject {
           }
         }catch(e){}
       }
-      return json(200, {
-        available: true,
-        online: true,
-        state: d.settings?.waOnlineState || 'idle',
-        connected: d.settings?.waOnlineState === 'connected',
-        qr: d.settings?.waOnlineQr || '',
-        me: d.settings?.waPhone || null,
-        limit: 100
-      });
+      // No WhatsApp sender for the website (or it is not answering): say so, never a made-up state or QR (BUG-0040)
+      return json(200, { available: false, online: true, state: 'unavailable', connected: false, qr: '', me: null,
+        reason: c.gateway ? 'gateway_down' : 'not_configured', message: 'WhatsApp is linked on the Main Counter PC: open the HoReCa One Desktop App there → WhatsApp → Scan QR. From the website, use the WhatsApp button on a bill.' });
     }
 
     if(path === '/api/wa/start' && method === 'POST'){
@@ -3968,10 +3970,7 @@ export class SetuHotel extends DurableObject {
           }
         }catch(e){}
       }
-      d.settings = d.settings || {};
-      d.settings.waOnlineState = 'qr';
-      this.commit(d);
-      return json(200, { ok: true, state: 'qr' });
+      return json(503, { ok: false, state: 'unavailable', error: 'WhatsApp is linked on the Main Counter PC: open the HoReCa One Desktop App there → WhatsApp → Scan QR. From the website, use the WhatsApp button on a bill.' });
     }
 
     if(path === '/api/wa/pair' && method === 'POST'){
@@ -3991,18 +3990,7 @@ export class SetuHotel extends DurableObject {
           if(r.ok && j.code) return json(200, { ok: true, code: j.code });
         }catch(e){}
       }
-      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-      let code1 = '', code2 = '';
-      for(let i = 0; i < 4; i++) code1 += chars.charAt(Math.floor(Math.random() * chars.length));
-      for(let i = 0; i < 4; i++) code2 += chars.charAt(Math.floor(Math.random() * chars.length));
-      const pairCode = `${code1}-${code2}`;
-      let d = {};
-      try{ d = JSON.parse(this.data()) || {}; }catch(e){}
-      d.settings = d.settings || {};
-      d.settings.waPairingPhone = phone;
-      d.settings.waPairingCode = pairCode;
-      this.commit(d);
-      return json(200, { ok: true, code: pairCode });
+      return json(503, { ok: false, error: 'WhatsApp is linked on the Main Counter PC: open the HoReCa One Desktop App there → WhatsApp → Scan QR. From the website, use the WhatsApp button on a bill.' });
     }
 
     if(path === '/api/wa/logout' && method === 'POST'){
@@ -4060,25 +4048,8 @@ export class SetuHotel extends DurableObject {
         }catch(e){}
       }
 
-      const msgId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
-      const now = Date.now();
-      d.waMessages = d.waMessages || [];
-      d.waMessages.unshift({
-        id: msgId,
-        phone: phone.slice(-10),
-        type: 'CUSTOM',
-        title: 'WhatsApp Message',
-        preview: text.slice(0, 80),
-        status: 'SENT',
-        provider: 'baileys',
-        requestedAt: now,
-        sentAt: now,
-        attemptCount: 1
-      });
-      if(d.settings.waCredits > 0) d.settings.waCredits--;
-      d.settings.waTotalSent = (d.settings.waTotalSent || 0) + 1;
-      this.commit(d);
-      return json(200, { ok: true, id: msgId });
+      // Not sent: no "SENT" record and no credit used (BUG-0040)
+      return json(503, { ok: false, error: 'WA_NOT_LINKED', message: 'WhatsApp is linked on the Main Counter PC: open the HoReCa One Desktop App there → WhatsApp → Scan QR. From the website, use the WhatsApp button on a bill.' });
     }
     if(method === 'GET' && path === '/api/printers') return json(200, { printers: [], default: '', cloud: true });
     if(method === 'POST' && path === '/api/print') return json(501, { error: 'Direct printing is not available from the cloud. Please print from the Main Counter PC.' });

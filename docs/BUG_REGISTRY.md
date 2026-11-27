@@ -42,6 +42,8 @@
 | **BUG-0031** | WhatsApp Center Showed a Broken QR Image to a Cashier (the server hides the QR from non-managers) | P2 (Medium) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` |
 | **BUG-0032** | Hindi Text Left in the Product UI (21 labels: Day Book, WhatsApp, Masters) Against the English-Only Rule | P3 (Low) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` (English-only checks) |
 | **BUG-0038** | Connection Indicator Showed a Raw Server Address; Sync Details Button Did Nothing (`srvShowSyncDetails` undefined) | P2 (Medium) | RESOLVED | CHG-0055 | `tests/desktop_branding_e2e.cjs` |
+| **BUG-0039** | WhatsApp Credits Added in Super Admin Never Reached the Counter (Installer Showed 0; Messages Stopped) | **P1 (High)** | RESOLVED | CHG-0056 | `tests/wa_credits_counter_e2e.cjs` |
+| **BUG-0040** | Website WhatsApp Showed a Made-Up QR / Pairing Code and Marked Unsent Messages "Sent" (Credits Used) | **P1 (High)** | RESOLVED | CHG-0056 | `tests/wa_credits_counter_e2e.cjs` |
 
 ---
 
@@ -386,4 +388,12 @@
 ### BUG-0038: Connection Indicator Showed a Raw Server Address; Sync Details Button Did Nothing
 - **Evidence (`tests/desktop_branding_e2e.cjs`, real counter + local Worker + Chromium):** the header showed technical text and `http://127.0.0.1:PORT` / Wi-Fi addresses on customer-facing screens; the header pill called `srvShowSyncDetails()`, which did not exist; there was no Standalone / Offline / Syncing / LAN state from a real check. The test times out on the old code.
 - **Fix:** one header pill driven by real health checks (`/api/ping`, `/api/cloud`, and on SQLite `/api/q/status`): Online, Offline, Syncing, LAN, Standalone; technical details moved to Settings → System Information.
+
+### BUG-0039: WhatsApp Credits Added in Super Admin Never Reached the Counter
+- **Evidence (owner; `tests/wa_credits_counter_e2e.cjs`, real counter on both engines + local Worker + Chromium):** the installer showed 0 credits and messages stopped; "+500" in Super Admin did not arrive. The counter's next save still carried its old balance (0), and the cloud took any lower balance from a counter as "messages sent", so it set the new credits back to 0 within seconds. The "Check latest credits" button sent no sign-in and was refused. 7 checks fail on the old code.
+- **Fix:** the cloud takes a lower balance only from a copy that has seen the latest allotment (`lastWaCreditSeq`), and gives an older copy the allotment; the counter applies a newer allotment from the cloud on every sync and keeps its own count otherwise (it counts the messages it sends); the counter page shows the counter's balance instead of counting a second time; "Check latest credits" is a signed-in request.
+
+### BUG-0040: Website WhatsApp Showed a Made-Up QR and Marked Unsent Messages "Sent"
+- **Evidence (owner: "QR galat bata raha hai"; same test):** without a WhatsApp sender for the website (the separate Baileys gateway is not set up), "Generate QR" drew a QR from random text and "Phone number" made up a pairing code; WhatsApp cannot accept either. A message from the website was saved as "SENT" and used a credit although nothing was sent.
+- **Fix:** only a real QR / pairing code from WhatsApp is shown; the website's WhatsApp screen says WhatsApp is linked on the Main Counter PC (Desktop App → WhatsApp → Scan QR); a message that cannot go is not marked sent and uses no credit, and the bill's WhatsApp button opens WhatsApp with the receipt ready to send.
 
