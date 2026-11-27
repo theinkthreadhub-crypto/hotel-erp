@@ -217,13 +217,17 @@ const settleBill = (page, tag) => page.evaluate(tag => {
     await page.evaluate(() => go('bill'));
     // Record every state the header pill shows (what the cashier sees), from the moment the bill is settled
     await page.evaluate(() => { const el = document.getElementById('cloud-pill'); window.__pill = [el.dataset.state];
-      new MutationObserver(() => { const s = el.dataset.state; if(window.__pill[window.__pill.length - 1] !== s) window.__pill.push(s); }).observe(el, { attributes: true }); });
+      new MutationObserver(() => { const s = el.dataset.state; if(s === 'syncing' && getComputedStyle(el.querySelector('.ic-sync')).display !== 'none') window.__spin = true; if(window.__pill[window.__pill.length - 1] !== s) window.__pill.push(s); }).observe(el, { attributes: true }); });
     await settleBill(page, 'sync1');
     const t0 = Date.now(); let afterBill = [];
     while(Date.now() - t0 < 8000){ afterBill = await page.evaluate(async () => { await connCheck(); return window.__pill; }); if(afterBill.includes('syncing')) break; await sleep(50); }
+    check(await page.evaluate(() => !!window.__spin), '[S4b] while syncing, the header chip shows the turning sync icon');
     check(afterBill.includes('syncing'), '[S4] right after a new bill, "Syncing" shows while it is on its way to the cloud', afterBill.slice(0, 6));
     const sFin = await waitStatus(page, 'online', 60000, seen);
     check(sFin.state === 'online', '[S5] and "Online" again when the cloud has it', sFin.state);
+    const chip = await page.evaluate(() => ({ sub: document.getElementById('cloud-pill-sub').textContent,
+      spin: getComputedStyle(document.querySelector('#cloud-pill .ic-sync')).display, cloud: getComputedStyle(document.querySelector('#cloud-pill .ic-cloud')).display }));
+    check(/^synced \d{1,2}:\d{2}\s?(am|pm)$/i.test(chip.sub) && chip.spin === 'none' && chip.cloud !== 'none', '[S7] the header chip shows the last cloud sync time (cloud icon, no spinner)', chip);
 
     // ---------- LAN: a phone / tablet on the restaurant Wi-Fi ----------
     const ip = lanIp();
