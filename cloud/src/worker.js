@@ -1490,10 +1490,23 @@ export class SetuHotel extends DurableObject {
     }
     return null;
   }
+  // What the guest pages need (name, GST, menu, stock for "out of stock", QR KOT status), worked out once per saved
+  // version and kept in memory: parsing the whole hotel copy on every guest tap made table QR slow on hotels with many
+  // bills and could run over the Worker's CPU limit (guest saw "Failed to fetch")
   menuData(){
+    const raw = this.data();
+    if(this.guestCache && this.guestCache.raw === raw) return this.guestCache.d;
     let d = {};
-    try{ d = JSON.parse(this.data()) || {}; }catch(e){}
-    return d;
+    try{ d = JSON.parse(raw) || {}; }catch(e){}
+    const v = {
+      settings: d.settings || {},
+      menu: Array.isArray(d.menu) ? d.menu : [],
+      stock: (Array.isArray(d.stock) ? d.stock : []).filter(x => x && x.id).map(x => ({ id: x.id, qty: x.qty })),
+      stockAlias: d.stockAlias || {},
+      kots: (Array.isArray(d.kots) ? d.kots : []).filter(k => k && k.qr).map(k => ({ qr: k.qr, status: k.status }))
+    };
+    this.guestCache = { raw, d: v };
+    return v;
   }
   guestOrders(tbl){
     return this.sql.exec('SELECT * FROM guestorder WHERE tbl = ? AND at > ? ORDER BY at', tbl, Date.now() - 12 * 3600e3).toArray();

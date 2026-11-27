@@ -54,9 +54,19 @@ const rs = n => '₹' + (Math.round(n * 100) / 100).toLocaleString('en-IN');
 let MENU = null, CART = {}, CAT = '', STATUS = null, NOTE = '', NAME = '';
 try{ CART = JSON.parse(sessionStorage.getItem('cart:' + TOKEN) || '{}'); }catch(e){}
 const keepCart = () => { try{ sessionStorage.setItem('cart:' + TOKEN, JSON.stringify(CART)); }catch(e){} };
+// A weak phone signal drops a request now and then ("Failed to fetch"): try again up to 2 times. Safe for orders and calls:
+// an order carries its own id and a repeated call for the same help is answered with the open one.
 async function call(path, body){
-  const r = await fetch(path + (body ? '' : (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(TOKEN)), {method: body ? 'POST' : 'GET', cache: 'no-store',
-    headers: {'X-Setu-Hotel': HOTEL, 'Content-Type': 'application/json'}, body: body ? JSON.stringify({...body, t: TOKEN}) : undefined});
+  let r, last;
+  for(let i = 0; i < 3; i++){
+    try{
+      r = await fetch(path + (body ? '' : (path.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(TOKEN)), {method: body ? 'POST' : 'GET', cache: 'no-store',
+        headers: {'X-Setu-Hotel': HOTEL, 'Content-Type': 'application/json'}, body: body ? JSON.stringify({...body, t: TOKEN}) : undefined});
+      if(r.status < 500) break;
+    }catch(e){ last = e; r = null; }
+    await new Promise(ok => setTimeout(ok, 1200 * (i + 1)));
+  }
+  if(!r) throw Object.assign(new Error('The internet is slow. Please try again.'), {status: 0, cause: last});
   const j = await r.json().catch(() => ({}));
   if(!r.ok) throw Object.assign(new Error(j.error || 'Please try again'), {status: r.status});
   return j;
