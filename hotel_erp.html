@@ -5626,10 +5626,15 @@ function durableNote(edits, where){
     : `Bill #${DUR.bill} is NOT saved yet. Keep this page open; retrying.`);
 }
 
+// A phone / tablet / second PC on the restaurant Wi-Fi: the Main Counter PC holds the data
+const lanDevice = () => SRV.on && !SRV.local && !SRV.cloud && !SRV.saas;
+
 function save(){
   try{ stockRecalc(D); }catch(e){ logError('Stock could not be calculated', 'stockRecalc', e.stack || e.message); }
   if(SRV.on && SRV.readOnly){
     // Setu Support view: nothing is saved
+  } else if(lanDevice() && !SRV.ready){
+    // Wi-Fi device before the Main Counter data is loaded: this page holds no real data, so nothing is sent
   } else if(SRV.on){
     // LAN/desktop mode: the main-counter PC keeps the database on disk
     SRV.edits++;
@@ -6006,8 +6011,9 @@ async function srvInitData(){
   try{ r = await srvFetch('/api/db?today=' + today()); }catch(e){ srvStatus(false); return false; }
   if(r.status === 401){
     if(!activeUser){
+      // Wi-Fi device: the Main Counter checks the staff PIN (no internet needed)
       $('#login-screen').style.display = 'flex';
-      showLoginView('welcome');
+      showLoginView(lanDevice() ? 'gate2' : 'welcome');
       return false;
     }
     showConnectScreen();
@@ -6032,12 +6038,14 @@ async function srvInitData(){
     }
     // First run of the LAN server: move this PC's browser data into the server file
     SRV.base = null;
+    SRV.ready = true;
     SRV.dirty = true;
     SRV.edits++;
     await srvPush();
     return true;
   }
   D = ensureGrowth(j.data);
+  SRV.ready = true;   // D is the server copy: saves from this page may go out now
   srvStatus(true);
   await srvRecoverPending(j.data);
   return true;
@@ -6088,6 +6096,8 @@ async function srvRecoverPending(server){
 
 async function srvPush(){
   if(!SRV.on) return;
+  // Wi-Fi device: never upload a page that does not hold the Main Counter data (empty page, cloud copy)
+  if(lanDevice() && !SRV.ready){ SRV.dirty = false; return; }
   if(SRV.busy){ SRV.again = true; return; }
   SRV.busy = true;
   try{
@@ -7173,8 +7183,10 @@ function showLoginView(view){
     const gate1 = getGate1Session();
     const hName = (gate1 && gate1.hotelName) || (D.settings && D.settings.name) || 'Setu Pro Hotel ERP';
     const hId = (gate1 && gate1.hotelId) || (D.settings && D.settings.hotelId) || 'SETU001';
-    if($('#gate2-hotel-name')) $('#gate2-hotel-name').textContent = hName;
-    if($('#gate2-hotel-id')) $('#gate2-hotel-id').textContent = hId;
+    // Wi-Fi device before sign-in: this page does not know the hotel yet (the Main Counter does)
+    const lanWait = lanDevice() && !SRV.ready;
+    if($('#gate2-hotel-name')) $('#gate2-hotel-name').textContent = lanWait ? 'HoReCa One' : hName;
+    if($('#gate2-hotel-id')){ $('#gate2-hotel-id').textContent = hId; $('#gate2-hotel-id').parentElement.style.display = lanWait ? 'none' : ''; }
     if(gate1 && gate1.logo && $('#gate2-hotel-logo')) $('#gate2-hotel-logo').src = gate1.logo;
     updateSubscriptionUI();
     if($('#gate2_pin')) $('#gate2_pin').value = '';
@@ -7509,6 +7521,8 @@ function handleExistingJsonUpload(file){
 
 async function handleGate1Submit(e){
   e.preventDefault();
+  // Wi-Fi device: staff sign in with their PIN on the Main Counter (a hotel sign-in would load the cloud copy)
+  if(lanDevice()){ showLoginView('gate2'); return; }
   const hid = ($('#gate1_hotel_id')?.value || '').trim().toUpperCase();
   const pass = ($('#gate1_password')?.value || '').trim();
   const err = $('#gate1_err');
@@ -7663,8 +7677,10 @@ async function handleGate2Submit(e){
   const err = $('#gate2_err');
   const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else uiAlert(msg); };
 
-  const gate1 = getGate1Session();
-  if(!gate1 || !gate1.hotelId){
+  // Wi-Fi device: the Main Counter knows the hotel, so no hotel sign-in (and no internet) is needed first
+  const lan = lanDevice();
+  const gate1 = lan ? null : getGate1Session();
+  if(!lan && (!gate1 || !gate1.hotelId)){
     showLoginView('gate1');
     return;
   }
@@ -7676,17 +7692,22 @@ async function handleGate2Submit(e){
   }
 
   // Server login via /api/login
+  let res;
   try {
     const headers = { 'Content-Type': 'application/json' };
-    if(gate1.hotelId) headers['X-Hotel-ID'] = gate1.hotelId;
-    const res = await fetch('/api/login', {
+    if(gate1 && gate1.hotelId) headers['X-Hotel-ID'] = gate1.hotelId;
+    res = await fetch('/api/login', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ pin, hotelId: gate1.hotelId })
+      body: JSON.stringify(gate1 ? { pin, hotelId: gate1.hotelId } : { pin })
     });
+  } catch(netErr) { res = null; }
+  if(res){
     if(!res.ok){
       const j = await res.json().catch(() => ({}));
-      showErr(res.status === 403 ? 'Invalid Staff PIN. Please try again.' : (j.error || 'Login failed'));
+      showErr(res.status === 403 ? 'Invalid Staff PIN. Please try again.'
+        : res.status === 429 ? (j.error || 'Too many incorrect PIN attempts. Please try again later.')
+        : (j.error || 'Login failed'));
       return;
     }
     const j = await res.json();
@@ -7696,12 +7717,20 @@ async function handleGate2Submit(e){
       name: j.name || (j.role === 'admin' ? 'Manager' : 'Staff'),
       role: j.role === 'admin' ? 'admin' : (j.role === 'manager' ? 'admin' : 'cashier'),
       access: j.role === 'admin' ? 'manager' : j.role,
-      hotelId: gate1.hotelId,
+      hotelId: gate1 ? gate1.hotelId : (j.hotelId || ''),
       time: Date.now()
     };
     if(err) err.style.display = 'none';
+    if(lan) return lanFinishLogin(showErr);
     finishLogin();
-  } catch(netErr) {
+    return;
+  }
+  if(lan){
+    // This page holds no data of its own: signing in without the Main Counter would start from an empty page
+    showErr('The Main Counter PC is not reachable. Check the Wi-Fi and that HoReCa One is open on the Main Counter, then try again.');
+    return;
+  }
+  {
     // Offline local fallback
     // No built-in fallback PIN (BUG-0022): only a PIN stored on this device can sign in offline
     const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password) || '';
@@ -7799,6 +7828,30 @@ async function handleSignUpSubmit(e){
 
   showLoginView('gate2');
   toast('Hotel registered & license activated. Hotel ID: ' + generatedHotelId);
+}
+
+// Wi-Fi device after the staff PIN: load the Main Counter data first (as Device Connect does), then open the POS
+async function lanFinishLogin(showErr){
+  try{ lsSet(AUTH_KEY, JSON.stringify(activeUser)); }catch(e){}
+  if(!SRV.ready){
+    let ok = false;
+    try{ ok = await srvInitData(); }catch(e){ ok = false; }
+    if(!ok){
+      const conn = $('#connect-screen');
+      if(!conn || conn.style.display === 'none'){
+        activeUser = null;
+        try{ lsSet(AUTH_KEY, ''); sessionStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY); }catch(e){}
+        $('#login-screen').style.display = 'flex';
+        showLoginView('gate2');
+        showErr('The Main Counter data could not be loaded. Check the Wi-Fi and try again.');
+      }
+      return;
+    }
+  }
+  finishLogin();
+  if(!startUI.ran) startUI();
+  srvStartPolling();
+  applyCloudKeys();
 }
 
 function finishLogin(){
@@ -23637,6 +23690,7 @@ async function resetAll(){
 
 /* ================= INIT ================= */
 function startUI(){
+  startUI.ran = true;
   setTimeout(footerHotel, 1500);
   setTimeout(doctorAuto, 30000);
   initIndexedDB();
@@ -23776,6 +23830,8 @@ function getAuthEndpoint(path){
 // Unified SaaS Login, Activation & Onboarding Functions
 async function handleUnifiedLogin(e){
   if(e) e.preventDefault();
+  // Wi-Fi device: staff sign in with their PIN on the Main Counter (a hotel sign-in would load the cloud copy)
+  if(lanDevice()){ showLoginView('gate2'); return; }
   const hotel = ($('#exist_hotel_id')?.value || '').trim().toUpperCase();
   const username = ($('#exist_username')?.value || 'owner').trim();
   let password = ($('#exist_password')?.value || '').trim();

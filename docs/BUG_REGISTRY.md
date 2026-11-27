@@ -42,8 +42,8 @@
 | **BUG-0031** | WhatsApp Center Showed a Broken QR Image to a Cashier (the server hides the QR from non-managers) | P2 (Medium) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` |
 | **BUG-0032** | Hindi Text Left in the Product UI (21 labels: Day Book, WhatsApp, Masters) Against the English-Only Rule | P3 (Low) | RESOLVED | CHG-0044 | `tests/ui_lists_whatsapp_e2e.cjs` (English-only checks) |
 | **BUG-0038** | Connection Indicator Showed a Raw Server Address; Sync Details Button Did Nothing (`srvShowSyncDetails` undefined) | P2 (Medium) | RESOLVED | CHG-0055 | `tests/desktop_branding_e2e.cjs` |
-| **BUG-0039** | WhatsApp Credits Added in Super Admin Never Reached the Counter (Installer Showed 0; Messages Stopped) | **P1 (High)** | RESOLVED | CHG-0056 | `tests/wa_credits_counter_e2e.cjs` |
-| **BUG-0040** | Website WhatsApp Showed a Made-Up QR / Pairing Code and Marked Unsent Messages "Sent" (Credits Used) | **P1 (High)** | RESOLVED | CHG-0056 | `tests/wa_credits_counter_e2e.cjs` |
+| **BUG-0039** | WhatsApp Credits Added in Super Admin Never Reached the Counter (Installer Showed 0; Messages Stopped) | **P1 (High)** | RESOLVED | CHG-0057 | `tests/wa_credits_counter_e2e.cjs` |
+| **BUG-0040** | Website WhatsApp Showed a Made-Up QR / Pairing Code and Marked Unsent Messages "Sent" (Credits Used) | **P1 (High)** | RESOLVED | CHG-0057 | `tests/wa_credits_counter_e2e.cjs` |
 
 ---
 
