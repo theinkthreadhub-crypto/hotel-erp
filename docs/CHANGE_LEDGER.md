@@ -572,3 +572,7 @@
 ### CHG-0053: Table QR Speed (BUG-0036)
 - **Date:** 2026-11-27 · **Reported by:** owner
 - **Files:** `cloud/src/worker.js` (`menuData()` cached per saved version), `cloud/static/qr.html` (retry on a dropped request, clear message), new `tests/qr_guest_speed_e2e.py` (fails on the old code: first 66 ms, then 57 ms each; passes now: 3 ms; menu change reaches the guest), CI. Regression: 3.5d loopback (QR inbound), SQLite sync E2E (QR), inbound and reports suites, native QR UI pass; `qr_table_display_suite` 10/12, the same 2 failures as before this change.
+
+### CHG-0054: QR Calls Pop Up on the Counter (BUG-0037)
+- **Date:** 2026-11-27 · **Reported by:** owner
+- **Files:** `hotel_erp.html` (`qrCallAlert`, calls every 5–6 s, `ensureGrowth` defaults for `cash`, `kaccha`, `menu`, `stock`, `bills`, `txns`, `onlineOrders`; `sw.js` v107), new `tests/qr_call_popup_e2e.cjs` (both engines), CI. Regression: UI lists / WhatsApp, two devices, rapid taps, vendor login, offline hotel, POS workflow 17/17, money precision.

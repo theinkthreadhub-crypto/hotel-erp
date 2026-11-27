@@ -103,6 +103,8 @@ jobs:
         run: SETU_REQUIRE_WRANGLER=1 node tests/vendor_login_browser_e2e.cjs
       - name: Offline hotel in a real browser (Super Admin -> Offline Card -> Renewal key)
         run: SETU_REQUIRE_WRANGLER=1 node tests/offline_hotel_browser_e2e.cjs
+      - name: Table QR call waiter / request bill pops up on the counter (both storage engines)
+        run: SETU_REQUIRE_WRANGLER=1 node tests/qr_call_popup_e2e.cjs
       - name: Every money / stock / admin button tapped 10 times = one record (JSON, SQLite, Super Admin)
         run: SETU_REQUIRE_WRANGLER=1 node tests/rapid_tap_idempotency_e2e.cjs
 

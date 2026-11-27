@@ -5419,8 +5419,9 @@ function ensureGrowth(s){
   if(!s.monthlySent || typeof s.monthlySent !== 'object') s.monthlySent = {};
   if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
   if(!s.salarySheets || typeof s.salarySheets !== 'object') s.salarySheets = {};
-  ['moves', 'orders', 'assets', 'gasLog', 'expTpl'].forEach(k => { if(!Array.isArray(s[k])) s[k] = []; });
-  ['stockAlias', 'supAlias', 'supInfo'].forEach(k => { if(!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {}; });
+  ['moves', 'orders', 'assets', 'gasLog', 'expTpl', 'menu', 'stock', 'bills', 'txns', 'onlineOrders'].forEach(k => { if(!Array.isArray(s[k])) s[k] = []; });
+  // A hotel whose data was made without these (e.g. created on the cloud) must still open: the dashboard reads them
+  ['stockAlias', 'supAlias', 'supInfo', 'cash', 'kaccha'].forEach(k => { if(!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {}; });
   if(!s.seq) s.seq = { bill: 0, kot: 0 };
   if(!s.seq.token) s.seq.token = 0;
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
@@ -19695,24 +19696,26 @@ async function qrPoll(){
       }
       // Guest service calls still come from cloud. This is non-blocking:
       // an internet outage must never prevent viewing the local QR inbox.
-      if(Date.now() - QR_NATIVE_CALLS_AT > 15000){
+      if(Date.now() - QR_NATIVE_CALLS_AT > 5000){
         QR_NATIVE_CALLS_AT = Date.now();
         qrApi('state').then(remote => {
           if(!qrNativeMode()) return;
           QR_NATIVE_CALLS = Array.isArray(remote.calls) ? remote.calls : [];
           if(QRS && QRS.localNative) QRS.calls = QR_NATIVE_CALLS;
+          qrCallAlert(QR_NATIVE_CALLS);
           qrPill();
         }).catch(() => {});
       }
     }else if(qrReady()){
       QRS = await qrApi('state'); QR_ERR = '';
       if(QRS.on){
-        next = 10000;
-        const fresh = QRS.orders.filter(o => o.status === 'pending' && !QR_SEEN.has(o.id)), calls = QRS.calls.filter(c => !QR_SEEN.has(c.id));
-        [...fresh, ...calls].forEach(x => QR_SEEN.add(x.id));
-        if(fresh.length || calls.length){
+        next = 6000;
+        const fresh = QRS.orders.filter(o => o.status === 'pending' && !QR_SEEN.has(o.id));
+        fresh.forEach(x => QR_SEEN.add(x.id));
+        qrCallAlert(QRS.calls);
+        if(fresh.length){
           playOrderChime();
-          toast(fresh.length ? `New QR order: ${[...new Set(fresh.map(o => 'Table ' + o.tbl))].join(', ')}` : `Table ${calls[0].tbl}: ${QR_CALL[calls[0].kind] || 'needs help'}`);
+          toast(`New QR order: ${[...new Set(fresh.map(o => 'Table ' + o.tbl))].join(', ')}`);
           if(fresh.length && (!QRS.auto || !qrAutoDevice())){
             if(!isModal() || $('#qr-panel')) qrPanel();
           }
@@ -19732,6 +19735,20 @@ async function qrPoll(){
 }
 setTimeout(qrPoll, 6000);
 const QR_CALL = {waiter: 'Call waiter', water: 'Water please', bill: 'Request bill'};
+// A guest pressed Call waiter / Water please / Request bill: sound, a message, and the QR panel opens as a popup with the
+// table and a Done button (on both storage engines). If another window is open (e.g. a bill being made), it is not
+// pushed aside: the QR button at the top blinks and the popup opens as soon as that window closes.
+function qrCallAlert(calls){
+  const fresh = (calls || []).filter(c => c && !QR_SEEN.has(c.id));
+  if(!fresh.length) return;
+  fresh.forEach(c => QR_SEEN.add(c.id));
+  playOrderChime();
+  toast(fresh.map(c => `Table ${c.tbl}: ${QR_CALL[c.kind] || 'needs help'}`).join(' · '));
+  if(!isModal() || $('#qr-panel')) qrPanel();
+  else QR_CALL_WAIT = true;
+}
+let QR_CALL_WAIT = false;
+setInterval(() => { if(QR_CALL_WAIT && !isModal()){ QR_CALL_WAIT = false; qrPanel(); } }, 1500);
 function qrPill(){
   const el = $('#top-qr-pill');
   if(!el) return;
