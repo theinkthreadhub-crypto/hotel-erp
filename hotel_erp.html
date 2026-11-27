@@ -8419,6 +8419,7 @@ function trackWaMessage(opts){
       errorReason: opts.errorReason || '',
       idemKey: ikey,
       attemptCount: opts.attemptCount || 1,
+      relayId: opts.relayId || '',
       retryEligible: opts.retryEligible !== undefined ? opts.retryEligible : (status === 'FAILED'),
       staff: opts.staff || (activeUser ? activeUser.name : 'System'),
       events: opts.events || [{
@@ -8459,6 +8460,8 @@ function trackWaMessage(opts){
       if(status === 'FAILED'){ target.failedAt = opts.failedAt || now; target.retryEligible = opts.retryEligible !== undefined ? opts.retryEligible : true; }
     }
     if(pid && !target.providerMsgId) target.providerMsgId = pid;
+    // Going via the Main Counter PC: waiting at the cloud (not "being sent" by this device)
+    if(opts.relayId){ target.relayId = opts.relayId; if(status === 'QUEUED' && target.status === 'PROCESSING') target.status = 'QUEUED'; }
     if(opts.errorCode) target.errorCode = opts.errorCode;
     if(opts.errorReason) target.errorReason = opts.errorReason;
     
@@ -8559,6 +8562,9 @@ function waSendButtonHTML(billId, compact = false){
   }
 
   const st = msg.status;
+  if(st === 'QUEUED' && msg.relayId){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><span class="wa-badge wa-submitted" title="The Main Counter PC sends it from its WhatsApp">⏳ Going via Main Counter</span><button class="btn sm g" onclick="waRelayCheck('${billId}')">Check status</button></div>`;
+  }
   if(st === 'PROCESSING' || st === 'QUEUED'){
     return `<button id="wa-btn-${billId}" class="btn wa wa-sending ${compact ? 'sm' : ''}" disabled><span class="spin"></span> Sending...</button>`;
   }
@@ -8680,7 +8686,8 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     if(selectedProv === 'gupshup') endpoint = '/api/gupshup/send';
     else if(selectedProv === 'meta') endpoint = SRV.cloud ? '/api/receipt/send' : '/api/wa/send';
     else endpoint = '/api/wa/send';
-    const res = await fetch(endpoint, {
+    // srvFetch: signed in, and on the website it names the hotel (a plain request was refused: "hotel code required")
+    const res = await srvFetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -8689,7 +8696,19 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     clearTimeout(timeoutTimer);
     const j = await res.json().catch(() => ({}));
 
-    if(res.ok){
+    let jj = j, rr = res;
+    if(SRV.cloud && rr.status === 503 && jj.status === 'not_configured'){
+      // No official sender on the website: send it through the Main Counter PC's WhatsApp
+      rr = await srvFetch('/api/wa/send', {method: 'POST', body: JSON.stringify({...payload, text: billText(bill)})});
+      jj = await rr.json().catch(() => ({}));
+    }
+    if(rr.ok && jj.queued){
+      // Waiting at the cloud for the Main Counter PC: no credit here (the counter counts it when it sends)
+      trackWaMessage({ id: reqId, billId: bill.id, status: 'QUEUED', relayId: jj.id, note: 'Going via the Main Counter PC WhatsApp' });
+      save();
+      toast(jj.counterOnline ? 'Sending from the Main Counter PC WhatsApp…' : 'Saved. It goes from the Main Counter PC WhatsApp when Setu is open there.');
+      setTimeout(() => waRelayCheck(bill.id, true), 15000);
+    } else if(res.ok){
       deductWaCredit(1);
       trackWaMessage({
         id: reqId,
@@ -8713,7 +8732,7 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
       });
       save();
       toast('Status Unknown — Check Status (Outcome unconfirmed)');
-    } else if(SRV.cloud && (j.error === 'WA_NOT_LINKED' || j.status === 'not_configured')){
+    } else if(SRV.cloud && (jj.error === 'WA_NOT_LINKED' || jj.status === 'not_configured')){
       // Website without its own WhatsApp sender: open WhatsApp with the receipt ready (nothing was sent, no credit used)
       trackWaMessage({ id: reqId, billId: bill.id, status: 'CANCELLED', note: 'Opened in WhatsApp to send by hand' });
       save();
@@ -8747,6 +8766,27 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     _waInFlight[billId] = false;
     updateWaButtons(billId);
   }
+}
+
+// A website message going via the Main Counter PC: ask the cloud how it went
+async function waRelayCheck(billId, quiet = false){
+  const msgs = (D.waMessages || []).filter(m => m.billId === billId && m.relayId);
+  const m = msgs[msgs.length - 1];
+  if(!m) return;
+  try{
+    const j = await (await srvFetch('/api/wa/relay/status?id=' + encodeURIComponent(m.relayId))).json();
+    if(j.status === 'submitted'){
+      trackWaMessage({ id: m.id, billId, status: 'SUBMITTED', providerMsgId: j.providerId || '', submittedAt: Date.now(), note: 'Sent from the Main Counter PC WhatsApp' });
+      save(); if(!quiet) toast('Sent from the Main Counter PC WhatsApp');
+    }else if(j.status === 'failed'){
+      trackWaMessage({ id: m.id, billId, status: 'FAILED', errorReason: j.error || 'Not sent', failedAt: Date.now(), note: 'Main Counter PC could not send it' });
+      save(); if(!quiet) toast('Not sent: ' + (j.error || 'please try again'));
+    }else{
+      if(!quiet) toast('Still waiting for the Main Counter PC (Setu must be open there with WhatsApp linked).');
+      if(quiet) setTimeout(() => waRelayCheck(billId, true), 30000);
+    }
+  }catch(e){ if(!quiet) toast('Could not check now. Please try again.'); }
+  updateWaButtons(billId);
 }
 
 function promptWaResend(billId){
@@ -18134,6 +18174,20 @@ async function startOnlineBaileys(){
 
 // Website (Hotel Setu Cloud) without a WhatsApp sender of its own: say so plainly (BUG-0040)
 function waWebsiteInfo(w){
+  if(w.via === 'counter' && w.connected){
+    return `<div style="background:#ecfdf5;border:1.5px solid #6ee7b7;border-radius:18px;padding:22px;max-width:760px;color:#065f46">
+      <b style="font-size:16px;display:block;margin-bottom:8px">✓ WhatsApp connected through the Main Counter PC${w.me ? ' (' + esc(String(w.me).split(':')[0].split('@')[0]) + ')' : ''}</b>
+      <p style="font-size:13.5px;line-height:1.6;margin:0 0 6px">Messages and bills sent from this website go out from the WhatsApp linked on the Main Counter PC, usually within a few seconds.</p>
+      <p style="font-size:12.5px;line-height:1.6;margin:0">To change or unlink the WhatsApp number, use the HoReCa One Desktop App on the Main Counter PC → WhatsApp.</p>
+    </div>`;
+  }
+  if(w.via === 'counter'){
+    return `<div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:18px;padding:22px;max-width:760px;color:#92400e">
+      <b style="font-size:16px;display:block;margin-bottom:8px">${w.reason === 'counter_offline' ? 'The Main Counter PC is not online right now' : 'WhatsApp is not linked on the Main Counter PC yet'}</b>
+      <p style="font-size:13.5px;line-height:1.6;margin:0 0 6px">${esc(w.message || '')}</p>
+      <p style="font-size:12.5px;line-height:1.6;margin:0">Messages sent from this website wait and go out as soon as the Main Counter PC's WhatsApp is connected.</p>
+    </div>`;
+  }
   return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:18px;padding:22px;max-width:760px">
     <b style="font-size:16px;color:var(--text);display:block;margin-bottom:8px">WhatsApp is linked on the Main Counter PC</b>
     <p style="font-size:13.5px;line-height:1.6;margin:0 0 10px">The website cannot hold a WhatsApp link of its own. Open the <b>HoReCa One Desktop App</b> on the Main Counter PC → <b>WhatsApp</b> → <b>Scan QR</b>, and scan it from the restaurant's WhatsApp (Settings → Linked devices → Link a device).</p>
@@ -18148,7 +18202,7 @@ function renderWaDirectScanner(){
   const isConnected = (w.state === 'open');
   const isQrReady = (w.state === 'qr' && Boolean(w.qr));
   const isStarting = (w.state === 'starting' || w.state === 'connecting');
-  if(w.state === 'unavailable') return waWebsiteInfo(w);
+  if(w.state === 'unavailable' || (SRV.cloud && w.via === 'counter')) return waWebsiteInfo(w);
 
   return `
     <style>
@@ -23123,7 +23177,9 @@ async function waSend(phone, text){
   }
   try{
     const r = await waApi('send', {phone, text});
-    if(r && (r.ok || r.status === 'submitted' || r.id)){
+    if(r && r.queued){
+      toast(r.counterOnline ? 'Sending from the Main Counter PC WhatsApp…' : 'Saved. It goes from the Main Counter PC WhatsApp when Setu is open there.');
+    }else if(r && (r.ok || r.status === 'submitted' || r.id)){
       deductWaCredit(1);
     }
     return r;

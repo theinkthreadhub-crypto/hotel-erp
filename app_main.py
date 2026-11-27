@@ -5069,6 +5069,91 @@ class WhatsAppLink:
             return {**base, 'state': 'starting'}
 
 
+class WaRelay:
+    """Messages queued on the website (Hotel Setu Cloud) go out from the WhatsApp linked on this Main Counter PC.
+    Every few seconds: tell the cloud this PC's WhatsApp state; when it is linked, take the waiting messages, send each
+    once (ids already sent are remembered on disk, so a repeat offer never sends twice), count the credit, report back."""
+
+    def __init__(self, store, cloud):
+        self.store, self.cloud = store, cloud
+        self.path = os.path.join(store.dir, 'setu-wa-relay.json')
+        self.done = _read_json(self.path, {}) or {}
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _loop(self):
+        while True:
+            try:
+                wait = self.tick()
+            except Exception as e:
+                self.store.log(f'WhatsApp website relay: {e!r}')
+                wait = 30
+            time.sleep(wait)
+
+    def tick(self):
+        if not self.cloud.configured():
+            return 30
+        try:
+            st = self.store.wa.status() if self.store.wa.cfg.get('on') else {'state': 'off'}
+        except Exception:
+            st = {'state': 'error'}
+        state = str(st.get('state') or 'off')
+        q = urllib.parse.urlencode({'state': state, 'me': str(st.get('me') or '')[:40], 'claim': '1' if state == 'open' else '0'})
+        code, text = self.cloud._request('GET', '/api/wa/relay?' + q)
+        if code != 200:
+            return 30
+        msgs = (json.loads(text) or {}).get('messages') or []
+        if not msgs:
+            return 8 if state == 'open' else 20
+        results = []
+        for m in msgs:
+            mid = str(m.get('id') or '')
+            if not mid:
+                continue
+            if mid in self.done:
+                results.append(self.done[mid])
+                continue
+            results.append(self.send(m))
+        if results:
+            self.cloud._request('POST', '/api/wa/relay/done', json.dumps({'results': results}))
+        return 2
+
+    def send(self, m):
+        mid = str(m['id'])
+        with self.store.lock:
+            credits = int(((self.store.data() or {}).get('settings') or {}).get('waCredits', 0) or 0)
+        if credits <= 0:
+            return {'id': mid, 'status': 'FAILED', 'error': 'WhatsApp balance is 0'}
+        try:
+            code, j = self.store.wa.call('/send', {'phone': m.get('phone'), 'text': m.get('text')}, timeout=15)
+        except Exception as e:
+            return {'id': mid, 'status': 'FAILED', 'error': str(e)[:200]}
+        ok = code == 200 and (j.get('status') == 'submitted' or j.get('id'))
+        res = {'id': mid, 'status': 'SUBMITTED' if ok else 'FAILED', 'providerId': str(j.get('id') or ''),
+               'error': '' if ok else str(j.get('error') or f'HTTP {code}')[:200]}
+        now_ts = int(time.time() * 1000)
+        try:
+            self.store.record_wa_message({'id': 'web_' + mid, 'billId': m.get('billId') or None, 'phone': m.get('phone'),
+                                          'provider': 'baileys', 'idemKey': 'web_' + mid, 'status': res['status'],
+                                          'providerMsgId': res['providerId'], 'submittedAt': now_ts if ok else None,
+                                          'failedAt': None if ok else now_ts, 'errorReason': res['error'],
+                                          'note': 'Sent for the website from the Main Counter PC'})
+        except Exception as e:
+            self.store.log(f'WhatsApp website relay record: {e!r}')
+        if ok:
+            with self.store.lock:
+                d = self.store.data() or {}
+                st = d.setdefault('settings', {})
+                st['waCredits'] = max(0, int(st.get('waCredits', 0) or 0) - 1)
+                st['waTotalSent'] = int(st.get('waTotalSent', 0) or 0) + 1
+                self.store.write(d)
+            # remembered only once sent: a message that failed may be offered again
+            self.done[mid] = res
+            if len(self.done) > 2000:
+                self.done = dict(list(self.done.items())[-1000:])
+            _write_json(self.path, self.done)
+        return res
+
+
 class AutoBackup:
     """Compressed copies of the database (and the archive) into a folder the owner chooses:
     another drive, a pen drive or a Google Drive / OneDrive folder. Every few hours and when Setu closes."""
@@ -5412,6 +5497,7 @@ def start_server(base_dir, data_dir, port):
     store.media = MEDIA.MediaStore(data_dir)
     store.autobackup = AutoBackup(store)
     store.wa = WhatsAppLink(store)
+    store.wa_relay = WaRelay(store, cloud)
     atexit.register(lambda: store.autobackup.run('Setu closed') if store.version > 0 else None)
     httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud, updater))
     httpd.daemon_threads = True

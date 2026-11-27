@@ -778,6 +778,9 @@ export class SetuHotel extends DurableObject {
       imported INTEGER DEFAULT 0, PRIMARY KEY(provider, order_id))`);
     // Outside hotel sync JSON: backup restores cannot cause a second WhatsApp receipt.
     this.sql.exec(`CREATE TABLE IF NOT EXISTS receipt_send (id TEXT PRIMARY KEY, phone TEXT, status TEXT, provider_id TEXT, error TEXT, at INTEGER)`);
+    // WhatsApp messages from the website, sent by the Main Counter PC's linked WhatsApp (BUG-0040 option a)
+    this.sql.exec(`CREATE TABLE IF NOT EXISTS wa_relay (id TEXT PRIMARY KEY, phone TEXT NOT NULL, text TEXT NOT NULL, bill_id TEXT,
+      status TEXT NOT NULL, created INTEGER NOT NULL, claimed INTEGER DEFAULT 0, done INTEGER DEFAULT 0, provider_id TEXT, error TEXT)`);
     // --- Phase 3.1: Secure Cloud Incremental Ingestion Relational Schema ---
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_inbox (
       op_id TEXT PRIMARY KEY,
@@ -3759,6 +3762,8 @@ export class SetuHotel extends DurableObject {
       if(this.blocked())return json(402,{error:'Subscription inactive'});
       const id=String(body().billId||'');
       if(!/^[a-zA-Z0-9_-]{4,90}$/.test(id))return json(400,{error:'Invalid bill ID'});
+      // No official sender: say so first, so the page sends it through the Main Counter PC instead
+      if(!this.receiptConf().configured)return json(503,{status:'not_configured',error:'WhatsApp sender is not configured'});
       const {bill}=this.receiptData(id);
       if(!bill)return json(409,{error:'Wait for cloud sync before sending this bill'});
       const outcome=await this.receiptSend(bill);
@@ -3931,6 +3936,36 @@ export class SetuHotel extends DurableObject {
       return json(200, { ok: true, retentionDays, pruned, remaining: d.waMessages.length });
     }
 
+    // ----- WhatsApp through the Main Counter PC: the counter reports its WhatsApp and sends what the website queued -----
+    if(path === '/api/wa/relay' && method === 'GET'){
+      if(role !== 'sync') return json(403, { error: 'Main Counter only' });
+      const st = String(url.searchParams.get('state') || 'off').slice(0, 20);
+      this.account.waRelay = { state: st, me: String(url.searchParams.get('me') || '').slice(0, 40), at: Date.now() };
+      this.saveAccount();
+      if(url.searchParams.get('claim') !== '1' || st !== 'open') return json(200, { ok: true, messages: [] });
+      const now = Date.now();
+      // "sending" for 10 minutes without an answer: offered again (the counter remembers what it sent, so no double message)
+      const rows = this.sql.exec(`SELECT id, phone, text, bill_id FROM wa_relay WHERE status = 'queued' OR (status = 'sending' AND claimed < ?)
+        ORDER BY created LIMIT 20`, now - 600000).toArray();
+      rows.forEach(r => this.sql.exec(`UPDATE wa_relay SET status = 'sending', claimed = ? WHERE id = ?`, now, r.id));
+      return json(200, { ok: true, messages: rows.map(r => ({ id: r.id, phone: r.phone, text: r.text, billId: r.bill_id || '' })) });
+    }
+    if(path === '/api/wa/relay/done' && method === 'POST'){
+      if(role !== 'sync') return json(403, { error: 'Main Counter only' });
+      const list = Array.isArray(body().results) ? body().results.slice(0, 50) : [];
+      for(const x of list){
+        const stt = x && x.status === 'SUBMITTED' ? 'submitted' : 'failed';
+        this.sql.exec(`UPDATE wa_relay SET status = ?, done = ?, provider_id = ?, error = ? WHERE id = ? AND status != 'submitted'`,
+          stt, Date.now(), String(x.providerId || '').slice(0, 120), String(x.error || '').slice(0, 200), String(x.id || ''));
+      }
+      return json(200, { ok: true });
+    }
+    if(path === '/api/wa/relay/status' && method === 'GET'){
+      const id = String(url.searchParams.get('id') || '');
+      const r = this.sql.exec('SELECT status, provider_id, error FROM wa_relay WHERE id = ?', id).toArray()[0];
+      return json(r ? 200 : 404, r ? { status: r.status, providerId: r.provider_id || '', error: r.error || '' } : { error: 'not found' });
+    }
+
     if(path === '/api/wa/status' && (method === 'GET' || method === 'POST')){
       let d = {};
       try{ d = JSON.parse(this.data()) || {}; }catch(e){}
@@ -3952,6 +3987,16 @@ export class SetuHotel extends DurableObject {
           }
         }catch(e){}
       }
+      // The Main Counter PC's WhatsApp (reported every few seconds while Setu is open there)
+      const cw = this.account.waRelay;
+      if(cw && cw.at > Date.now() - 90000 && cw.state === 'open')
+        return json(200, { available: true, online: true, state: 'open', connected: true, via: 'counter', qr: '', me: cw.me || null, limit: 100 });
+      if(cw && cw.at)
+        return json(200, { available: false, online: true, state: 'unavailable', connected: false, qr: '', me: null, via: 'counter',
+          reason: cw.at > Date.now() - 90000 ? 'counter_not_linked' : 'counter_offline', counterSeen: cw.at,
+          message: cw.at > Date.now() - 90000
+            ? 'WhatsApp is not linked on the Main Counter PC yet: open the HoReCa One Desktop App there → WhatsApp → Scan QR.'
+            : 'The Main Counter PC is not online right now. Messages from the website wait and go from its WhatsApp when Setu is open there again.' });
       // No WhatsApp sender for the website (or it is not answering): say so, never a made-up state or QR (BUG-0040)
       return json(200, { available: false, online: true, state: 'unavailable', connected: false, qr: '', me: null,
         reason: c.gateway ? 'gateway_down' : 'not_configured', message: 'WhatsApp is linked on the Main Counter PC: open the HoReCa One Desktop App there → WhatsApp → Scan QR. From the website, use the WhatsApp button on a bill.' });
@@ -4048,6 +4093,20 @@ export class SetuHotel extends DurableObject {
         }catch(e){}
       }
 
+      // A hotel with a Main Counter PC: queue it, the counter sends it from its linked WhatsApp and counts the credit
+      if(this.account.waRelay && this.account.waRelay.at){
+        const id = /^[A-Za-z0-9_.:-]{6,120}$/.test(String(b.idemKey || '')) ? String(b.idemKey) : ('wr_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8));
+        const prior = this.sql.exec('SELECT status FROM wa_relay WHERE id = ?', id).toArray()[0];
+        if(!prior){
+          const pending = this.sql.exec(`SELECT COUNT(*) AS n FROM wa_relay WHERE status IN ('queued', 'sending')`).toArray()[0].n;
+          if(pending >= 500) return json(429, { ok: false, error: 'Too many messages are waiting for the Main Counter PC. Please try later.' });
+          this.sql.exec(`INSERT INTO wa_relay (id, phone, text, bill_id, status, created) VALUES (?, ?, ?, ?, 'queued', ?)`,
+            id, phone.slice(-12), text.slice(0, 4000), String(b.billId || '').slice(0, 90), Date.now());
+        }
+        const cw = this.account.waRelay;
+        return json(202, { ok: true, queued: true, id, status: prior ? prior.status.toUpperCase() : 'QUEUED',
+          counterOnline: cw.at > Date.now() - 90000 && cw.state === 'open' });
+      }
       // Not sent: no "SENT" record and no credit used (BUG-0040)
       return json(503, { ok: false, error: 'WA_NOT_LINKED', message: 'WhatsApp is linked on the Main Counter PC: open the HoReCa One Desktop App there → WhatsApp → Scan QR. From the website, use the WhatsApp button on a bill.' });
     }

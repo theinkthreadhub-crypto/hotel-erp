@@ -24,11 +24,11 @@ const freePort = () => new Promise(res => { const s = net.createServer(); s.list
 const procs = [];
 const http = require('node:http');
 // Stand-in for the WhatsApp helper on the counter PC (no real WhatsApp): every send is "submitted"
-let waSent = 0;
+let waSent = 0; const waTexts = [];
 const fakeWa = http.createServer((req, res) => { let b = ''; req.on('data', c => b += c); req.on('end', () => {
   res.setHeader('Content-Type', 'application/json');
-  if(req.url === '/send'){ waSent++; return res.end(JSON.stringify({ status: 'submitted', id: 'fake_' + waSent })); }
-  res.end(JSON.stringify({ state: 'ready', ok: true }));
+  if(req.url === '/send'){ waSent++; try{ waTexts.push(JSON.parse(b)); }catch(e){} return res.end(JSON.stringify({ status: 'submitted', id: 'fake_' + waSent })); }
+  res.end(JSON.stringify({ state: 'open', me: '919800000001:1@s.whatsapp.net', ok: true }));
 }); });
 let failed = 0, WAURL = '';
 const check = (ok, name, info) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name}${info === undefined ? '' : ' :: ' + JSON.stringify(info)}`); if(!ok) failed++; };
@@ -109,6 +109,62 @@ async function runEngine(browser, WB, engine){
   for(let i = 0; i < 20; i++){ cl = await cloudCredits(); if(cl === 599) break; await sleep(2000); }
   check(await counterCredits() === 599 && cl === 599, `[${engine}] one message used: 599 on the counter and the cloud`, { counter: await counterCredits(), cloud: cl });
   check(errs.length === 0, `[${engine}] no page errors`, errs.slice(0, 3));
+
+  // ----- Website → Main Counter PC WhatsApp (option a) -----
+  await fetch(U + '/api/wa/start', { method: 'POST', headers: { 'X-Setu-Token': tok, 'Content-Type': 'application/json' }, body: '{}' });
+  const web = await (await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' })).newPage();
+  const werrs = []; web.on('pageerror', e => werrs.push(e.message)); web.on('dialog', d => d.dismiss());
+  await web.goto(`${WB}/hotel_erp.html`, { waitUntil: 'domcontentloaded' });
+  await web.waitForFunction(() => typeof SRV === 'object' && SRV.on && SRV.cloud, null, { timeout: 30000 });
+  await web.evaluate(async code => {
+    const j = await (await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Setu-Hotel': code }, body: JSON.stringify({ pin: 'Wa#Credit2026' }) })).json();
+    lsSet(HOTEL_KEY, code); lsSet(TOKEN_KEY, j.token);
+    localStorage.setItem(AUTH_KEY, JSON.stringify({ name: 'Owner', role: 'admin', access: 'manager', time: Date.now() }));
+  }, h.code);
+  await web.reload({ waitUntil: 'domcontentloaded' });
+  await web.waitForFunction(() => typeof waStatus === 'function' && SRV.on && SRV.cloud && !!SRV.token, null, { timeout: 30000 });
+  let ws = {};
+  for(let i = 0; i < 30; i++){ ws = await web.evaluate(async () => { const w = await waStatus(); return { state: w.state, via: w.via, connected: w.connected }; }); if(ws.connected) break; await sleep(1500); }
+  check(ws.connected && ws.via === 'counter', `[${engine}] website shows WhatsApp connected through the Main Counter PC`, ws);
+  const card = await web.evaluate(async () => { activeUser = activeUser || { name: 'Owner', role: 'admin', access: 'manager' }; go('wa-reports'); waTab = 'connect'; scrWaReports();
+    await new Promise(r => setTimeout(r, 400)); return { text: /connected through the Main Counter PC/.test(document.body.innerText), qr: document.querySelectorAll('img[alt*="QR"]').length }; });
+  check(card.text && card.qr === 0, `[${engine}] website WhatsApp screen says "connected through the Main Counter PC" (no QR to scan there)`, card);
+  const c0 = await counterCredits();
+  waTexts.length = 0;   // count this engine's sends only
+  const q = await web.evaluate(async () => { const r = await waSend('9876500001', 'Hello from the website'); return { queued: !!(r && r.queued), id: r && r.id }; });
+  check(q.queued, `[${engine}] website message is handed to the Main Counter PC`, q);
+  let rs = {};
+  for(let i = 0; i < 30; i++){ rs = await web.evaluate(async id => (await srvFetch('/api/wa/relay/status?id=' + encodeURIComponent(id))).json(), q.id); if(rs.status === 'submitted') break; await sleep(1500); }
+  const got = waTexts.filter(t => t.text === 'Hello from the website');
+  check(rs.status === 'submitted' && got.length === 1 && /9876500001$/.test(String(got[0].phone)), `[${engine}] the counter's WhatsApp sent it (to the right number)`, { rs, sends: got.length });
+  let c1 = 0, cl1 = 0;
+  for(let i = 0; i < 20; i++){ c1 = await counterCredits(); cl1 = await cloudCredits(); if(c1 === c0 - 1 && cl1 === c0 - 1) break; await sleep(2000); }
+  check(c1 === c0 - 1 && cl1 === c0 - 1, `[${engine}] one credit used, on the counter and the cloud (website did not count it again)`, { before: c0, counter: c1, cloud: cl1 });
+  // A bill from the website: its WhatsApp button goes via the counter too
+  await web.evaluate(() => { if(isModal()) closeModal(); go('bill'); }); await sleep(800);
+  const bid = await web.evaluate(async () => { B = newB('', 'Takeaway'); B.table = 'Takeaway'; addItem('m1'); B.phone = '9876500002'; B.mode = 'Cash'; B.idemKey = 'idem_webwa_' + Date.now();
+    const id = B.id; finalizePakkaBill(); await new Promise(r => setTimeout(r, 4000)); return (D.bills.find(b => b.idemKey && b.idemKey.startsWith('idem_webwa_')) || {}).id || id; });
+  await web.evaluate(async id => { await waSendBill(id); }, bid);
+  let bst = '';
+  for(let i = 0; i < 30; i++){ await sleep(2000); bst = await web.evaluate(async id => { await waRelayCheck(id, true); const m = (D.waMessages || []).filter(x => x.billId === id); const x = m[m.length - 1] || m[0] || {}; return x.status === "SUBMITTED" ? "SUBMITTED" : x.status + ":" + (x.errorReason || "") + ":" + JSON.stringify((x.events||[]).map(e => e.note)).slice(0,300); }, bid); if(bst === "SUBMITTED") break; }
+  const billSends = waTexts.filter(t => /9876500002$/.test(String(t.phone)));
+  check(bst === 'SUBMITTED' && billSends.length === 1, `[${engine}] bill WhatsApp from the website: sent once from the counter, shows "Submitted"`, { status: bst, sends: billSends.length });
+  await sleep(20000);
+  check(waTexts.filter(t => t.text === 'Hello from the website').length === 1 && waTexts.filter(t => /9876500002$/.test(String(t.phone))).length === 1, `[${engine}] nothing is sent twice`);
+  // Counter's WhatsApp off: the website message waits, and goes once it is on again
+  await fetch(U + '/api/wa/stop', { method: 'POST', headers: { 'X-Setu-Token': tok, 'Content-Type': 'application/json' }, body: '{}' });
+  await sleep(25000);
+  const q2 = await web.evaluate(async () => { const r = await waSend('9876500003', 'Waits for the counter'); return { queued: !!(r && r.queued), online: r && r.counterOnline, id: r && r.id }; });
+  await sleep(15000);
+  const s2 = await web.evaluate(async id => (await srvFetch('/api/wa/relay/status?id=' + encodeURIComponent(id))).json(), q2.id);
+  check(q2.queued && q2.online === false && s2.status === 'queued' && !waTexts.some(t => t.text === 'Waits for the counter'), `[${engine}] counter WhatsApp off: the website message waits (not lost, not sent)`, { q2, s2 });
+  await fetch(U + '/api/wa/start', { method: 'POST', headers: { 'X-Setu-Token': tok, 'Content-Type': 'application/json' }, body: '{}' });
+  let s3 = {};
+  for(let i = 0; i < 30; i++){ s3 = await web.evaluate(async id => (await srvFetch('/api/wa/relay/status?id=' + encodeURIComponent(id))).json(), q2.id); if(s3.status === 'submitted') break; await sleep(1500); }
+  check(s3.status === 'submitted' && waTexts.filter(t => t.text === 'Waits for the counter').length === 1, `[${engine}] and goes once the counter's WhatsApp is on again`, s3);
+  check(werrs.length === 0, `[${engine}] no website page errors`, werrs.slice(0, 3));
+  await fetch(U + '/api/wa/stop', { method: 'POST', headers: { 'X-Setu-Token': tok, 'Content-Type': 'application/json' }, body: '{}' });
+  await web.context().close();
   await page.context().close();
 }
 
