@@ -98,7 +98,7 @@ jobs:
           foreach($f in @('dist\Aghanya-Devanya-Hotel-ERP.exe', 'Output\Setu-POS-Setup.exe')){
             $v = (Get-Item $f).VersionInfo
             "FILEINFO $f | Company: $($v.CompanyName) | Product: $($v.ProductName) | Version: $($v.FileVersion)"
-            if($v.CompanyName -ne 'Aghanya Devanya Enterprises'){ Write-Error "Company name missing in $f"; exit 1 }
+            if("$($v.CompanyName)".Trim() -ne 'Aghanya Devanya Enterprises'){ Write-Error "Company name missing in $f"; exit 1 }
           }
 
       # Release evidence (BUG-0023): the installer's SHA-256 is always printed in the build log
