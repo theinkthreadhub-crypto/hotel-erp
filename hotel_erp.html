@@ -4722,10 +4722,21 @@ html[data-theme] #main .modes button.split.on,
 .ui-dlg-in{width:100%;margin:0 0 14px;padding:10px 12px;border-radius:10px;border:1px solid var(--border,#cbd5e1);font-size:15px}
 .ui-dlg-btns{display:flex;gap:8px;justify-content:flex-end}
 
-#cloud-pill.conn-online .cloud-dot{background:#22c55e}#cloud-pill.conn-syncing .cloud-dot{background:#f59e0b;animation:connPulse 1s infinite}
-#cloud-pill.conn-offline .cloud-dot{background:#ef4444}#cloud-pill.conn-lan .cloud-dot{background:#3b82f6}#cloud-pill.conn-standalone .cloud-dot{background:#94a3b8}
-#cloud-pill.conn-wait .cloud-dot{background:#cbd5e1}
-@keyframes connPulse{50%{opacity:.35}}
+#cloud-pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font:700 12px/1 Inter,system-ui,sans-serif;white-space:nowrap;cursor:pointer;user-select:none;transition:background .2s,color .2s,border-color .2s}
+#cloud-pill:hover{filter:brightness(.97)}
+#cloud-pill .cloud-ic{width:16px;height:16px;flex:none}
+#cloud-pill .ic-sync{display:none}
+#cloud-pill.conn-syncing .ic-sync{display:block;animation:connSpin 1s linear infinite}
+#cloud-pill.conn-syncing .ic-cloud{display:none}
+#cloud-pill .cloud-sub{font-weight:600;opacity:.75}
+#cloud-pill .cloud-sub:empty{display:none}
+#cloud-pill.conn-online{background:#dcfce7;color:#166534;border-color:#86efac}
+#cloud-pill.conn-syncing{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+#cloud-pill.conn-offline{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+#cloud-pill.conn-lan{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+#cloud-pill.conn-standalone{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+@keyframes connSpin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){#cloud-pill.conn-syncing .ic-sync{animation:none}}
 </style>
 </head>
 <body>
@@ -5147,8 +5158,10 @@ html[data-theme] #main .modes button.split.on,
   </span>
 
   <span class="cloud-pill conn-wait" id="cloud-pill" onclick="srvShowSyncDetails()" title="Checking the connection…" role="button" tabindex="0">
-    <span class="cloud-dot"></span>
+    <svg class="cloud-ic ic-cloud" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    <svg class="cloud-ic ic-sync" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9M18.5 3v4.3h-4.3M5.5 21v-4.3h4.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     <span class="cloud-t" id="cloud-pill-text">Checking…</span>
+    <span class="cloud-sub" id="cloud-pill-sub"></span>
   </span>
 
   <button class="ho-guide-header" onclick="triggerPWAInstall()" title="Install Native PC/Desktop App" aria-label="Install PC App" style="margin-left:4px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-weight:700">Install PC App</button>
@@ -5885,13 +5898,21 @@ async function connProbe(path){
     return r.ok ? await r.json().catch(() => ({})) : null;
   }catch(e){ return null; }
 }
+// Small text after the state: when the cloud last had everything, or how many changes are on their way
+function connSubText(){
+  const tm = x => new Date(x).toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'});
+  if(CONN.state === 'online' && CONN.lastSync) return 'synced ' + tm(CONN.lastSync);
+  if(CONN.state === 'syncing' && CONN.pending > 1) return CONN.pending + ' items';
+  if(CONN.state === 'offline' && CONN.pending > 1) return CONN.pending + ' waiting';
+  return '';
+}
 // A change is being saved right now: the header shows "Syncing" at once (the next real check confirms the state)
 function connMarkSaving(){
   if(typeof CONN !== 'object' || !(CONN.state === 'online' || CONN.state === 'lan')) return;
   const el = $('#cloud-pill');
   CONN.state = 'syncing'; CONN.label = CONN_TEXT.syncing;
   CONN.detail = SRV.local || SRV.cloud ? 'Saving the latest changes…' : 'Saving to the Main Counter…';
-  if(el){ el.className = 'cloud-pill conn-syncing'; el.dataset.state = 'syncing'; el.title = CONN.detail; const t = $('#cloud-pill-text'); if(t) t.textContent = CONN.label; }
+  if(el){ el.className = 'cloud-pill conn-syncing'; el.dataset.state = 'syncing'; el.title = CONN.detail; const t = $('#cloud-pill-text'); if(t) t.textContent = CONN.label; const sub = $('#cloud-pill-sub'); if(sub) sub.textContent = ''; }
 }
 async function connCheck(){
   let state = 'standalone', detail = '', pending = 0, lastSync = 0;
@@ -5938,6 +5959,8 @@ async function connCheck(){
     el.dataset.state = state;
     const t = $('#cloud-pill-text');
     if(t) t.textContent = CONN.label;
+    const sub = $('#cloud-pill-sub');
+    if(sub) sub.textContent = connSubText();
   }
   return CONN;
 }
