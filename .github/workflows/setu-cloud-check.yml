@@ -86,6 +86,6 @@ jobs:
       - name: Helpline and Offline hotel are live (read-only)
         run: |
           for U in https://hotel.setupro.in https://setu-cloud.theinkthreadhub.workers.dev; do
-            echo "LIVE $U pos-helpline=$(curl -sL -m 30 $U/hotel_erp.html | grep -c '91941 15127') admin-offline=$(curl -sL -m 30 $U/admin | grep -c 'Offline hotel (no internet)') admin-helpline=$(curl -sL -m 30 $U/admin | grep -c "91941 15127") admin-move=$(curl -sL -m 30 $U/admin | grep -c "Move to SQLite storage") pos-move=$(curl -sL -m 30 $U/hotel_erp.html | grep -c "A faster storage for this PC") logo=$(curl -s -o /dev/null -w "%{http_code}" -m 30 $U/horeca-icon-dark.png)"
+            echo "LIVE $U pos-helpline=$(curl -sL -m 30 $U/hotel_erp.html | grep -c '91941 15127') admin-offline=$(curl -sL -m 30 $U/admin | grep -c 'Offline hotel (no internet)') admin-helpline=$(curl -sL -m 30 $U/admin | grep -c "91941 15127") admin-move=$(curl -sL -m 30 $U/admin | grep -c "Move to SQLite storage") pos-move=$(curl -sL -m 30 $U/hotel_erp.html | grep -c "A faster storage for this PC") logo=$(curl -s -o /dev/null -w "%{http_code}" -m 30 $U/horeca-icon-dark.png) pos-qrcall=$(curl -sL -m 30 $U/hotel_erp.html | grep -c "function qrCallAlert") qr-retry=$(curl -sL -m 30 $U/qr | grep -c "The internet is slow")"
           done
 
