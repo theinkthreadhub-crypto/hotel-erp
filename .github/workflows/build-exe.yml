@@ -9,6 +9,9 @@ on:
       - feat/horeca-one-premium-22-modules
       - feat/horeca-one-v3-reference-accurate
       - main
+      # Release-candidate builds (installer published as a GitHub pre-release horeca-one-v1.0-rc.N). Publishing to setu-latest and Hotel Setu Cloud
+      # stays limited to the branch named in the two `if:` lines below; this branch never publishes.
+      - feature/horeca-one-phase34a-safety
     paths:
       - 'app_main.py'
       - 'setu_*.py'
@@ -38,7 +41,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install build tools
-        run: python -m pip install --upgrade pyinstaller pywebview certifi
+        run: python -m pip install --upgrade pyinstaller pywebview certifi "cryptography>=42,<48"
 
       # The version shown in Setu and sent to Super Admin = the installer's version
       - name: Stamp version
@@ -48,7 +51,7 @@ jobs:
       # Same flags as Build-New-EXE.bat; keep both in sync
       - name: Build EXE
         shell: cmd
-        run: python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "food;food" app_main.py
+        run: python -m PyInstaller --noconfirm --onefile --windowed --icon "favicon.ico" --name "Aghanya-Devanya-Hotel-ERP" --version-file "installer\version_info.txt" --add-data "hotel_erp.html;." --add-data "manifest.json;." --add-data "sw.js;." --add-data "icon-192.png;." --add-data "icon-512.png;." --add-data "logo.png;." --add-data "favicon.ico;." --add-data "horeca-icon-dark.png;." --add-data "horeca-icon-trans.png;." --add-data "horeca-logo-dark.png;." --add-data "horeca-logo-full.png;." --add-data "food;food" app_main.py
 
       # WhatsApp link helper: Baileys + its own node.exe (no Node needed on the client PC)
       - uses: actions/setup-node@v4
@@ -89,6 +92,36 @@ jobs:
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=1.0.${{ github.run_number }}" installer\setu-setup.iss
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      - name: Publisher name in the file details
+        shell: pwsh
+        run: |
+          foreach($f in @('dist\Aghanya-Devanya-Hotel-ERP.exe', 'Output\Setu-POS-Setup.exe')){
+            $v = (Get-Item $f).VersionInfo
+            "FILEINFO $f | Company: $($v.CompanyName) | Product: $($v.ProductName) | Version: $($v.FileVersion)"
+            if("$($v.CompanyName)".Trim() -ne 'Aghanya Devanya Enterprises'){ Write-Error "Company name missing in $f"; exit 1 }
+          }
+
+      # Release evidence (BUG-0023): the installer's SHA-256 is always printed in the build log
+      - name: Installer SHA-256
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash Output/Setu-POS-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  Setu-POS-Setup.exe" | Out-File -Encoding ascii Output/Setu-POS-Setup.exe.sha256
+          Write-Host "INSTALLER SHA-256: $h  (version 1.0.${{ github.run_number }}, commit ${{ github.sha }})"
+
+      # Release candidate: a separate GitHub pre-release, never setu-latest and never Hotel Setu Cloud /download/,
+      # so no counter PC updates itself from it. Must succeed on this branch (no silent "green without a file").
+      - name: Publish release candidate (pre-release)
+        if: github.ref_name == 'feature/horeca-one-phase34a-safety'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "horeca-one-v1.0-rc.${{ github.run_number }}"
+          $notes = "HoReCa One v1.0.${{ github.run_number }} release candidate (commit ${{ github.sha }}). Not for automatic update. Verify the file with Setu-POS-Setup.exe.sha256 before installing."
+          gh release create $tag Output/Setu-POS-Setup.exe Output/Setu-POS-Setup.exe.sha256 --prerelease --title "HoReCa One v1.0 RC (build ${{ github.run_number }})" --notes $notes --target ${{ github.sha }}
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
       # Optional copy; the release below is the real download (private repos run out of artifact storage)
       - uses: actions/upload-artifact@v4
         continue-on-error: true
@@ -102,8 +135,10 @@ jobs:
         shell: pwsh
         run: Compress-Archive -Path Setu-POS-Setup -DestinationPath Setu-POS-Setup.zip -Force
 
+      # Customer EXE updates go out only when the owner turns them on (repo variable PUBLISH_EXE = on), after the pilot.
+      # Until then a Worker deploy from this branch never pushes a new EXE to counter PCs.
       - name: Update setu-latest release
-        if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
+        if: github.ref_name == 'ccr-89eaafa4-mxbfj2' && vars.PUBLISH_EXE == 'on'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -120,7 +155,7 @@ jobs:
   # Publish the new installer on Hotel Setu Cloud (/download/), so counter PCs update themselves
   # and the website's "Install for PC" gets it. Same steps as setu-cloud-deploy.yml.
   publish-cloud:
-    if: github.ref_name == 'ccr-89eaafa4-mxbfj2'
+    if: github.ref_name == 'ccr-89eaafa4-mxbfj2' && vars.PUBLISH_EXE == 'on'
     needs: build
     runs-on: ubuntu-latest
     concurrency:

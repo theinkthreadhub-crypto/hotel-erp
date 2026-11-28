@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>HoReCa One — Hotel • Restaurant • Café | ERP Software</title>
+<title>HoReCa One – Business Management ERP</title>
 <meta name="theme-color" content="#0284c7">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/x-icon" href="favicon.ico">
@@ -4703,6 +4703,42 @@ html[data-theme] #main .modes button.split.on,
   transform: translateX(-1px) !important;
 }
 
+/* List editor (Masters → Dropdown Lists): one clean box per item, × beside it */
+.ls-ed{display:flex;flex-direction:column;gap:8px}
+.ls-rows{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow:auto;padding:2px}
+.ls-row{display:flex;align-items:center;gap:6px}
+.ls-row input{flex:1;min-width:0;margin:0 !important;font-size:13.5px !important;padding:7px 10px !important;height:auto !important}
+.ls-x{border:0;background:transparent;color:#94a3b8;font-size:18px;line-height:1;width:30px;height:30px;border-radius:6px;cursor:pointer;flex:none}
+.ls-x:hover{background:#fee2e2;color:#dc2626}
+.ls-add{display:flex;gap:6px;align-items:center}
+.ls-add input{flex:1;min-width:0;margin:0 !important;font-size:13px !important;padding:7px 10px !important;border-style:dashed !important;height:auto !important}
+
+#ui-dlg{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(15,23,42,.55);z-index:2147483000;padding:16px}
+#ui-dlg.open{display:flex}
+.ui-dlg-box{background:var(--surface,#fff);color:var(--text,#0f172a);border:1px solid var(--border,#e2e8f0);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.35);width:100%;max-width:440px;padding:18px 20px;font-family:Inter,system-ui,sans-serif}
+.ui-dlg-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:15px}
+.ui-dlg-logo{width:28px;height:28px;border-radius:8px}
+.ui-dlg-msg{font-size:14px;line-height:1.55;margin-bottom:14px;white-space:normal;word-break:break-word}
+.ui-dlg-in{width:100%;margin:0 0 14px;padding:10px 12px;border-radius:10px;border:1px solid var(--border,#cbd5e1);font-size:15px}
+.ui-dlg-btns{display:flex;gap:8px;justify-content:flex-end}
+
+#cloud-pill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;border:1px solid #e2e8f0;background:#f8fafc;color:#475569;font:700 12px/1 Inter,system-ui,sans-serif;white-space:nowrap;cursor:pointer;user-select:none;transition:background .2s,color .2s,border-color .2s}
+#cloud-pill:hover{filter:brightness(.97)}
+#cloud-pill .cloud-ic{width:16px;height:16px;flex:none}
+#cloud-pill .ic-sync{display:none}
+#cloud-pill.conn-syncing .ic-sync{display:block;animation:connSpin 1s linear infinite}
+#cloud-pill.conn-syncing .ic-cloud{display:none}
+#cloud-pill .cloud-sub{font-weight:600;opacity:.75}
+#cloud-pill .cloud-sub:empty{display:none}
+#cloud-pill.conn-online{background:#dcfce7;color:#166534;border-color:#86efac}
+#cloud-pill.conn-syncing{background:#fef3c7;color:#92400e;border-color:#fcd34d}
+#cloud-pill.conn-offline{background:#fee2e2;color:#991b1b;border-color:#fca5a5}
+#cloud-pill.conn-lan{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+#cloud-pill.conn-standalone{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
+@keyframes connSpin{to{transform:rotate(360deg)}}
+/* Menu cards keep their own height: with few items (one row) the grid used to stretch each card to the whole box */
+#main .items{align-content:start!important;grid-auto-rows:max-content!important}
+@media (prefers-reduced-motion:reduce){#cloud-pill.conn-syncing .ic-sync{animation:none}}
 </style>
 </head>
 <body>
@@ -4763,16 +4799,16 @@ html[data-theme] #main .modes button.split.on,
     </div>
 
     <!-- Onboarding Mode Switcher Tabs: Option B (Existing) & Option A (New) -->
-    <div style="display:flex;background:rgba(226,232,240,0.6);backdrop-filter:blur(10px);border-radius:12px;padding:3px;margin-bottom:20px;border:1px solid rgba(203,213,225,0.7)">
+    <div id="onboard-tabs" style="display:none;background:rgba(226,232,240,0.6);backdrop-filter:blur(10px);border-radius:12px;padding:3px;margin-bottom:20px;border:1px solid rgba(203,213,225,0.7)">
       <button type="button" id="tab-login-existing" onclick="switchOnboardingMode('existing')" style="flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:#fff;color:#0f172a;box-shadow:0 2px 6px rgba(0,0,0,0.06);transition:all .15s">Existing Hotel Login</button>
-      <button type="button" id="tab-login-new" onclick="switchOnboardingMode('new')" style="flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:all .15s">+ New Hotel Setup</button>
+      <button type="button" id="tab-login-new" onclick="switchOnboardingMode('new')" style="display:none;flex:1;padding:9px 12px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;background:transparent;color:#64748b;transition:all .15s">+ New Hotel Setup</button>
     </div>
 
     <!-- OPTION B: EXISTING HOTEL LOGIN -->
     <div id="mode-onboard-existing">
       <div style="text-align:left;margin-bottom:16px">
         <h2 style="font-size:22px;font-weight:800;color:#0f172a;margin:0 0 4px">Login to HoReCa One</h2>
-        <p style="font-size:13px;color:#64748b;margin:0">Enter your Hotel ID, Username & Password to continue</p>
+        <p style="font-size:13px;color:#64748b;margin:0" id="exist_sub">Enter the Hotel ID and password from your HoReCa One provider</p>
       </div>
 
       <form onsubmit="handleUnifiedLogin(event)">
@@ -4791,6 +4827,19 @@ html[data-theme] #main .modes button.split.on,
             <button type="button" onclick="togglePasswordVisibility('exist_password', this)" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#64748b;padding:4px">
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
+          </div>
+        </div>
+
+        <!-- First sign-in with a temporary password (or a too-simple one): the owner chooses their own -->
+        <div id="exist_change_box" style="display:none;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 12px;margin-bottom:12px">
+          <div style="font-size:12.5px;font-weight:700;color:#9a3412;margin-bottom:8px" id="exist_change_msg">Choose your own password to finish signing in.</div>
+          <div class="login-field">
+            <label style="font-size:12px;font-weight:700;color:#475569">New Password *</label>
+            <input id="exist_new_password" type="password" minlength="6" placeholder="At least 6 characters" autocomplete="new-password">
+          </div>
+          <div class="login-field" style="margin-bottom:0">
+            <label style="font-size:12px;font-weight:700;color:#475569">Confirm New Password *</label>
+            <input id="exist_new_password2" type="password" minlength="6" placeholder="Type it again" autocomplete="new-password">
           </div>
         </div>
 
@@ -4816,7 +4865,7 @@ html[data-theme] #main .modes button.split.on,
       </div>
 
       <div style="margin-top:16px;text-align:center;font-size:12.5px;color:#64748b">
-        New property? <a href="javascript:void(0)" onclick="switchOnboardingMode('new')" style="color:#059669;font-weight:800;text-decoration:none">Register New Hotel</a>
+        New property? Your HoReCa One provider gives you the Hotel ID and password.<br>Helpline: <a href="tel:+919194115127">+91 91941 15127</a>
       </div>
     </div>
 
@@ -4845,17 +4894,26 @@ html[data-theme] #main .modes button.split.on,
             </div>
           </div>
           <div class="login-field">
+            <label style="font-size:12px;font-weight:700;color:#475569">Business Type *</label>
+            <select id="new_business_type" required>
+              <option value="restaurant">Restaurant</option>
+              <option value="cafe">Cafe / QSR</option>
+              <option value="hotel">Hotel Restaurant (Room No. on bill)</option>
+              <option value="cloudkitchen">Cloud Kitchen</option>
+            </select>
+          </div>
+          <div class="login-field">
             <label style="font-size:12px;font-weight:700;color:#475569">Admin Username *</label>
             <input id="new_admin_username" required placeholder="e.g. owner" value="owner">
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
             <div class="login-field">
               <label style="font-size:12px;font-weight:700;color:#475569">Admin Password *</label>
-              <input id="new_admin_password" type="password" required placeholder="Min 4 characters" minlength="4">
+              <input id="new_admin_password" type="password" required placeholder="Min 6 characters" minlength="6">
             </div>
             <div class="login-field">
               <label style="font-size:12px;font-weight:700;color:#475569">Confirm Password *</label>
-              <input id="new_confirm_password" type="password" required placeholder="Confirm password" minlength="4">
+              <input id="new_confirm_password" type="password" required placeholder="Confirm password" minlength="6">
             </div>
           </div>
 
@@ -5101,9 +5159,11 @@ html[data-theme] #main .modes button.split.on,
     <span class="lic-chip ok" id="lictext">License: Active</span>
   </span>
 
-  <span class="cloud-pill" id="cloud-pill" onclick="srvShowSyncDetails()" title="Cloud Live Sync Active">
-    <span class="cloud-dot"></span>
-    <span class="cloud-t" id="cloud-pill-text">All saved</span>
+  <span class="cloud-pill conn-wait" id="cloud-pill" onclick="srvShowSyncDetails()" title="Checking the connection…" role="button" tabindex="0">
+    <svg class="cloud-ic ic-cloud" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.1 9.2 4.5 4.5 0 0 0 7 18z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+    <svg class="cloud-ic ic-sync" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.3 4.9M4 12a8 8 0 0 1 14.3-4.9M18.5 3v4.3h-4.3M5.5 21v-4.3h4.3" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <span class="cloud-t" id="cloud-pill-text">Checking…</span>
+    <span class="cloud-sub" id="cloud-pill-sub"></span>
   </span>
 
   <button class="ho-guide-header" onclick="triggerPWAInstall()" title="Install Native PC/Desktop App" aria-label="Install PC App" style="margin-left:4px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-weight:700">Install PC App</button>
@@ -5181,7 +5241,14 @@ const today = () => { const d = new Date(); return d.getFullYear() + '-' + pad(d
 const nowTime = () => { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
 const dmy = d => d ? d.split('-').reverse().join('-') : '';
 const addDays = (d, n) => { const dt = new Date(d || today()); dt.setDate(dt.getDate() + n); return dt.toISOString().split('T')[0]; };
-const r2 = n => Math.round((+n || 0)*100)/100;
+// Money is worked out in whole paise. toPaise(1.005) = 101: binary floats store 1.005 as 1.00499…, so a plain
+// Math.round(x * 100) would lose a paisa on exact halves; the tiny nudge (far below 1 paisa) keeps half-up rounding.
+const toPaise = n => { n = +n || 0; return n < 0 ? -Math.round(-n * 100 + 1e-6) : Math.round(n * 100 + 1e-6); };
+// Half-up integer division for paise (num, den whole numbers; den > 0)
+const divHU = (num, den) => num < 0 ? -Math.floor((-2 * num + den) / (2 * den)) : Math.floor((2 * num + den) / (2 * den));
+const r2 = n => toPaise(n) / 100;
+// The one address customers and owners see (the workers.dev address keeps working for counters and old QR codes)
+const PUBLIC_URL = 'https://hotel.setupro.in';
 const money = n => '₹' + r2(n).toLocaleString('en-IN', {minimumFractionDigits:2, maximumFractionDigits:2});
 const rs = n => '₹' + r2(n).toLocaleString('en-IN');
 const fq = n => String(+(+n || 0).toFixed(3));
@@ -5381,8 +5448,9 @@ function ensureGrowth(s){
   if(!s.monthlySent || typeof s.monthlySent !== 'object') s.monthlySent = {};
   if(!s.salaryDays || typeof s.salaryDays !== 'object') s.salaryDays = {};
   if(!s.salarySheets || typeof s.salarySheets !== 'object') s.salarySheets = {};
-  ['moves', 'orders', 'assets', 'gasLog', 'expTpl'].forEach(k => { if(!Array.isArray(s[k])) s[k] = []; });
-  ['stockAlias', 'supAlias', 'supInfo'].forEach(k => { if(!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {}; });
+  ['moves', 'orders', 'assets', 'gasLog', 'expTpl', 'menu', 'stock', 'bills', 'txns', 'onlineOrders'].forEach(k => { if(!Array.isArray(s[k])) s[k] = []; });
+  // A hotel whose data was made without these (e.g. created on the cloud) must still open: the dashboard reads them
+  ['stockAlias', 'supAlias', 'supInfo', 'cash', 'kaccha'].forEach(k => { if(!s[k] || typeof s[k] !== 'object' || Array.isArray(s[k])) s[k] = {}; });
   if(!s.seq) s.seq = { bill: 0, kot: 0 };
   if(!s.seq.token) s.seq.token = 0;
   s.demoCleanupDone = true; // restored backups must never hit the one-time demo wipe
@@ -5560,14 +5628,20 @@ function durableNote(edits, where){
     : `Bill #${DUR.bill} is NOT saved yet. Keep this page open; retrying.`);
 }
 
+// A phone / tablet / second PC on the restaurant Wi-Fi: the Main Counter PC holds the data
+const lanDevice = () => SRV.on && !SRV.local && !SRV.cloud && !SRV.saas;
+
 function save(){
   try{ stockRecalc(D); }catch(e){ logError('Stock could not be calculated', 'stockRecalc', e.stack || e.message); }
   if(SRV.on && SRV.readOnly){
     // Setu Support view: nothing is saved
+  } else if(lanDevice() && !SRV.ready){
+    // Wi-Fi device before the Main Counter data is loaded: this page holds no real data, so nothing is sent
   } else if(SRV.on){
     // LAN/desktop mode: the main-counter PC keeps the database on disk
     SRV.edits++;
     SRV.dirty = true;
+    try{ connMarkSaving(); }catch(e){}
     clearTimeout(SRV.timer);
     SRV.timer = setTimeout(srvPush, 150);
   } else {
@@ -5576,12 +5650,12 @@ function save(){
       json = JSON.stringify(D);
       localStorage.setItem(KEY, json);
     }catch(e){
-      alert('Data could not be saved: ' + e.message + '\n\nPlease download a backup now (Settings → Download JSON Backup) and contact your vendor. The Desktop App (EXE) does not have this limit.');
+      uiAlert('Data could not be saved: ' + e.message + '\n\nPlease download a backup now (Settings → Download JSON Backup) and call the HoReCa One Helpline ' + HELPLINE + '. The Desktop App (EXE) does not have this limit.');
     }
     // Browser storage is ~5M characters; warn well before it fills up
     if(json.length > 4000000 && !save.warned){
       save.warned = true;
-      setTimeout(() => alert('Browser storage is almost full (' + Math.round(json.length / 50000) + '%). Please take a backup and move to the Setu Desktop App (EXE), which stores data in a file.'), 50);
+      setTimeout(() => uiAlert('Browser storage is almost full (' + Math.round(json.length / 50000) + '%). Please take a backup and move to the Setu Desktop App (EXE), which stores data in a file.'), 50);
     }
     mirrorToIndexedDB(D);
   }
@@ -5608,7 +5682,7 @@ const SRV_LAUNCH = (() => {
   }catch(e){}
   return k;
 })();
-const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', hotelName: '', hostLocked: false, readOnly: false, blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true };
+const SRV = { on: false, local: true, cloud: false, saas: false, hotel: '', hotelName: '', hostLocked: false, readOnly: false, blocked: false, signup: false, pollTimer: null, version: 0, base: null, dirty: false, busy: false, again: false, forceNext: false, edits: 0, timer: null, token: '', online: true, nativeQr: false };
 const TOKEN_KEY = 'setu_device_token';
 const HOTEL_KEY = 'setu_hotel_code';
 const lsGet = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
@@ -5758,7 +5832,7 @@ function merge3(base, mine, theirs){
   const ms = mine.seq || {}, ts = theirs.seq || {};
   // Running numbers must never go backwards
   out.seq = {...ts, ...ms};
-  ['bill', 'kot'].forEach(k => out.seq[k] = Math.max(+ms[k] || 0, +ts[k] || 0));
+  ['bill', 'kot', 'cn'].forEach(k => out.seq[k] = Math.max(+ms[k] || 0, +ts[k] || 0));
   // Tokens restart daily, so the newer day wins before comparing numbers
   const md = ms.tokenDate || '', td = ts.tokenDate || '';
   out.seq.tokenDate = md > td ? md : td;
@@ -5785,8 +5859,8 @@ function merge3(base, mine, theirs){
   });
   out.bills = dedupedBills;
 
-  // Two devices may have used the same bill / KOT number: give this device's new ones fresh numbers
-  [['bills', 'bill'], ['kots', 'kot']].forEach(([list, key]) => {
+  // Two devices may have used the same bill / KOT / credit-note number: give this device's new ones fresh numbers
+  [['bills', 'bill'], ['kots', 'kot'], ['cnotes', 'cn']].forEach(([list, key]) => {
     const theirIds = new Set((theirs[list] || []).map(x => x.id)), baseIds = new Set(((base || {})[list] || []).map(x => x.id));
     const taken = new Set((theirs[list] || []).map(x => x.no));
     (out[list] || []).forEach(x => {
@@ -5808,7 +5882,102 @@ function srvStatus(ok){
     ? (ok ? 'Hotel Setu Cloud · Connected' : 'No internet. Data is not being saved; please keep this page open.')
     : (ok ? (SRV.local ? 'Main Counter · LAN Server ON' : 'Connected to Main Counter') : 'Connection to Main Counter lost. Data is not being saved.');
   e.style.color = ok && !SRV.blocked ? '#34d399' : '#ef4444';
+  connCheck().catch(() => {});
 }
+
+/* ================= CONNECTION STATUS (header) ================= */
+// One word the staff understand, from real checks (not assumed): Online, Syncing, Offline, LAN, Standalone.
+//  Main Counter PC: its own program answers /api/ping, and the cloud link reports its last sync (/api/cloud, outbox).
+//  Phone / tablet on the Wi-Fi: the Main Counter answers.  Website: the cloud answers.  No server: Standalone.
+// Addresses and ports are never shown here; they are in Settings -> System Information.
+const CONN = {state: '', label: '', detail: '', at: 0, pending: 0, lastSync: 0};
+const CONN_TEXT = {online: 'Online', syncing: 'Syncing', offline: 'Offline', lan: 'LAN', standalone: 'Standalone'};
+async function connProbe(path){
+  try{
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 6000);
+    const r = await srvFetch(path, {signal: ctl.signal});
+    clearTimeout(t);
+    return r.ok ? await r.json().catch(() => ({})) : null;
+  }catch(e){ return null; }
+}
+// Small text after the state: when the cloud last had everything, or how many changes are on their way
+function connSubText(){
+  const tm = x => new Date(x).toLocaleTimeString('en-IN', {hour: 'numeric', minute: '2-digit'});
+  if(CONN.state === 'online' && CONN.lastSync) return 'synced ' + tm(CONN.lastSync);
+  if(CONN.state === 'syncing' && CONN.pending > 1) return CONN.pending + ' items';
+  if(CONN.state === 'offline' && CONN.pending > 1) return CONN.pending + ' waiting';
+  return '';
+}
+// A change is being saved right now: the header shows "Syncing" at once (the next real check confirms the state)
+function connMarkSaving(){
+  if(typeof CONN !== 'object' || !(CONN.state === 'online' || CONN.state === 'lan')) return;
+  const el = $('#cloud-pill');
+  CONN.state = 'syncing'; CONN.label = CONN_TEXT.syncing;
+  CONN.detail = SRV.local || SRV.cloud ? 'Saving the latest changes…' : 'Saving to the Main Counter…';
+  if(el){ el.className = 'cloud-pill conn-syncing'; el.dataset.state = 'syncing'; el.title = CONN.detail; const t = $('#cloud-pill-text'); if(t) t.textContent = CONN.label; const sub = $('#cloud-pill-sub'); if(sub) sub.textContent = ''; }
+}
+async function connCheck(){
+  let state = 'standalone', detail = '', pending = 0, lastSync = 0;
+  if(!SRV.on){
+    detail = 'This device works on its own. Data is kept in this browser.';
+  }else if(SRV.cloud){
+    const p = navigator.onLine === false ? null : await connProbe('/api/ping');
+    pending = SRV.dirty ? 1 : 0;
+    state = !p ? 'offline' : SRV.dirty || SRV.busy ? 'syncing' : 'online';
+    detail = !p ? 'No internet. Changes stay on this device and are saved when the internet is back.' : state === 'syncing' ? 'Saving the latest changes to Hotel Setu Cloud…' : 'Connected to Hotel Setu Cloud. Everything is saved.';
+  }else if(SRV.local){
+    const p = await connProbe('/api/ping');
+    if(!p){ state = 'offline'; detail = 'The Setu program on this PC is not answering. Close Setu and open it again.'; }
+    else{
+      const c = await connProbe('/api/cloud');
+      let ops = 0;
+      if(SRV.engine === 'sqlite'){ const q = await connProbe('/api/q/status'); ops = q ? +q.outboxPending || 0 : 0; }
+      lastSync = c && (c.okAt || c.at) || 0;
+      if(!c || !c.configured || (D && D.saas && D.saas.offline)){
+        state = 'standalone';
+        detail = 'This PC works on its own (not linked to Hotel Setu Cloud). Billing, printing and reports work normally.';
+      }else if(c.ok === false){
+        state = 'offline';
+        pending = ops || (c.pending ? 1 : 0);
+        detail = 'No internet. Billing goes on; every bill is kept on this PC and goes to the cloud when the internet is back.';
+      }else if(c.pending || ops || SRV.dirty){
+        state = 'syncing'; pending = ops || 1;
+        detail = 'Saving the latest bills to Hotel Setu Cloud…';
+      }else if(c.ok === true){
+        state = 'online';
+        detail = 'Connected to Hotel Setu Cloud. Everything is saved.';
+      }else{ state = 'syncing'; detail = 'Connecting to Hotel Setu Cloud…'; }
+    }
+  }else{
+    const p = await connProbe('/api/ping');
+    state = !p ? 'offline' : SRV.dirty ? 'syncing' : 'lan';
+    detail = !p ? 'The Main Counter PC is not reachable. Check the Wi-Fi and that Setu is open on the Main Counter.' : state === 'syncing' ? 'Saving to the Main Counter…' : 'Connected to the Main Counter PC over the restaurant Wi-Fi.';
+  }
+  Object.assign(CONN, {state, label: CONN_TEXT[state], detail, at: Date.now(), pending, lastSync});
+  const el = $('#cloud-pill');
+  if(el){
+    el.className = 'cloud-pill conn-' + state;
+    el.title = detail;
+    el.dataset.state = state;
+    const t = $('#cloud-pill-text');
+    if(t) t.textContent = CONN.label;
+    const sub = $('#cloud-pill-sub');
+    if(sub) sub.textContent = connSubText();
+  }
+  return CONN;
+}
+function srvShowSyncDetails(){
+  const last = CONN.lastSync ? new Date(CONN.lastSync).toLocaleString('en-IN', {day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'}) : '';
+  modal('Connection: ' + (CONN.label || 'Checking'), `<p style="font-size:14px;margin-top:0">${esc(CONN.detail || 'Checking the connection…')}</p>
+    ${last ? `<p class="muted" style="margin:0 0 8px">Last saved to the cloud: ${esc(last)}</p>` : ''}
+    <div class="btns"><button class="btn ok" onclick="connCheck().then(srvShowSyncDetails)">Check again</button>
+    ${activeUser && activeUser.access === 'manager' ? `<button class="btn g" onclick="closeModal();go('settings');setTimeout(()=>{const c=document.getElementById('sysinfo-card');c&&c.scrollIntoView({behavior:'smooth'})},400)">System Information</button>` : ''}
+    <button class="btn g" onclick="closeModal()">Close</button></div>`);
+}
+setInterval(() => { connCheck().catch(() => {}); }, 10000);
+setTimeout(() => { connCheck().catch(() => {}); }, 1500);
+window.addEventListener('online', () => connCheck().catch(() => {}));
+window.addEventListener('offline', () => connCheck().catch(() => {}));
 
 async function srvLoad(text){
   const j = JSON.parse(text);
@@ -5844,8 +6013,9 @@ async function srvInitData(){
   try{ r = await srvFetch('/api/db?today=' + today()); }catch(e){ srvStatus(false); return false; }
   if(r.status === 401){
     if(!activeUser){
+      // Wi-Fi device: the Main Counter checks the staff PIN (no internet needed)
       $('#login-screen').style.display = 'flex';
-      showLoginView('welcome');
+      showLoginView(lanDevice() ? 'gate2' : 'welcome');
       return false;
     }
     showConnectScreen();
@@ -5870,12 +6040,14 @@ async function srvInitData(){
     }
     // First run of the LAN server: move this PC's browser data into the server file
     SRV.base = null;
+    SRV.ready = true;
     SRV.dirty = true;
     SRV.edits++;
     await srvPush();
     return true;
   }
   D = ensureGrowth(j.data);
+  SRV.ready = true;   // D is the server copy: saves from this page may go out now
   srvStatus(true);
   await srvRecoverPending(j.data);
   return true;
@@ -5926,6 +6098,8 @@ async function srvRecoverPending(server){
 
 async function srvPush(){
   if(!SRV.on) return;
+  // Wi-Fi device: never upload a page that does not hold the Main Counter data (empty page, cloud copy)
+  if(lanDevice() && !SRV.ready){ SRV.dirty = false; return; }
   if(SRV.busy){ SRV.again = true; return; }
   SRV.busy = true;
   try{
@@ -5988,7 +6162,7 @@ async function srvPush(){
         if(/limit/i.test(why)){
           // Website bill over the daily limit: the cloud did not keep it; show the cloud's copy again
           SRV.dirty = false; SRV.version = -1;
-          alert(why);
+          uiAlert(why);
           setTimeout(srvPoll, 300);
           return;
         }
@@ -5996,7 +6170,7 @@ async function srvPush(){
         SRV.forceNext = false;
         SRV.dirty = false;
         SRV.version = -1;   // next poll reloads the server copy
-        alert('Backup restore / reset is allowed only from the Main Counter PC or a Manager device.');
+        uiAlert('Backup restore / reset is allowed only from the Main Counter PC or a Manager device.');
         return;
       }
       throw new Error('HTTP ' + r.status);
@@ -6273,7 +6447,7 @@ async function srvPushOps(){
     }
     opsToBase(parts[i]);
     if(j.fix && j.fix.length) opsApply(j.fix);
-    if(j.renumbered) Object.entries(j.renumbered).forEach(([bid, no]) => { if(!bid.startsWith('kot:')) toast(`Bill saved as #${no}: its first number was already used on another device.`); });
+    if(j.renumbered) Object.entries(j.renumbered).forEach(([bid, no]) => { if(!bid.startsWith('kot:') && !bid.startsWith('cn:')) toast(`Bill saved as #${no}: its first number was already used on another device.`); });
     if(j.dup && Object.keys(j.dup).length) toast('This sale was already settled on another device. The stored bill is shown.');
     if(j.blocked && j.blocked.length) toast('Some changes need a Manager login and were not saved.');
     if(j.fix && j.fix.length){ try{ stockRecalc(D); }catch(e){} srvRefreshScreen(); }
@@ -6315,6 +6489,7 @@ async function srvPollOps(){
       return;
     }
     const v = await r.json();
+    SRV.nativeQr = !!v.inboundQrNative;
     SRV.blocked = !!v.blocked;
     srvStatus(true);
     if(v.version === SRV.version || changedHere()) return;
@@ -6323,7 +6498,15 @@ async function srvPollOps(){
     const c = await r2.json();
     if(changedHere()) return;
     if(c.reload){ await srvReloadWindow(); return; }
+    const prevKots = new Set((D.kots || []).map(k => k.id));
     opsApply(c.ops);
+    // QR orders have already been persisted by the counter receiver.
+    // Notify kitchen once per new KOT without re-running qrApply or printing
+    // on multiple LAN browser sessions.
+    if(qrNativeMode()){
+      (D.kots || []).filter(k => k.src === 'qr' && !prevKots.has(k.id))
+        .forEach(k => notifyNewKot(k));
+    }
     SRV.version = c.version;
     if(c.histRev !== undefined && c.histRev !== SRV.histRev) histTotalsRefresh(c.histRev);
     try{ stockRecalc(D); }catch(e){}
@@ -6501,7 +6684,7 @@ function showConnectScreen(msg, view){
       ${head('Setu — New Hotel (Mobile)', 'Billing from the phone, no computer needed. You need the Master Key from your vendor.')}
       <form id="signup-form" style="text-align:left">
         <div class="login-field"><label>Hotel / Restaurant Name *</label><input id="su_hotel" required maxlength="80"></div>
-        <div class="login-field"><label>Business type *</label><select id="su_type"><option value="restaurant">Restaurant</option><option value="cafe">Cafe / QSR</option><option value="hotel">Hotel (Rooms + Restaurant)</option><option value="cloudkitchen">Cloud Kitchen</option></select></div>
+        <div class="login-field"><label>Business type *</label><select id="su_type"><option value="restaurant">Restaurant</option><option value="cafe">Cafe / QSR</option><option value="hotel">Hotel Restaurant (Room No. on bill)</option><option value="cloudkitchen">Cloud Kitchen</option></select></div>
         <div class="login-field"><label>Owner Name *</label><input id="su_owner" required maxlength="60"></div>
         <div class="login-field"><label>Mobile (10 digit) *</label><input id="su_phone" required inputmode="numeric" maxlength="10" pattern="[0-9]{10}"></div>
         <div class="login-field"><label>Email</label><input id="su_email" type="email" maxlength="100"></div>
@@ -6636,11 +6819,11 @@ async function cloudBilling(){
 }
 
 async function payPlan(planId){
-  if(!activeUser || activeUser.access !== 'manager') return alert('Payments can be made only from a Manager / Owner login.');
+  if(!activeUser || activeUser.access !== 'manager') return uiAlert('Payments can be made only from a Manager / Owner login.');
   try{
     const r = await srvFetch('/api/billing/subscribe', {method: 'POST', body: JSON.stringify({plan: planId})});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok) return alert(j.error || 'Payment could not be started');
+    if(!r.ok) return uiAlert(j.error || 'Payment could not be started');
     await loadRazorpay();
     new Razorpay({
       key: j.keyId,
@@ -6656,28 +6839,28 @@ async function payPlan(planId){
             paymentId: resp.razorpay_payment_id, subscriptionId: resp.razorpay_subscription_id, signature: resp.razorpay_signature})});
           if(!v.ok) throw new Error();
           toast('Payment successful. Renewing your license...');
-        }catch(e){ alert('Payment received. Confirmation may take a moment; please refresh the page in 2 minutes.'); }
+        }catch(e){ uiAlert('Payment received. Confirmation may take a moment; please refresh the page in 2 minutes.'); }
         SRV.version = -1;   // pull the new license key right away
         await srvPoll();
         drawCloudCard();
       }
     }).open();
-  }catch(e){ alert(e.message || 'Payment could not be started'); }
+  }catch(e){ uiAlert(e.message || 'Payment could not be started'); }
 }
 
 async function cancelAutoPay(){
-  if(!confirm('Turn off auto-renew? Your paid period will continue until it ends.')) return;
+  if(!await uiConfirm('Turn off auto-renew? Your paid period will continue until it ends.')) return;
   const r = await srvFetch('/api/billing/cancel', {method: 'POST', body: '{}'});
   const j = await r.json().catch(() => ({}));
-  if(!r.ok) alert(j.error || 'Could not turn off'); else toast('Auto-renew turned off');
+  if(!r.ok) uiAlert(j.error || 'Could not turn off'); else toast('Auto-renew turned off');
   drawCloudCard();
 }
 
 async function newSyncKey(){
-  if(!confirm('Generate a new Counter PC Sync Key? Sync on the counter PC using the old key will stop until the new key is entered there.')) return;
+  if(!await uiConfirm('Generate a new Counter PC Sync Key? Sync on the counter PC using the old key will stop until the new key is entered there.')) return;
   const r = await srvFetch('/api/synckey', {method: 'POST', body: '{}'});
   const j = await r.json().catch(() => ({}));
-  if(!r.ok) return alert(j.error || 'Could not generate the key');
+  if(!r.ok) return uiAlert(j.error || 'Could not generate the key');
   audit('Cloud Sync Key Changed', j.hotel);
   save();
   modal('Counter PC Sync Key', `<p>On the counter PC, enter this under Settings (G) → Hotel Setu Cloud Sync:</p>
@@ -6697,9 +6880,9 @@ const FEATURE_LABELS = {kot: 'Kitchen Display', online: 'Zomato/Swiggy', invento
 async function drawSaasCard(el, headT){
   let b;
   try{ b = await cloudBilling(); }catch(e){ el.innerHTML = headT + '<p class="muted" style="margin:0">Could not load subscription details. Please check your internet connection.</p>'; return; }
-  const link = location.origin + '/hotel_erp.html';
+  const link = PUBLIC_URL;
   const left = b.lifetime ? 'Lifetime' : new Date(b.paidUntil).toLocaleDateString('en-IN', {day: '2-digit', month: 'short', year: 'numeric'});
-  const st = b.blocked ? `<b style="color:#dc2626">${b.blocked === 'suspended' ? 'Account suspended. Please contact your vendor.' : 'Expired. Cloud saving is paused.'}</b>`
+  const st = b.blocked ? `<b style="color:#dc2626">${b.blocked === 'suspended' ? 'Account suspended. Please call the HoReCa One Helpline ' + HELPLINE + '.' : 'Expired. Cloud saving is paused.'}</b>`
     : b.status === 'trial' ? `<b style="color:#0284c7">Free Trial — until ${esc(left)}</b>` : `<b style="color:#16a34a">Active — until ${esc(left)}</b>`;
   const mgr = activeUser && activeUser.access === 'manager';
   el.innerHTML = headT + `
@@ -7002,8 +7185,10 @@ function showLoginView(view){
     const gate1 = getGate1Session();
     const hName = (gate1 && gate1.hotelName) || (D.settings && D.settings.name) || 'Setu Pro Hotel ERP';
     const hId = (gate1 && gate1.hotelId) || (D.settings && D.settings.hotelId) || 'SETU001';
-    if($('#gate2-hotel-name')) $('#gate2-hotel-name').textContent = hName;
-    if($('#gate2-hotel-id')) $('#gate2-hotel-id').textContent = hId;
+    // Wi-Fi device before sign-in: this page does not know the hotel yet (the Main Counter does)
+    const lanWait = lanDevice() && !SRV.ready;
+    if($('#gate2-hotel-name')) $('#gate2-hotel-name').textContent = lanWait ? 'HoReCa One' : hName;
+    if($('#gate2-hotel-id')){ $('#gate2-hotel-id').textContent = hId; $('#gate2-hotel-id').parentElement.style.display = lanWait ? 'none' : ''; }
     if(gate1 && gate1.logo && $('#gate2-hotel-logo')) $('#gate2-hotel-logo').src = gate1.logo;
     updateSubscriptionUI();
     if($('#gate2_pin')) $('#gate2_pin').value = '';
@@ -7102,7 +7287,6 @@ function promptAdminForGate1(targetView){
           <button type="button" class="btn g" style="width:100%;font-size:12px;padding:8px;font-weight:600;color:#059669" onclick="closeModal(); switchHotelDirect();">
             ← Switch Hotel / Return to Hotel Login
           </button>
-          <div style="font-size:10.5px;color:#94a3b8;margin-top:4px">Default Admin PIN: <b>1234</b></div>
         </div>
       </form>
     </div>
@@ -7116,7 +7300,7 @@ async function handleAdminGate1Unlock(e, targetView){
   const pass = ($('#admin_unlock_pass')?.value || '').trim();
   const errBox = $('#admin_unlock_err');
   const btn = $('#btn-admin-unlock');
-  const showErr = (m) => { if(errBox){ errBox.textContent = m; errBox.style.display = 'block'; } else alert(m); };
+  const showErr = (m) => { if(errBox){ errBox.textContent = m; errBox.style.display = 'block'; } else uiAlert(m); };
 
   if(!pass){
     showErr('Please enter the Admin Master Password.');
@@ -7141,7 +7325,8 @@ async function handleAdminGate1Unlock(e, targetView){
     // 2. Check local fallback credentials
     if(!verified){
       const localPw = (D.auth && D.auth.password) || (D.settings && D.settings.adminPin) || '';
-      if(pass === localPw || pass === D.settings.adminPin || pass === '1234' || pass === '0000'){
+      // No built-in default passwords: only the hotel's own password / admin PIN (when this device holds it)
+      if(localPw && pass === localPw){
         verified = true;
       }
     }
@@ -7193,12 +7378,12 @@ async function handleExistingPullSubmit(e){
   const showErr = (msg) => {
     if(okBox) okBox.style.display = 'none';
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
   const showOk = (msg) => {
     if(errBox) errBox.style.display = 'none';
     if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotel || !password){
@@ -7338,6 +7523,8 @@ function handleExistingJsonUpload(file){
 
 async function handleGate1Submit(e){
   e.preventDefault();
+  // Wi-Fi device: staff sign in with their PIN on the Main Counter (a hotel sign-in would load the cloud copy)
+  if(lanDevice()){ showLoginView('gate2'); return; }
   const hid = ($('#gate1_hotel_id')?.value || '').trim().toUpperCase();
   const pass = ($('#gate1_password')?.value || '').trim();
   const err = $('#gate1_err');
@@ -7347,7 +7534,7 @@ async function handleGate1Submit(e){
       err.textContent = msg;
       err.style.display = 'block';
     } else {
-      alert(msg);
+      uiAlert(msg);
     }
   };
 
@@ -7468,7 +7655,7 @@ async function handleGate1Submit(e){
     // Local offline check if already saved
     const localHid = (D.settings && D.settings.hotelId) || (D.auth && D.auth.hotelId) || '';
     const localPw = (D.auth && D.auth.password) || (D.settings && D.settings.adminPin) || '';
-    if(hid.toUpperCase() === localHid.toUpperCase() && (pass === localPw || pass === '1234' || pass === '0000')){
+    if(localPw && hid.toUpperCase() === localHid.toUpperCase() && pass === localPw){
       activeUser = {
         name: (D.auth && D.auth.ownerName) || 'Owner',
         role: 'admin',
@@ -7490,10 +7677,12 @@ async function handleGate1Submit(e){
 async function handleGate2Submit(e){
   e.preventDefault();
   const err = $('#gate2_err');
-  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
+  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else uiAlert(msg); };
 
-  const gate1 = getGate1Session();
-  if(!gate1 || !gate1.hotelId){
+  // Wi-Fi device: the Main Counter knows the hotel, so no hotel sign-in (and no internet) is needed first
+  const lan = lanDevice();
+  const gate1 = lan ? null : getGate1Session();
+  if(!lan && (!gate1 || !gate1.hotelId)){
     showLoginView('gate1');
     return;
   }
@@ -7505,17 +7694,25 @@ async function handleGate2Submit(e){
   }
 
   // Server login via /api/login
+  let res, hc = '';
   try {
     const headers = { 'Content-Type': 'application/json' };
-    if(gate1.hotelId) headers['X-Hotel-ID'] = gate1.hotelId;
-    const res = await fetch('/api/login', {
+    if(gate1 && gate1.hotelId) headers['X-Hotel-ID'] = gate1.hotelId;
+    // The cloud (website) finds the hotel by X-Setu-Hotel; without it the sign-in was refused "hotel code required"
+    hc = String((gate1 && gate1.hotelId) || SRV.hotel || '').toUpperCase();
+    if(hc && !lan) headers['X-Setu-Hotel'] = hc;
+    res = await fetch('/api/login', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ pin, hotelId: gate1.hotelId })
+      body: JSON.stringify(gate1 ? { pin, hotelId: gate1.hotelId } : { pin })
     });
+  } catch(netErr) { res = null; }
+  if(res){
     if(!res.ok){
       const j = await res.json().catch(() => ({}));
-      showErr(res.status === 403 ? 'Invalid Staff PIN. Please try again.' : (j.error || 'Login failed'));
+      showErr(res.status === 403 ? 'Invalid Staff PIN. Please try again.'
+        : res.status === 429 ? (j.error || 'Too many incorrect PIN attempts. Please try again later.')
+        : (j.error || 'Login failed'));
       return;
     }
     const j = await res.json();
@@ -7525,25 +7722,39 @@ async function handleGate2Submit(e){
       name: j.name || (j.role === 'admin' ? 'Manager' : 'Staff'),
       role: j.role === 'admin' ? 'admin' : (j.role === 'manager' ? 'admin' : 'cashier'),
       access: j.role === 'admin' ? 'manager' : j.role,
-      hotelId: gate1.hotelId,
+      hotelId: gate1 ? gate1.hotelId : (j.hotelId || ''),
       time: Date.now()
     };
     if(err) err.style.display = 'none';
+    if(lan) return lanFinishLogin(showErr);
+    if(SRV.on && SRV.cloud && hc){
+      // Website: this hotel's latest data from the cloud, then keep it fresh (as the Device Connect sign-in does)
+      SRV.hotel = hc; lsSet(HOTEL_KEY, hc);
+      try{ if(await srvInitData()) srvStartPolling(); }catch(e){}
+    }
     finishLogin();
-  } catch(netErr) {
+    return;
+  }
+  if(lan){
+    // This page holds no data of its own: signing in without the Main Counter would start from an empty page
+    showErr('The Main Counter PC is not reachable. Check the Wi-Fi and that HoReCa One is open on the Main Counter, then try again.');
+    return;
+  }
+  {
     // Offline local fallback
-    const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password);
-    const validCashierPin = D.settings.cashierPin || '1111';
+    // No built-in fallback PIN (BUG-0022): only a PIN stored on this device can sign in offline
+    const validAdminPin = D.settings.adminPin || (D.auth && D.auth.password) || '';
+    const validCashierPin = D.settings.cashierPin || '';
     const st = staffByPin(pin);
     let role = 'cashier';
     let userName = 'Staff';
-    if(pin === validAdminPin){
+    if(validAdminPin && pin === validAdminPin){
       role = 'admin';
       userName = (D.auth && D.auth.ownerName) || 'Manager';
     } else if(st){
       userName = st.name;
       role = st.access === 'manager' ? 'admin' : 'cashier';
-    } else if(pin === validCashierPin){
+    } else if(validCashierPin && pin === validCashierPin){
       role = 'cashier';
       userName = 'Cashier';
     } else {
@@ -7573,7 +7784,7 @@ async function handleSignUpSubmit(e){
   const key = ($('#signup_key')?.value || '').trim().toUpperCase();
 
   const err = $('#signup_err');
-  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else alert(msg); };
+  const showErr = (msg) => { if(err){ err.textContent = msg; err.style.display = 'block'; } else uiAlert(msg); };
 
   if(!hotelName || !ownerName || !phone || !userId || !pass || !cpass || !key){
     showErr('Please fill in all required (*) fields.');
@@ -7629,6 +7840,30 @@ async function handleSignUpSubmit(e){
   toast('Hotel registered & license activated. Hotel ID: ' + generatedHotelId);
 }
 
+// Wi-Fi device after the staff PIN: load the Main Counter data first (as Device Connect does), then open the POS
+async function lanFinishLogin(showErr){
+  try{ lsSet(AUTH_KEY, JSON.stringify(activeUser)); }catch(e){}
+  if(!SRV.ready){
+    let ok = false;
+    try{ ok = await srvInitData(); }catch(e){ ok = false; }
+    if(!ok){
+      const conn = $('#connect-screen');
+      if(!conn || conn.style.display === 'none'){
+        activeUser = null;
+        try{ lsSet(AUTH_KEY, ''); sessionStorage.removeItem(AUTH_KEY); localStorage.removeItem(AUTH_KEY); }catch(e){}
+        $('#login-screen').style.display = 'flex';
+        showLoginView('gate2');
+        showErr('The Main Counter data could not be loaded. Check the Wi-Fi and try again.');
+      }
+      return;
+    }
+  }
+  finishLogin();
+  if(!startUI.ran) startUI();
+  srvStartPolling();
+  applyCloudKeys();
+}
+
 function finishLogin(){
   try {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify(activeUser));
@@ -7667,8 +7902,8 @@ function finishLogin(){
   }
 }
 
-function logoutStaff(){
-  if(!confirm('Log out current staff member? (Hotel session remains active)')) return;
+async function logoutStaff(){
+  if(!await uiConfirm('Log out current staff member? (Hotel session remains active)')) return;
   audit('Staff Logout', activeUser ? activeUser.name : '');
   activeUser = null;
   SRV.token = '';
@@ -7684,8 +7919,8 @@ function logoutHotel(){
   promptAdminForGate1('exit');
 }
 
-function switchHotel(){
-  if(!confirm('Switch or reconfigure hotel? This will log out current hotel.')) return;
+async function switchHotel(){
+  if(!await uiConfirm('Switch or reconfigure hotel? This will log out current hotel.')) return;
   audit('Switch Hotel', activeUser ? activeUser.name : '');
   activeUser = null;
   SRV.token = '';
@@ -7925,7 +8160,7 @@ async function handleLockScreenActivation(e){
       err.textContent = act.message;
       err.style.display = 'block';
     } else {
-      alert(act.message);
+      uiAlert(act.message);
     }
     return;
   }
@@ -8006,7 +8241,7 @@ async function submitModalKey(){
   }
   const act = await activateLicenseKey(key, 'Manual Modal Key Activation');
   if(!act.success){
-    alert(act.message);
+    uiAlert(act.message);
     return;
   }
   closeModal();
@@ -8087,10 +8322,59 @@ function modal(title, html){
 }
 function closeModal(){ $('#modal').classList.remove('open'); }
 const isModal = () => $('#modal').classList.contains('open');
+
+/* ================= BRANDED DIALOGS (replace the browser's alert / confirm / prompt) ================= */
+// The desktop window must never show a grey browser box with the server address in its title. These open on their own
+// layer above any screen window, one at a time (queued), and return a Promise: await uiConfirm(...) / await uiPrompt(...).
+const UI_DLG_Q = [];
+let UI_DLG_OPEN = false;
+function uiDialog(kind, message, opts = {}){
+  return new Promise(resolve => { UI_DLG_Q.push({kind, message: String(message ?? ''), opts, resolve}); uiDialogNext(); });
+}
+function uiDialogNext(){
+  if(UI_DLG_OPEN || !UI_DLG_Q.length) return;
+  const d = UI_DLG_Q.shift();
+  UI_DLG_OPEN = true;
+  let el = document.getElementById('ui-dlg');
+  if(!el){ el = document.createElement('div'); el.id = 'ui-dlg'; document.body.appendChild(el); }
+  const title = d.opts.title || (d.kind === 'alert' ? 'HoReCa One' : d.kind === 'prompt' ? 'Please enter' : 'Please confirm');
+  const okText = d.opts.ok || (d.kind === 'confirm' ? 'Yes' : 'OK'), cancelText = d.opts.cancel || 'Cancel';
+  if(d.opts.danger === undefined && d.kind === 'confirm') d.opts.danger = /^(delete|cancel|remove|reset|disconnect|unlink|restore|turn off|log out|switch)/i.test(d.message);
+  el.innerHTML = `<div class="ui-dlg-box" role="dialog" aria-modal="true" aria-labelledby="ui-dlg-t">
+      <div class="ui-dlg-head"><img src="horeca-icon-dark.png" alt="" class="ui-dlg-logo"><b id="ui-dlg-t">${esc(title)}</b></div>
+      <div class="ui-dlg-msg">${esc(d.message).replace(/\n/g, '<br>')}</div>
+      ${d.kind === 'prompt' ? `<input id="ui-dlg-in" class="ui-dlg-in" value="${esc(d.opts.value ?? '')}" autocomplete="off">` : ''}
+      <div class="ui-dlg-btns">${d.kind !== 'alert' ? `<button class="btn g" id="ui-dlg-no">${esc(cancelText)}</button>` : ''}<button class="btn ${d.opts.danger ? 'bad' : 'ok'}" id="ui-dlg-yes">${esc(okText)}</button></div>
+    </div>`;
+  el.classList.add('open');
+  const done = v => {
+    el.classList.remove('open'); el.innerHTML = '';
+    document.removeEventListener('keydown', key, true);
+    UI_DLG_OPEN = false;
+    d.resolve(v);
+    setTimeout(uiDialogNext, 0);
+  };
+  const yes = () => done(d.kind === 'prompt' ? $('#ui-dlg-in').value : d.kind === 'confirm' ? true : undefined);
+  const no = () => done(d.kind === 'prompt' ? null : d.kind === 'confirm' ? false : undefined);
+  const key = e => {
+    if(e.key === 'Escape'){ e.preventDefault(); e.stopImmediatePropagation(); no(); }
+    else if(e.key === 'Enter'){ e.preventDefault(); e.stopImmediatePropagation(); yes(); }
+    else e.stopImmediatePropagation();       // screen hotkeys stay quiet while a dialog is open
+  };
+  document.addEventListener('keydown', key, true);
+  $('#ui-dlg-yes').onclick = yes;
+  if($('#ui-dlg-no')) $('#ui-dlg-no').onclick = no;
+  setTimeout(() => { const f = $('#ui-dlg-in') || $('#ui-dlg-yes'); f && f.focus(); if($('#ui-dlg-in')) $('#ui-dlg-in').select(); }, 20);
+}
+const uiAlert = (message, opts) => uiDialog('alert', message, opts);
+const uiConfirm = (message, opts) => uiDialog('confirm', message, opts);
+const uiPrompt = (message, value, opts) => uiDialog('prompt', message, {...(opts || {}), value});
+// Anything that still calls the browser's alert (older add-ons) gets the branded box too
+window.alert = message => { uiAlert(message); };
 // Unsaved bulk menu rows must not vanish on a stray click or Esc
-function tryCloseModal(){
+async function tryCloseModal(){
   const typed = [...document.querySelectorAll('#mbox .bulk-row .bk-name')].some(i => i.value.trim());
-  if(typed && !confirm('The menu items you typed are not saved yet. Close anyway?')) return;
+  if(typed && !await uiConfirm('The menu items you typed are not saved yet. Close anyway?')) return;
   closeModal();
 }
 $('#modal').addEventListener('mousedown', e => { if(e.target.id === 'modal') tryCloseModal(); });
@@ -8145,6 +8429,7 @@ function trackWaMessage(opts){
       errorReason: opts.errorReason || '',
       idemKey: ikey,
       attemptCount: opts.attemptCount || 1,
+      relayId: opts.relayId || '',
       retryEligible: opts.retryEligible !== undefined ? opts.retryEligible : (status === 'FAILED'),
       staff: opts.staff || (activeUser ? activeUser.name : 'System'),
       events: opts.events || [{
@@ -8185,6 +8470,8 @@ function trackWaMessage(opts){
       if(status === 'FAILED'){ target.failedAt = opts.failedAt || now; target.retryEligible = opts.retryEligible !== undefined ? opts.retryEligible : true; }
     }
     if(pid && !target.providerMsgId) target.providerMsgId = pid;
+    // Going via the Main Counter PC: waiting at the cloud (not "being sent" by this device)
+    if(opts.relayId){ target.relayId = opts.relayId; if(status === 'QUEUED' && target.status === 'PROCESSING') target.status = 'QUEUED'; }
     if(opts.errorCode) target.errorCode = opts.errorCode;
     if(opts.errorReason) target.errorReason = opts.errorReason;
     
@@ -8285,6 +8572,9 @@ function waSendButtonHTML(billId, compact = false){
   }
 
   const st = msg.status;
+  if(st === 'QUEUED' && msg.relayId){
+    return `<div class="wa-btn-group" id="wa-group-${billId}"><span class="wa-badge wa-submitted" title="The Main Counter PC sends it from its WhatsApp">⏳ Going via Main Counter</span><button class="btn sm g" onclick="waRelayCheck('${billId}')">Check status</button></div>`;
+  }
   if(st === 'PROCESSING' || st === 'QUEUED'){
     return `<button id="wa-btn-${billId}" class="btn wa wa-sending ${compact ? 'sm' : ''}" disabled><span class="spin"></span> Sending...</button>`;
   }
@@ -8406,7 +8696,8 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     if(selectedProv === 'gupshup') endpoint = '/api/gupshup/send';
     else if(selectedProv === 'meta') endpoint = SRV.cloud ? '/api/receipt/send' : '/api/wa/send';
     else endpoint = '/api/wa/send';
-    const res = await fetch(endpoint, {
+    // srvFetch: signed in, and on the website it names the hotel (a plain request was refused: "hotel code required")
+    const res = await srvFetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
@@ -8415,7 +8706,19 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     clearTimeout(timeoutTimer);
     const j = await res.json().catch(() => ({}));
 
-    if(res.ok){
+    let jj = j, rr = res;
+    if(SRV.cloud && rr.status === 503 && jj.status === 'not_configured'){
+      // No official sender on the website: send it through the Main Counter PC's WhatsApp
+      rr = await srvFetch('/api/wa/send', {method: 'POST', body: JSON.stringify({...payload, text: billText(bill)})});
+      jj = await rr.json().catch(() => ({}));
+    }
+    if(rr.ok && jj.queued){
+      // Waiting at the cloud for the Main Counter PC: no credit here (the counter counts it when it sends)
+      trackWaMessage({ id: reqId, billId: bill.id, status: 'QUEUED', relayId: jj.id, note: 'Going via the Main Counter PC WhatsApp' });
+      save();
+      toast(jj.counterOnline ? 'Sending from the Main Counter PC WhatsApp…' : 'Saved. It goes from the Main Counter PC WhatsApp when Setu is open there.');
+      setTimeout(() => waRelayCheck(bill.id, true), 15000);
+    } else if(res.ok){
       deductWaCredit(1);
       trackWaMessage({
         id: reqId,
@@ -8439,6 +8742,12 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
       });
       save();
       toast('Status Unknown — Check Status (Outcome unconfirmed)');
+    } else if(SRV.cloud && (jj.error === 'WA_NOT_LINKED' || jj.status === 'not_configured')){
+      // Website without its own WhatsApp sender: open WhatsApp with the receipt ready (nothing was sent, no credit used)
+      trackWaMessage({ id: reqId, billId: bill.id, status: 'CANCELLED', note: 'Opened in WhatsApp to send by hand' });
+      save();
+      waOpen(cleanPh, billText(bill));
+      toast('WhatsApp opened with the receipt. Press Send there.');
     } else {
       trackWaMessage({
         id: reqId,
@@ -8467,6 +8776,27 @@ async function waSendBill(billId, event, isAuthorizedResend = false){
     _waInFlight[billId] = false;
     updateWaButtons(billId);
   }
+}
+
+// A website message going via the Main Counter PC: ask the cloud how it went
+async function waRelayCheck(billId, quiet = false){
+  const msgs = (D.waMessages || []).filter(m => m.billId === billId && m.relayId);
+  const m = msgs[msgs.length - 1];
+  if(!m) return;
+  try{
+    const j = await (await srvFetch('/api/wa/relay/status?id=' + encodeURIComponent(m.relayId))).json();
+    if(j.status === 'submitted'){
+      trackWaMessage({ id: m.id, billId, status: 'SUBMITTED', providerMsgId: j.providerId || '', submittedAt: Date.now(), note: 'Sent from the Main Counter PC WhatsApp' });
+      save(); if(!quiet) toast('Sent from the Main Counter PC WhatsApp');
+    }else if(j.status === 'failed'){
+      trackWaMessage({ id: m.id, billId, status: 'FAILED', errorReason: j.error || 'Not sent', failedAt: Date.now(), note: 'Main Counter PC could not send it' });
+      save(); if(!quiet) toast('Not sent: ' + (j.error || 'please try again'));
+    }else{
+      if(!quiet) toast('Still waiting for the Main Counter PC (Setu must be open there with WhatsApp linked).');
+      if(quiet) setTimeout(() => waRelayCheck(billId, true), 30000);
+    }
+  }catch(e){ if(!quiet) toast('Could not check now. Please try again.'); }
+  updateWaButtons(billId);
 }
 
 function promptWaResend(billId){
@@ -8707,20 +9037,20 @@ function customers(){
   });
 }
 
-function walletTopup(phone){
-  const ph = normPh(prompt('Customer 10-digit mobile number', phone || '') || '');
+async function walletTopup(phone){
+  const ph = normPh(await uiPrompt('Customer 10-digit mobile number', phone || '') || '');
   if(ph.length !== 10){ if(ph) toast('Please enter a valid 10-digit number'); return; }
   const known = customers().find(c => c.phone === ph);
-  const name = (prompt('Customer name', known?.name || '') || '').trim();
-  const v = +prompt(`Amount to add to wallet (₹)
+  const name = (await uiPrompt('Customer name', known?.name || '') || '').trim();
+  const v = +await uiPrompt(`Amount to add to wallet (₹)
 Current balance: ${money(walletBal(ph))}`);
   if(!(v > 0)) return;
-  const mode = confirm('Received in cash? (Cancel = UPI)') ? 'Cash' : 'UPI';
+  const mode = await uiConfirm('How was the money received?', {title: 'Payment mode', ok: 'Cash', cancel: 'UPI'}) ? 'Cash' : 'UPI';
   D.txns.push({id: uid(), type: 'Receipt', date: today(), time: nowTime(), head: 'Customer Wallet Topup', desc: name, party: name, phone: ph, amount: v, mode});
   save();
   toast(`${money(v)} added to ${name || ph} wallet · Balance ${money(walletBal(ph))}`);
   if(cur === 'customers') scrCustomers();
-  if(confirm('Send the wallet balance to the customer on WhatsApp?')){
+  if(await uiConfirm('Send the wallet balance to the customer on WhatsApp?')){
     waOpen(ph, `Dear ${name || 'Customer'},
 ₹${v} has been added to your ${D.settings.name} wallet.
 Wallet balance: ₹${walletBal(ph)}
@@ -8998,6 +9328,8 @@ const SCREENS = {
 };
 
 let kdsTimer = null;
+const HELPLINE = '+91 91941 15127', HELPLINE_WA = '919194115127';   // HoReCa One helpline (call and WhatsApp)
+const helpLinks = () => `<a href="tel:+${HELPLINE_WA}">${HELPLINE}</a> · <a href="https://wa.me/${HELPLINE_WA}" target="_blank" rel="noopener">WhatsApp</a>`;
 const CASHIER_BLOCK = ['gst', 'settings', 'reports', 'outlets', 'staff', 'suppliers', 'settlement', 'menu', 'audit', 'monthly', 'support', 'errors', 'ai'];
 const CAPTAIN_ALLOW = ['captain', 'kitchen', 'tokens', 'guide'];
 // Current staff member's ticked screens (looked up fresh so Staff edits apply at once)
@@ -9300,23 +9632,27 @@ document.addEventListener('keydown', e => {
 const gstRate = () => (D.settings.gstScheme || 'regular') === 'regular' ? (+D.settings.gst || 0) : 0;
 const billTitle = b => ({composition: 'BILL OF SUPPLY', none: 'BILL'})[b.scheme] || 'TAX INVOICE';
 
+// One line's amount in paise: rate × quantity, half-up (quantity to 3 decimals: 0.5 kg, 0.333 l)
+const linePaise = i => divHU(toPaise(i.price) * Math.round((+i.qty || 0) * 1000), 1000);
+// Every bill amount is worked out in whole paise, so the printed figures always add up exactly:
+// sub − discount = taxable; taxable + GST + round-off = total; CGST + SGST = GST (half-up rounding, as on a GST invoice)
 function calc(items, disc, rate){
-  const sub = sum(items || [], i => i.price * i.qty);
-  disc = Math.min(+disc || 0, sub);
+  const subP = (items || []).reduce((a, i) => a + linePaise(i), 0);
+  const discP = Math.min(Math.max(toPaise(disc), 0), subP), bp = Math.round((+rate || 0) * 100);   // rate in basis points
   // Menu rates that already include GST: the customer pays the menu price and the
   // tax is worked out backwards from it (₹80 incl. 5% = ₹76.19 + ₹3.81)
-  if(D.settings.gstInclusive && +rate){
-    const gross = sub - disc, taxable = r2(gross / (1 + rate / 100)), tax = r2(gross - taxable), total = Math.round(gross);
-    return {sub: r2(sub), disc: r2(disc), taxable, tax, round: r2(total - gross), total, incl: true};
+  if(D.settings.gstInclusive && bp){
+    const grossP = subP - discP, taxableP = divHU(grossP * 10000, 10000 + bp), totalP = divHU(grossP, 100) * 100;
+    return {sub: subP / 100, disc: discP / 100, taxable: taxableP / 100, tax: (grossP - taxableP) / 100, round: (totalP - grossP) / 100, total: totalP / 100, incl: true};
   }
-  const taxable = sub - disc, tax = r2(taxable * (+rate || 0)/100), raw = taxable + tax, total = Math.round(raw);
-  return {sub: r2(sub), disc: r2(disc), taxable: r2(taxable), tax, round: r2(total - raw), total};
+  const taxableP = subP - discP, taxP = divHU(taxableP * bp, 10000), rawP = taxableP + taxP, totalP = divHU(rawP, 100) * 100;
+  return {sub: subP / 100, disc: discP / 100, taxable: taxableP / 100, tax: taxP / 100, round: (totalP - rawP) / 100, total: totalP / 100};
 }
 
 function summary(d){
   const bills = D.bills.filter(b => b.date === d && !b.cancelled), tx = D.txns.filter(t => t.date === d);
   const by = {}; MODES.forEach(m => by[m] = r2(bills.reduce((a, b) => a + paidBy(b, m), 0)));
-  const cns = (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => c.date === d);
+  const cns = (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => c.date === d && (typeof cnLive !== 'function' || cnLive(c)));
   const cnTotal = r2(sum(cns, 'total'));
   const cnTaxable = r2(sum(cns, 'taxable'));
   const cnTax = r2(sum(cns, 'tax'));
@@ -9402,20 +9738,25 @@ const hotelGst = () => gstinCheck(D.settings.gstin);
 const hotelStateCode = () => { const r = hotelGst(); return r.ok && !r.empty ? r.code : ''; };
 const sacDefault = () => String(D.settings.sac || '996331').trim() || '996331';
 const hsnOf = item => { const m = item && D.menu.find(x => x.id === item.mid || x.name === item.name); return String((m && m.hsn) || sacDefault()).trim(); };
-const split2 = tax => { const c = r2(tax / 2); return [c, r2(tax - c)]; };
+const split2 = tax => { const t = toPaise(tax), c = divHU(t, 2); return [c / 100, (t - c) / 100]; };
 const gstDate = d => d.slice(8, 10) + '-' + d.slice(5, 7) + '-' + d.slice(0, 4);
 const invNo = b => String(b.no);   // the number printed on the bill
 
 // ---------- Credit notes (bill returned / reduced after it was made) ----------
 const cnotes = () => D.cnotes || (D.cnotes = []);
 const cnOfBill = id => cnotes().filter(c => c.billId === id);
+// A credit note counts in reports while its bill is not cancelled: a cancelled bill already removed the whole sale
+const cnLive = c => { const b = typeof getBill === 'function' ? getBill(c.billId) : null; return !(b && b.cancelled); };
+const cnBlocksCancel = b => cnOfBill(b.id).length ? (toast(`Bill #${b.no} has a credit note. Issue a credit note for the remaining amount instead of cancelling.`), true) : false;
 // Qty of each bill line already credited
 function cnDone(b){ const m = {}; cnOfBill(b.id).forEach(c => c.items.forEach(i => { m[i.k] = (m[i.k] || 0) + i.qty; })); return m; }
 // Value of returned lines with the bill's own discount ratio and GST rate
 function cnCalc(b, lines){
-  const gross = sum(lines, i => i.qty * i.price), f = b.sub ? (b.sub - b.disc) / b.sub : 1, net = r2(gross * f), rate = +b.gstRate || 0;
-  if(b.incl && rate){ const taxable = r2(net / (1 + rate / 100)); return {taxable, tax: r2(net - taxable), total: r2(net)}; }
-  const tax = r2(net * rate / 100); return {taxable: net, tax, total: r2(net + tax)};
+  // Paise, with the bill's own discount share and GST rate: a full return equals the bill's taxable value + GST
+  const subP = toPaise(b.sub), grossP = (lines || []).reduce((a, i) => a + linePaise(i), 0);
+  const netP = subP ? divHU(grossP * (subP - toPaise(b.disc)), subP) : grossP, bp = Math.round((+b.gstRate || 0) * 100);
+  if(b.incl && bp){ const taxableP = divHU(netP * 10000, 10000 + bp); return {taxable: taxableP / 100, tax: (netP - taxableP) / 100, total: netP / 100}; }
+  const taxP = divHU(netP * bp, 10000); return {taxable: netP / 100, tax: taxP / 100, total: (netP + taxP) / 100};
 }
 function creditNote(id){
   const b = getBill(id);
@@ -9451,9 +9792,16 @@ function saveCreditNote(id){
     cnotes().push(cn);
     if(mode !== 'none') D.txns.push({id: uid(), type: 'Expense', date: cn.date, time: cn.time, head: 'Customer Refund', desc: `Credit Note CN-${cn.no} on bill #${b.no}`, party: b.cust || '', amount: cn.total, mode, by, cn: cn.id});
     audit('Credit Note', `CN-${cn.no} on bill #${b.no} · ${reason}`, cn.total, cn.id, by);
-    save(); closeModal(); toast(`Credit Note CN-${cn.no} saved — ${money(cn.total)}`);
-    if(confirm('Print the credit note?')) printDoc([cnHTML(cn)]);
-    if(cur === 'bills') scrBills(); else if(cur === 'gst') scrGst();
+    save(); closeModal();
+    // Announce and print the number the server kept (another device may have used CN-n at the same moment)
+    const done  = async () => {
+      const c = cnotes().find(x => x.id === cn.id) || cn, tx = D.txns.find(x => x.cn === c.id);
+      if(tx && !tx.desc.startsWith(`Credit Note CN-${c.no} `)){ tx.desc = `Credit Note CN-${c.no} on bill #${b.no}`; save(); }
+      toast(`Credit Note CN-${c.no} saved — ${money(c.total)}`);
+      if(await uiConfirm('Print the credit note?')) printDoc([cnHTML(c)]);
+      if(cur === 'bills') scrBills(); else if(cur === 'gst') scrGst();
+    };
+    if(SRV.on && !SRV.readOnly) srvFlush(8000).then(done); else done();
   });
 }
 NON_EXPENSE_HEADS.push('Customer Refund');
@@ -9477,7 +9825,7 @@ function gstMonth(ym){
   const ok = bills.filter(b => !b.cancelled && (b.scheme || 'regular') === 'regular');
   const own = ok.filter(b => !isEco(b)), eco = ok.filter(isEco);
   const b2b = own.filter(b => b.gstin && gstinCheck(b.gstin).ok), b2c = own.filter(b => !b2b.includes(b));
-  const cns = cnotes().filter(c => String(c.date).startsWith(ym)), billOf = c => getBill(c.billId) || {};
+  const cns = cnotes().filter(c => String(c.date).startsWith(ym) && cnLive(c)), billOf = c => getBill(c.billId) || {};
   const cnB2B = cns.filter(c => c.gstin && gstinCheck(c.gstin).ok && !isEco(billOf(c))), cnB2C = cns.filter(c => !cnB2B.includes(c) && !isEco(billOf(c)));
   const det = (txval, rt, tax) => { const [camt, samt] = split2(tax); return {txval: r2(txval), rt, iamt: 0, camt, samt, csamt: 0}; };
   // B2C small: one line per GST rate, credit notes on B2C bills reduce it
@@ -9492,11 +9840,13 @@ function gstMonth(ym){
     .map(([ctin, nt]) => ({ctin, nt}));
   // HSN / SAC summary, split B2B / B2C; bill discount shared over the lines
   const hs = {b2b: {}, b2c: {}}, addH = (side, code, rt, qty, tx, tax, name) => { const k = code + '|' + rt, x = hs[side][k] || (hs[side][k] = {code, rt, qty: 0, tx: 0, tax: 0, name}); x.qty += qty; x.tx += tx; x.tax += tax; };
-  const lineSplit = (lines, taxable, tax, sign) => { const g = sum(lines, i => i.qty * i.price) || 1; return lines.map(i => ({code: hsnOf(i), name: i.name, qty: sign * i.qty, tx: sign * taxable * i.qty * i.price / g, tax: sign * tax * i.qty * i.price / g})); };
+  // Paise, shared by line value so the HSN table adds up exactly to the invoices (sharePaise)
+  const lineSplit = (lines, taxable, tax, sign) => { const w = lines.map(i => linePaise(i)), tx = sharePaise(toPaise(taxable), w), tt = sharePaise(toPaise(tax), w);
+    return lines.map((i, k) => ({code: hsnOf(i), name: i.name, qty: sign * i.qty, tx: sign * tx[k], tax: sign * tt[k]})); };
   [[b2b, 'b2b'], [b2c, 'b2c']].forEach(([list, side]) => list.forEach(b => lineSplit(b.items, +b.taxable || 0, +b.tax || 0, 1).forEach(l => addH(side, l.code, +b.gstRate || 0, l.qty, l.tx, l.tax, l.name))));
   [[cnB2B, 'b2b'], [cnB2C, 'b2c']].forEach(([list, side]) => list.forEach(c => lineSplit(c.items, c.taxable, c.tax, -1).forEach(l => addH(side, l.code, c.rate, l.qty, l.tx, l.tax, l.name))));
   const hsnRows = side => Object.values(hs[side]).filter(x => r2(x.tx)).map((x, i) => { const svc = /^99/.test(x.code);
-    return {num: i + 1, hsn_sc: x.code, desc: svc ? 'Restaurant service' : String(x.name).slice(0, 30), uqc: svc ? 'NA' : 'NOS', qty: svc ? 0 : r2(x.qty), ...det(x.tx, x.rt, x.tax)}; });
+    return {num: i + 1, hsn_sc: x.code, desc: svc ? 'Restaurant service' : String(x.name).slice(0, 30), uqc: svc ? 'NA' : 'NOS', qty: svc ? 0 : r2(x.qty), ...det(x.tx / 100, x.rt, x.tax / 100)}; });
   const docs = issued.length ? [{num: 1, from: invNo(issued[0]), to: invNo(issued[issued.length - 1]), totnum: issued.length, cancel: issued.filter(b => b.cancelled).length, net_issue: issued.filter(b => !b.cancelled).length}] : [];
   const cnSorted = cns.slice().sort((a, b) => a.no - b.no);
   const doc_det = [...(docs.length ? [{doc_num: 1, doc_typ: 'Invoices for outward supply', docs}] : []),
@@ -11427,7 +11777,7 @@ function officialOrderImported(o){
   return (D.onlineOrders||[]).some(x=>x.source==='authenticated_partner_webhook' && x.platform===o.platform && x.orderId===o.orderId) ||
     (D.bills||[]).some(b=>b.source==='authenticated_partner_webhook' && b.channel.toLowerCase()===o.platform && b.orderId===o.orderId);
 }
-function importOfficialOrder(provider,id){
+async function importOfficialOrder(provider,id){
   const o=officialAggOrders.find(o=>o.platform===provider && o.orderId===id);
   if(!o)return toast('Refresh the partner inbox');
   if(officialOrderImported(o))return toast('Already imported');
@@ -11441,7 +11791,7 @@ function importOfficialOrder(provider,id){
   }
   const itemTotal=r2(mapped.reduce((n,x)=>n+x.price*x.qty,0));
   if(Math.abs(itemTotal-o.total)>0.01)return toast('Provider total has additional charges/discounts. Reconcile first.');
-  if(!confirm('Confirm '+provider.toUpperCase()+' #'+o.orderId+' is already accepted on the OFFICIAL PARTNER TABLET, then import for KOT?'))return;
+  if(!await uiConfirm('Confirm '+provider.toUpperCase()+' #'+o.orderId+' is already accepted on the OFFICIAL PARTNER TABLET, then import for KOT?'))return;
   const channel=provider==='zomato'?'Zomato':'Swiggy';
   D.onlineOrders=D.onlineOrders||[];
   D.onlineOrders.push({id:uid(),source:'authenticated_partner_webhook',platform:provider,outletId:o.outletId,
@@ -11709,10 +12059,10 @@ function handoverOnlineOrder(id){
   scrOnline();
 }
 
-function rejectOnlineOrder(id){
+async function rejectOnlineOrder(id){
   const o=(D.onlineOrders||[]).find(x=>x.id===id);
   if(o?.source==='authenticated_partner_webhook')return toast('Reject on the partner app, and retain the Setu audit trail');
-  if(!confirm('Reject this online order?')) return;
+  if(!await uiConfirm('Reject this online order?')) return;
   D.onlineOrders = (D.onlineOrders || []).filter(x => x.id !== id);
   save();
   toast('Order rejected');
@@ -12045,7 +12395,7 @@ function scrBill(){
         </button>
 
         <div style="display:flex;gap:8px;margin-top:2px">
-          <button class="btn g sm" style="flex:1" onclick="if(confirm('Clear the cart?')){B=newB(B.table, B.channel);scrBill();}">Clear Cart</button>
+          <button class="btn g sm" style="flex:1" onclick="uiConfirm('Clear the cart?').then(ok=>{if(ok){B=newB(B.table, B.channel);scrBill();}})">Clear Cart</button>
           ${isCurrentTableKaccha && B.channel==='Dine-In' ? `
             <button class="btn bad sm" style="flex:1" onclick="cancelKacchaOrder('${esc(B.table)}')">Cancel Order</button>
           ` : ''}
@@ -12056,7 +12406,7 @@ function scrBill(){
           <div class="pos-kaccha-orders-tray" style="margin-top:12px;padding-top:10px;border-top:1px dashed #cbd5e1">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
               <span style="font-size:12px;font-weight:800;color:#0f172a;letter-spacing:.3px">
-                🍽️ Running Orders / कच्चा बिल (${kacchaEntries.length} Active)
+                🍽️ Running Orders (${kacchaEntries.length} Active)
               </span>
               <span style="font-size:11px;font-weight:750;color:#b45309">
                 Total: ${money(totalKacchaAmt)}
@@ -12286,7 +12636,7 @@ function drawTotals(){
 }
 
 /* ================= TABLE SWITCHING & KACCHA BILL OPERATIONS ================= */
-function switchTable(tbl){
+async function switchTable(tbl){
   tbl = (tbl || 'T-1').trim();
   if(!tbl) tbl = 'T-1';
   B.channel = 'Dine-In';
@@ -12298,7 +12648,7 @@ function switchTable(tbl){
   }
 
   if(B.cart.length && B.table && B.table !== tbl && !D.kaccha[B.table]){
-    if(confirm(`The order for table ${B.table} is not saved. Save it as a running order?`)){
+    if(await uiConfirm(`The order for table ${B.table} is not saved. Save it as a running order?`)){
       saveKacchaBill(true);
     }
   }
@@ -12404,8 +12754,8 @@ function saveKacchaBill(silent = false, noRender = false){
   if(!noRender) scrBill();
 }
 
-function cancelKacchaOrder(tbl){
-  if(!confirm(`Cancel the running order for table ${tbl}? The table will be freed.`)) return;
+async function cancelKacchaOrder(tbl){
+  if(!await uiConfirm(`Cancel the running order for table ${tbl}? The table will be freed.`)) return;
   withManager(`Cancel running order for table ${tbl}`, by => {
     const k = D.kaccha[tbl];
     if(k) audit('Running Table Cancel', `${tbl}: ${k.cart.map(i => i.name + '×' + i.qty).join(', ')}`, calc(k.cart, k.disc, gstRate()).total, tbl, by);
@@ -12563,9 +12913,11 @@ function finalizePakkaBill(approvedDisc){
 
   B = newB(tbl, B.channel);
   scrBill();
-  // SQLite counter: the bill counts as saved, and prints with its final number, only after the counter has
-  // written it to its disk (a number another device took meanwhile is replaced there first)
-  if(SRV.on && !SRV.readOnly && SRV.engine === 'sqlite'){
+  // Any counter (SQLite or the legacy JSON file) and the cloud: the bill counts as saved, and prints with its final
+  // number, only after the server has written it (a number another device took meanwhile is replaced first:
+  // natively on SQLite, by merge3 on the JSON file). Printing the local number first gave two receipts the same
+  // number when two devices billed at once (BUG-0024).
+  if(SRV.on && !SRV.readOnly){
     const id = bill.id;
     srvFlush(8000).then(ok => {
       const b = getBill(id) || bill;
@@ -12742,7 +13094,20 @@ class EscPos {
   bold(on){ return this.raw(0x1b, 0x45, on ? 1 : 0); }
   // big = double width + height (short text only); 'tall' = double height, same width (safe for full lines)
   size(big){ return this.raw(0x1d, 0x21, big === 'tall' ? 0x01 : big ? 0x11 : 0x00); }
-  center(t, big){ this.align('center'); if(big) this.size(true).bold(true); this.line(t); if(big) this.size(false).bold(false); return this.align('left'); }
+  center(t, big){
+    this.align('center');
+    // A centred line longer than the paper is word-wrapped instead of being broken mid-word by the printer.
+    // Double width fits only cols / 2 characters: a longer big line (e.g. the hotel name on 58 mm) prints double
+    // height, normal width
+    const n = asciiSafe(t).length;
+    if(n * (big ? 2 : 1) > this.cols){
+      if(big) this.size('tall').bold(true);
+      this.wrap(t, this.cols).forEach(l => this.line(l));
+      if(big) this.size(false).bold(false);
+      return this.align('left');
+    }
+    if(big) this.size(true).bold(true); this.line(t); if(big) this.size(false).bold(false); return this.align('left');
+  }
   hr(c = '-'){ return this.line(c.repeat(this.cols)); }
   lr(l, r){ l = asciiSafe(l); r = asciiSafe(r); const w = this.cols - r.length - 1; return this.line((l.length > w ? l.slice(0, w) : l).padEnd(w) + ' ' + r); }
   // Word wrap; only words longer than the column are cut
@@ -13339,10 +13704,10 @@ function saveBillEdit(id){
     if(cur === 'bills') scrBills();
   });
 }
-function remakeBill(id){
+async function remakeBill(id){
   const b = getBill(id);
-  if(!b || b.cancelled) return;
-  if(!confirm(`Cancel bill #${b.no} and open its items for correction?`)) return;
+  if(!b || b.cancelled || cnBlocksCancel(b)) return;
+  if(!await uiConfirm(`Cancel bill #${b.no} and open its items for correction?`)) return;
   withManager(`Bill #${b.no} cancel & re-make`, by => {
     b.cancelled = true;
     b.cancelledBy = by;
@@ -13358,10 +13723,10 @@ function remakeBill(id){
   });
 }
 
-function cancelBill(id){
+async function cancelBill(id){
   const b = getBill(id);
-  if(!b || b.cancelled) return;
-  if(!confirm(`Cancel bill #${b.no} (${money(b.total)})? Stock will be restored.`)) return;
+  if(!b || b.cancelled || cnBlocksCancel(b)) return;
+  if(!await uiConfirm(`Cancel bill #${b.no} (${money(b.total)})? Stock will be restored.`)) return;
   withManager(`Bill #${b.no} cancel`, by => {
     b.cancelled = true;
     b.cancelledBy = by;
@@ -13468,7 +13833,7 @@ function pfSet(i, k, v, soft){
   scrPurchase();
 }
 function pfDefaults(){ scrPurchase(); }
-function savePurchase(){
+async function savePurchase(){
   const lines = PF.lines.filter(l => l.sid && +l.qty > 0);
   if(!lines.length){ toast('Enter at least one item and its quantity'); return; }
   if(PF.lines.some(l => l.sid && !(+l.qty > 0))){ toast('Enter the quantity for every item'); return; }
@@ -13482,7 +13847,7 @@ function savePurchase(){
   }
   if(t.pending > 0 && !party){ toast('A supplier name is required for an unpaid balance'); return; }
   const noExp = lines.filter(l => (stockItem(l.sid) || {}).exp && !l.exp);
-  if(noExp.length && !confirm(`No expiry date for: ${noExp.map(l => stockItem(l.sid).name).join(', ')}.\nSave without it?`)) return;
+  if(noExp.length && !await uiConfirm(`No expiry date for: ${noExp.map(l => stockItem(l.sid).name).join(', ')}.\nSave without it?`)) return;
   if(t.total < 0){ toast('The total cannot be negative'); return; }
   const invId = uid(), time = PF.date === today() ? nowTime() : '12:00', credit = t.pending > 0, adj = r2(t.total - t.items);
   let left = adj;
@@ -13511,9 +13876,9 @@ function receiveOrder(id){
   toast('Check quantities / rates, then Save Purchase');
   scrPurchase();
 }
-function cancelOrder(id){
+async function cancelOrder(id){
   const o = D.orders.find(x => x.id === id);
-  if(!o || !confirm('Cancel this order?')) return;
+  if(!o || !await uiConfirm('Cancel this order?')) return;
   o.status = 'cancelled'; o.cancelledBy = curUser();
   save(); scrPurchase();
 }
@@ -13534,11 +13899,11 @@ function purList(){
     <tfoot><tr><td colspan="5">Total</td><td class="n">${money(sum(ps, 'amount'))}</td><td></td></tr></tfoot></table></div>`;
 }
 // Delete a voucher (a purchase invoice goes with all its lines and its payment). Old entries give their stock back as a movement.
-function delTx(id){
+async function delTx(id){
   const t = D.txns.find(x => x.id === id);
   if(!t) return;
   const group = t.inv && t.inv.id ? D.txns.filter(x => x.inv && x.inv.id === t.inv.id) : [t];
-  if(!confirm(group.length > 1 ? `Delete the ${group.length} entries of this invoice?` : 'Delete this entry?')) return;
+  if(!await uiConfirm(group.length > 1 ? `Delete the ${group.length} entries of this invoice?` : 'Delete this entry?')) return;
   withManager(`${t.type} entry delete`, by => {
     group.forEach(x => { if(x.type === 'Purchase' && x.sid && !x.mv && +x.qty) addMove(x.sid, -x.qty, 'del', `Old purchase entry deleted (${x.party || ''})`, {ref: x.id}); });
     const ids = new Set(group.map(x => x.id));
@@ -13790,10 +14155,10 @@ function gasEmpty(){
   D.gasLog.push({id: uid(), date: today(), time: nowTime(), type: 'empty', n: 1, size: sz, by: curUser()});
   save(); toast('1 empty cylinder recorded'); scrExpense();
 }
-function gasDeposit(dir){
-  const v = prompt(dir > 0 ? 'Deposit paid (₹)? This is not an expense; it is refundable.' : 'Deposit refunded (₹)?');
+async function gasDeposit(dir){
+  const v = await uiPrompt(dir > 0 ? 'Deposit paid (₹)? This is not an expense; it is refundable.' : 'Deposit refunded (₹)?');
   if(!v || !(+v > 0)) return;
-  const party = prompt('Gas agency name', (gasRefills().slice(-1)[0] || {}).party || '') || '';
+  const party = await uiPrompt('Gas agency name', (gasRefills().slice(-1)[0] || {}).party || '') || '';
   D.txns.push({id: uid(), type: dir > 0 ? 'Expense' : 'Receipt', date: today(), time: nowTime(), head: dir > 0 ? DEPOSIT_HEAD : DEPOSIT_BACK, desc: 'Cylinder deposit', party, amount: +v, mode: 'Cash', by: curUser()});
   save(); toast('Deposit entry save'); scrExpense();
 }
@@ -13891,10 +14256,14 @@ function daybookData(from, to, view = dbView){
   });
 
   // 2. Credit Notes (Sales Returns & Price Adjustments)
-  (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => inRange(c.date)).forEach(c => {
-    const isCashRefund = c.mode === 'Cash';
-    const isBankRefund = ['UPI', 'Card', 'Bank', 'Netbanking'].includes(c.mode);
-    const isCreditAdj = !c.mode || c.mode === 'None' || c.mode === 'Credit';
+  (typeof cnotes === 'function' ? cnotes() : (D.cnotes || [])).filter(c => inRange(c.date) && (typeof cnLive !== 'function' || cnLive(c))).forEach(c => {
+    // The app stores the money-back mode in c.refund ('Cash' / 'UPI' / 'Card' / 'none'); c.mode is the older field name.
+    // When a 'Customer Refund' voucher records the money paid back, that voucher is the cash / bank movement (not twice).
+    const how = c.refund || c.mode;
+    const paidByVoucher = D.txns.some(t => t.cn === c.id);
+    const isCashRefund = how === 'Cash' && !paidByVoucher;
+    const isBankRefund = ['UPI', 'Card', 'Bank', 'Netbanking'].includes(how) && !paidByVoucher;
+    const isCreditAdj = !how || how === 'none' || how === 'None' || how === 'Credit';
 
     let outAmt = 0;
     if(view === 'cash') outAmt = isCashRefund ? c.total : 0;
@@ -13908,7 +14277,7 @@ function daybookData(from, to, view = dbView){
       type: 'Credit Note',
       vtype: 'Credit Note',
       part: `CN-${c.no} on Bill #${c.billNo} · ${c.cust || ''} (${c.reason || 'Return'})`,
-      mode: c.mode || 'None',
+      mode: how || 'None',
       in: 0,
       out: outAmt,
       total: c.total,
@@ -14068,12 +14437,12 @@ function renderDaybookFilterScreen(){
           <select id="db_form_type" style="padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-weight:600;font-size:13px">
             <option value="all" ${dbFilterType==='all'?'selected':''}>All Transactions (Day Book)</option>
             <option value="active_sales" ${dbFilterType==='active_sales'?'selected':''}>Sales Bills (Active Only)</option>
-            <option value="cancelled_sales" ${dbFilterType==='cancelled_sales'?'selected':''}>Cancelled Bills Only (रद्द किए गए बिल)</option>
+            <option value="cancelled_sales" ${dbFilterType==='cancelled_sales'?'selected':''}>Cancelled Bills Only</option>
             <option value="all_sales" ${dbFilterType==='all_sales'?'selected':''}>All Bills (Active + Cancelled Bills)</option>
-            <option value="expense" ${dbFilterType==='expense'?'selected':''}>Expenses Only (खर्च)</option>
-            <option value="sales_expense" ${dbFilterType==='sales_expense'?'selected':''}>Sales & Expenses (बिक्री और खर्च)</option>
-            <option value="purchase" ${dbFilterType==='purchase'?'selected':''}>Stock Purchases Only (खरीद)</option>
-            <option value="cash" ${dbFilterType==='cash'?'selected':''}>Cash Drawer Movements Only (रोकड़ बही)</option>
+            <option value="expense" ${dbFilterType==='expense'?'selected':''}>Expenses Only</option>
+            <option value="sales_expense" ${dbFilterType==='sales_expense'?'selected':''}>Sales & Expenses</option>
+            <option value="purchase" ${dbFilterType==='purchase'?'selected':''}>Stock Purchases Only</option>
+            <option value="cash" ${dbFilterType==='cash'?'selected':''}>Cash Drawer Movements Only</option>
             <option value="bank" ${dbFilterType==='bank'?'selected':''}>Bank / UPI / Online Collections</option>
             <option value="credit" ${dbFilterType==='credit'?'selected':''}>Credit / Customer Outstandings</option>
           </select>
@@ -14213,6 +14582,7 @@ function renderDaybookReportScreen(){
       <button class="btn sm" onclick="backToDaybookFilter()" style="padding:6px 14px;font-weight:700">🔍 Change Filter / New Search</button>
       <button class="btn sm" onclick="printDaybook()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Print</button>
       <button class="btn ok sm" onclick="daybookPDF()" style="padding:6px 16px;font-weight:800;background:#2563eb;color:#fff;border:1.5px solid #1d4ed8">PDF</button>
+      <button class="btn wa sm" onclick="daybookToOwner()" title="Send the whole Day Book (PDF) to the owner's WhatsApp" style="padding:6px 14px;font-weight:800">Send to Owner</button>
       <button class="btn g sm" onclick="daybookCSV()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Excel</button>
     </div>
     <div style="font-size:13px;font-weight:800;color:#08080E">
@@ -14287,9 +14657,9 @@ function renderDaybookReportScreen(){
   <!-- Dainikee-Style Quick Bar: Total Inward, Outward & Cash vs Online -->
   <div style="margin-top:14px;padding:12px 16px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:10px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:13px">
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center">
-      <span style="font-weight:800;color:#08080E">Total Inward (आवक): <span style="color:#16a34a;font-weight:900">${money(totalInward)}</span></span>
+      <span style="font-weight:800;color:#08080E">Total Inward: <span style="color:#16a34a;font-weight:900">${money(totalInward)}</span></span>
       <span style="color:#94a3b8">|</span>
-      <span style="font-weight:800;color:#08080E">Total Outward (भुगतान): <span style="color:#dc2626;font-weight:900">${money(totalOutward)}</span></span>
+      <span style="font-weight:800;color:#08080E">Total Outward: <span style="color:#dc2626;font-weight:900">${money(totalOutward)}</span></span>
       <span style="color:#94a3b8">|</span>
       <span style="font-weight:800;color:#08080E">Net Balance: <span style="color:${netBalance >= 0 ? '#16a34a' : '#dc2626'};font-weight:900">${money(netBalance)}</span></span>
     </div>
@@ -14307,26 +14677,26 @@ function renderDaybookReportScreen(){
     <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
         <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
-          💵 Cash Summary (नकदी विवरण)
+          💵 Cash Summary
         </h4>
         <span style="font-size:11px;font-weight:800;color:#15803d;background:#ecfdf5;padding:3px 9px;border-radius:6px;border:1px solid #bbf7d0">Cash Counter</span>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:none !important">
         <tbody>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Day's Cash Receipts (कुल नकद आवक)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Day's Cash Receipts</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(totalCashIn)}</td>
           </tr>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Cash Expenses & Payments (नकद खर्चे)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Cash Expenses & Payments</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#dc2626;border:none !important">${money(totalCashOut)}</td>
           </tr>
           <tr style="border-bottom:1.5px solid #cbd5e1;background:#f8fafc">
-            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Net Cash Movement (शुद्ध नकद बचत)</td>
+            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Net Cash Movement</td>
             <td style="padding:9px 6px;text-align:right;font-weight:800;color:${netCashMovement >= 0 ? '#16a34a' : '#dc2626'};border:none !important">${money(netCashMovement)}</td>
           </tr>
           <tr>
-            <td style="padding:10px 0 0;color:#08080E;font-weight:800;border:none !important">Expected in Cash Drawer (गल्ला बैलेंस)</td>
+            <td style="padding:10px 0 0;color:#08080E;font-weight:800;border:none !important">Expected in Cash Drawer</td>
             <td style="padding:10px 0 0;text-align:right;font-weight:900;font-size:14.5px;color:#08080E;border:none !important">${money(t.expected || 0)}</td>
           </tr>
         </tbody>
@@ -14337,26 +14707,26 @@ function renderDaybookReportScreen(){
     <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
         <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
-          🌐 Bank & Online Summary (ऑनलाइन व बैंक)
+          🌐 Bank & Online Summary
         </h4>
         <span style="font-size:11px;font-weight:800;color:#1d4ed8;background:#eff6ff;padding:3px 9px;border-radius:6px;border:1px solid #bfdbfe">Digital</span>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12.5px;border:none !important">
         <tbody>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">UPI / QR Receipts (ऑनलाइन यूपीआई)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">UPI / QR Receipts</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(modeIn['UPI'] || 0)}</td>
           </tr>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Card POS Receipts (कार्ड आवक)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Card POS Receipts</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#16a34a;border:none !important">${money(modeIn['Card'] || 0)}</td>
           </tr>
           <tr style="border-bottom:1px solid #f1f5f9">
-            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Bank / Online Outflow (ऑनलाइन भुगतान)</td>
+            <td style="padding:8px 0;color:#475569;font-weight:600;border:none !important">Bank / Online Outflow</td>
             <td style="padding:8px 0;text-align:right;font-weight:800;color:#dc2626;border:none !important">${money(totalBankOut)}</td>
           </tr>
           <tr style="border-top:1.5px solid #cbd5e1;background:#f8fafc">
-            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Total Online Inflow (कुल ऑनलाइन आवक)</td>
+            <td style="padding:9px 6px;color:#08080E;font-weight:800;border:none !important">Total Online Inflow</td>
             <td style="padding:9px 6px;text-align:right;font-weight:900;font-size:14.5px;color:#1d4ed8;border:none !important">${money(totalBankIn)}</td>
           </tr>
         </tbody>
@@ -14367,7 +14737,7 @@ function renderDaybookReportScreen(){
     <div class="card" style="padding:16px 20px;border-radius:10px;border:1px solid #cbd5e1;background:#ffffff;box-shadow:0 2px 8px rgba(0,0,0,0.02)">
       <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1.5px solid #e2e8f0;padding-bottom:10px;margin-bottom:12px">
         <h4 style="margin:0;font-size:14px;font-weight:800;color:#08080E;display:flex;align-items:center;gap:6px">
-          📊 Mode Breakdown (मोड अनुसार कलेक्शन)
+          📊 Mode Breakdown
         </h4>
         <span style="font-size:11px;font-weight:800;color:#c2410c;background:#fff7ed;padding:3px 9px;border-radius:6px;border:1px solid #fed7aa">All Modes</span>
       </div>
@@ -14393,7 +14763,7 @@ function renderDaybookReportScreen(){
           `}
           ${totalCreditIn > 0 ? `
             <tr style="border-top:1.5px solid #fed7aa;background:#fff7ed">
-              <td style="padding:7px 6px;font-weight:800;color:#c2410c;border:none !important">Credit (उधार बिल)</td>
+              <td style="padding:7px 6px;font-weight:800;color:#c2410c;border:none !important">Credit</td>
               <td colspan="2" style="padding:7px 6px;text-align:right;font-weight:800;color:#c2410c;border:none !important">${money(totalCreditIn)}</td>
             </tr>
           ` : ''}
@@ -14418,17 +14788,48 @@ function daybookCSV(){
 }
 
 function daybookPDF(){
+  const x = daybookDoc();
+  pdfFile(x.name, x.doc);
+}
+// Day Book for the owner on WhatsApp: the same PDF, with a short summary, from the hotel's linked WhatsApp
+async function daybookToOwner(){
+  const own = String(D.settings.owner || '').replace(/\D/g, '');
+  if(own.length < 10){ uiAlert('Add the owner\'s WhatsApp number first: Settings (G) → Owner WhatsApp Number (for Daily Reports).', {title: 'Send to Owner'}); return; }
+  if(getWaCredits() <= 0){ uiAlert('WhatsApp balance is 0. Please recharge to send the Day Book.', {title: 'Send to Owner'}); return; }
+  const {t, days} = daybookData(dbFrom, dbTo), x = daybookDoc();
+  const text = [`*${D.settings.name || 'Hotel'} — Day Book*`, `${dmy(dbFrom)}${dbTo !== dbFrom ? ' to ' + dmy(dbTo) : ''} (${days} day${days > 1 ? 's' : ''})`, '',
+    `Bills: ${t.bills}`, `Total Sales: ${money(t.sales)}`, ...MODES.filter(m => t.by[m]).map(m => `  ${m}: ${money(t.by[m])}`),
+    `Discount: ${money(t.disc)}`, `GST: ${money(t.tax)}`, `Expenses: ${money(t.expT)}`, `Purchases: ${money(t.purT)}`,
+    `Cash in Hand: ${money(t.expected)}`, `Cancelled Bills: ${t.cancelled}`, '', 'Full Day Book attached (PDF).'].join('\n');
+  let pdf = '';
+  try{ pdf = bytesB64(pdfMake(x.doc)); }catch(e){ logError('Day Book PDF failed', 'daybookToOwner', e.message); }
+  toast('Sending the Day Book to the owner…');
+  try{
+    const r = await srvFetch('/api/wa/send', {method: 'POST', body: JSON.stringify({phone: own, text, pdf, fileName: x.name, kind: 'daybook'})});
+    const j = await r.json().catch(() => ({}));
+    if(r.ok && j.queued){ toast(j.counterOnline ? 'Day Book is going from the Main Counter PC WhatsApp…' : 'Saved. The Day Book goes from the Main Counter PC WhatsApp when Setu is open there.'); audit('Day Book to Owner', `${dbFrom} to ${dbTo} (via Main Counter)`); return; }
+    if(r.ok){ deductWaCredit(1); toast('Day Book sent to the owner on WhatsApp'); audit('Day Book to Owner', `${dbFrom} to ${dbTo}`); return; }
+    if(!SRV.on || r.status === 409 || r.status === 503 || /not connected|NOT_LINKED/i.test(j.error || j.message || '')){
+      if(await uiConfirm('WhatsApp is not linked on this HoReCa One yet. Open WhatsApp with the Day Book summary instead? (Attach the PDF by hand.)', {title: 'Send to Owner', ok: 'Open WhatsApp', cancel: 'Close'})){ pdfFile(x.name, x.doc); waOpen(own, text); }
+      return;
+    }
+    uiAlert('The Day Book could not be sent: ' + (j.message || j.error || 'HTTP ' + r.status), {title: 'Send to Owner'});
+  }catch(e){
+    if(await uiConfirm('No connection right now. Open WhatsApp with the Day Book summary instead?', {title: 'Send to Owner', ok: 'Open WhatsApp', cancel: 'Close'})) waOpen(own, text);
+  }
+}
+function daybookDoc(){
   const {e, t, days} = daybookData(dbFrom, dbTo);
   const kv = [['Bills', t.bills], ['Total Sales', money(t.sales)], ['Dine-In', money(t.dineSales)], ['Takeaway', money(t.takeawaySales)],
     ['Zomato', money(t.zomatoSales)], ['Swiggy', money(t.swiggySales)], ['Discount', money(t.disc)], ['GST', money(t.tax)],
     ['Expenses', money(t.expT)], ['Purchases', money(t.purT)], ['Cash In', money(t.cashIn)], ['Cash Out', money(t.cashOut)],
     ['Cash in Hand (on ' + dmy(dbTo) + ')', money(t.expected)], ['Cancelled Bills', t.cancelled]];
-  pdfFile(`${fileStem()}-daybook-${dbFrom}-to-${dbTo}.pdf`, {title: 'Day Book', sub: [hotelLine(), `${dmy(dbFrom)} to ${dmy(dbTo)} (${days} day${days > 1 ? 's' : ''})`], sections: [
+  return {name: `${fileStem()}-daybook-${dbFrom}-to-${dbTo}.pdf`, doc: {title: 'Day Book', sub: [hotelLine(), `${dmy(dbFrom)} to ${dmy(dbTo)} (${days} day${days > 1 ? 's' : ''})`], sections: [
     {h: 'Summary', head: ['Item', 'Value'], rows: kv},
     {h: 'Mode-wise Sales', head: ['Mode', 'Amount'], rows: MODES.map(m => [m, money(t.by[m])])},
     {h: 'Entries', head: ['Date', 'Time', 'Voucher', 'Particulars', 'Mode', 'Inward', 'Outward'], left: [0, 1, 2, 3, 4],
       rows: e.map(r => [dmy(r.date), r.time, r.type, r.part, r.mode, r.in ? r2(r.in).toFixed(2) : '', r.out ? r2(r.out).toFixed(2) : '']),
-      total: ['TOTAL', '', '', '', '', money(sum(e, 'in')), money(sum(e, 'out'))]}]});
+      total: ['TOTAL', '', '', '', '', money(sum(e, 'in')), money(sum(e, 'out'))]}]}};
 }
 
 // A4 Day Book with the hotel's details, for printing
@@ -14820,13 +15221,13 @@ function stockDupHint(id){
   el.textContent = sim.length ? `A similar item already exists: ${sim.map(x => x.name).join(', ')}. Use it, or Save if this one is different.` : '';
 }
 
-function saveStock(id){
+async function saveStock(id){
   const name = $('#s_name').value.trim();
   if(!name){ toast('Please enter a name'); return; }
   const same = D.stock.find(x => x.id !== id && !x.merged && x.name.trim().toLowerCase() === name.toLowerCase());
   if(same){ toast(`An item named "${same.name}" already exists`); return; }
   const sim = similarItems(name, id);
-  if(!id && sim.length && !confirm(`A similar item already exists: ${sim.map(x => x.name).join(', ')}.\nCreate a new item anyway?`)) return;
+  if(!id && sim.length && !await uiConfirm(`A similar item already exists: ${sim.map(x => x.name).join(', ')}.\nCreate a new item anyway?`)) return;
   const cu = $('#s_cu').value.trim(), cf = +$('#s_cf').value;
   const v = {
     name, type: $('#s_type').value, cat: $('#s_cat').value.trim(), unit: $('#s_unit').value.trim() || 'pcs',
@@ -14861,10 +15262,10 @@ function mergeStock(id){
     <p class="muted" style="font-size:12px">Both should have the same unit (e.g. kg and kg).</p>
     <div class="btns"><button class="btn bad" onclick="doMerge('${id}')">Merge</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function doMerge(id){
+async function doMerge(id){
   const s = D.stock.find(x => x.id === id), t = D.stock.find(x => x.id === $('#mg_to').value);
   if(!s || !t) return;
-  if((s.unit || '').toLowerCase() !== (t.unit || '').toLowerCase() && !confirm(`The units differ (${s.unit} / ${t.unit}). Merge anyway?`)) return;
+  if((s.unit || '').toLowerCase() !== (t.unit || '').toLowerCase() && !await uiConfirm(`The units differ (${s.unit} / ${t.unit}). Merge anyway?`)) return;
   withManager(`Item merge: ${s.name} → ${t.name}`, by => {
     D.stockAlias[s.id] = t.id;
     s.merged = t.id; s.active = false;
@@ -14894,10 +15295,10 @@ function stockOut(id, kind){
     ${kind === 'return' ? '<p class="muted" style="font-size:12px">This only reduces stock. If the supplier refunds money, record a Receipt (I); if your dues go down, record it with Pay in Suppliers (U).</p>' : ''}
     <div class="btns"><button class="btn ok" onclick="saveStockOut('${s.id}','${kind}')">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function saveStockOut(id, kind){
+async function saveStockOut(id, kind){
   const s = stockItem(id), q = r3((+$('#so_q').value || 0) * (+$('#so_u').value || 1));
   if(!s || !(q > 0)){ toast('Enter the quantity'); return; }
-  if(q > +s.qty && !confirm(`Stock is only ${fq(s.qty)} ${s.unit}. Take out ${fq(q)} anyway? (stock will go negative)`)) return;
+  if(q > +s.qty && !await uiConfirm(`Stock is only ${fq(s.qty)} ${s.unit}. Take out ${fq(q)} anyway? (stock will go negative)`)) return;
   const reason = $('#so_r').value, loc = ($('#so_loc') || {}).value || '', sup = ($('#so_sup') || {}).value || '', note = $('#so_n').value.trim();
   const cost = r2(q * avgCost(s.id));
   addMove(s.id, -q, kind, [reason, note].filter(Boolean).join(' · '), {reason, ...(loc ? {loc} : {}), ...(sup ? {party: sup} : {}), cost});
@@ -15062,7 +15463,7 @@ function bulkMenu(){
   setTimeout(() => $('#bk_rows .bk-name')?.focus(), 40);
 }
 
-function saveBulkMenu(){
+async function saveBulkMenu(){
   const rows = [...document.querySelectorAll('.bulk-row')].map(r => ({
     el: r,
     name: r.querySelector('.bk-name').value.trim(),
@@ -15085,7 +15486,7 @@ function saveBulkMenu(){
     if(existing.has(k) || seen.has(k)) dup.push(r.name);
     seen.add(k);
   });
-  if(dup.length && !confirm(`These dishes already exist or are entered twice:\n• ${dup.join('\n• ')}\n\nSave anyway?`)) return;
+  if(dup.length && !await uiConfirm(`These dishes already exist or are entered twice:\n• ${dup.join('\n• ')}\n\nSave anyway?`)) return;
 
   rows.forEach(r => D.menu.push({id: uid(), name: r.name, cat: r.cat, price: +r.price, recipe: []}));
   save();
@@ -15289,8 +15690,8 @@ function saveMenu(id){
   scrMenu();
 }
 
-function delMenu(id){
-  if(!confirm('Delete this menu item?')) return;
+async function delMenu(id){
+  if(!await uiConfirm('Delete this menu item?')) return;
   D.menu = D.menu.filter(x => x.id !== id);
   save();
   closeModal();
@@ -16003,7 +16404,7 @@ function scrKitchen(){
       <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#10b981;margin-right:4px"></span> Ready · 
       <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ef4444;margin-right:4px"></span> Overdue > ${late} min · Auto-refreshes every 15s
     </div>
-    ${allKs.length ? `<button class="btn g" onclick="if(confirm('Mark all KOTs as served?')){pendingKots().forEach(k=>k.status='served');save();scrKitchen();}">Mark All Served</button>` : ''}
+    ${allKs.length ? `<button class="btn g" onclick="uiConfirm('Mark all KOTs as served?').then(ok=>{if(ok){pendingKots().forEach(k=>k.status='served');save();scrKitchen();}})">Mark All Served</button>` : ''}
   </div>`;
 
   kdsTimer = setInterval(() => {
@@ -16037,6 +16438,7 @@ function kotSet(id, status){
 function printKotTicket(id){
   const k = (D.kots || []).find(x => x.id === id);
   if(!k) return;
+  if(k.src === 'qr' && !printOnce('qrkot:' + String(k.id))) return;
   const doc = {kot: k.no, date: k.date, time: k.time, table: k.table, items: k.items, note: k.note, token: k.token, by: k.by};
   if(directPrint()){ directKot(doc); return; }
   printDoc([kotHTML(doc)]);
@@ -16421,7 +16823,7 @@ function importOrder(txt){
     saveKacchaBill(true);
     toast(`Table ${B.table} order saved and KOT sent to the Kitchen Display`);
   }
-  if(miss.length) setTimeout(() => alert('These items are not on the menu; please add them manually:\n• ' + miss.join('\n• ')), 100);
+  if(miss.length) setTimeout(() => uiAlert('These items are not on the menu; please add them manually:\n• ' + miss.join('\n• ')), 100);
 }
 
 function printTableQR(){
@@ -16737,12 +17139,12 @@ function saveSalaryDays(silent){
   return true;
 }
 
-function payAllSalary(){
+async function payAllSalary(){
   const due = D.staff.map(s => ({s, m: staffMonth(s, stMonth)})).filter(x => x.m.payable > 0);
   if(!due.length){ toast('No salary is pending for this month'); scrStaff(); return; }
   const total = sum(due, x => x.m.payable);
-  if(!confirm(`${stMonth} — total salary ${money(total)} for ${due.length} staff:\n\n` + due.map(x => `${x.s.name}: ${x.m.worked} days → ${money(x.m.payable)}`).join('\n') + '\n\nPay everyone now?')){ scrStaff(); return; }
-  const mode = confirm('Paid in cash? (Cancel = UPI / Bank)') ? 'Cash' : 'UPI';
+  if(!await uiConfirm(`${stMonth} — total salary ${money(total)} for ${due.length} staff:\n\n` + due.map(x => `${x.s.name}: ${x.m.worked} days → ${money(x.m.payable)}`).join('\n') + '\n\nPay everyone now?')){ scrStaff(); return; }
+  const mode = await uiConfirm('How was it paid?', {title: 'Payment mode', ok: 'Cash', cancel: 'UPI / Bank'}) ? 'Cash' : 'UPI';
   due.forEach(({s, m}) => D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: m.payable, mode, staffId: s.id, salMonth: stMonth}));
   audit('Salary Paid', `${stMonth}: ${due.length} staff (${mode})`, total);
   salarySnap(stMonth);
@@ -16766,9 +17168,9 @@ function markAllPresent(){
   scrStaff();
 }
 
-function staffAdv(id){
+async function staffAdv(id){
   const s = D.staff.find(x => x.id === id);
-  const v = +prompt(`Advance paid to ${s.name} (₹, cash)`);
+  const v = +await uiPrompt(`Advance paid to ${s.name} (₹, cash)`);
   if(!(v > 0)) return;
   D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Advance', desc: s.name, party: s.name, amount: v, mode: 'Cash', staffId: id});
   save();
@@ -16776,11 +17178,11 @@ function staffAdv(id){
   scrStaff();
 }
 
-function paySalary(id){
+async function paySalary(id){
   const s = D.staff.find(x => x.id === id), m = staffMonth(s, stMonth);
-  const v = +prompt(`${s.name} — ${stMonth} salary\nEarned ${m.earned} − Advance ${m.adv} − Paid ${m.paid}\n\nAmount to pay (₹)`, m.payable);
+  const v = +await uiPrompt(`${s.name} — ${stMonth} salary\nEarned ${m.earned} − Advance ${m.adv} − Paid ${m.paid}\n\nAmount to pay (₹)`, m.payable);
   if(!(v > 0)) return;
-  const mode = confirm('Paid in cash? (Cancel = UPI)') ? 'Cash' : 'UPI';
+  const mode = await uiConfirm('How was it paid?', {title: 'Payment mode', ok: 'Cash', cancel: 'UPI'}) ? 'Cash' : 'UPI';
   D.txns.push({id: uid(), type: 'Expense', date: today(), time: nowTime(), head: 'Staff Salary / Wages', desc: `${s.name} — ${stMonth}`, party: s.name, amount: v, mode, staffId: id, salMonth: stMonth});
   salarySnap(stMonth);
   save();
@@ -16989,8 +17391,8 @@ function importOutlets(files){
   });
 }
 
-function removeOutlet(code){
-  if(!confirm('Remove this outlet from the dashboard?')) return;
+async function removeOutlet(code){
+  if(!await uiConfirm('Remove this outlet from the dashboard?')) return;
   delete D.outlets[code];
   save();
   scrOutlets();
@@ -17031,7 +17433,7 @@ function scrCaptain(){
   const n = sum(cap.cart, 'qty');
   main.innerHTML = `
   <div class="title">
-    <button class="btn g sm" onclick="if(!cap.cart.length||confirm('New items have not been sent. Go back anyway?')){cap.table='';cap.cart=[];scrCaptain()}">← Tables</button>
+    <button class="btn g sm" onclick="(cap.cart.length?uiConfirm('New items have not been sent. Go back anyway?'):Promise.resolve(true)).then(ok=>{if(ok){cap.table='';cap.cart=[];scrCaptain()}})">← Tables</button>
     <span>${esc(cap.table)}</span>
     <span class="r">${k ? `Running: <b>${money(calc(k.cart, k.disc, gstRate()).total)}</b>` : 'New order'}</span>
   </div>
@@ -17140,7 +17542,7 @@ function scrReservations(){
   <p class="muted">Tables booked for today are shown as "Reserved" in Billing and the Captain App.</p>`;
 }
 
-function saveRsv(){
+async function saveRsv(){
   const name = $('#rv_name').value.trim(), date = $('#rv_date').value, time = $('#rv_time').value;
   if(!name || !date || !time){ toast('Please enter name, date and time'); return; }
   const r = {id: uid(), name, phone: $('#rv_phone').value.trim(), date, time, people: +$('#rv_people').value || 1, table: $('#rv_table').value, note: $('#rv_note').value.trim(), status: 'booked', createdAt: Date.now()};
@@ -17149,7 +17551,7 @@ function saveRsv(){
   rsvDate = date;
   toast('Booking saved');
   scrReservations();
-  if(r.phone && confirm('Send a booking confirmation to the customer on WhatsApp?')) waRsv(r.id);
+  if(r.phone && await uiConfirm('Send a booking confirmation to the customer on WhatsApp?')) waRsv(r.id);
 }
 
 function setRsv(id, st){
@@ -17160,8 +17562,8 @@ function setRsv(id, st){
   scrReservations();
 }
 
-function delRsv(id){
-  if(!confirm('Delete this booking?')) return;
+async function delRsv(id){
+  if(!await uiConfirm('Delete this booking?')) return;
   D.reservations = D.reservations.filter(x => x.id !== id);
   save();
   scrReservations();
@@ -17280,12 +17682,12 @@ function editSupplier(key){
     ${key && others.length ? `<div style="grid-column:1/-1"><label>Duplicate? Merge into this supplier</label><select id="su_to"><option value="">— no —</option>${others.map(x => `<option value="${esc(x.key)}">${esc(x.name)}</option>`).join('')}</select></div>` : ''}
   </div><div class="btns"><button class="btn ok" onclick="saveSupplier(${key ? JSON.stringify(key).replace(/"/g, '&quot;') : "''"})">Save</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function saveSupplier(key){
+async function saveSupplier(key){
   const name = $('#su_n').value.trim();
   if(!name){ toast('Enter the name'); return; }
   const k = key || supKey(name), to = ($('#su_to') || {}).value;
   if(to){
-    if(!confirm('Both suppliers will be combined into one account. Old entries do not change. OK?')) return;
+    if(!await uiConfirm('Both suppliers will be combined into one account. Old entries do not change. OK?')) return;
     D.supAlias[k] = to;
     audit('Supplier Merge', `${name} → ${(suppliers().find(x => x.key === to) || {}).name || to}`);
   } else {
@@ -17306,10 +17708,10 @@ function paySupplier(key){
     <div><label>Note</label><input id="sp_n" placeholder="e.g. Invoice 123"></div></div>
     <div class="btns"><button class="btn ok" onclick="savePaySupplier(${JSON.stringify(key).replace(/"/g, '&quot;')})">Save Payment</button><button class="btn g" onclick="closeModal()">Cancel</button></div>`);
 }
-function savePaySupplier(key){
+async function savePaySupplier(key){
   const s = suppliers().find(x => x.key === key), v = +$('#sp_a').value, d = $('#sp_d').value || today();
   if(!s || !(v > 0)) return;
-  if(v > s.due + 0.01 && !confirm(`Only ${money(s.due)} is due. Record ${money(v)} anyway (advance)?`)) return;
+  if(v > s.due + 0.01 && !await uiConfirm(`Only ${money(s.due)} is due. Record ${money(v)} anyway (advance)?`)) return;
   D.txns.push({id: uid(), type: 'Expense', date: d, time: d === today() ? nowTime() : '12:00', head: 'Supplier Payment', desc: $('#sp_n').value.trim() || 'Credit settled', party: s.name, amount: v, mode: $('#sp_m').value, by: curUser()});
   save(); closeModal();
   toast(`Payment of ${money(v)} to ${s.name} saved`);
@@ -17385,10 +17787,10 @@ function scrSettlement(){
   <p class="muted">Change commission % in Settings (G). Actual payouts may also deduct ads, packaging and TDS; reconcile any difference with the partner payout statement.</p>`;
 }
 
-function addSettlement(ch){
-  const v = +prompt(`Amount received from ${ch} in the bank (₹)`);
+async function addSettlement(ch){
+  const v = +await uiPrompt(`Amount received from ${ch} in the bank (₹)`);
   if(!(v > 0)) return;
-  const ref = prompt('UTR / Reference (optional)', '') || '';
+  const ref = await uiPrompt('UTR / Reference (optional)', '') || '';
   D.txns.push({id: uid(), type: 'Receipt', date: today(), time: nowTime(), head: ch + ' Settlement', desc: `${dmy(stlFrom)}–${dmy(stlTo)}${ref ? ' · ' + ref : ''}`, party: ch, amount: v, mode: 'UPI'});
   save();
   toast(`${ch} settlement ${money(v)} save`);
@@ -17745,13 +18147,8 @@ async function requestWaPairingCode(){
       });
       j = await r.json().catch(() => null);
     }catch(netErr){}
-    if(!j || !j.code){
-      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-      let c1 = '', c2 = '';
-      for(let i = 0; i < 4; i++) c1 += chars.charAt(Math.floor(Math.random() * chars.length));
-      for(let i = 0; i < 4; i++) c2 += chars.charAt(Math.floor(Math.random() * chars.length));
-      j = { ok: true, code: `${c1}-${c2}` };
-    }
+    // Only a real pairing code from WhatsApp is shown (BUG-0040): no made-up code
+    if(!j) j = { ok: false, error: 'The pairing code could not be made right now. Please try again in a minute.' };
     if(j.ok && j.code){
       waPairingCode = j.code;
       toast('✓ Pairing Code Generated! Type it in WhatsApp.');
@@ -17797,28 +18194,48 @@ function startWaGateway(){
 }
 
 async function startOnlineBaileys(){
-  toast('Starting Baileys WhatsApp Gateway...');
-  if(typeof WA !== 'undefined') WA.state = 'starting';
+  if(typeof WA !== 'undefined' && WA) WA.state = 'starting';
   scrWaReports();
   try{
-    await waApi('start', {}).catch(() => null);
+    const r = await waApi('start', {}).catch(e => ({ok: false, error: e.message}));
     const st = await waStatus();
     if(st && st.qr){
-      toast('✓ QR Code generated! Scan with your WhatsApp.');
-      scrWaReports();
-      return;
+      toast('QR code ready. Scan it with WhatsApp → Linked devices.');
+    }else if(st && (st.state === 'open' || st.connected)){
+      toast('WhatsApp is connected.');
+    }else{
+      // Only a real QR from WhatsApp is ever shown (BUG-0040): no made-up code
+      WA = {...(st || {}), state: (st && st.state === 'unavailable') ? 'unavailable' : 'off', qr: ''};
+      uiAlert((r && r.error) || 'The WhatsApp QR code could not be made right now. Please try again in a minute.', {title: 'WhatsApp'});
     }
-    const hotelCode = (D && D.settings && D.settings.hotelCode) || 'SETU';
-    const qrData = '2@' + btoa(hotelCode + ':' + Date.now() + ':' + Math.random().toString(36).substring(2)) + ',SetuPOS,1';
-    const qrSvgString = qrSvg(qrData);
-    WA = WA || {};
-    WA.state = 'qr';
-    WA.qr = 'data:image/svg+xml;utf8,' + encodeURIComponent(qrSvgString);
-    scrWaReports();
-    toast('✓ WhatsApp QR Code Ready to Scan!');
   }catch(e){
-    toast('Error starting gateway: ' + e.message);
+    uiAlert('The WhatsApp QR code could not be made: ' + e.message, {title: 'WhatsApp'});
   }
+  scrWaReports();
+}
+
+// Website (Hotel Setu Cloud) without a WhatsApp sender of its own: say so plainly (BUG-0040)
+function waWebsiteInfo(w){
+  if(w.via === 'counter' && w.connected){
+    return `<div style="background:#ecfdf5;border:1.5px solid #6ee7b7;border-radius:18px;padding:22px;max-width:760px;color:#065f46">
+      <b style="font-size:16px;display:block;margin-bottom:8px">✓ WhatsApp connected through the Main Counter PC${w.me ? ' (' + esc(String(w.me).split(':')[0].split('@')[0]) + ')' : ''}</b>
+      <p style="font-size:13.5px;line-height:1.6;margin:0 0 6px">Messages and bills sent from this website go out from the WhatsApp linked on the Main Counter PC, usually within a few seconds.</p>
+      <p style="font-size:12.5px;line-height:1.6;margin:0">To change or unlink the WhatsApp number, use the HoReCa One Desktop App on the Main Counter PC → WhatsApp.</p>
+    </div>`;
+  }
+  if(w.via === 'counter'){
+    return `<div style="background:#fffbeb;border:1.5px solid #fcd34d;border-radius:18px;padding:22px;max-width:760px;color:#92400e">
+      <b style="font-size:16px;display:block;margin-bottom:8px">${w.reason === 'counter_offline' ? 'The Main Counter PC is not online right now' : 'WhatsApp is not linked on the Main Counter PC yet'}</b>
+      <p style="font-size:13.5px;line-height:1.6;margin:0 0 6px">${esc(w.message || '')}</p>
+      <p style="font-size:12.5px;line-height:1.6;margin:0">Messages sent from this website wait and go out as soon as the Main Counter PC's WhatsApp is connected.</p>
+    </div>`;
+  }
+  return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:18px;padding:22px;max-width:760px">
+    <b style="font-size:16px;color:var(--text);display:block;margin-bottom:8px">WhatsApp is linked on the Main Counter PC</b>
+    <p style="font-size:13.5px;line-height:1.6;margin:0 0 10px">No Main Counter PC has connected its WhatsApp to this hotel yet. On the Main Counter PC: install the latest <b>HoReCa One Desktop App</b> (v1.0.162 or newer), sign in to this hotel, then <b>WhatsApp</b> → <b>Scan QR</b> and scan it from the restaurant's WhatsApp (Settings → Linked devices → Link a device). After that, messages from this website go out from that WhatsApp.</p>
+    <p style="font-size:13.5px;line-height:1.6;margin:0 0 14px">From this website you can still send any bill on WhatsApp with the <b>WhatsApp</b> button on the bill: it opens WhatsApp with the receipt ready to send.</p>
+    <p class="muted" style="font-size:12px;margin:0">Need help? HoReCa One Helpline ${esc(HELPLINE)}.</p>
+  </div>`;
 }
 
 function renderWaDirectScanner(){
@@ -17827,6 +18244,7 @@ function renderWaDirectScanner(){
   const isConnected = (w.state === 'open');
   const isQrReady = (w.state === 'qr' && Boolean(w.qr));
   const isStarting = (w.state === 'starting' || w.state === 'connecting');
+  if(w.state === 'unavailable' || (SRV.cloud && w.via === 'counter')) return waWebsiteInfo(w);
 
   return `
     <style>
@@ -17955,7 +18373,7 @@ function renderWaDirectScanner(){
             ${isConnected ? `Connected: +${w.me || 'Active'}` : (isQrReady ? 'QR Code Ready to Scan' : (isStarting ? 'Starting Gateway...' : 'Disconnected'))}
           </span>
           <button class="btn g sm" onclick="waStatus().then(()=>scrWaReports())" title="Check server socket">🔄 Refresh Status</button>
-          ${isConnected ? `<button class="btn bad sm" onclick="if(confirm('Unlink this WhatsApp number from Setu?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>scrWaReports());}">Unlink Device</button>` : ''}
+          ${isConnected ? `<button class="btn bad sm" onclick="uiConfirm('Unlink this WhatsApp number from Setu?').then(ok=>{if(ok){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>scrWaReports());}})">Unlink Device</button>` : ''}
         </div>
       </div>
 
@@ -18773,7 +19191,7 @@ async function retryWaMessage(id){
     return;
   }
   
-  if(!confirm(`Retry sending WhatsApp message to ${waMaskPhone(m.phone)} (Bill #${m.billNo})?`)) return;
+  if(!await uiConfirm(`Retry sending WhatsApp message to ${waMaskPhone(m.phone)} (Bill #${m.billNo})?`)) return;
 
   if(SRV.on){
     try{
@@ -19171,6 +19589,13 @@ function saasNotices(){
       <div class="btns" style="justify-content:center"><button class="btn g" onclick="backup()">Backup Download</button></div>
       <div style="margin-top:12px;font-size:11px;color:#64748b">Powered by Aghanya Devanya Enterprises</div></div>`;
   } else if(l) l.remove();
+  // Super Admin asked this main counter PC to move its data to the faster storage (SQLite): done at the next start
+  let mv = $('#saas-move');
+  if(c.moveStorage === 'sqlite' && SRV.local && SRV.engine !== 'sqlite'){
+    if(!mv){ mv = document.createElement('div'); mv.id = 'saas-move'; document.body.prepend(mv); }
+    mv.style.cssText = 'background:#0369a1;color:#fff;padding:8px 16px;font-weight:600;font-size:13px;text-align:center';
+    mv.textContent = 'A faster storage for this PC is ready. At closing time, close Setu and open it again: the move takes a few minutes and keeps all your data. Helpline ' + HELPLINE;
+  } else if(mv) mv.remove();
   const n = c.notice;
   if(n && n.t && activeUser && !isModal() && lsGet('setu_notice_seen') !== String(n.at)){
     lsSet('setu_notice_seen', String(n.at));
@@ -19490,7 +19915,7 @@ async function delRun(){
   if(!list.length) return;
   if(!/^\d{6}$/.test(code)){ toast('Enter the 6-digit delete code from Aghanya Devanya Enterprises'); return; }
   if(!SRV.on || !(SRV.cloud || SRV.local)){ toast('Delete needs this Setu connected to Hotel Setu Cloud (the code is checked online)'); return; }
-  if(!confirm(`Delete ${list.length} entries (${k.label})?\nA backup file is downloaded first. This cannot be undone in Setu.`)) return;
+  if(!await uiConfirm(`Delete ${list.length} entries (${k.label})?\nA backup file is downloaded first. This cannot be undone in Setu.`)) return;
   const what = `${k.label}: ${list.length}${k.dates ? ` · ${DELF.from} to ${DELF.to}` : ''}${DELF.cat ? ' · ' + DELF.cat : ''}${DELF.only ? ' · imported only' : ''}`;
   let ref;
   try{
@@ -19554,6 +19979,9 @@ function scrData(){
 // then they join the table's running order the same way as the Captain App (KOT for the new items only). The cloud
 // never writes this hotel's data, and D.qrDone keeps an accepted order from being added twice.
 let QRS = null, QR_ERR = '';
+let QR_NATIVE_ROWS = [], QR_NATIVE_CALLS = [], QR_NATIVE_CALLS_AT = 0;
+const QR_NATIVE_DECISIONS = new Set();
+const qrNativeMode = () => SRV.on && SRV.engine === 'sqlite' && SRV.nativeQr === true;
 const QR_SEEN = new Set(), QR_BUSY = new Set();
 const qrReady = () => SRV.on && !!activeUser && !SRV.readOnly && (SRV.cloud || SRV.local || !!SRV.token);
 // Auto-accept runs on the main counter PC, or on a phone-only hotel's devices (the cloud lets only one accept win)
@@ -19565,43 +19993,106 @@ async function qrApi(path, body){
   return j;
 }
 // Accepted (on any device) but not in this hotel's data yet, for over a minute: the device stopped half-way
-const qrStuck = () => (QRS && QRS.orders || []).filter(o => o.status === 'accepted' && !D.qrDone.includes(o.id) && Date.now() - (o.decided || 0) > 60000);
+const qrStuck = () => qrNativeMode() ? [] : (QRS && QRS.orders || []).filter(o => o.status === 'accepted' && !D.qrDone.includes(o.id) && Date.now() - (o.decided || 0) > 60000);
 async function qrPoll(){
   clearTimeout(qrPoll.t);
   let next = 120000;
   try{
-    if(qrReady()){
+    if(qrReady() && qrNativeMode()){
+      // Source of truth: counter's durable inbound staging queue. Do not
+      // re-add cloud orders to D.kaccha; the inbound receiver alone does that.
+      const response = await srvFetch('/api/q/inbound-qr?status=pending&limit=100');
+      if(!response.ok) throw new Error('Local QR inbox: HTTP ' + response.status);
+      const queue = await response.json();
+      QR_NATIVE_ROWS = (queue.rows || []).map(o => ({
+        id: o.order_id, tbl: o.table, items: o.items || [],
+        name: o.guest_name || '', note: o.note || '', at: o.created_at,
+        status: o.status
+      }));
+      QR_NATIVE_DECISIONS.forEach(id => {
+        if(!QR_NATIVE_ROWS.some(o => o.id === id)) QR_NATIVE_DECISIONS.delete(id);
+      });
+      QRS = {on: true, auto: false, localNative: true,
+             orders: QR_NATIVE_ROWS, calls: QR_NATIVE_CALLS};
+      QR_ERR = '';
+      next = 2500;   // this PC's own inbox: cheap to read often, so a guest order shows within seconds
+      const fresh = QR_NATIVE_ROWS.filter(o => !QR_SEEN.has(o.id));
+      fresh.forEach(o => QR_SEEN.add(o.id));
+      if(fresh.length){
+        playOrderChime();
+        toast('New QR order: Table ' + fresh[0].tbl);
+        if(!isModal() || $('#qr-panel')) qrPanel();
+      }
+      // Guest service calls still come from cloud. This is non-blocking:
+      // an internet outage must never prevent viewing the local QR inbox.
+      if(Date.now() - QR_NATIVE_CALLS_AT > 5000){
+        QR_NATIVE_CALLS_AT = Date.now();
+        qrApi('state').then(remote => {
+          if(!qrNativeMode()) return;
+          QR_NATIVE_CALLS = Array.isArray(remote.calls) ? remote.calls : [];
+          if(QRS && QRS.localNative) QRS.calls = QR_NATIVE_CALLS;
+          qrCallAlert(QR_NATIVE_CALLS);
+          qrPill();
+        }).catch(() => {});
+      }
+    }else if(qrReady()){
       QRS = await qrApi('state'); QR_ERR = '';
       if(QRS.on){
-        next = 10000;
-        const fresh = QRS.orders.filter(o => o.status === 'pending' && !QR_SEEN.has(o.id)), calls = QRS.calls.filter(c => !QR_SEEN.has(c.id));
-        [...fresh, ...calls].forEach(x => QR_SEEN.add(x.id));
-        if(fresh.length || calls.length){
+        next = 3000;
+        const fresh = QRS.orders.filter(o => o.status === 'pending' && !QR_SEEN.has(o.id));
+        fresh.forEach(x => QR_SEEN.add(x.id));
+        qrCallAlert(QRS.calls);
+        if(fresh.length){
           playOrderChime();
-          toast(fresh.length ? `New QR order: ${[...new Set(fresh.map(o => 'Table ' + o.tbl))].join(', ')}` : `Table ${calls[0].tbl}: ${QR_CALL[calls[0].kind] || 'needs help'}`);
+          toast(`New QR order: ${[...new Set(fresh.map(o => 'Table ' + o.tbl))].join(', ')}`);
           if(fresh.length && (!QRS.auto || !qrAutoDevice())){
             if(!isModal() || $('#qr-panel')) qrPanel();
           }
           if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
         }
         if(QRS.auto && qrAutoDevice()){
-          for(const o of QRS.orders.filter(o => o.status === 'pending')) await qrDecide(o.id, 'accept', true);
+          // Auto-accept only at a table that already has a running order: the first order of a table waits for the
+          // staff, so an order sent from outside the hotel (a shared photo of the QR) is never cooked by itself
+          for(const o of QRS.orders.filter(o => o.status === 'pending' && qrTableRunning(o.tbl))) await qrDecide(o.id, 'accept', true);
           for(const o of qrStuck()) await qrApply(o, 'Auto');
           if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
         }
       }
     }
-  }catch(e){ QR_ERR = e.message; }
+  }catch(e){ QR_ERR = e.message; next = 5000; }   // a failed check is tried again in seconds, never left for minutes
   qrPill();
   if($('#qr-panel')) qrPanel(true);
   qrPoll.t = setTimeout(qrPoll, next);
 }
+// A table with a running order on this counter (a KOT or items not billed yet)
+function qrTableRunning(tbl){
+  try{
+    const k = (D.kaccha || {})[tbl];
+    return !!(k && Array.isArray(k.items) && k.items.length);
+  }catch(e){ return false; }
+}
 setTimeout(qrPoll, 6000);
 const QR_CALL = {waiter: 'Call waiter', water: 'Water please', bill: 'Request bill'};
+// A guest pressed Call waiter / Water please / Request bill: sound, a message, and the QR panel opens as a popup with the
+// table and a Done button (on both storage engines). If another window is open (e.g. a bill being made), it is not
+// pushed aside: the QR button at the top blinks and the popup opens as soon as that window closes.
+function qrCallAlert(calls){
+  const fresh = (calls || []).filter(c => c && !QR_SEEN.has(c.id));
+  if(!fresh.length) return;
+  fresh.forEach(c => QR_SEEN.add(c.id));
+  playOrderChime();
+  toast(fresh.map(c => `Table ${c.tbl}: ${QR_CALL[c.kind] || 'needs help'}`).join(' · '));
+  if(!isModal() || $('#qr-panel')) qrPanel();
+  else QR_CALL_WAIT = true;
+}
+let QR_CALL_WAIT = false;
+setInterval(() => { if(QR_CALL_WAIT && !isModal()){ QR_CALL_WAIT = false; qrPanel(); } }, 1500);
 function qrPill(){
   const el = $('#top-qr-pill');
   if(!el) return;
-  const n = QRS && QRS.on ? QRS.orders.filter(o => o.status === 'pending').length + QRS.calls.length + qrStuck().length : 0;
+  const n = qrNativeMode()
+    ? QR_NATIVE_ROWS.length + QR_NATIVE_CALLS.length
+    : (QRS && QRS.on ? QRS.orders.filter(o => o.status === 'pending').length + QRS.calls.length + qrStuck().length : 0);
   el.style.display = n ? '' : 'none';
   el.textContent = `QR ${n}`;
 }
@@ -19613,15 +20104,22 @@ async function qrDecide(id, action, auto){
   if(QR_BUSY.has(id)) return;
   let reason = '';
   if(action === 'reject' && !auto){
-    reason = prompt('Reason (the guest sees it):', 'Sorry, this item is not available now');
+    reason = await uiPrompt('Reason (the guest sees it):', 'Sorry, this item is not available now');
     if(reason === null) return;
   }
   QR_BUSY.add(id);
   const by = auto ? 'Auto' : (activeUser && activeUser.name) || 'Staff';
   try{
     const r = await qrApi('decide', {id, action, by, reason});
-    qrLog(r.order, action === 'accept' ? 'accepted' : 'rejected', by);
-    if(action === 'accept') await qrApply(r.order, by); else save();
+    if(qrNativeMode()){
+      // Cloud emits qr_status; the local receiver creates one KOT after
+      // committing that event. Legacy qrApply would create a duplicate.
+      QR_NATIVE_DECISIONS.add(id);
+      toast('Decision received. Counter will update this QR order after sync.');
+    }else{
+      qrLog(r.order, action === 'accept' ? 'accepted' : 'rejected', by);
+      if(action === 'accept') await qrApply(r.order, by); else save();
+    }
   }catch(e){
     toast(e.status === 409 ? `This order was already ${(e.data && e.data.status) || 'handled'}${e.data && e.data.by ? ' by ' + e.data.by : ''}` : 'QR order: ' + e.message);
   }finally{
@@ -19639,6 +20137,10 @@ async function qrDecide(id, action, auto){
 }
 // Add an accepted guest order to its table: same steps as captainSend(), the screen's own bill is kept as it was
 async function qrApply(o, by){
+  if(qrNativeMode()){
+    toast('QR order is handled by counter sync; no duplicate KOT will be created.');
+    return false;
+  }
   if(D.qrDone.includes(o.id)){ qrApi('applied', {id: o.id}).catch(() => {}); return true; }
   const tbl = o.tbl, keep = B, same = keep && keep.table === tbl && keep.channel === 'Dine-In';
   if(same && JSON.stringify(sentMap(keep.cart)) !== JSON.stringify(keep.sent || {})){
@@ -19680,7 +20182,7 @@ const qrDoneCall = async id => {
 };
 function qrPanel(refresh){
   if(refresh && !$('#qr-panel')) return;
-  const ord = QRS && QRS.orders || [], pend = ord.filter(o => o.status === 'pending'), stuck = qrStuck(), calls = QRS && QRS.calls || [];
+  const ord = qrNativeMode() ? QR_NATIVE_ROWS : (QRS && QRS.orders || []), pend = ord.filter(o => o.status === 'pending'), stuck = qrStuck(), calls = qrNativeMode() ? QR_NATIVE_CALLS : (QRS && QRS.calls || []);
   if(refresh && !pend.length && !stuck.length && !calls.length){
     if(typeof isModal === 'function' && isModal() && document.getElementById('qr-panel')) closeModal();
     return;
@@ -19689,9 +20191,12 @@ function qrPanel(refresh){
   const card = (o, btns) => `<div class="card" style="margin:0 0 8px;padding:10px 12px"><div style="display:flex;justify-content:space-between"><b>Table ${esc(o.tbl)}</b><span class="muted">${tm(o.at)}</span></div>
     <div>${o.items.map(i => `${i.qty} × ${esc(i.name)}`).join(', ')} · <b>${money(sum(o.items, i => i.qty * i.price))}</b></div>
     ${o.note ? `<div class="red" style="font-size:13px">Note: ${esc(o.note)}</div>` : ''}${o.name ? `<div class="muted" style="font-size:12px">Guest: ${esc(o.name)}</div>` : ''}<div class="btns" style="margin-top:6px">${btns}</div></div>`;
+  const qrActionButtons = o => (qrNativeMode() && QR_NATIVE_DECISIONS.has(o.id))
+    ? '<span class="muted">Decision sent — awaiting counter sync. Do not accept twice.</span>'
+    : `<button class="btn ok" onclick="qrDecide('${o.id}','accept')">Accept & send KOT</button><button class="btn g" onclick="qrDecide('${o.id}','reject')">Reject</button>`;
   modal('QR orders & calls', `<div id="qr-panel">
     ${QR_ERR ? `<p class="red">${esc(QR_ERR)}</p>` : ''}
-    ${pend.map(o => card(o, `<button class="btn ok" onclick="qrDecide('${o.id}','accept')">Accept & send KOT</button><button class="btn g" onclick="qrDecide('${o.id}','reject')">Reject</button>`)).join('') || '<p class="muted">No new orders.</p>'}
+    ${pend.map(o => card(o, qrActionButtons(o))).join('') || '<p class="muted">No new orders.</p>'}
     ${stuck.length ? '<h4>Accepted, not added yet</h4>' + stuck.map(o => card(o, `<button class="btn ok" onclick="qrApply(QRS.orders.find(x=>x.id==='${o.id}'),activeUser.name).then(()=>qrPoll())">Add to table now</button>`)).join('') : ''}
     ${calls.length ? '<h4>Calls from tables</h4>' + calls.map(c => `<div class="card" style="margin:0 0 8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center"><span><b>Table ${esc(c.tbl)}</b> · ${esc(QR_CALL[c.kind] || c.kind)} <span class="muted">${tm(c.at)}</span></span><button class="btn g sm" onclick="qrDoneCall('${c.id}')">Done</button></div>`).join('') : ''}
     <div class="btns"><button class="btn g" onclick="closeModal();go('qr')">QR settings (Q)</button><button class="btn g" onclick="closeModal()">Close</button></div></div>`);
@@ -19707,7 +20212,7 @@ async function drawQrDirect(){
   el.innerHTML = `<h3 style="margin-top:0">Direct QR ordering <span class="tag ${QRS.on ? 'ok' : ''}">${QRS.on ? 'ON' : 'OFF'}</span></h3>
     <p style="font-size:13px">Guests scan the table's QR, order from their phone, and the order comes here (QR button at the top). Accept it and the KOT goes to the kitchen like a waiter's order. Needs internet on this PC.</p>
     ${mgr ? `<div class="btns"><button class="btn ${QRS.on ? 'g' : 'ok'}" onclick="qrSet({on:${!QRS.on}})">${QRS.on ? 'Switch off' : 'Switch on'}</button>
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;width:auto;margin:0"><input type="checkbox" style="width:auto;margin:0" ${QRS.auto ? 'checked' : ''} onchange="qrSet({auto:this.checked})"> Accept orders automatically</label>
+${qrNativeMode() ? '<span class="muted" style="font-size:12px">Manual approval is required for safe cloud-to-counter QR sync.</span>' : `<label style="display:flex;align-items:center;gap:6px;font-size:13px;width:auto;margin:0"><input type="checkbox" style="width:auto;margin:0" ${QRS.auto ? 'checked' : ''} onchange="qrSet({auto:this.checked})"> Accept orders automatically</label>`}
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;width:auto;margin:0"><input type="checkbox" style="width:auto;margin:0" ${D.settings.qrHideOut ? 'checked' : ''} onchange="D.settings.qrHideOut=this.checked;save();toast('Saved')"> Hide dishes whose ingredient stock is finished</label></div>
     <table style="margin-top:8px"><tr><th>Table</th><th>QR</th><th></th></tr>${qrTables().map(t => { const x = T[t]; return `<tr><td><b>${esc(t)}</b></td>
       <td>${x ? (x.on === false ? '<span class="tag">Off</span>' : '<span class="tag ok">Active</span>') : '<span class="muted">No code yet</span>'}</td>
@@ -19718,7 +20223,7 @@ async function drawQrDirect(){
 const T_ON = t => QRS && QRS.tables && QRS.tables[t] && QRS.tables[t].on !== false;
 const qrSet = async v => { try{ await qrApi('settings', v); toast('Saved'); }catch(e){ toast(e.message); } drawQrDirect(); qrPoll(); };
 async function qrTable(t, action, ask){
-  if(ask && !confirm(`Make a new QR for table ${t}? The old printed QR stops working.`)) return;
+  if(ask && !await uiConfirm(`Make a new QR for table ${t}? The old printed QR stops working.`)) return;
   try{
     await qrApi('table', {table: t, action});
     if((action === 'new' || action === 'on') && (!QRS || !QRS.on)){
@@ -19787,7 +20292,7 @@ async function graceCheck(){
     l.innerHTML = `<div class="login-card" style="max-width:480px;text-align:center">
       <h2 style="margin-top:0">Licence check needed</h2>
       <p style="font-size:15px">This PC has not reached Hotel Setu Cloud for ${Math.floor(g)} days.</p>
-      <p class="muted">Connect the internet (a phone hotspot is enough): Setu opens again by itself within a minute. Or enter the licence key from Aghanya Devanya Enterprises. All your data is safe.</p>
+      <p class="muted">Connect the internet (a phone hotspot is enough): Setu opens again by itself within a minute. Or enter the licence key from Aghanya Devanya Enterprises (Helpline ${HELPLINE}). All your data is safe.</p>
       <input id="grace_key" placeholder="Paste licence key" style="width:100%;margin:8px 0">
       <div class="btns" style="justify-content:center"><button class="btn ok" onclick="graceKey()">Activate Key</button><button class="btn g" onclick="backup()">Backup Download</button></div>
       <div id="grace_msg" class="muted" style="margin-top:8px"></div></div>`;
@@ -19961,7 +20466,7 @@ const srvErrLine = l => /FAIL|ERROR|CLOUD|damaged|not found|could not|blocked|de
 //   Gross = items total (bill.sub) · Discount = manual + loyalty (bill.disc) · Net Sales = Gross − Discount, without GST (bill.taxable)
 //   GST = bill.tax · Bill Total = what the customer paid (bill.total, after round-off) · Cancelled bills are never counted as sales.
 // Money is added in paise (whole numbers) so totals do not drift.
-const pz = x => Math.round((+x || 0) * 100);
+const pz = x => toPaise(x);
 const zr = p => p / 100;
 const AN_PAGE = 50;
 let AN = {id: '', from: today(), to: today(), q: '', sort: null, page: 0, f: {}, top: 25};
@@ -19974,12 +20479,19 @@ const anBills = (all, f = AN.f) => (histNeed(AN.from, AN.to), D.bills).filter(b 
 const anTx = type => D.txns.filter(t => t.type === type && t.date >= AN.from && t.date <= AN.to);
 const menuCat = i => ((D.menu.find(m => m.id === i.mid) || D.menu.find(m => m.name === i.name) || {}).cat) || 'Other';
 // A bill's items with the bill discount and Net Sales shared out by item value
+// Shares a whole-paise amount over the lines by weight; the remainder paise go to the largest fractions, so the
+// shares always add up to the amount exactly (item-wise reports = bill totals, to the paisa)
+function sharePaise(total, weights){
+  const W = weights.reduce((a, w) => a + w, 0);
+  if(!W) return weights.map((w, k) => k === 0 ? total : 0);
+  const base = weights.map(w => Math.floor(total * w / W)), rest = total - base.reduce((a, x) => a + x, 0);
+  weights.map((w, k) => [k, total * w / W - base[k]]).sort((x, y) => y[1] - x[1] || x[0] - y[0]).slice(0, rest).forEach(([k]) => base[k]++);
+  return base;
+}
 function billLines(b){
-  const sub = pz(b.sub) || 1;
-  return (b.items || []).map(i => {
-    const gross = pz((+i.price || 0) * (+i.qty || 0));
-    return {name: i.name, mid: i.mid, qty: +i.qty || 0, cat: menuCat(i), gross, disc: Math.round(pz(b.disc) * gross / sub), net: Math.round(pz(b.taxable) * gross / sub)};
-  });
+  const items = b.items || [], gross = items.map(i => linePaise(i));
+  const disc = sharePaise(pz(b.disc), gross), net = sharePaise(pz(b.taxable), gross);
+  return items.map((i, k) => ({name: i.name, mid: i.mid, qty: +i.qty || 0, cat: menuCat(i), gross: gross[k], disc: disc[k], net: net[k]}));
 }
 // Ingredient cost of one plate at today's stock rates (estimate: Setu does not keep the cost at the time of sale yet)
 const recipeCost = m => (m && m.recipe || []).reduce((a, r) => a + pz((+r.qty || 0) * (+((D.stock.find(s => s.id === r.sid) || {}).rate) || 0)), 0);
@@ -20780,6 +21292,22 @@ const LISTS = {
   issueReasons: ['Issue reasons', () => OUT_KIND.issue[1]], returnReasons: ['Return reasons', () => OUT_KIND.return[1]]
 };
 const lst = k => { const c = ((D.settings.lists || {})[k] || []).filter(Boolean); return c.length ? c : LISTS[k][1](); };
+// A clean list editor: one item per row (rename in place, × removes, Enter or + Add adds). listVals(id) reads it back.
+const lsRow = v => `<div class="ls-row"><input value="${esc(v)}" maxlength="60" aria-label="Item"><button type="button" class="ls-x" title="Remove" aria-label="Remove" onclick="lsDel(this)">×</button></div>`;
+function listEditor(id, items, ph){
+  return `<div class="ls-ed" id="${id}"><div class="ls-rows">${items.map(lsRow).join('')}</div>
+    <div class="ls-add"><input placeholder="${esc(ph || 'Add an item')}" maxlength="60" onkeydown="if(event.key==='Enter'){event.preventDefault();lsAdd(this)}"><button type="button" class="btn g sm" onclick="lsAdd(this.previousElementSibling)">+ Add</button></div></div>`;
+}
+function lsCount(ed){ const c = ed.closest('.card, .ls-card'); const b = c && c.querySelector('.ls-count'); if(b) b.textContent = ed.querySelectorAll('.ls-row').length + (b.dataset.unit || ' items'); }
+function lsAdd(inp){
+  const v = (inp.value || '').trim(), ed = inp.closest('.ls-ed');
+  if(!v) return;
+  if(listVals(ed.id).some(x => x.toLowerCase() === v.toLowerCase())){ toast(`"${v}" is already in the list`); inp.select(); return; }
+  ed.querySelector('.ls-rows').insertAdjacentHTML('beforeend', lsRow(v));
+  inp.value = ''; inp.focus(); lsCount(ed);
+}
+function lsDel(btn){ const ed = btn.closest('.ls-ed'); btn.closest('.ls-row').remove(); lsCount(ed); }
+const listVals = id => { const ed = document.getElementById(id); return ed ? [...new Set([...ed.querySelectorAll('.ls-row input')].map(i => i.value.trim()).filter(Boolean))] : []; };
 
 const DOC_ICON = {ok: '✅', warn: '⚠️', bad: '❌', info: 'ℹ️'};
 let DOC = {res: null, extra: [], at: 0};
@@ -20957,11 +21485,11 @@ setInterval(doctorAuto, 6 * 36e5);
 function scrLists(){
   const settingTables = D.settings.tables || ['T-1', 'T-2', 'T-3', 'T-4', 'T-5', 'T-6', 'T-7', 'T-8', 'T-9', 'T-10', 'Parcel'];
   main.innerHTML = `
-    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:#1e293b;color:#fff;padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
+    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:var(--panel,#fff);color:var(--text,#0f172a);padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
       <div>
-        <div style="font-size:11px;color:#94a3b8;font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One · Masters (मास्टर प्रबंधन)</div>
-        <div style="font-size:19px;font-weight:800;color:#ffffff">Categories & Dropdown Lists Master</div>
-        <div style="font-size:12.5px;color:#cbd5e1;margin-top:2px">Configure your custom categories, expense heads, stock groups, locations and transaction reasons.</div>
+        <div style="font-size:11px;color:var(--muted,#64748b);font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One · Masters</div>
+        <div style="font-size:19px;font-weight:800;color:var(--text,#0f172a)">Categories & Dropdown Lists Master</div>
+        <div style="font-size:12.5px;color:var(--muted,#64748b);margin-top:2px">Configure your custom categories, expense heads, stock groups, locations and transaction reasons.</div>
       </div>
       <div style="display:flex;gap:8px">
         <button type="button" class="btn g sm" onclick="resetListsDefaults()" style="background:#334155;color:#fff;border:1px solid #475569;font-weight:650">Reset Defaults</button>
@@ -20972,8 +21500,7 @@ function scrLists(){
     <!-- Quick Navigation / Info Banner -->
     <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:10px;padding:12px 18px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
       <div style="font-size:12.5px;color:#334155;line-height:1.5">
-        💡 <b>नियम / How it works:</b> प्रत्येक नाम को नई लाइन (Enter) पर लिखें। पुराना कोई भी बिल या रिकॉर्ड नहीं बदलेगा। यहाँ जो भी नया नाम डालेंगे वह सभी फॉर्म्स में ड्रॉपडाउन लिस्ट में तुरंत दिखाई देगा।
-      </div>
+        <b>How it works:</b> add, rename or remove items in each list, then press Save. Old bills and records never change; new entries use the updated lists.</div>
       <div style="display:flex;gap:6px">
         <button type="button" class="btn g sm" onclick="go('menu')">Menu Master →</button>
         <button type="button" class="btn g sm" onclick="go('stock')">Stock Master →</button>
@@ -20989,10 +21516,9 @@ function scrLists(){
           <div class="card" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
             <div style="display:flex;justify-content:space-between;align-items:center">
               <label style="font-weight:750;font-size:13px;color:#0f172a;margin:0">${esc(l)}</label>
-              <span style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${items.length} items</span>
+              <span class="ls-count" style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${items.length} items</span>
             </div>
-            <textarea id="ls_${k}" rows="5" style="width:100%;font-size:13.5px;color:#0f172a;font-weight:500;line-height:1.5;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;resize:vertical;font-family:inherit;background:#fff">${esc(items.join('\n'))}</textarea>
-            <div style="font-size:11.5px;color:#475569">Type each item on a new line</div>
+            ${listEditor('ls_' + k, items)}
           </div>
         `;
       }).join('')}
@@ -21001,16 +21527,15 @@ function scrLists(){
       <div class="card" style="background:#ffffff;border:1px solid #cbd5e1;border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:8px;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <label style="font-weight:750;font-size:13px;color:#0f172a;margin:0">Restaurant Dining Tables & Parcel</label>
-          <span style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${settingTables.length} tables</span>
+          <span class="ls-count" data-unit=" tables" style="font-size:11px;background:#f1f5f9;color:#334155;padding:2px 8px;border-radius:6px;font-weight:750">${settingTables.length} tables</span>
         </div>
-        <textarea id="ls_tables" rows="5" style="width:100%;font-size:13.5px;color:#0f172a;font-weight:500;line-height:1.5;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;resize:vertical;font-family:inherit;background:#fff">${esc(settingTables.join('\n'))}</textarea>
-        <div style="font-size:11.5px;color:#475569">e.g. T-1, T-2, T-3, Parcel (one per line)</div>
+        ${listEditor('ls_tables', settingTables, 'Add a table, e.g. T-11 or Parcel')}
       </div>
     </div>
 
     <!-- Bottom Save Action Bar -->
     <div style="margin-top:20px;padding:16px 20px;background:#ffffff;border:1px solid #cbd5e1;border-radius:12px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
-      <div style="font-size:13px;color:#334155;font-weight:500">Save करने पर सभी परिवर्तन आपके बिलिंग, स्टॉक और खर्च ड्रॉपडाउन में सुरक्षित हो जाएंगे।</div>
+      <div style="font-size:13px;color:#334155;font-weight:500">Saved lists are used at once in billing, stock and expense dropdowns.</div>
       <button type="button" class="btn" onclick="saveListsAndTables()" style="background:#047857;color:#fff;border:1px solid #047857;font-size:14px;font-weight:800;padding:10px 24px;border-radius:8px;cursor:pointer">
         Save All Lists & Categories
       </button>
@@ -21021,9 +21546,8 @@ function scrLists(){
 function saveListsAndTables(){
   if(!isManager()){ toast('Manager / Owner only'); return; }
   saveLists();
-  const tblEl = $('#ls_tables');
-  if(tblEl){
-    const tbls = [...new Set(tblEl.value.split('\n').map(x => x.trim()).filter(Boolean))];
+  if($('#ls_tables')){
+    const tbls = listVals('ls_tables');
     if(tbls.length){
       D.settings.tables = tbls;
       save();
@@ -21032,8 +21556,8 @@ function saveListsAndTables(){
   toast('All Masters & Dropdown lists saved successfully!');
 }
 
-function resetListsDefaults(){
-  if(!confirm('Reset all categories to Setu system defaults?')) return;
+async function resetListsDefaults(){
+  if(!await uiConfirm('Reset all categories to Setu system defaults?')) return;
   D.settings.lists = {};
   save();
   toast('Reset to default lists');
@@ -21042,11 +21566,11 @@ function resetListsDefaults(){
 
 function scrMasters(){
   main.innerHTML = `
-    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:#1e293b;color:#fff;padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
+    <div class="title" style="display:flex;justify-content:space-between;align-items:center;background:var(--panel,#fff);color:var(--text,#0f172a);padding:16px 22px;border-radius:12px;margin-bottom:16px;box-shadow:0 2px 8px rgba(15,23,42,0.1)">
       <div>
-        <div style="font-size:11px;color:#94a3b8;font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One ERP</div>
-        <div style="font-size:19px;font-weight:800;color:#ffffff">Masters Management (मास्टर प्रबंधन)</div>
-        <div style="font-size:12.5px;color:#cbd5e1;margin-top:2px">Configure and manage all core data masters: Menu, Stock, Suppliers, Categories, Tables, Customers and Staff.</div>
+        <div style="font-size:11px;color:var(--muted,#64748b);font-weight:750;letter-spacing:1px;text-transform:uppercase;margin-bottom:3px">HoReCa One ERP</div>
+        <div style="font-size:19px;font-weight:800;color:var(--text,#0f172a)">Masters Management</div>
+        <div style="font-size:12.5px;color:var(--muted,#64748b);margin-top:2px">Configure and manage all core data masters: Menu, Stock, Suppliers, Categories, Tables, Customers and Staff.</div>
       </div>
     </div>
 
@@ -21115,17 +21639,17 @@ function listsCard(){
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
       <div>
         <h3 style="margin:0;color:#0f172a;font-size:16px;font-weight:750">Dropdown Lists & Categories (Masters)</h3>
-        <p class="muted" style="margin:2px 0 0;font-size:12.5px;color:#334155">One name per line. Clear everything = Setu’s default list. Old entries do not change.</p>
+        <p class="muted" style="margin:2px 0 0;font-size:12.5px;color:#334155">Add, rename or remove items. Remove every item to go back to the default list. Old entries do not change.</p>
       </div>
       <button type="button" class="btn g sm" onclick="go('lists')" style="background:#1e293b;color:#fff;border:1px solid #1e293b;font-weight:700">Open Dedicated Screen →</button>
     </div>
-    <div class="grid">${Object.entries(LISTS).map(([k, [l]]) => `<div><label style="font-weight:750;font-size:13px;color:#0f172a">${l}</label><textarea id="ls_${k}" rows="4" style="width:100%;font-size:13.5px;color:#0f172a;font-weight:500;line-height:1.5;border:1px solid #cbd5e1;border-radius:8px;padding:8px">${esc(lst(k).join('\n'))}</textarea></div>`).join('')}</div>
+    <div class="grid">${Object.entries(LISTS).map(([k, [l]]) => `<div class="ls-card"><label style="font-weight:750;font-size:13px;color:#0f172a">${l} <span class="ls-count muted" style="font-weight:600">${lst(k).length} items</span></label>${listEditor('ls_' + k, lst(k))}</div>`).join('')}</div>
     <div class="btns" style="margin-top:14px"><button class="btn ok" onclick="saveLists()" style="background:#047857;color:#fff;border:1px solid #047857;font-weight:750;padding:9px 20px">Save Lists</button></div></div>`;
 }
 function saveLists(){
   if(!isManager()){ toast('Manager / Owner only'); return; }
   const out = {};
-  Object.entries(LISTS).forEach(([k, [, def]]) => { const v = [...new Set($('#ls_' + k).value.split('\n').map(x => x.trim()).filter(Boolean))]; if(v.length && v.join('|') !== def().join('|')) out[k] = v; });
+  Object.entries(LISTS).forEach(([k, [, def]]) => { const v = listVals('ls_' + k); if(v.length && v.join('|') !== def().join('|')) out[k] = v; });
   D.settings.lists = out;
   audit('Settings', 'Dropdown lists changed');
   save(); toast('Lists saved');
@@ -21197,7 +21721,7 @@ async function prDel(i, which){
   else body = {ids: which};
   if(body.ids && !body.ids.length){ toast('Tick a job first'); return; }
   const n = body.all ? p.jobs.length : body.ids.length;
-  if(!confirm(`${p.name}: ${n} print jobs to remove? They will not print.`)) return;
+  if(!await uiConfirm(`${p.name}: ${n} print jobs to remove? They will not print.`)) return;
   try{
     const r = await srvFetch('/api/printer-jobs', {method: 'POST', body: JSON.stringify({printer: p.name, ...body})});
     const j = await r.json().catch(() => ({}));
@@ -21337,7 +21861,7 @@ async function scrErrors(){
 /* ================= HELP & SUPPORT (tickets to Setu Pro) ================= */
 let SUP = [];
 async function scrSupport(){
-  main.innerHTML = `<div class="title">Help &amp; Support (Setu Pro)</div><div class="card" id="sup-card"><p class="muted">Loading...</p></div>`;
+  main.innerHTML = `<div class="title">Help &amp; Support (Setu Pro)</div><div class="card" style="margin-bottom:12px"><b>HoReCa One Helpline:</b> ${helpLinks()}</div><div class="card" id="sup-card"><p class="muted">Loading...</p></div>`;
   const el = $('#sup-card');
   if(!SRV.on){ el.innerHTML = '<p>Help &amp; Support <b>Setu Desktop App (EXE)</b> and the PC must be connected to Hotel Setu Cloud.</p>'; return; }
   let j = {};
@@ -21346,7 +21870,7 @@ async function scrSupport(){
     j = await r.json().catch(() => ({}));
     if(!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
   }catch(e){
-    el.innerHTML = `<p class="muted">${esc(e.message)}</p><p>To talk directly, WhatsApp your vendor.</p>`;
+    el.innerHTML = `<p class="muted">${esc(e.message)}</p><p>To talk directly, call or WhatsApp the HoReCa One Helpline: ${helpLinks()}</p>`;
     return;
   }
   SUP = j.tickets || [];
@@ -21370,7 +21894,7 @@ async function supPost(body){
 async function supSend(){
   const subject = $('#sup_sub').value.trim(), text = $('#sup_txt').value.trim();
   if(!text) return toast('Poori baat likhein');
-  try{ await supPost({subject, text}); toast('Ticket sent. The reply will appear here.'); scrSupport(); }catch(e){ alert(e.message); }
+  try{ await supPost({subject, text}); toast('Ticket sent. The reply will appear here.'); scrSupport(); }catch(e){ uiAlert(e.message); }
 }
 function supOpen(id){
   const t = SUP.find(x => x.id === id);
@@ -21385,7 +21909,7 @@ function supOpen(id){
 async function supReply(id, resolve){
   const text = ($('#sup_rep')?.value || '').trim();
   if(!text && !resolve) return toast('Jawab likhein');
-  try{ await supPost({id, text, ...(resolve ? {status: 'resolved'} : {})}); closeModal(); toast('Sent'); scrSupport(); }catch(e){ alert(e.message); }
+  try{ await supPost({id, text, ...(resolve ? {status: 'resolved'} : {})}); closeModal(); toast('Sent'); scrSupport(); }catch(e){ uiAlert(e.message); }
 }
 
 /* ================= SETTINGS & SECURITY ================= */
@@ -21466,6 +21990,7 @@ function scrSettings(){
   <nav class="horeca-settings-jump" aria-label="Settings sections"><button type="button" onclick="document.getElementById('print-card').scrollIntoView({behavior:'smooth'})">Printer Setup</button><button type="button" onclick="document.getElementById('net-card').scrollIntoView({behavior:'smooth'})">Devices</button><button type="button" onclick="document.getElementById('cloud-card').scrollIntoView({behavior:'smooth'})">Cloud Sync</button><button type="button" onclick="document.getElementById('look-card').scrollIntoView({behavior:'smooth'})">Appearance</button><button type="button" onclick="document.getElementById('horeca-property-card').scrollIntoView({behavior:'smooth'})">Property Details</button></nav>
   <div class="card" id="print-card" style="border-left:4px solid #7c3aed"><h3 style="margin-top:0">Printer Setup</h3><p class="muted">Checking...</p></div>
   <div class="card" id="net-card" style="border-left:4px solid var(--primary)"><h3 style="margin-top:0">Phone / Tablet Connect (Captain App, Kitchen Tablet)</h3><p class="muted">Checking...</p></div>
+  <div class="card" id="sysinfo-card"><h3 style="margin-top:0">System Information</h3><p class="muted">Checking...</p></div>
   <div class="card" id="cloud-card" style="border-left:4px solid #0ea5e9"><h3 style="margin-top:0">Hotel Setu Cloud Sync (Internet Access)</h3><p class="muted">Checking...</p></div>
   <div class="card" id="update-card" style="border-left:4px solid #16a34a;display:none"></div>
   <div class="card" id="ab-card" style="border-left:4px solid #0284c7;display:none"></div>
@@ -21778,6 +22303,7 @@ function scrSettings(){
     <div class="btns"><button class="btn g" onclick="mediaBackup()">Download Photos Backup</button><label class="btn g" style="margin:0;cursor:pointer">Restore Photos Backup<input type="file" accept=".json" style="display:none" onchange="mediaRestore(this.files[0]);this.value=''"></label></div>
   </div>`;
   drawNetCard();
+  drawSysInfo();
   drawPrintCard();
   drawCloudCard();
   drawUpdateCard();
@@ -21870,6 +22396,37 @@ function savePrintSettings(silent){
   if(!silent) toast('Printer settings saved');
 }
 
+// Settings -> System Information: the technical details kept out of the rest of the screen (server, ports, addresses)
+async function drawSysInfo(){
+  const el = $('#sysinfo-card');
+  if(!el) return;
+  await connCheck().catch(() => {});
+  const info = SRV.on && !SRV.cloud ? await connProbe('/api/info') || {} : {};
+  const cl = SRV.on && SRV.local ? await connProbe('/api/cloud') || {} : {};
+  const row = (k, v) => v === undefined || v === '' || v === null ? '' : `<tr><td class="muted" style="padding:4px 12px 4px 0;white-space:nowrap">${esc(k)}</td><td style="padding:4px 0;font-family:'JetBrains Mono',monospace;font-size:12.5px;word-break:break-all">${esc(String(v))}</td></tr>`;
+  const port = info.port || location.port || '';
+  const mode = !SRV.on ? 'Browser only (standalone)' : SRV.cloud ? 'Website (Hotel Setu Cloud)' : SRV.local ? 'Main Counter PC (desktop)' : 'Device on the restaurant Wi-Fi';
+  el.innerHTML = `<h3 style="margin-top:0">System Information</h3>
+    <p class="muted" style="margin-top:0">For the HoReCa One Helpline (${esc(HELPLINE)}). Staff do not need these details.</p>
+    <table style="border-collapse:collapse">
+      ${row('Connection', CONN.label + ' · ' + CONN.detail)}
+      ${row('This device', mode)}
+      ${row('HoReCa One version', info.version || APP_VERSION)}
+      ${row('Storage', info.engine ? (info.engine === 'sqlite' ? 'SQLite' : 'JSON file') : '')}
+      ${row('Data version', info.dbVersion)}
+      ${row('Data folder', info.dataDir)}
+      ${row('Local server', SRV.local && port ? 'http://127.0.0.1:' + port + ' (starts with HoReCa One)' : '')}
+      ${row('Wi-Fi address for phones', (info.ips || []).map(ip => 'http://' + ip + ':' + port + '/hotel_erp.html').join('  '))}
+      ${row('Hotel Setu Cloud', cl.configured ? (cl.url || '') : SRV.cloud ? location.origin : '')}
+      ${row('Hotel Code', cl.hotel || (SRV.cloud ? SRV.hotel : ''))}
+      ${row('Last cloud sync', cl.okAt ? new Date(cl.okAt).toLocaleString('en-IN') : '')}
+      ${row('Cloud sync error', cl.ok === false ? cl.error : '')}
+      ${row('Install ID', (D.settings || {}).installId)}
+      ${row('Program', info.frozen ? 'Windows program (EXE)' : info.python ? 'Python ' + info.python + ' · ' + info.platform : '')}
+    </table>
+    <div class="btns"><button class="btn g sm" onclick="drawSysInfo()">Refresh</button></div>`;
+}
+
 async function drawNetCard(){
   const el = $('#net-card');
   if(!el) return;
@@ -21886,8 +22443,7 @@ async function drawNetCard(){
       <div class="qrbox">${qrSvg(urls[0])}<small>Scan with a phone</small></div>
       <div style="font-size:13px;line-height:1.7">
         <b>1.</b> Connect the phone / tablet to the <b>same restaurant Wi-Fi</b>.<br>
-        <b>2.</b> Scan the QR code or open this link:<br>
-        ${urls.map(u => `<code style="font-size:13px;font-weight:700">${esc(u)}</code>`).join('<br>')}<br>
+        <b>2.</b> Scan the QR code with the phone camera (the address is in System Information below).<br>
         <b>3.</b> Enter a Manager or Cashier PIN → open <b>Captain App (N)</b> or <b>Kitchen Display (T)</b>.<br>
         <span class="muted">If Windows Firewall asks, allow access on "Private networks". Other devices stop working when this PC is off.</span>
       </div>
@@ -22253,6 +22809,11 @@ function getWaCredits(){
 }
 
 function deductWaCredit(qty = 1){
+  if(SRV.on && !SRV.cloud){
+    // Main Counter: the counter program counts the message itself when it sends it; show its balance (BUG-0039)
+    waBalanceFromCounter();
+    return Math.max(0, getWaCredits() - qty);
+  }
   const curBal = getWaCredits();
   const nextBal = Math.max(0, curBal - qty);
   if(D && D.settings){
@@ -22264,6 +22825,16 @@ function deductWaCredit(qty = 1){
   return nextBal;
 }
 
+
+async function waBalanceFromCounter(){
+  try{
+    const j = await (await srvFetch('/api/wa/balance')).json();
+    if(typeof j.credits !== 'number') return;
+    // The counter's value is the saved one: the page's copy and its sync base both take it, so no save sends an old balance back
+    [D, SRV.base].forEach(x => { if(x && x.settings){ x.settings.waCredits = j.credits; if(typeof j.totalSent === 'number') x.settings.waTotalSent = j.totalSent; } });
+    updateWaHeader();
+  }catch(e){}
+}
 
 const WA_VOUCHER_SALT = 'SetuPro-Aghanya-Devanya-WhatsApp-Vendor-Key-2026';
 
@@ -22402,11 +22973,11 @@ function rechargeWaCredits(amount, code = 'DIRECT', note = ''){
 async function syncWaFromCloud(interactive = false){
   try{
     if(interactive) toast('Checking latest credits from SetuPro Cloud...');
-    const r = await fetch('/api/wa/cloud-refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    const r = await srvFetch('/api/wa/cloud-refresh', { method: 'POST', body: '{}' });
     if(r.ok){
       const j = await r.json();
       if(j.credits !== undefined){
-        if(D && D.settings) D.settings.waCredits = j.credits;
+        if(D && D.settings){ D.settings.waCredits = j.credits; if(typeof j.seq === 'number') D.settings.lastWaCreditSeq = j.seq; }
         save();
         updateWaHeader();
         if(interactive){
@@ -22486,7 +23057,7 @@ function getWaConnectionCardHTML(w, st, isConnected){
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <input id="wa_modal_test_num_gs" placeholder="10-digit mobile for test" style="width:200px">
-          <button class="btn ok sm" onclick="const num=$('#wa_modal_test_num_gs')?.value.trim();if(!num)return toast('Number dalein');fetch('/api/gupshup/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:num,text:'Gupshup Test from '+(D.settings.name||'Setu')+' ✅'})}).then(r=>r.json()).then(j=>toast(j.ok?'Test Sent Successfully!':'Failed: '+(j.error||j.message||'Error')))">Send Test Message</button>
+          <button class="btn ok sm" onclick="const num=$('#wa_modal_test_num_gs')?.value.trim();if(!num)return toast('Enter a mobile number');fetch('/api/gupshup/send',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:num,text:'Gupshup Test from '+(D.settings.name||'Setu')+' ✅'})}).then(r=>r.json()).then(j=>toast(j.ok?'Test Sent Successfully!':'Failed: '+(j.error||j.message||'Error')))">Send Test Message</button>
           <button class="btn g sm" onclick="closeModal();scrSettings();">Configure in Settings</button>
           <button class="btn g sm" onclick="showGupshupHelpModal()">Recharge Guide</button>
         </div>
@@ -22501,8 +23072,8 @@ function getWaConnectionCardHTML(w, st, isConnected){
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h4 style="margin:0;display:flex;align-items:center;gap:8px">
           ${isConnected 
-            ? '<span style="color:#10b981">● Connected (WhatsApp चालू है)</span>' 
-            : '<span style="color:#ef4444">🚫 Disconnected (WhatsApp कट / बंद है)</span>'}
+            ? '<span style="color:#10b981">● Connected</span>' 
+            : '<span style="color:#ef4444">Not connected</span>'}
         </h4>
         <button class="btn g sm" onclick="waStatus().then(()=>openWaModal(false))">Refresh Status</button>
       </div>
@@ -22518,7 +23089,12 @@ function getWaConnectionCardHTML(w, st, isConnected){
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
           <input id="wa_modal_test_num" placeholder="10-digit number for test" style="width:220px">
           <button class="btn g" onclick="waSend($('#wa_modal_test_num').value, 'Test message from ' + (D.settings.name || 'Setu') + ' ✅').then(r=>toast(r.ok?'Test message sent!':'Send failed: '+r.error))">Send Test</button>
-          <button class="btn bad" onclick="if(confirm('Disconnect WhatsApp?')){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}">Disconnect WhatsApp</button>
+          <button class="btn bad" onclick="uiConfirm('Disconnect WhatsApp?').then(ok=>{if(ok){waApi('logout',{}).then(()=>waApi('stop',{})).then(()=>openWaModal(false));}})">Disconnect WhatsApp</button>
+        </div>
+      ` : st === 'qr' && !w.qr ? `
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px;margin-bottom:12px;font-size:13px;line-height:1.6">
+          <b>The link QR is shown only to the Manager or Owner.</b><br>
+          Open this screen on the main counter PC, or sign in on this device with the Manager PIN, then press Refresh Status.
         </div>
       ` : st === 'qr' ? `
         <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
@@ -22555,7 +23131,7 @@ async function openWaModal(focusRecharge = false){
     <div style="margin-bottom:16px">
       <div style="display:flex;gap:10px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:16px">
         <button class="btn ${!focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-conn" onclick="openWaModal(false)">WhatsApp Connection Status</button>
-        <button class="btn ${focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-rech" onclick="openWaModal(true)">Message Credits & Recharge (रिचार्ज सिस्टम)</button>
+        <button class="btn ${focusRecharge ? 'ok' : 'g'}" id="wa-tab-btn-rech" onclick="openWaModal(true)">Message Credits & Recharge</button>
       </div>
 
       ${!focusRecharge ? getWaConnectionCardHTML(w, st, isConnected) : `
@@ -22592,7 +23168,7 @@ async function openWaModal(focusRecharge = false){
 
         ${recharges.length ? `
           <div class="card">
-            <h4 style="margin:0 0 10px">Recharge History (हाल के रिचार्ज)</h4>
+            <h4 style="margin:0 0 10px">Recharge History</h4>
             <table class="tbl" style="width:100%;font-size:12px">
               <thead>
                 <tr><th>Date & Time</th><th>Amount</th><th>Previous</th><th>New Balance</th><th>By</th><th>Note</th></tr>
@@ -22652,7 +23228,9 @@ async function waSend(phone, text){
   }
   try{
     const r = await waApi('send', {phone, text});
-    if(r && (r.ok || r.status === 'submitted' || r.id)){
+    if(r && r.queued){
+      toast(r.counterOnline ? 'Sending from the Main Counter PC WhatsApp…' : 'Saved. It goes from the Main Counter PC WhatsApp when Setu is open there.');
+    }else if(r && (r.ok || r.status === 'submitted' || r.id)){
       deductWaCredit(1);
     }
     return r;
@@ -22789,8 +23367,8 @@ async function abNow(){
   toast('Backing up…');
   try{ drawAutoBackup(await abCall({action: 'now'})); toast('Backup done'); }catch(e){ toast('Backup failed: ' + e.message); }
 }
-function abRestore(name){
-  if(!confirm(`Put back the data from ${name}?\n\nEverything entered after that time will be replaced. (The data of now is backed up first.)`)) return;
+async function abRestore(name){
+  if(!await uiConfirm(`Put back the data from ${name}?\n\nEverything entered after that time will be replaced. (The data of now is backed up first.)`)) return;
   withManager('Restore backup ' + name, async () => {
     try{ await abCall({action: 'restore', name}); toast('Restored. Reloading…'); setTimeout(() => location.reload(), 1200); }catch(e){ toast('Restore failed: ' + e.message); }
   });
@@ -22817,7 +23395,7 @@ async function updDo(a){
     if(a === 'install'){
       const open = Object.keys(D.kaccha || {}).length, cart = typeof B !== 'undefined' && B && B.cart && B.cart.length;
       if(cart){ toast('Finish or clear the bill on the screen first'); return; }
-      if(!confirm(`Install the update now? Setu will close and open again in about a minute.${open ? `\n\n${open} running table order(s) are saved and will be there after the update.` : ''}`)) return;
+      if(!await uiConfirm(`Install the update now? Setu will close and open again in about a minute.${open ? `\n\n${open} running table order(s) are saved and will be there after the update.` : ''}`)) return;
       save();
       // Let the last edits reach the counter's database file before Setu closes
       for(let i = 0; i < 40 && (SRV.dirty || SRV.busy); i++) await new Promise(r => setTimeout(r, 250));
@@ -22843,7 +23421,7 @@ async function drawCloudCard(){
   const pinNote = '<span class="muted">Simple PINs such as 1234 / 1111 are not accepted on the cloud. Please change the Manager and Cashier PINs first.</span>';
   if(SRV.saas) return drawSaasCard(el, headT);
   if(SRV.cloud){
-    const u = location.origin + '/hotel_erp.html';
+    const u = PUBLIC_URL;
     el.innerHTML = headT + `
       <div style="margin:0 0 10px">Counter PC ${installIdHTML()}</div>
       <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
@@ -22937,9 +23515,9 @@ async function cloudJoin(){
   try{
     const r = await srvFetch('/api/cloud/join', {method: 'POST', body: '{}'});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok) alert(j.error || ('HTTP ' + r.status));
+    if(!r.ok) uiAlert(j.error || ('HTTP ' + r.status));
     else if((j.auto || {}).state === 'joined'){ audit('Cloud Sync On', 'joined ' + j.auto.code); save(); toast('Connected to the cloud. Hotel Code: ' + j.auto.code); }
-  }catch(e){ alert('Could not reach the Main Counter server'); }
+  }catch(e){ uiAlert('Could not reach the Main Counter server'); }
   drawCloudCard();
   setTimeout(drawCloudCard, 6000);
 }
@@ -22947,31 +23525,31 @@ async function cloudJoin(){
 async function cloudRestore(){
   const hotel = ($('#cr_hotel')?.value || '').trim().toUpperCase(), password = $('#cr_pass')?.value || '';
   if(!hotel || !password) return toast('Enter both the Hotel Code and the owner password');
-  if(!confirm('The cloud data will come to this PC. This PC’s current data will be replaced by the cloud data. Continue?')) return;
+  if(!await uiConfirm('The cloud data will come to this PC. This PC’s current data will be replaced by the cloud data. Continue?')) return;
   toast('Bringing data from the cloud...');
   try{
     const r = await srvFetch('/api/cloud/restore', {method: 'POST', body: JSON.stringify({hotel, password})});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok){ alert(j.error || ('HTTP ' + r.status)); return; }
+    if(!r.ok){ uiAlert(j.error || ('HTTP ' + r.status)); return; }
     toast('Connected to the cloud. Data arrives in a few seconds.');
-  }catch(e){ alert('Could not reach the Main Counter server'); return; }
+  }catch(e){ uiAlert('Could not reach the Main Counter server'); return; }
   drawCloudCard();
   setTimeout(drawCloudCard, 6000);
 }
 
 async function saveCloud(enabled){
   const body = {enabled, url: ($('#cl_url')?.value || '').trim(), hotel: ($('#cl_hotel')?.value || '').trim().toUpperCase(), key: ($('#cl_key')?.value || '').trim()};
-  if(enabled && body.key && !/^[0-9a-f]{40}$/i.test(body.key)){ alert('The Cloud Sync Key is 40 characters (letters a-f and numbers). Copy it exactly from the Super Admin / your vendor.'); return; }
-  if(!enabled && !confirm('Turn off Cloud Sync? Internet access from phones will stop. (Data stays safe on this PC.)')) return;
+  if(enabled && body.key && !/^[0-9a-f]{40}$/i.test(body.key)){ uiAlert('The Cloud Sync Key is 40 characters (letters a-f and numbers). Copy it exactly from the Super Admin / your vendor.'); return; }
+  if(!enabled && !await uiConfirm('Turn off Cloud Sync? Internet access from phones will stop. (Data stays safe on this PC.)')) return;
   toast(enabled ? 'Connecting to the cloud...' : 'Turning off...');
   try{
     const r = await srvFetch('/api/cloud', {method: 'POST', body: JSON.stringify(body)});
     const j = await r.json().catch(() => ({}));
-    if(!r.ok){ alert(j.error || ('Could not save cloud settings (HTTP ' + r.status + ')')); return; }
+    if(!r.ok){ uiAlert(j.error || ('Could not save cloud settings (HTTP ' + r.status + ')')); return; }
     audit(enabled ? 'Cloud Sync On' : 'Cloud Sync Off', body.url);
     save();
     toast(enabled ? 'Cloud Sync enabled' : 'Cloud Sync turned off');
-  }catch(e){ alert('Could not reach the Main Counter server'); }
+  }catch(e){ uiAlert('Could not reach the Main Counter server'); }
   drawCloudCard();
   setTimeout(drawCloudCard, 6000);
 }
@@ -22984,7 +23562,7 @@ async function activateSettingsKey(){
   }
   const act = await activateLicenseKey(key, 'Settings Key Activation');
   if(!act.success){
-    alert(act.message);
+    uiAlert(act.message);
     return;
   }
   toast('License activated successfully');
@@ -22994,7 +23572,7 @@ async function activateSettingsKey(){
 async function runWaCleanup(){
   if(!isManager()) return toast('Manager permission required for retention cleanup');
   const days = +($('#st_waRetention')?.value || D.settings.waRetention || 90);
-  if(!confirm(`Clean up WhatsApp message logs older than ${days} days?`)) return;
+  if(!await uiConfirm(`Clean up WhatsApp message logs older than ${days} days?`)) return;
   if(SRV.on){
     try{
       const res = await srvFetch('/api/wa/cleanup', {method: 'POST', body: JSON.stringify({retentionDays: days})});
@@ -23182,15 +23760,15 @@ function pickBackup(f, cb){
   const r = new FileReader();
   r.onload = () => {
     let x;
-    try{ x = readBackup(r.result); }catch(e){ alert('This is not a Setu backup file.'); return; }
+    try{ x = readBackup(r.result); }catch(e){ uiAlert('This is not a Setu backup file.'); return; }
     cb(x);
   };
   r.readAsText(f);
 }
 
-function restore(f){
-  pickBackup(f, x => {
-    if(!confirm('Restore this backup? All current data on this PC will be replaced.\n\n' + backupSummary(x))) return;
+async function restore(f){
+  pickBackup(f, async x => {
+    if(!await uiConfirm('Restore this backup? All current data on this PC will be replaced.\n\n' + backupSummary(x))) return;
     applyBackup(x, f.name);
     toast('Backup restored');
     go('gateway');
@@ -23198,18 +23776,18 @@ function restore(f){
 }
 
 // New PC: bring the whole hotel in from a backup before signing up
-function restoreFresh(f){
+async function restoreFresh(f){
   pickBackup(f, async x => {
-    if(!confirm('Restore this hotel data on this PC?\n\n' + backupSummary(x) + '\n\nAfter restoring, sign in with the owner ID and password from the old PC.')) return;
+    if(!await uiConfirm('Restore this hotel data on this PC?\n\n' + backupSummary(x) + '\n\nAfter restoring, sign in with the owner ID and password from the old PC.')) return;
     const moved = applyBackup(x, f.name);
     if(SRV.on){ SRV.dirty = true; await srvPush(); }
-    alert('Data restored.' + (moved ? '\n\nThis is a new PC: after signing in, enter an activation key for this PC\'s Install ID.' : ''));
+    await uiAlert('Data restored.' + (moved ? '\n\nThis is a new PC: after signing in, enter an activation key for this PC\'s Install ID.' : ''));
     location.reload();
   });
 }
 
-function resetAll(){
-  if(prompt('All data will be deleted. Type RESET to confirm') !== 'RESET') return;
+async function resetAll(){
+  if(await uiPrompt('All data will be deleted. Type RESET to confirm') !== 'RESET') return;
   D = ensureGrowth(seed());
   audit('Reset All Data', 'All data erased');
   SRV.forceNext = true;
@@ -23219,6 +23797,7 @@ function resetAll(){
 
 /* ================= INIT ================= */
 function startUI(){
+  startUI.ran = true;
   setTimeout(footerHotel, 1500);
   setTimeout(doctorAuto, 30000);
   initIndexedDB();
@@ -23304,7 +23883,7 @@ function showWaQuotaInfo(){
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 14px;font-size:12.5px;color:var(--text-muted);line-height:1.6;margin-bottom:14px;text-align:left">
         • WhatsApp message quota is securely managed by <b>Aghanya Devanya Enterprises</b>.<br>
         • Staff/hotel cannot manually recharge or alter quota locally.<br>
-        • To top up messages, contact your software vendor directly at <b>+91 79872 45831</b>.
+        • To top up messages, call the HoReCa One Helpline at <b>+91 91941 15127</b>.
       </div>
       <button class="btn ok" style="width:100%;padding:10px;font-weight:700" onclick="closeModal()">OK, Got It</button>
     </div>
@@ -23327,8 +23906,8 @@ function uploadHotelLogo(file){
   reader.readAsDataURL(file);
 }
 
-function removeHotelLogo(){
-  if(!confirm('Remove hotel logo? Default icon will be used.')) return;
+async function removeHotelLogo(){
+  if(!await uiConfirm('Remove hotel logo? Default icon will be used.')) return;
   delete D.settings.logo;
   save();
   const prev = $('#st_logo_prev');
@@ -23358,10 +23937,15 @@ function getAuthEndpoint(path){
 // Unified SaaS Login, Activation & Onboarding Functions
 async function handleUnifiedLogin(e){
   if(e) e.preventDefault();
+  // Wi-Fi device: staff sign in with their PIN on the Main Counter (a hotel sign-in would load the cloud copy)
+  if(lanDevice()){ showLoginView('gate2'); return; }
   const hotel = ($('#exist_hotel_id')?.value || '').trim().toUpperCase();
   const username = ($('#exist_username')?.value || 'owner').trim();
-  const password = ($('#exist_password')?.value || '').trim();
+  let password = ($('#exist_password')?.value || '').trim();
   const remember = $('#exist_remember')?.checked;
+  const changeBox = $('#exist_change_box');
+  const changing = !!(changeBox && changeBox.style.display !== 'none');
+  const newPassword = changing ? ($('#exist_new_password')?.value || '').trim() : '';
   const errBox = $('#exist_pull_err');
   const okBox = $('#exist_pull_ok');
   const btn = $('#btn-exist-pull');
@@ -23369,17 +23953,22 @@ async function handleUnifiedLogin(e){
   const showErr = (msg) => {
     if(okBox) okBox.style.display = 'none';
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
   const showOk = (msg) => {
     if(errBox) errBox.style.display = 'none';
     if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotel || !password){
     showErr('Please enter Hotel ID and Password.');
     return;
+  }
+  if(changing){
+    if(newPassword !== ($('#exist_new_password2')?.value || '').trim()){ showErr('The new passwords do not match.'); return; }
+    if(newPassword.length < 6 || /^(.)\1+$/.test(newPassword)){ showErr('New password: at least 6 characters and not too simple.'); return; }
+    if(newPassword === password){ showErr('Choose a password different from the temporary one.'); return; }
   }
 
   if(btn){
@@ -23388,15 +23977,33 @@ async function handleUnifiedLogin(e){
   }
 
   try {
-    const endpoint = getAuthEndpoint('/api/hotel/login');
+    const endpoint = getAuthEndpoint(changing ? '/api/hotel/password' : '/api/hotel/login');
     const headers = { 'Content-Type': 'application/json', 'X-Setu-Hotel': hotel };
     const res = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ hotelId: hotel, username, password })
+      body: JSON.stringify(changing ? { hotelId: hotel, username, password, newPassword } : { hotelId: hotel, username, password })
     });
 
     const j = await res.json().catch(() => ({}));
+
+    // Vendor-issued temporary password (or a too-simple one): ask for the owner's own password, then sign in with it
+    if(res.status === 403 && (j.code === 'MUST_CHANGE_PASSWORD' || j.code === 'WEAK_PASSWORD')){
+      if(changeBox) changeBox.style.display = 'block';
+      if($('#exist_change_msg')) $('#exist_change_msg').textContent = j.code === 'WEAK_PASSWORD'
+        ? 'Your password is too simple. Choose a new one to continue.'
+        : 'Welcome! Choose your own password to finish signing in. The temporary password stops working.';
+      if(btn){ btn.disabled = false; btn.textContent = 'Set Password & Login'; }
+      setTimeout(() => $('#exist_new_password')?.focus(), 100);
+      return;
+    }
+    if(changing && res.ok && j.ok){
+      password = newPassword;                       // the rest of the sign-in uses the owner's own password
+      if(changeBox) changeBox.style.display = 'none';
+      if($('#exist_password')) $('#exist_password').value = '';
+      if($('#exist_new_password')) $('#exist_new_password').value = '';
+      if($('#exist_new_password2')) $('#exist_new_password2').value = '';
+    }
 
     if(res.status === 403 && j.error === 'PENDING_ACTIVATION'){
       // Switch to Activation Key view for this hotel
@@ -23521,7 +24128,7 @@ async function handleUnifiedLogin(e){
   } catch(err) {
     showErr('Connection error: ' + (err.message || err));
   } finally {
-    if(btn){ btn.disabled = false; btn.textContent = 'Login to HoReCa One'; }
+    if(btn){ btn.disabled = false; btn.textContent = (changeBox && changeBox.style.display !== 'none') ? 'Set Password & Login' : 'Login to HoReCa One'; }
   }
 }
 
@@ -23533,12 +24140,13 @@ async function handleNewHotelRegister(e){
   const username = ($('#new_admin_username')?.value || 'owner').trim();
   const password = ($('#new_admin_password')?.value || '').trim();
   const confirmPassword = ($('#new_confirm_password')?.value || '').trim();
+  const businessType = $('#new_business_type')?.value || 'restaurant';
   const errBox = $('#new_reg_err');
   const btn = $('#btn_new_reg');
 
   const showErr = (msg) => {
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotelName || !ownerName || !mobile || !password){
@@ -23556,8 +24164,8 @@ async function handleNewHotelRegister(e){
     return;
   }
 
-  if(password.length < 4){
-    showErr('Password must be at least 4 characters long.');
+  if(password.length < 6 || /^(.)\1+$/.test(password)){
+    showErr('Password must be at least 6 characters and not too simple.');
     return;
   }
 
@@ -23579,6 +24187,7 @@ async function handleNewHotelRegister(e){
         phone: mobile,
         username,
         password,
+        businessType,
         installId: installIdObj.id
       })
     });
@@ -23624,12 +24233,12 @@ async function handleNewHotelActivate(e){
   const showErr = (msg) => {
     if(okBox) okBox.style.display = 'none';
     if(errBox){ errBox.textContent = msg; errBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
   const showOk = (msg) => {
     if(errBox) errBox.style.display = 'none';
     if(okBox){ okBox.textContent = msg; okBox.style.display = 'block'; }
-    else alert(msg);
+    else uiAlert(msg);
   };
 
   if(!hotelId){
@@ -23681,7 +24290,8 @@ async function handleNewHotelActivate(e){
       lsSet(TOKEN_KEY, j.token);
     }
 
-    const regPw = window._pendingHotelReg?.password || '1234';
+    // The password typed at registration; never a built-in default (a reload in between keeps the existing one)
+    const regPw = window._pendingHotelReg?.password || '';
     const gate1Data = {
       hotelId: hotelId,
       hotelName: window._pendingHotelReg?.hotelName || j.hotelName || hotelId,
@@ -23695,14 +24305,14 @@ async function handleNewHotelActivate(e){
     if(!D.auth) D.auth = {};
     D.auth.isRegistered = true;
     D.auth.hotelId = hotelId;
-    D.auth.password = regPw;
+    if(regPw) D.auth.password = regPw;
     D.auth.userId = window._pendingHotelReg?.username || 'owner';
     D.auth.ownerName = window._pendingHotelReg?.ownerName || j.hotelName || 'Owner';
     D.auth.status = 'active';
 
     if(!D.settings) D.settings = {};
     D.settings.hotelId = hotelId;
-    D.settings.adminPin = regPw;
+    if(regPw) D.settings.adminPin = regPw;
     if(window._pendingHotelReg?.hotelName) D.settings.name = window._pendingHotelReg.hotelName;
 
     if(!D.subscription) D.subscription = {};
@@ -23732,13 +24342,13 @@ async function handleNewHotelActivate(e){
   }
 }
 
-function copyNewHotelId(){
+async function copyNewHotelId(){
   const hid = $('#disp_new_hotel_id')?.textContent;
   if(!hid) return;
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(hid).then(() => toast('Hotel ID copied to clipboard: ' + hid));
   } else {
-    prompt('Copy your Hotel ID:', hid);
+    await uiPrompt('Copy your Hotel ID:', hid);
   }
 }
 

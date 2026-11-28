@@ -16,6 +16,8 @@ binding = "ASSETS"
 run_worker_first = ["/api/*", "/", "/q/*", "/download/Setu-POS-Setup.exe"]
 
 [vars]
+# The one public address customers see (links, Login Card, table QR codes). The workers.dev address keeps working.
+PUBLIC_URL = "https://hotel.setupro.in"
 TRIAL_DAYS = "7"
 TRIAL_TIER = "premium"
 # Razorpay plans: one per tier x cycle. Plan ids from Razorpay Dashboard -> Subscriptions -> Plans.

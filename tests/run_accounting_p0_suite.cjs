@@ -368,6 +368,29 @@ let s11 = vm.runInContext(`summary('${tDate}')`, context);
 assert(s11.cancelled === 1, 'Test 11.1: Cancelled bill counted in cancelled stats', `Got ${s11.cancelled}`);
 assert(!s11.bills.some(b => b.id === 'B4'), 'Test 11.2: Cancelled bill excluded from active bills', `B4 present in bills`);
 
+// -------------------------------------------------------------
+// Phase 3.5e: credit notes as the app saves them (refund field, refund voucher) and bills cancelled after a credit note
+// -------------------------------------------------------------
+vm.runInContext(`
+D.bills.push({ id: 'B9', no: 9, date: today(), time: '21:00', items: [{ name: 'Thali', qty: 2, price: 100 }], sub: 200, disc: 0, taxable: 200, tax: 10, total: 210, mode: 'Cash' });
+D.cnotes.push({ id: 'CN9', no: 9, date: today(), time: '21:30', billId: 'B9', billNo: 9, taxable: 100, tax: 5, total: 105, refund: 'Cash', reason: 'Item returned / not served' });
+D.txns.push({ id: 'RF9', type: 'Expense', date: today(), time: '21:30', head: 'Customer Refund', amount: 105, mode: 'Cash', cn: 'CN9' });
+D.cnotes.push({ id: 'CN10', no: 10, date: today(), time: '21:40', billId: 'B9', billNo: 9, taxable: 100, tax: 5, total: 105, refund: 'none', reason: 'Discount after billing' });
+`, context);
+const cash35e = vm.runInContext(`daybookData('${tDate}', '${tDate}', 'cash')`, context);
+const cn9Cash = cash35e.e.filter(x => /CN-9 /.test(x.part) || x.part.includes('Customer Refund')).reduce((a, x) => a + (x.cashOut || 0), 0);
+assert(cn9Cash === 105, 'Test 35e.1: Cash refund of a credit note leaves the cash book once (voucher), not twice', `cash out ${cn9Cash}`);
+const credit35e = vm.runInContext(`daybookData('${tDate}', '${tDate}', 'credit')`, context);
+const cnCredit = n => credit35e.e.filter(x => x.part.startsWith('CN-' + n + ' ')).reduce((a, x) => a + (x.creditOut || 0), 0);
+assert(cnCredit(9) === 0 && cnCredit(10) === 105, 'Test 35e.2: Only the adjusted credit note (refund none) is a credit adjustment', `CN-9 ${cnCredit(9)}, CN-10 ${cnCredit(10)}`);
+const before35e = vm.runInContext(`summary('${tDate}')`, context);
+vm.runInContext(`toast = () => {}; confirm = () => true; withManager = (l, fn) => fn('test'); cancelBill('B9'); remakeBill('B9');`, context);
+assert(vm.runInContext(`getBill('B9').cancelled`, context) !== true, 'Test 35e.3: A bill with a credit note cannot be cancelled or re-made', 'B9 was cancelled');
+vm.runInContext(`getBill('B9').cancelled = true;`, context);   // data from before the guard
+const after35e = vm.runInContext(`summary('${tDate}')`, context);
+assert(r2c(before35e.cnTotal - after35e.cnTotal) === 210, 'Test 35e.4: Credit notes of a cancelled bill are not deducted again', `cnTotal ${before35e.cnTotal} -> ${after35e.cnTotal}`);
+function r2c(x){ return Math.round(x * 100) / 100; }
+
 console.log(`\n========================================`);
 console.log(`Summary: ${passed} PASSED, ${failed} FAILED`);
 console.log(`========================================\n`);

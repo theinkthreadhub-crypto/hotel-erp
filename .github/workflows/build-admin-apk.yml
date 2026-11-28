@@ -59,6 +59,19 @@ jobs:
           name: SetuHotelAdmin
           path: android-admin/SetuHotelAdmin.apk
           retention-days: 90
+      # The release branch publishes the app as its own GitHub pre-release with its SHA-256 (artifact storage is full)
+      - name: Publish Super Admin app (pre-release)
+        if: github.ref_name == 'feature/horeca-one-phase34a-safety'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          V=$(grep -o 'versionName="[^"]*"' AndroidManifest.xml | cut -d'"' -f2)
+          sha256sum SetuHotelAdmin.apk | tee SetuHotelAdmin.apk.sha256
+          TAG="setu-hotel-admin-v$V-build.${{ github.run_number }}"
+          gh release create "$TAG" SetuHotelAdmin.apk SetuHotelAdmin.apk.sha256 --prerelease --target ${{ github.sha }} \
+            --title "Setu Hotel Admin app v$V (build ${{ github.run_number }})" \
+            --notes "Super Admin Android app v$V (commit ${{ github.sha }}). It opens the live Hotel Setu Cloud admin page. If an older Setu Hotel Admin app is installed, uninstall it first (signing key changed). Check the file with SetuHotelAdmin.apk.sha256."
       # Only the work branch publishes; other branches just build (test the APK before it reaches phones)
       - name: Add to setu-latest release
         if: github.ref == 'refs/heads/ccr-89eaafa4-mxbfj2'

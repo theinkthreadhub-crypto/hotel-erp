@@ -1,0 +1,188 @@
+# HoReCa One — Technical Debt Register
+
+**Repository:** `theinkthreadhub-crypto/hotel-erp`  
+**Purpose:** Comprehensive tracking of architectural compromises, legacy code remnants, test harness gaps, maintenance risks, and planned refactoring tasks.
+
+---
+
+## Technical Debt Index
+
+| Debt ID | Title | Status | Severity / Risk | Estimated Effort | Confirmed / Suspected |
+|---|---|---|---|---|---|
+| **TD-0001** | Missing Local Playwright Dependency in Windows Dev Environment | Active | Low / Dev Velocity | 1 hour | **CONFIRMED** |
+| **TD-0002** | Windows File Handle Cleanup Race in Multi-Test Runner | Mitigated (CHG-0031) | Medium / CI Flakiness | 2 hours | **RESOLVED IN TEST HARNESS** |
+| **TD-0003** | Dual Storage Model Maintenance (`setu-db.json` vs `setu.sqlite`) | Active | High / Architectural Drift | 8 hours | **CONFIRMED** |
+| **TD-0004** | Suppressed Automatic Thermal Print on Inbound QR Approval | Active | Medium / Feature Completeness | 3 hours | **CONFIRMED** |
+| **TD-0005** | Custom ESM Loader Dependency for Cloudflare Worker Tests | Active | Low / Developer Experience | 2 hours | **CONFIRMED** |
+| **TD-0006** | Monolithic Single-File POS Frontend (`hotel_erp.html`) | Active | Medium / Maintainability | 12 hours | **CONFIRMED** |
+| **TD-0007** | Baileys WhatsApp Gateway Node Service Process Isolation | Active | Low / Operational Complexity | 4 hours | **SUSPECTED** |
+| **TD-0008** | Phase 3 Counter QR Menu Depends on Legacy Whole-Document `/api/db` Upload | Active | High / Architectural Drift | 6 hours | **CONFIRMED** |
+| **TD-0009** | Double-Width KOT Item Lines Not Wrapped (Text Mode) | Active | Low / Print Layout | 1 hour | **CONFIRMED** |
+| **TD-0010** | Raster (Graphic) Receipts Validated Structurally Only | Active | Medium / Test Coverage | Physical Gate B | **CONFIRMED** |
+| **TD-0011** | Hard-Coded Default `RESEND_API_KEY` in `app_main.py` | Code fixed; **key rotation PENDING (owner)** | **High / Security (SEC-001)** | Owner: revoke key at provider | **CONFIRMED** |
+| **TD-0012** | Full 24-Hour Outage Run Not Yet Executed | Active | Medium / Release Evidence | 24 h machine time | **CONFIRMED** |
+| **TD-0013** | Business Modules the Worker Does Not Ingest Stay Counter-Only (`menu`, `cash`, `custList`, ...; `cnotes` done in 3.5e) | Active | Medium / Cloud Report Completeness | Worker + policy change per module | **CONFIRMED** |
+| **TD-0014** | Cloud GST Report Uses Bill `sub` (Before Discount) as Taxable Value | **Resolved (BUG-0021)** | Medium / Report Accuracy | — | **CONFIRMED** |
+| **TD-0015** | No Credit-Note Cancellation / Reversal Workflow | Active | Medium / Product Gap | Product decision + 4 hours | **CONFIRMED** |
+| **TD-0016** | Cloud Expense Report Groups by `category`, the App Stores `head` | **Resolved (CHG-0026)** | Low / Report Detail | — | **CONFIRMED** |
+| **TD-0017** | Legacy JSON Store (v1.0 Default) Rewrites the Whole Database on Every Save | Active | **High / Performance at Scale** | Controlled SQLite migration per site | **CONFIRMED (measured)** |
+| **TD-0018** | Production Publishing (setu-latest + Cloud Deploy) Gated on a Session Branch Name | Active | High / Release Control | Owner decision | **CONFIRMED** |
+| **TD-0019** | Hotel IDs `HOTEL` + 4 Digits (9,000 Values) and a Distinct "Not Found" Answer | Active | Medium / Enumeration | 2 hours | **CONFIRMED** |
+| **TD-0020** | Fresh Install Seeds `adminPin: '1234'` | Active | Medium / Security | Product decision (onboarding) | **CONFIRMED** |
+| **TD-0021** | Eight Browser Suites (`tests/regression.js`, `qr-ordering`, `inventory`, `expenses`, `reports`, `data`, `gst`, `whatsapp`) Wait for the Removed `#connect_hotel` | Active | Low / Test Coverage | 3 hours | **CONFIRMED** |
+| **TD-0022** | Legacy JSON Backups Carry No Checksum (only the SQLite manifest does) | Active | Medium / Recovery Evidence | 2 hours | **CONFIRMED** |
+| **TD-0023** | Upgrade Leaves the Old "Setu POS" Shortcuts Next to "HoReCa One" | Active | Low / Branding | 1 hour (`[InstallDelete]`) | **CONFIRMED (script)** |
+| **TD-0024** | `summary()` Crashes When the Data Has No `cash` Key (load normalisation does not add it) | Active | Medium / Robustness | 15 min | **SUSPECTED** (app-created data always has it) |
+| **TD-0025** | Installer Not Code-Signed and Has No EULA Page | Active | High / Trust & Legal | Owner buys a certificate + legal review; then 2–3 days (ADR-0001 Phase 1) | **CONFIRMED** (`installer/setu-setup.iss` has no `LicenseFile` / `SignTool`) |
+| **TD-0026** | JSON → SQLite Migration Loads the Whole JSON (3.4 GB Peak at 365k Bills) | Active | High / 4 GB PCs | 3–5 days (ADR-0001 Phase 2) | **CONFIRMED (measured, Windows CI W3/W4)** |
+
+---
+
+## Detailed Debt Analysis
+
+### TD-0001: Missing Local Playwright Dependency in Windows Dev Environment
+- **Classification:** **CONFIRMED**
+- **Category:** Developer Environment / Testing
+- **Affected Files:** `package.json`, `tests/phase35c_browser_e2e.mjs`
+- **Description:**
+  `tests/phase35c_browser_e2e.mjs` requires `playwright` to execute headless browser interactions. While GitHub Actions installs Playwright dynamically in the Ubuntu 24.04 runner, the repository root lacks a top-level `package.json` declaring `playwright` as a development dependency. Running the test on a local Windows machine fails with `Cannot find package 'playwright'`.
+- **Impact:** Local Windows developers cannot run browser E2E tests without manual `npm install playwright`.
+- **Proposed Remediation:**
+  Create a root `package.json` declaring devDependencies (`playwright`, `@cloudflare/workers-types`) and add an npm script `"test:browser": "node tests/phase35c_browser_e2e.mjs"`.
+
+---
+
+### TD-0002: Windows File Handle Cleanup Race in Multi-Test Runner
+- **Classification:** **CONFIRMED**
+- **Category:** Testing Harness / OS Specific
+- **Affected Files:** `tests/sqlite_phase2_test.py`, `tests/phase35_counter_integration_test.py`
+- **Description:**
+  On Windows systems, SQLite WAL (`-wal`) and shared memory (`-shm`) files maintain brief OS lock handles even after connection closure. Running `python -m unittest discover` causes occasional `[WinError 145] Directory not empty` errors in `tearDownClass()` or `tearDown()` when `shutil.rmtree()` attempts to delete the temporary test directory immediately. Running test files individually passes 100% of the time.
+- **Impact:** Developers running global batch test discovery on Windows experience test runner aborts despite passing assertions.
+- **Proposed Remediation:**
+  Implement a robust `safe_rmtree()` utility in test helpers that triggers Python garbage collection (`gc.collect()`), invokes `sqlite3.Connection.close()`, and retries directory deletion with exponential backoff up to 3 times on Windows `PermissionError` / `Directory not empty`.
+
+---
+
+### TD-0003: Dual Storage Model Maintenance (`setu-db.json` vs `setu.sqlite`)
+- **Classification:** **CONFIRMED**
+- **Category:** Architecture / Storage
+- **Affected Files:** `app_main.py`, `setu_sqlite.py`, `hotel_erp.html`
+- **Description:**
+  The application maintains backward compatibility with the legacy JSON-based storage engine (`setu-db.json`) while running the relational SQLite engine (`setu.sqlite`). Many functions in `app_main.py` contain conditional branches checking `SETU_STORAGE == 'sqlite'`. Furthermore, full memory snapshots (`sample_doc()`) are still converted back and forth during export and migration routines.
+- **Impact:**
+  - Double code paths for persistence and queries.
+  - Risk of subtle behavioral divergences between legacy JSON installations and modern SQLite deployments.
+- **Proposed Remediation:**
+  Once Phase 3 is fully validated, establish a definitive legacy cutoff point: deprecate `setu-db.json` for new installations, convert legacy stores automatically to SQLite upon boot, and eliminate legacy JSON storage branches from `app_main.py`.
+
+---
+
+### TD-0004: Suppressed Automatic Thermal Print on Inbound QR Approval
+- **Classification:** **CONFIRMED**
+- **Category:** Hardware Integration / POS Workflow
+- **Affected Files:** `hotel_erp.html`, `setu_sqlite.py`
+- **Description:**
+  When a staff member accepts a self-order in the QR review panel, the order is durably committed and added to kitchen orders, but automatic printing to ESC/POS thermal printers is intentionally disabled by default. Staff must click "Print KOT" manually. Automatic silent printing was held back to prevent accidental multi-page paper jams and duplicate receipts before physical hardware validation.
+- **Impact:** Cashiers must make an additional click to send kitchen tickets to the thermal printer.
+- **Proposed Remediation:**
+  Following Gate B physical printer validation, introduce a configurable toggle in Settings (`auto_print_qr_kots: true/false`) with client-side debounce protection.
+
+---
+
+### TD-0005: Custom ESM Loader Dependency for Cloudflare Worker Tests
+- **Classification:** **CONFIRMED**
+- **Category:** Developer Experience / Node Runtime
+- **Affected Files:** `tests/cf_loader.mjs`, `tests/cloud_sync_ingestion_test.mjs`, `tests/cloud_reports_test.mjs`
+- **Description:**
+  Node.js native ESM loader does not recognize Cloudflare's synthetic module specifier `cloudflare:workers` (used for Durable Object bindings). Tests currently require running with `node --loader ./tests/cf_loader.mjs`. Node.js emits an experimental warning on modern versions: `--experimental-loader may be removed in the future`.
+- **Impact:** Tests cannot be run using plain `node <file>` without remembering the `--loader` flag.
+- **Proposed Remediation:**
+  Update test runner invocations to use modern Node.js `module.register('./tests/cf_loader.mjs')` or transition cloud tests to the official Vitest + Miniflare Cloudflare Workers pool (`@cloudflare/vitest-pool-workers`).
+
+---
+
+### TD-0006: Monolithic Single-File POS Frontend (`hotel_erp.html`)
+- **Classification:** **CONFIRMED**
+- **Category:** Maintainability / Frontend Architecture
+- **Affected Files:** `hotel_erp.html` (~6,000 lines of code)
+- **Description:**
+  The counter user interface, styles, templates, modal controllers, offline caching logic, and API clients reside entirely inside a single monolithic HTML file. While this simplifies deployment for single-file offline POS usage, it increases cognitive overhead for developers and makes concurrent UI edits prone to merge conflicts.
+- **Impact:** Code navigation is difficult; linting and modular testing of UI components requires full-DOM parsing.
+- **Proposed Remediation:**
+  Implement a lightweight zero-dependency build script that concatenates modular ES modules and CSS files into the distribution `hotel_erp.html` during the build step, retaining single-file deployment benefits while giving developers clean source structure.
+
+---
+
+### TD-0007: Baileys WhatsApp Gateway Node Service Process Isolation
+- **Classification:** **SUSPECTED**
+- **Category:** Operations / Microservice Health
+- **Affected Files:** `baileys-gateway/`, `app_main.py`
+- **Description:**
+  The WhatsApp gateway runs as an external Node.js child process managed by Python. If the Node process encounters unexpected memory leaks or socket disconnects with WhatsApp servers, automatic watchdog restarts and backpressure handling need empirical verification under long-term network partition scenarios.
+- **Impact:** WhatsApp notification delays if the gateway process hangs silently.
+- **Proposed Remediation:**
+  Conduct a 48-hour continuous stability test on the WhatsApp gateway process; verify watchdog heartbeat ping and automatic restart routines.
+
+---
+
+### TD-0008: Phase 3 Counter QR Menu Depends on Legacy Whole-Document `/api/db` Upload
+- **Classification:** **CONFIRMED** (Phase 3.5d.1 loopback E2E)
+- **Affected Files:** `cloud/src/worker.js` (`guest()` reads `this.data()`), Phase 3 ingestion whitelist
+- **Description:** The guest QR menu and prices come from the hotel's legacy whole document in the Durable Object. Phase 3 ingestion does not accept `menu`, so a SQLite counter syncing only through `/api/sync/ops` has no menu in the cloud. The E2E test seeds `settings` + `menu` through the existing `/api/db` upload as a fixture.
+- **Remediation:** Decide with BUG-0010: ingest `menu` (and `stock` alias for out-of-stock hiding) through Phase 3, then stop relying on `/api/db`.
+
+### TD-0009: Double-Width KOT Item Lines Not Wrapped (Text Mode)
+- **Classification:** **CONFIRMED** (`tests/phase35d_escpos_test.mjs` prints the count)
+- **Description:** `escKot` prints item lines at double width without wrapping; a long dish name exceeds 16 / 24 characters and the printer wraps it mid-word. Kitchen readability only; quantities and names are not lost.
+- **Remediation:** Wrap KOT item lines at `cols / 2` with a hanging indent; confirm on the physical printer (Gate B).
+
+### TD-0010: Raster (Graphic) Receipts Validated Structurally Only
+- **Description:** Node has no canvas; the test checks the `GS v 0` band headers (384 / 576 dots, ≤200 rows), payload lengths, cut and drawer order, and that no text bytes are sent. Glyph rendering of Hindi and ₹ can only be checked on paper (Gate B runbook).
+
+### TD-0011: Hard-Coded Default `RESEND_API_KEY` in `app_main.py`
+- **Description:** `app_main.py` fell back to a literal Resend API key when the environment variable was unset. It is in Git history and in every EXE built before the fix. Violates SEC-001.
+- **Code remediation (Phase 3.5d hardening, CHG-0019):** the literal is removed. The key comes from the `RESEND_API_KEY` environment variable or a one-line `email-service.key` file in the counter's data folder (git-ignored, never in the EXE). Without a key only e-mail password recovery answers 503 with a professional message; billing and every other feature work (`tests/phase35d_bug0010_test.py`). `tests/secret_scan_test.py` (CI) fails on any provider key format or non-empty secret default in tracked files.
+- **Still open — owner action:** the old key must be **revoked/rotated in the Resend dashboard** and the new key installed through the environment variable or `email-service.key`. Rotation is NOT verified by this repository; do not mark it done without the owner's confirmation. Removing the literal from Git history would need a history rewrite, which is forbidden on this branch; revocation makes the leaked value useless instead.
+
+### TD-0012: Full 24-Hour Outage Run Not Yet Executed
+- **Description:** `tests/phase35d_outage_stress.py --hours 24` is ready and reproducible; this environment's background-job limit (2 h) allowed only a shorter run (see AI_HANDOVER §4 for the completed duration and results). A 24 h run needs a machine that stays up (e.g. the Gate C Windows PC).
+- **Completed so far:** 1.667 h PASS (2,997 bills, 0 lost, recovery drained in 10 s, 1 op held = BUG-0010, now recoverable with `tools/replay_held_ops.py`).
+- **Memory question answered by accelerated runs (bill count, not time):** the RSS rise came from BUG-0012 (every sync cycle re-read the whole pending outbox), not from SQLite or Python. After the fix, 203,175 pending bills: RSS plateaus at ~104–110 MB once the 64 MB SQLite cache is full. Details: AI_HANDOVER §4 `MEMORY_CHECK`.
+- **Still open:** the wall-clock 24 h run (`docs/RUNBOOK_24H_OUTAGE.md`) on a commit that includes the BUG-0012 fix.
+
+### TD-0013: Business Modules the Worker Does Not Ingest Stay Counter-Only
+- **Classification:** **CONFIRMED** (BUG-0010 module policy, `LOCAL_ONLY_MODULES` reason `not_ingested`).
+- **Phase 3.5e:** `cnotes` (credit notes) now ingested by the Worker (`sync_credit_notes`) and moved to `CLOUD_SYNC_MODULES` (policy v2).
+- **Still counter-only:** `menu` (**separate pending task: menu synchronization**, also closes TD-0008), `cash` (cash-counter openings), `custList`, `att`, `salaryDays`, `salarySheets`, `reservations`, `assets`, `gasLog`, `onlineOrders`, `qrOrders`, `qrDone`, `qrLog`, `audit`, `expTpl`, `supAlias`, `stockAlias`, `supInfo`, `outlets`.
+- **Remediation:** per module, Worker ingestion + report, then move the key to `CLOUD_SYNC_MODULES` in the same change, with the drift test and a loopback test (pattern: Phase 3.5e).
+
+### TD-0014: Cloud GST Report Uses Bill `sub` as Taxable Value
+- **Description:** `/api/reports/gst` sums `sync_bills.sub` as `total_taxable`; the counter's taxable value is `sub - disc` for exclusive GST and `net / (1 + rate)` for inclusive prices (`bill.taxable`). With discounts or inclusive prices the cloud taxable figure is too high. Credit-note taxable values are exact (stored per note). Found in 3.5e; not changed (outside the credit-note scope; changes an existing report figure).
+- **Remediation:** store `taxable` in `sync_bills` (additive column from the bill payload) and sum it.
+
+### TD-0015: No Credit-Note Cancellation / Reversal Workflow
+- **Description:** A credit note cannot be edited, cancelled or deleted in the app (`GUARDED`), on the counter or in the cloud (`CREDIT_NOTE_IMMUTABLE`). A wrongly issued credit note has no correction path. The accounting treatment (a debit note / reversal document) is a product decision; not invented in 3.5e.
+
+### TD-0016: Cloud Expense Report Groups by `category`, the App Stores `head`
+- **Description:** `sync_vouchers.category` is filled from `v.category`, while the app writes the expense head in `v.head`, so `by_category` shows everything as "General". 3.5e reads `raw_json.head` only to keep 'Customer Refund' out of expenses.
+
+### TD-0017: Legacy JSON Store Rewrites the Whole Database on Every Save
+- **Evidence (2026-11-10, Linux container, `SetuStore.write`):** 5,000 bills = 2.1 MB file, one save 31 ms; 50,000 bills = 21 MB, 316 ms; 150,000 bills = 63 MB, 965 ms. Linear in database size, on the request path. Slower on the 4 GB Windows target (Gate C).
+- **Decision for v1.0:** JSON stays the default (no silent engine change on customer PCs). Large or long-running hotels move to SQLite only through the verified, opt-in migration (`setu_migrate.py --cutover`, backup first) after Gate C; SQLite keeps the save cost flat (Phase 2b benchmarks).
+
+### TD-0018: Production Publishing Gated on a Session Branch Name
+- **Description:** in `build-exe.yml`, both the `setu-latest` release upload and the `publish-cloud` deploy run only when `github.ref_name == 'ccr-89eaafa4-mxbfj2'`, a branch from an earlier session. Builds on `main` and feature branches publish nothing. The production release branch must be an explicit owner decision (e.g. `main` + manual approval / environment protection). Not changed in this audit.
+
+### TD-0019: Hotel ID Space and Enumeration
+- **Description:** `/api/hotel/register` creates `HOTEL` + 4 random digits (9,000 IDs); `/api/hotel/login` answers "Hotel ID not found" for unknown IDs, so valid IDs can be listed. Passwords stay protected by the new lock (BUG-0017); the IDs are not secret, but a larger space and a uniform answer are better.
+
+### TD-0020: Fresh Install Seeds `adminPin: '1234'`
+- **Description:** `seed()` in `hotel_erp.html` starts a new database with admin PIN 1234 (flagged weak; the cloud refuses weak PINs online). Forcing a PIN at first start changes onboarding; needs a product decision.
+
+### TD-0025: Installer Not Code-Signed and Has No EULA Page
+- **Description:** Windows SmartScreen shows "Unknown publisher"; a tampered installer cannot be told apart; customers never accept licence terms. Fix in ADR-0001 Phase 1 (Authenticode signing in `build-exe.yml`, `LicenseFile=EULA.rtf`, version info). Needs the owner's certificate and a lawyer-reviewed EULA with the exact legal publisher name.
+
+### TD-0026: JSON → SQLite Migration Loads the Whole JSON
+- **Evidence:** `docs/sqlite-phase2b/Windows-EXE-Test-Results.md` W3/W4: 365k bills peak 3,443 MB; under a 2 GB cap `MemoryError` (safe: JSON stayed in charge). A big hotel cannot migrate on a 4 GB PC. Fix: streaming import (ADR-0001 Phase 2).
+

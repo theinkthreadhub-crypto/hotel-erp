@@ -40,3 +40,6 @@ whatsapp/setu-whatsapp.log
 Setu-POS-Setup.zip
 Setu-POS-Setup/
 inspect_ui.cjs
+
+# Counter e-mail service key (TD-0011): configuration, never committed
+email-service.key

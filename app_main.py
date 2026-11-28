@@ -31,6 +31,7 @@ import base64
 import copy
 import hashlib
 import atexit
+import gzip
 import setu_security as SEC
 import setu_media as MEDIA
 import setu_sqlite as SQ
@@ -59,19 +60,50 @@ def http_cloud_post(path, obj, hotel=None, timeout=12):
         return None, {'error': str(e)}
 
 AUTO_LINK_EVERY = 30 * 60   # seconds between join attempts while offline / not licensed yet
-MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one database upload
-KEEP_BACKUPS = 60              # daily backup files kept
+MAX_BODY = 200 * 1024 * 1024   # 200 MB upper bound for one request body
+# The JSON engine sends the whole data on every save: a hotel with ~250,000+ bills is bigger than 200 MB, and refusing that
+# save would leave the counter behind the screen. Whole-data saves from a signed-in device may be up to 1 GB.
+MAX_DB_BODY = 1024 * 1024 * 1024
+KEEP_BACKUPS = 60              # SQLite engine: daily backup files kept
+# JSON engine daily copies: today's is a plain copy (written with the save); older days are compressed (.json.gz) and kept
+# for DAILY_KEEP days, plus the first copy of each month for MONTHLY_KEEP months. A big hotel then needs about 1 GB, not 15.
+DAILY_KEEP = 14
+MONTHLY_KEEP = 12
+COMPRESS_DAYS = 7
+_DAY_RE = re.compile(r'^setu-(\d{4}-\d{2}-\d{2})\.json(\.gz)?$')
+_SQ_DAY_RE = re.compile(r'^setu-(\d{4}-\d{2}-\d{2})\.sqlite\.gz$')
 print_lock = threading.Lock()  # one print job at a time keeps receipts from interleaving
 
 # ---------------- Resend Email Service for Password & PIN Recovery ----------------
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', 're_VTatW35W_E1D5xCB7XBJ4shqzsVo7cagp')
+# The API key is configuration, never source code (SEC-001, TD-0011). It comes from the RESEND_API_KEY environment
+# variable or from a one-line file "email-service.key" in the counter's data folder (outside Git, outside the EXE).
+# Without a key only the e-mail password-recovery feature is unavailable; billing and every other feature work.
+RESEND_KEY_FILE = 'email-service.key'
+
+
+def resend_api_key(data_dir=None):
+    key = os.environ.get('RESEND_API_KEY', '').strip()
+    if key or not data_dir:
+        return key
+    try:
+        with open(os.path.join(data_dir, RESEND_KEY_FILE), encoding='utf-8') as f:
+            return f.read().strip()
+    except OSError:
+        return ''
+
+
+class EmailNotConfigured(RuntimeError):
+    pass
+
+
 RESEND_FROM_EMAIL = os.environ.get('RESEND_FROM_EMAIL', 'Aghanya Devanya Security <security@inkthreadhub.in>')
 RESEND_REPLY_TO = os.environ.get('RESEND_REPLY_TO', 'theinkthreadhub@gmail.com')
 
 
-def send_resend_email(to_email, subject, html, reply_to=None):
-    if not RESEND_API_KEY:
-        raise ValueError('Resend API Key is not configured')
+def send_resend_email(to_email, subject, html, reply_to=None, data_dir=None):
+    api_key = resend_api_key(data_dir)
+    if not api_key:
+        raise EmailNotConfigured('Email service is not configured on this counter')
 
     def _do_send(from_addr):
         url = 'https://api.resend.com/emails'
@@ -84,7 +116,7 @@ def send_resend_email(to_email, subject, html, reply_to=None):
         if reply_to or RESEND_REPLY_TO:
             payload['reply_to'] = reply_to or RESEND_REPLY_TO
         headers = {
-            'Authorization': f'Bearer {RESEND_API_KEY}',
+            'Authorization': f'Bearer {api_key}',
             'Content-Type': 'application/json',
             'User-Agent': 'AghanyaDevanya-HotelERP/2.0 (Windows NT 10.0; Win64; x64)'
         }
@@ -513,12 +545,14 @@ class SetuStore:
                 pass
             self.version, self.raw = 0, 'null'
             try:
-                files = sorted((x for x in os.listdir(self.backup_dir) if x.startswith('setu-') and x.endswith('.json')), reverse=True)
+                # Newest day first; on one day the plain copy before the compressed one
+                files = sorted((x for x in os.listdir(self.backup_dir) if _DAY_RE.match(x)), key=lambda x: (_DAY_RE.match(x).group(1), not x.endswith('.gz')), reverse=True)
             except OSError:
                 files = []
             for name in files:
                 try:
-                    with open(os.path.join(self.backup_dir, name), 'r', encoding='utf-8') as f:
+                    opener = gzip.open if name.endswith('.gz') else open
+                    with opener(os.path.join(self.backup_dir, name), 'rt', encoding='utf-8') as f:
                         doc = json.load(f)
                     if not isinstance(doc.get('data'), dict):
                         continue
@@ -539,6 +573,20 @@ class SetuStore:
                 f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + msg + '\n')
         except Exception:
             pass
+
+    # Keys the hotel registration / activation / login handlers may change on the counter
+    IDENTITY_KEYS = ('settings', 'auth', 'secure')
+
+    def save(self, data_obj):
+        """Saves only the hotel-identity keys of data_obj onto a fresh copy taken under the lock (BUG: the handlers called a
+        save() that did not exist, so the AttributeError was swallowed and nothing was saved or linked). Other keys are
+        never written from the caller's older copy, so a device's save in between cannot be lost."""
+        with self.lock:
+            cur = self.data()
+            for k in self.IDENTITY_KEYS:
+                if k in data_obj:
+                    cur[k] = data_obj[k]
+            self.write(cur)
 
     def write(self, data_obj):
         # Nothing changes in memory until the file is safely on disk, so a failed
@@ -571,11 +619,24 @@ class SetuStore:
                 return
             self._last_copy = time.time()
             shutil.copy2(self.path, os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.json'))
-            files = sorted(x for x in os.listdir(self.backup_dir) if x.startswith('setu-') and x.endswith('.json'))
-            for old in files[:-KEEP_BACKUPS]:
-                os.remove(os.path.join(self.backup_dir, old))
+            self._rotate_later()
         except Exception:
             pass
+
+    def _rotate_later(self):
+        # Compressing a big copy takes seconds: never on the save path, one rotation at a time
+        if getattr(self, '_rotating', False):
+            return
+        self._rotating = True
+
+        def run():
+            try:
+                rotate_daily_backups(self.backup_dir, time.strftime('%Y-%m-%d'))
+            except Exception as e:
+                self.log(f'Backup rotation: {e!r}')
+            finally:
+                self._rotating = False
+        threading.Thread(target=run, daemon=True).start()
 
     def check_pin(self, pin):
         try:
@@ -1357,7 +1418,7 @@ def merge3(base, mine, theirs):
     ms, ts = mine.get('seq') or {}, theirs.get('seq') or {}
     seq = {**ts, **ms}
     # Running numbers must never go backwards
-    for k in ('bill', 'kot'):
+    for k in ('bill', 'kot', 'cn'):
         seq[k] = max(_num(ms.get(k)), _num(ts.get(k)))
     # Tokens restart daily, so the newer day wins before comparing numbers
     md, td = str(ms.get('tokenDate') or ''), str(ts.get('tokenDate') or '')
@@ -1388,8 +1449,8 @@ def merge3(base, mine, theirs):
         deduped_bills.append(b)
     out['bills'] = deduped_bills
 
-    # Both sides may have used the same bill / KOT number: new ones from "mine" get fresh numbers
-    for lst, key in (('bills', 'bill'), ('kots', 'kot')):
+    # Both sides may have used the same bill / KOT / credit-note number: new ones from "mine" get fresh numbers
+    for lst, key in (('bills', 'bill'), ('kots', 'kot'), ('cnotes', 'cn')):
         theirs_l = [x for x in theirs.get(lst) or [] if isinstance(x, dict)]
         base_l = [x for x in (base or {}).get(lst) or [] if isinstance(x, dict)]
         their_ids = {x.get('id') for x in theirs_l}
@@ -1533,7 +1594,9 @@ class SqliteSetuStore(SetuStore):
     Cloud full-document sync is switched off in this mode (sync_blocked) until Phase 3 incremental sync.
     """
 
-    sync_blocked = 'Cloud sync is paused on this PC: the local SQLite database needs incremental cloud sync (Phase 3).'
+    # Cloud sync on SQLite (Phase 3): bills go as ops (OutboxSyncDispatcher -> /api/sync/ops); everything else is the
+    # small working document merged with the cloud copy by CloudSync (X-Setu-Caps "nobills"). Nothing is blocked any more.
+    sync_blocked = None
     engine = 'sqlite'
 
     def __init__(self, data_dir):
@@ -1779,7 +1842,7 @@ class SqliteSetuStore(SetuStore):
                 actor={'role': 'server', 'elevated': True},
                 writes_whole=changed_values
             )
-            SQ.SqliteDoc.append_outbox(c, outbox[0], outbox[1] or envelope['op_id'], version, envelope, saved_at)
+            SQ.SqliteDoc.enqueue_envelope(c, outbox[0], envelope, saved_at)
         with self._enc_lock:
             for k in touched:
                 self._ws[k] = data_obj[k]
@@ -1798,7 +1861,27 @@ class SqliteSetuStore(SetuStore):
         with self.sdb.tx() as c:
             self.sdb.record_conflict(c, k, rid, reason, kept=kept, other=other, device=device, now=now)
 
-    def start_cloud_sync(self, url, hotel, key, enabled=True, batch_size=50, poll_interval=5.0):
+    def _reload_after_inbound(self):
+        """Refresh LAN-visible data after an inbound SQLite commit.
+
+        Caller must hold self.lock (same lock ordering as apply_ops).
+        Never append the inbound transaction to the outbound cloud queue:
+        doing so would create a QR echo loop.
+        """
+        fresh = self.sdb.export_except(HIST_KEYS)
+        version = int(self.sdb.meta('doc_version') or 0)
+        saved_at = int(self.sdb.meta('saved_at') or 0)
+        with self._enc_lock:
+            self._ws = fresh
+            self._idx = {}
+            self._kotno = None
+            self._raw_cache = (None, 'null')
+            self._pub = (None, 'null')
+            self.version = version
+            self.saved_at = saved_at
+        self._after_write(keep_maxno=True)
+
+    def start_cloud_sync(self, url, hotel, key, enabled=False, batch_size=50, poll_interval=5.0):
         if getattr(self, 'dispatcher', None):
             self.dispatcher.stop()
         self.dispatcher = SQ.OutboxSyncDispatcher(
@@ -1837,7 +1920,7 @@ class SqliteSetuStore(SetuStore):
                 actor={'role': 'manager', 'elevated': True},
                 writes_whole={k: v for k, v in doc.items() if k not in HIST_KEYS}
             )
-            SQ.SqliteDoc.append_outbox(c, 'restore', envelope['op_id'], version, envelope, saved_at)
+            SQ.SqliteDoc.enqueue_envelope(c, 'restore', envelope, saved_at)
         with self._enc_lock:
             self._ws = {k: v for k, v in doc.items() if k not in HIST_KEYS}
             self._idx = {}
@@ -1885,7 +1968,8 @@ class SqliteSetuStore(SetuStore):
             self._backup_due, self._backing_up, self._last_copy = 0, True, now
             try:
                 os.makedirs(self.backup_dir, exist_ok=True)
-                self.sdb.backup_to(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.sqlite.gz'), self.version, KEEP_BACKUPS)
+                self.sdb.backup_to(os.path.join(self.backup_dir, 'setu-' + time.strftime('%Y-%m-%d') + '.sqlite.gz'), self.version, 0)
+                rotate_sqlite_backups(self.backup_dir, time.strftime('%Y-%m-%d'))
                 self.backup_stats = {'at': int(time.time() * 1000), 'waitedSeconds': round(now - due), 'tookSeconds': round(time.time() - now, 1)}
                 with self.sdb.wlock:
                     self.sdb.con().execute('PRAGMA wal_checkpoint(TRUNCATE)')
@@ -2104,6 +2188,31 @@ class SqliteSetuStore(SetuStore):
                 if top != _num(seq.get('bill')):
                     seq['bill'] = top
                     new_v['seq'] = seq
+            if 'cnotes' in new_v:
+                # Credit-note numbers go to GSTR-1 like bill numbers: a number another device took is replaced.
+                # Start from the stored counters so a save without "seq" never loses the bill / KOT numbers.
+                seq = {**(seq_cur if isinstance(seq_cur, dict) else {}), **(new_v['seq'] if isinstance(new_v.get('seq'), dict) else {})}
+                top = max(_num(seq.get('cn')), _num(seq_cur.get('cn')),
+                          int(con.execute('SELECT MAX(CAST(no AS INTEGER)) FROM credit_notes').fetchone()[0] or 0))
+                batch, moved = {}, False
+                for c_ in new_v['cnotes']:
+                    if not isinstance(c_, dict) or c_.get('id') in cur_rec['cnotes']:
+                        continue
+                    no = _num(c_.get('no'))
+                    if not no:
+                        continue
+                    clash = batch.get(no) not in (None, c_['id']) or con.execute(
+                        'SELECT 1 FROM credit_notes WHERE no IN (?, ?, ?) AND id <> ? LIMIT 1', (no, float(no), str(no), c_['id'])).fetchone()
+                    if clash:
+                        top += 1
+                        renum['cn:' + c_['id']] = top
+                        c_['no'] = no = top
+                        moved = True
+                    batch[no] = c_['id']
+                    top = max(top, no)
+                if moved and top > _num(seq.get('cn')):     # the counter moves only when a number was replaced
+                    seq['cn'] = top
+                    new_v['seq'] = seq
             if 'kots' in new_v:
                 seq = new_v['seq'] if isinstance(new_v.get('seq'), dict) else {}
                 taken = self._kot_numbers()
@@ -2223,7 +2332,7 @@ class SqliteSetuStore(SetuStore):
                 writes_whole=writes_whole,
                 conflicts=conflicts
             )
-            SQ.SqliteDoc.append_outbox(c, 'ops', op_id_val, version, envelope, now)
+            SQ.SqliteDoc.enqueue_envelope(c, 'ops', envelope, now)
             if getattr(self, 'dispatcher', None) and getattr(self.dispatcher, '_running', False):
                 self.dispatcher.wake()
             out = {'ok': True, 'version': version, 'savedAt': now}
@@ -2411,6 +2520,11 @@ class SqliteSetuStore(SetuStore):
                 return 404, {'error': 'bill not found'}
             if b.get('cancelled'):
                 return 200, {'ok': True, 'alreadyCancelled': True, 'billId': bid, 'version': self.version}
+            with self.sdb.rlock():
+                has_cn = con.execute('SELECT 1 FROM credit_notes WHERE "billId" = ? LIMIT 1', (bid,)).fetchone()
+            if has_cn:
+                # Cancelling would remove the whole sale while its credit note also reduces it (double reduction)
+                return 409, {'error': 'This bill has a credit note. Issue a credit note for the remaining amount instead of cancelling the bill.'}
             b = copy.deepcopy(b)
             b['cancelled'], b['cancelledBy'] = True, by
             ops = [{'k': 'bills', 'up': [b]}]
@@ -2434,6 +2548,40 @@ class SqliteSetuStore(SetuStore):
 
     # ---------- paginated reads (indexed SQL; nothing loads all history) ----------
     def query(self, name, q):
+        if name == 'inbound-qr':
+            # A bounded, local-first staff review queue; pending QR orders
+            # remain separate from the billable running table cart.
+            state = str(q.get('status') or 'pending').strip().lower()
+            if state not in ('pending', 'accepted', 'rejected', 'all'):
+                raise ValueError('status must be pending, accepted, rejected or all')
+            limit = max(1, min(int(q.get('limit') or 50), 100))
+            offset = max(0, int(q.get('offset') or 0))
+            where = '' if state == 'all' else ' WHERE status = ?'
+            args = () if state == 'all' else (state,)
+            with self.sdb.rlock():
+                c = self.sdb.con()
+                count = c.execute(
+                    'SELECT COUNT(*) FROM inbound_qr_orders' + where, args
+                ).fetchone()[0]
+                rows = c.execute(
+                    'SELECT order_id,tbl,items_json,guest_name,note,status,kot_id,created_at,updated_at '
+                    'FROM inbound_qr_orders' + where +
+                    ' ORDER BY created_at DESC,order_id DESC LIMIT ? OFFSET ?',
+                    args + (limit, offset)
+                ).fetchall()
+            native_qr = bool(getattr(getattr(getattr(self, 'dispatcher', None), 'inbound', None), '_running', False))
+            return {
+                'count': count, 'status': state, 'inboundQrNative': native_qr,
+                'rows': [
+                    {
+                        'order_id': r[0], 'table': r[1],
+                        'items': json.loads(r[2]), 'guest_name': r[3],
+                        'note': r[4], 'status': r[5], 'kot_id': r[6],
+                        'created_at': r[7], 'updated_at': r[8]
+                    }
+                    for r in rows
+                ]
+            }
         if name == 'bill-range':
             # Whole bill records of a date range (the app's own reports and screens run on them), by pages.
             # Own read connection: a long range never pauses billing.
@@ -2542,7 +2690,8 @@ class SqliteSetuStore(SetuStore):
                     'lastBackup': getattr(self, 'backup_stats', None),
                     'conflictsOpen': con.execute('SELECT COUNT(*) FROM sync_conflicts WHERE resolved = 0').fetchone()[0],
                     'backups': rows('SELECT file, at, bytes, bills, verified, note FROM backup_manifest ORDER BY at DESC LIMIT 10', (), ['file', 'at', 'bytes', 'bills', 'verified', 'note']),
-                    'cloudSync': self.sync_blocked}
+                    'cloudSync': 'Phase 3 incremental cloud sync: ' + (self.dispatcher.stats.get('state', 'stopped') if getattr(self, 'dispatcher', None) else 'not linked'),
+                    'cloudOps': dict(self.dispatcher.stats) if getattr(self, 'dispatcher', None) else None}
         return None
 
 
@@ -2771,12 +2920,67 @@ class CloudSync:
         self.status = {'ok': None, 'at': 0, 'error': '', 'cloudVersion': self.state.get('cv', -1)}
         self.wake.set()
 
+    def nobills(self):
+        # SQLite counter: bills are not part of the merged document (they travel as ops)
+        return getattr(self.store, 'engine', '') == 'sqlite'
+
+    def ensure_ops_sync(self):
+        """SQLite counter: the op dispatcher (bills etc. -> /api/sync/ops, licence / QR orders back) runs whenever this PC
+        is linked, with the link's credentials; stopped when the link is turned off or changed."""
+        if not self.nobills() or not hasattr(self.store, 'start_cloud_sync'):
+            return
+        want = (self.cfg.get('url'), self.cfg.get('hotel'), self.cfg.get('key')) if self.configured() else None
+        if want == getattr(self, '_ops_cfg', None):
+            return
+        self._ops_cfg = want
+        if want:
+            # 2.5 s: a Table QR order reaches this counter within seconds
+            self.store.start_cloud_sync(want[0], want[1], want[2], enabled=True, poll_interval=2.5)
+            self.store.log(f'Cloud sync (ops) started for {want[1]}')
+        else:
+            self.store.stop_cloud_sync()
+
+    def _cloud_bills(self):
+        """Every bill the cloud holds for this hotel: the stored document's (older JSON time, website) and the counter's
+        from the sync tables (the newer copy of a bill wins)."""
+        out = {}
+        for part in ('doc', 'sync'):
+            after = 0
+            while True:
+                code, text = self._request('GET', f'/api/sync/bills?part={part}&after={after}&limit=2000')
+                if code != 200:
+                    raise OSError(f'Bill history download failed (HTTP {code})')
+                j = json.loads(text)
+                for b in j.get('bills') or []:
+                    if isinstance(b, dict) and b.get('id'):
+                        out[b['id']] = b
+                after = j.get('next') or 0
+                if not after:
+                    break
+        return sorted(out.values(), key=lambda b: (str(b.get('date') or ''), _num(b.get('no'))))
+
+    def _take_web_bills(self, bills):
+        """SQLite counter: bills made on the website (emergency billing) become counter bills, once each (idemKey);
+        the counter gives them its next number, and they reach the cloud reports as ops like any bill."""
+        n = 0
+        for b in bills:
+            if not isinstance(b, dict) or not b.get('id'):
+                continue
+            code, res = self.store.settle_bill({'idemKey': b.get('idemKey') or 'idem_' + str(b['id']), 'bill': b})
+            if code == 200 and not res.get('alreadySettled'):
+                n += 1
+            elif code != 200:
+                self.store.log(f'Website bill {b.get("id")} not taken: {res}')
+        if n:
+            self.store.log(f'{n} website bill(s) added to this counter')
+
     def _request(self, method, path, body=None, url=None, key=None, hotel=None):
         req = urllib.request.Request(
             (url or self.cfg['url']) + path,
             data=body.encode('utf-8') if body is not None else None,
             method=method,
-            headers={'X-Setu-Sync': key or self.cfg['key'], 'X-Setu-Hotel': hotel or self.cfg['hotel'], 'X-Setu-Caps': 'secure1',
+            headers={'X-Setu-Sync': key or self.cfg['key'], 'X-Setu-Hotel': hotel or self.cfg['hotel'],
+                     'X-Setu-Caps': 'secure1,nobills' if self.nobills() else 'secure1',
                      'Content-Type': 'application/json',
                      'User-Agent': 'Setu-Main-Counter/1.0'})
         try:
@@ -2792,9 +2996,12 @@ class CloudSync:
             woken = self.wake.is_set()
             self.wake.clear()
             if getattr(self.store, 'sync_blocked', None):
-                # Whole-database cloud sync would undo the incremental storage: off until Phase 3
                 self.status = {'ok': False, 'error': self.store.sync_blocked}
                 continue
+            try:
+                self.ensure_ops_sync()
+            except Exception as e:
+                self.store.log('CLOUD OPS SYNC: ' + repr(e))
             if not self.configured():
                 # Turned off by the owner ("enabled": false) = stay off
                 # Every save wakes this loop: try at most once a minute then, else every 30 minutes
@@ -2873,6 +3080,9 @@ class CloudSync:
                 raise OSError(f'Cloud HTTP {code}')
             doc = json.loads(text)
             cv, theirs = doc['version'], (doc['data'] if doc['version'] else None)
+            if self.nobills() and isinstance(theirs, dict):
+                theirs.pop('bills', None)    # an older cloud without "nobills" support: never merge its bills here
+                self._take_web_bills(doc.get('webBills') or [])
         else:
             theirs = copy.deepcopy(base)     # cloud unchanged since the last sync
         with self.store.lock:
@@ -2890,14 +3100,33 @@ class CloudSync:
             merged.setdefault('settings', {})['installId'] = (local.get('settings') or {}).get('installId') or merged['settings'].get('installId')
             if isinstance(local.get('subscription'), dict):
                 merged['subscription'] = local['subscription']
+
         else:
             # Cloud as "mine" so bills already printed at this counter keep their numbers
             merged = merge3(base, theirs, local)
+            keep_counter_wa_balance(merged, local)
         if not isinstance(merged, dict) or 'settings' not in merged:
             raise OSError('Data looked wrong after merging, sync stopped')
+        if self.nobills() and theirs is not None and (self.state.get('restore') or local is None):
+            # SQLite PC taking over a hotel from the cloud (restore / empty PC): the bill history comes in pages,
+            # then one whole replacement; the bills are not sent back (they are the cloud's already)
+            full = dict(merged, bills=self._cloud_bills())
+            with self.store.lock:
+                self.store.replace_all(full)
+                lv = self.store.version
+                local = self.store.data()
+            self.store.log(f"Hotel Setu Cloud: {len(full['bills'])} bills restored onto this PC")
+        if self.nobills():
+            # SQLite counter: never a "bills" key here. The cloud keeps its stored bills, and on this PC a document
+            # with "bills" is a whole replacement (restore) that would drop the bill history.
+            merged.pop('bills', None)
         # The vendor's part (plan, message, warning / lock) always comes from the cloud
         if isinstance(theirs, dict) and 'saas' in theirs:
             merged['saas'] = theirs['saas']
+            apply_wa_allotment(merged)
+            if (theirs['saas'] or {}).get('moveStorage') == 'sqlite' and not self.nobills():
+                ask_move_to_sqlite(self.store.dir, 'Super Admin')
+        cloud_added = False
         if theirs is None or not jeq(merged, theirs):
             body = '{"baseVersion": %d, "force": false, "data": %s}' % (cv, json.dumps(merged, ensure_ascii=False))
             code, text = self._request('POST', '/api/db', body)
@@ -2915,7 +3144,11 @@ class CloudSync:
                 raise OSError('Hotel Setu Cloud subscription expired. Please renew online (billing continues on this PC).')
             if code != 200:
                 raise OSError(f'Cloud save failed (HTTP {code})')
-            cv = json.loads(text)['version']
+            resp = json.loads(text)
+            cv = resp['version']
+            # The cloud added its own part while saving (plan, message, lock, licence keys): read it back next round,
+            # or the vendor's lock and the 30-day check would wait for some other cloud change (BUG-0026)
+            cloud_added = bool(resp.get('changed'))
         with self.store.lock:
             if self.store.version == lv:
                 final = merged
@@ -2924,10 +3157,15 @@ class CloudSync:
             else:
                 # The counter saved while we talked to the cloud: put its new edits on top
                 final = merge3(local, merged, self.store.data())
+                if self.nobills():
+                    final.pop('bills', None)
                 self.store.write(final)
             new_lv = self.store.version
         _write_json(self.base_path, merged)
         # lv = -1 tells the next round that this PC still has edits the cloud lacks
+        if cloud_added:
+            cv = -1
+            self.wake.set()
         self.state = {'cv': cv, 'lv': new_lv if jeq(final, merged) else -1, **{k: self.state[k] for k in ('lic', 'licSent', 'okAt') if k in self.state}}
         _write_json(self.state_path, self.state)
         self.status['cloudVersion'] = cv
@@ -2938,6 +3176,41 @@ def _ver(v):
         return tuple(int(x) for x in str(v).split('.'))
     except ValueError:
         return ()
+
+
+def keep_counter_wa_balance(merged, local):
+    """The counter sends the WhatsApp messages and counts them, so its balance wins over the cloud copy's, unless the
+    cloud copy carries a newer Super Admin allotment (that one is applied by apply_wa_allotment) (BUG-0039)."""
+    try:
+        ls = (local or {}).get('settings') or {}
+        ms = merged.setdefault('settings', {})
+        if not isinstance(ls.get('waCredits'), (int, float)):
+            return
+        if int(ls.get('lastWaCreditSeq') or 0) >= int(ms.get('lastWaCreditSeq') or 0):
+            ms['waCredits'] = ls['waCredits']
+            ms['lastWaCreditSeq'] = int(ls.get('lastWaCreditSeq') or 0)
+            if 'waTotalSent' in ls:
+                ms['waTotalSent'] = ls['waTotalSent']
+    except (TypeError, ValueError, AttributeError):
+        pass
+
+
+def apply_wa_allotment(d):
+    """WhatsApp credits added in Super Admin (saas.waCredits, numbered by saas.waCreditSeq) become this PC's balance
+    once: a newer allotment replaces the balance; messages sent after it count down from it (BUG-0039)."""
+    try:
+        sv = d.get('saas') or {}
+        if not isinstance(sv.get('waCredits'), (int, float)):
+            return False
+        st = d.setdefault('settings', {})
+        seq = int(sv.get('waCreditSeq') or 0)
+        if seq > int(st.get('lastWaCreditSeq') or 0) or st.get('waCredits') is None:
+            st['waCredits'] = max(0, int(round(sv['waCredits'])))
+            st['lastWaCreditSeq'] = seq
+            return True
+    except (TypeError, ValueError, AttributeError):
+        pass
+    return False
 
 
 class Updater:
@@ -3258,9 +3531,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
             self.end_headers()
             self.wfile.write(body)
 
-        def read_json(self):
+        def read_json(self, limit=MAX_BODY):
             n = int(self.headers.get('Content-Length') or 0)
-            if n <= 0 or n > MAX_BODY:
+            if n <= 0 or n > limit:
                 raise ValueError('bad length')
             return json.loads(self.rfile.read(n).decode('utf-8'))
 
@@ -3309,7 +3582,12 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                     return self.send_json(403, {'error': 'main counter only'})
                 return self.send_json(200, cloud.public() if cloud else {'configured': False})
             if path == '/api/info':
-                return self.send_json(200, {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()})
+                info = {'setu': True, 'port': port, 'ips': lan_ips(), 'local': self.is_local()}
+                if self.counter_ok():
+                    # Settings -> System Information on the main counter only (never to other devices)
+                    info.update(version=APP_VERSION, engine=getattr(store, 'engine', '') or 'json', dataDir=store.dir, dbVersion=store.version,
+                                python=sys.version.split()[0], platform=sys.platform, frozen=bool(getattr(sys, 'frozen', False)))
+                return self.send_json(200, info)
             if path == '/api/hotel/info':
                 with store.lock:
                     d = store.data() or {}
@@ -3457,13 +3735,17 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 qs = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
                 if path[7:] in ('status', 'conflicts') and self.role() not in ('local', 'admin'):
                     return self.send_json(403, {'error': 'manager only'})
+                if path[7:] == 'inbound-qr' and not self.role():
+                    return self.send_json(401, {'error': 'staff login required'})
                 try:
                     res = store.query(path[7:], qs)
                 except (ValueError, TypeError) as e:
                     return self.send_json(400, {'error': str(e)})
                 return self.send_json(200, res) if res is not None else self.send_json(404, {'error': 'unknown query'})
             if path == '/api/version':
-                return self.send_json(200, {'version': store.version, **({'engine': 'sqlite'} if getattr(store, 'engine', '') == 'sqlite' else {})})
+                native_qr = bool(getattr(getattr(getattr(store, 'dispatcher', None), 'inbound', None), '_running', False))
+                return self.send_json(200, {'version': store.version,
+                                            **({'engine': 'sqlite', 'inboundQrNative': native_qr} if getattr(store, 'engine', '') == 'sqlite' else {})})
             if path == '/api/changes':
                 # SQLite engine: only what changed since the device's version (never the whole data)
                 if getattr(store, 'engine', '') != 'sqlite':
@@ -3597,7 +3879,11 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 hotel_name = st.get('name') or 'Aghanya Devanya Hotel ERP'
                 email_html = render_forgot_password_email(hotel_name, expected_hid, otp)
                 try:
-                    send_resend_email(target_email, f"Aghanya Devanya ERP - Password Reset OTP: {otp}", email_html)
+                    send_resend_email(target_email, f"Aghanya Devanya ERP - Password Reset OTP: {otp}", email_html, data_dir=store.dir)
+                except EmailNotConfigured:
+                    store.reset_otps.pop(target_email.lower(), None)
+                    store.log('Password recovery e-mail requested, but the e-mail service is not configured (RESEND_API_KEY).')
+                    return self.send_json(503, {'error': 'Email password recovery is not set up on this counter. Please contact support.'})
                 except Exception as e:
                     store.log(f'Resend email send error: {e}')
                     return self.send_json(500, {'error': f'Failed to send email via Resend: {e}'})
@@ -3696,8 +3982,8 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         auth['status'] = 'pending'
                         auth['isRegistered'] = True
                         store.save(d)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        store.log(f'Hotel registration / activation: saving on the counter failed: {e}')
                 return self.send_json(status, res)
 
             if path == '/api/hotel/activate':
@@ -3717,24 +4003,32 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                         store.save(d)
                         if cloud and res.get('syncKey'):
                             cloud.set_config(DEFAULT_CLOUD_URL, res['hotelId'], res['syncKey'], True)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        store.log(f'Hotel registration / activation: saving on the counter failed: {e}')
                 return self.send_json(status, res)
 
-            if path == '/api/hotel/login':
+            if path in ('/api/hotel/login', '/api/hotel/password'):
+                # /api/hotel/password: first sign-in with a vendor-issued (temporary) password, or a too-simple one;
+                # the cloud checks the current owner password and stores the new one. Needs the internet.
+                changing = path == '/api/hotel/password'
                 try:
                     b = self.read_json()
                     hotel_id = str(b.get('hotelId') or '').strip().upper()
                     username = str(b.get('username') or 'owner').strip()
                     password = str(b.get('password') or '').strip()
+                    new_password = str(b.get('newPassword') or '').strip()
                 except Exception:
                     return self.send_json(400, {'error': 'Invalid JSON request'})
 
                 if not hotel_id or not password:
                     return self.send_json(400, {'error': 'Hotel ID and Password are required.'})
+                if changing and not new_password:
+                    return self.send_json(400, {'error': 'Please enter the new password.'})
 
                 # Try cloud first
-                status, cloud_res = http_cloud_post('/api/hotel/login', b)
+                status, cloud_res = http_cloud_post(path, b)
+                if status is None and changing:
+                    return self.send_json(503, {'error': 'Setting your own password needs an internet connection. Please connect and try again.'})
                 if status is not None:
                     if status == 200 and cloud_res.get('ok'):
                         try:
@@ -3748,16 +4042,23 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                             auth['ownerName'] = cloud_res.get('owner') or username
                             auth['status'] = 'active'
                             auth['isRegistered'] = True
-                            sec['owner'] = SEC.hash_secret(password)
+                            # A new / formatted PC takes the owner password from the cloud login. An existing owner
+                            # password is never replaced by whatever passed the cloud check (it may be the manager PIN).
+                            # A password the cloud has just changed (owner verified) replaces it.
+                            if changing:
+                                sec['owner'] = SEC.hash_secret(new_password)
+                                sec['admin'] = sec['owner']
+                            elif not sec.get('owner'):
+                                sec['owner'] = SEC.hash_secret(password)
                             store.save(d)
                             if cloud and cloud_res.get('syncKey'):
                                 cloud.set_config(DEFAULT_CLOUD_URL, cloud_res['hotelId'], cloud_res['syncKey'], True)
                                 try:
-                                    cloud.restore(cloud_res['hotelId'], password)
+                                    cloud.restore(cloud_res['hotelId'], new_password if changing else password)
                                 except Exception:
                                     pass
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            store.log(f'Hotel login: saving the hotel on the counter / linking the cloud failed: {e}')
                         token = store.add_token('admin', hotel_id=cloud_res['hotelId'], name=cloud_res.get('owner') or username)
                         cloud_res['token'] = token
                     return self.send_json(status, cloud_res)
@@ -3770,9 +4071,16 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not local_hid or (hotel_id and hotel_id != local_hid):
                     return self.send_json(503, {'error': 'Offline: Hotel ID not found locally. Initial login requires an active internet connection.'})
 
+                ip = self.client_address[0]
+                wait = store.pin_guard(ip)
+                if wait:
+                    return self.send_json(429, {'error': f'Too many wrong tries. Try again in {wait // 60 + 1} minutes.'})
                 found = store.check_pin(password)
                 if not found:
+                    store.pin_guard(ip, False)
+                    time.sleep(1)
                     return self.send_json(401, {'error': 'Invalid Hotel ID, Username, or Password (offline mode).'})
+                store.pin_guard(ip, True)
 
                 role, name = found
                 token = store.add_token(role, hotel_id=local_hid, name=name)
@@ -3922,7 +4230,6 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not self.counter_ok() or not cloud:
                     return self.send_json(403, {'error': 'main counter only'})
                 if getattr(store, 'sync_blocked', None):
-                    # SQLite counter: whole-data cloud sync would undo incremental saves (Phase 3 dependency)
                     return self.send_json(409, {'error': store.sync_blocked})
                 try:
                     body = self.read_json()
@@ -4061,7 +4368,10 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                                                 st['waCredits'] = max(0, int(c_credits))
                                                 st['lastWaCreditSeq'] = c_seq
                                                 store.write(d)
-                                        return self.send_json(200, {'ok': True, 'credits': int(c_credits), 'synced': True})
+                                            # This PC's balance (messages sent here since the last allotment count down from it)
+                                            cur_c = max(0, int(st.get('waCredits') or 0))
+                                            cur_seq = int(st.get('lastWaCreditSeq') or 0)
+                                        return self.send_json(200, {'ok': True, 'credits': cur_c, 'seq': cur_seq, 'synced': True})
                             except Exception as e:
                                 store.log(f'Cloud WA balance refresh exception: {e}')
                         with store.lock:
@@ -4581,8 +4891,9 @@ def make_handler(base_dir, store, port, cloud=None, updater=None):
                 if not role:
                     return self.send_json(401, {'error': 'pin required'})
                 try:
-                    body = self.read_json()
-                except Exception:
+                    body = self.read_json(MAX_DB_BODY)
+                except Exception as e:
+                    store.log(f'Save refused: {e!r} ({int(self.headers.get("Content-Length") or 0) // 1048576} MB)')
                     return self.send_json(400, {'error': 'bad request'})
                 if getattr(store, 'engine', '') == 'sqlite' and not body.get('force') and store.version:
                     # Normal saves on SQLite go through /api/ops; a whole upload here is an out-of-date page
@@ -4759,6 +5070,94 @@ class WhatsAppLink:
             return {**base, 'state': 'starting'}
 
 
+class WaRelay:
+    """Messages queued on the website (Hotel Setu Cloud) go out from the WhatsApp linked on this Main Counter PC.
+    Every few seconds: tell the cloud this PC's WhatsApp state; when it is linked, take the waiting messages, send each
+    once (ids already sent are remembered on disk, so a repeat offer never sends twice), count the credit, report back."""
+
+    def __init__(self, store, cloud):
+        self.store, self.cloud = store, cloud
+        self.path = os.path.join(store.dir, 'setu-wa-relay.json')
+        self.done = _read_json(self.path, {}) or {}
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def _loop(self):
+        while True:
+            try:
+                wait = self.tick()
+            except Exception as e:
+                self.store.log(f'WhatsApp website relay: {e!r}')
+                wait = 30
+            time.sleep(wait)
+
+    def tick(self):
+        if not self.cloud.configured():
+            return 30
+        try:
+            st = self.store.wa.status() if self.store.wa.cfg.get('on') else {'state': 'off'}
+        except Exception:
+            st = {'state': 'error'}
+        state = str(st.get('state') or 'off')
+        q = urllib.parse.urlencode({'state': state, 'me': str(st.get('me') or '')[:40], 'claim': '1' if state == 'open' else '0'})
+        code, text = self.cloud._request('GET', '/api/wa/relay?' + q)
+        if code != 200:
+            return 30
+        msgs = (json.loads(text) or {}).get('messages') or []
+        if not msgs:
+            return 8 if state == 'open' else 20
+        results = []
+        for m in msgs:
+            mid = str(m.get('id') or '')
+            if not mid:
+                continue
+            if mid in self.done:
+                results.append(self.done[mid])
+                continue
+            results.append(self.send(m))
+        if results:
+            self.cloud._request('POST', '/api/wa/relay/done', json.dumps({'results': results}))
+        return 2
+
+    def send(self, m):
+        mid = str(m['id'])
+        with self.store.lock:
+            credits = int(((self.store.data() or {}).get('settings') or {}).get('waCredits', 0) or 0)
+        if credits <= 0:
+            return {'id': mid, 'status': 'FAILED', 'error': 'WhatsApp balance is 0'}
+        try:
+            body = {'phone': m.get('phone'), 'text': m.get('text')}
+            if m.get('pdf'):
+                body.update(pdf=m.get('pdf'), fileName=m.get('fileName') or 'Document.pdf')
+            code, j = self.store.wa.call('/send', body, timeout=30)
+        except Exception as e:
+            return {'id': mid, 'status': 'FAILED', 'error': str(e)[:200]}
+        ok = code == 200 and (j.get('status') == 'submitted' or j.get('id'))
+        res = {'id': mid, 'status': 'SUBMITTED' if ok else 'FAILED', 'providerId': str(j.get('id') or ''),
+               'error': '' if ok else str(j.get('error') or f'HTTP {code}')[:200]}
+        now_ts = int(time.time() * 1000)
+        try:
+            self.store.record_wa_message({'id': 'web_' + mid, 'billId': m.get('billId') or None, 'phone': m.get('phone'),
+                                          'provider': 'baileys', 'idemKey': 'web_' + mid, 'status': res['status'],
+                                          'providerMsgId': res['providerId'], 'submittedAt': now_ts if ok else None,
+                                          'failedAt': None if ok else now_ts, 'errorReason': res['error'],
+                                          'note': 'Sent for the website from the Main Counter PC'})
+        except Exception as e:
+            self.store.log(f'WhatsApp website relay record: {e!r}')
+        if ok:
+            with self.store.lock:
+                d = self.store.data() or {}
+                st = d.setdefault('settings', {})
+                st['waCredits'] = max(0, int(st.get('waCredits', 0) or 0) - 1)
+                st['waTotalSent'] = int(st.get('waTotalSent', 0) or 0) + 1
+                self.store.write(d)
+            # remembered only once sent: a message that failed may be offered again
+            self.done[mid] = res
+            if len(self.done) > 2000:
+                self.done = dict(list(self.done.items())[-1000:])
+            _write_json(self.path, self.done)
+        return res
+
+
 class AutoBackup:
     """Compressed copies of the database (and the archive) into a folder the owner chooses:
     another drive, a pen drive or a Google Drive / OneDrive folder. Every few hours and when Setu closes."""
@@ -4912,6 +5311,7 @@ class AutoBackup:
 
 # Static files the local server may hand out (an allow-list; everything else is 404)
 PUBLIC_FILES = {'/', '/index.html', '/hotel_erp.html', '/manifest.json', '/sw.js', '/icon-192.png', '/icon-512.png', '/logo.png', '/favicon.ico',
+                '/horeca-icon-dark.png', '/horeca-icon-trans.png', '/horeca-logo-dark.png', '/horeca-logo-full.png',
                 '/food/food-match.js', '/food/manifest.json', '/food/Foodpiolet_Manifest.json',
                 '/Foodpiolet_Real_Photo_Licenses_And_Status.csv', '/Foodpiolet_Missing_Images_Report.md', '/Foodpiolet_Real_Photos.zip'}
 MEDIA_PATH_RE = re.compile(r'^/api/media/(m_[0-9a-f]{32})(\.t)?$')
@@ -4927,10 +5327,112 @@ def read_launch_key(data_dir):
         return ''
 
 
+def _keep_days(days, today):
+    """DAILY_KEEP newest days + the first day of each of the last MONTHLY_KEEP months (+ today)."""
+    days = sorted(set(days), reverse=True)
+    months = {}
+    for d in sorted(days):
+        months.setdefault(d[:7], d)
+    return set(days[:DAILY_KEEP]) | set(sorted(months.values(), reverse=True)[:MONTHLY_KEEP]) | {today}
+
+
+def rotate_sqlite_backups(folder, today):
+    """SQLite engine daily backups (Backups/setu-YYYY-MM-DD.sqlite.gz, already compressed): same retention as the
+    JSON engine copies: DAILY_KEEP days + the first copy of each of MONTHLY_KEEP months."""
+    names = [x for x in os.listdir(folder) if _SQ_DAY_RE.match(x)]
+    keep = _keep_days([_SQ_DAY_RE.match(x).group(1) for x in names], today)
+    for x in names:
+        if _SQ_DAY_RE.match(x).group(1) not in keep:
+            os.remove(os.path.join(folder, x))
+
+
+def rotate_daily_backups(folder, today):
+    """JSON engine daily copies (Backups/setu-YYYY-MM-DD.json[.gz]): compress the plain copies of the last DAILY_KEEP days
+    except today's, keep DAILY_KEEP days and the first copy of each of the last MONTHLY_KEEP months, delete the rest.
+    Only plain copies of the last COMPRESS_DAYS days are compressed (the ones this version writes day by day); older plain
+    copies, e.g. from before an upgrade, are left as they are until the retention removes them.
+    A plain copy is deleted only after its compressed copy is complete and reads back to the same size."""
+    from datetime import date as _d, timedelta as _td
+    recent = (_d.fromisoformat(today) - _td(days=COMPRESS_DAYS)).isoformat()
+    names = [x for x in os.listdir(folder) if _DAY_RE.match(x)]
+    days = sorted({_DAY_RE.match(x).group(1) for x in names}, reverse=True)
+    daily = set(days[:DAILY_KEEP])
+    months = {}
+    for d in sorted(days):
+        months.setdefault(d[:7], d)
+    monthly = set(sorted(months.values(), reverse=True)[:MONTHLY_KEEP])
+    keep = daily | monthly | {today}
+    for x in names:
+        day = _DAY_RE.match(x).group(1)
+        p = os.path.join(folder, x)
+        if day not in keep:
+            os.remove(p)
+            continue
+        if x.endswith('.json') and day != today and day in daily and day >= recent:
+            gz = p + '.gz'
+            if not os.path.exists(gz):
+                part = gz + '.part'
+                with open(p, 'rb') as src, gzip.open(part, 'wb', compresslevel=6) as dst:
+                    shutil.copyfileobj(src, dst, 1 << 20)
+                n = 0
+                with gzip.open(part, 'rb') as chk:
+                    for chunk in iter(lambda: chk.read(1 << 20), b''):
+                        n += len(chunk)
+                if n != os.path.getsize(p):
+                    os.remove(part)
+                    continue
+                os.replace(part, gz)
+            os.remove(p)
+
+
+MOVE_FILE = 'setu-move-sqlite.json'      # Super Admin asked this PC to move to SQLite; done at the next start
+MOVE_RESULT = 'setu-move-result.json'
+
+
+def ask_move_to_sqlite(data_dir, by):
+    p = os.path.join(data_dir, MOVE_FILE)
+    if os.path.exists(p) or SQ.read_flag(data_dir).get('engine') == 'sqlite':
+        return
+    _write_json(p, {'at': int(time.time() * 1000), 'by': by, 'tries': 0})
+    try:
+        with open(os.path.join(data_dir, 'setu-server.log'), 'a', encoding='utf-8') as f:
+            f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + f'Move to SQLite asked by {by}: done at the next start of Setu\n')
+    except OSError:
+        pass
+
+
+def _move_to_sqlite_now(data_dir):
+    """At start, before the data is opened: the verified migration (setu_migrate). Success = SQLite from now on;
+    failure (for example not enough memory on a small PC) = the JSON data stays in charge, untouched."""
+    p = os.path.join(data_dir, MOVE_FILE)
+    req = _read_json(p, {}) or {}
+    req['tries'] = int(req.get('tries') or 0) + 1
+    _write_json(p, req)
+    import setu_migrate
+    SetuStore(data_dir)                    # like an installed counter: credentials hashed etc. first
+    try:
+        rep = setu_migrate.migrate(data_dir, cutover=True)
+    except Exception as e:                 # MemoryError on a small PC, disk full, ...
+        rep = {'status': 'FAILED', 'message': repr(e)[:300]}
+    ok = rep.get('status') == 'MIGRATED'
+    _write_json(os.path.join(data_dir, MOVE_RESULT), {'at': int(time.time() * 1000), 'ok': ok, 'tries': req['tries'],
+                                                      'status': rep.get('status'), 'message': str(rep.get('message') or '')[:300]})
+    if ok or req['tries'] >= 3:
+        os.remove(p)                       # done, or given up after 3 starts (JSON stays; Super Admin can ask again)
+    try:
+        with open(os.path.join(data_dir, 'setu-server.log'), 'a', encoding='utf-8') as f:
+            f.write(time.strftime('%Y-%m-%d %H:%M:%S ') + f"Move to SQLite: {rep.get('status')} {str(rep.get('message') or '')[:200]}\n")
+    except OSError:
+        pass
+
+
 def open_store(data_dir):
     """JSON file (default) or SQLite: setu-storage.json {"engine": "sqlite"} is written only by a verified migration
     (setu_migrate.py --cutover). SETU_STORAGE=sqlite (development / tests only) migrates a test folder first."""
     flag = SQ.read_flag(data_dir)
+    if flag.get('engine') != 'sqlite' and os.path.exists(os.path.join(data_dir, MOVE_FILE)) and os.path.exists(os.path.join(data_dir, 'setu-db.json')):
+        _move_to_sqlite_now(data_dir)
+        flag = SQ.read_flag(data_dir)
     if os.environ.get('SETU_STORAGE') == 'sqlite' and flag.get('engine') != 'sqlite' and os.path.exists(os.path.join(data_dir, 'setu-db.json')):
         import setu_migrate
         # Start once on the JSON file first, exactly like an installed counter (credential hashing etc.), then migrate
@@ -4945,9 +5447,34 @@ def open_store(data_dir):
         SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE), create=True).close()
         SQ.write_flag(data_dir, {'engine': 'sqlite', 'created': int(time.time() * 1000), 'note': 'empty test folder (SETU_STORAGE=sqlite)'})
         flag = SQ.read_flag(data_dir)
+    elif flag.get('engine') != 'sqlite' and new_install_engine() == 'sqlite' and not os.path.exists(os.path.join(data_dir, 'setu-db.json')) \
+            and not os.path.exists(os.path.join(data_dir, SQ.DB_FILE)) and not flag and not _has_json_backups(data_dir):
+        # A new install (no data yet) starts on SQLite: light and fast at any size; synced with the cloud by ops.
+        # A PC that already has data keeps its storage (moving it is a separate, verified step).
+        os.makedirs(data_dir, exist_ok=True)
+        SQ.SqliteDoc(os.path.join(data_dir, SQ.DB_FILE), create=True).close()
+        SQ.write_flag(data_dir, {'engine': 'sqlite', 'created': int(time.time() * 1000), 'note': 'new install'})
+        flag = SQ.read_flag(data_dir)
     if flag.get('engine') == 'sqlite':
         return SqliteSetuStore(data_dir)
     return SetuStore(data_dir)
+
+
+def _has_json_backups(data_dir):
+    # A folder whose setu-db.json is gone but whose daily copies are there is a recovery, not a new install
+    try:
+        return any(_DAY_RE.match(x) for x in os.listdir(os.path.join(data_dir, 'Backups')))
+    except OSError:
+        return False
+
+
+def new_install_engine():
+    """Storage for a data folder with no data yet. The Windows program (EXE) starts new installs on SQLite; running
+    from source (development, tests) stays on JSON unless SETU_NEW_ENGINE says otherwise."""
+    v = os.environ.get('SETU_NEW_ENGINE', '').strip().lower()
+    if v in ('sqlite', 'json'):
+        return v
+    return 'sqlite' if getattr(sys, 'frozen', False) else 'json'
 
 
 def start_server(base_dir, data_dir, port):
@@ -4974,6 +5501,7 @@ def start_server(base_dir, data_dir, port):
     store.media = MEDIA.MediaStore(data_dir)
     store.autobackup = AutoBackup(store)
     store.wa = WhatsAppLink(store)
+    store.wa_relay = WaRelay(store, cloud)
     atexit.register(lambda: store.autobackup.run('Setu closed') if store.version > 0 else None)
     httpd = http.server.ThreadingHTTPServer(('0.0.0.0', port), make_handler(base_dir, store, port, cloud, updater))
     httpd.daemon_threads = True
@@ -5021,7 +5549,7 @@ def main():
             if not server_only:
                 try:
                     import ctypes
-                    ctypes.windll.user32.MessageBoxW(0, msg, 'Setu', 0x10)
+                    ctypes.windll.user32.MessageBoxW(0, msg, 'HoReCa One', 0x10)
                 except Exception:
                     pass
             sys.exit(1)
@@ -5065,7 +5593,7 @@ def main():
                'Close this message to continue billing; Setu keeps running.')
         try:
             import ctypes
-            ctypes.windll.user32.MessageBoxW(0, msg, 'Setu', 0x40)
+            ctypes.windll.user32.MessageBoxW(0, msg, 'HoReCa One', 0x40)
         except Exception:
             print(msg)
         if already:
@@ -5125,6 +5653,9 @@ def log_line(data_dir, msg):
         pass
 
 
+WINDOW_TITLE = 'HoReCa One \u2013 Business Management ERP'   # desktop window title (no address, no port)
+
+
 def open_window(base_dir, data_dir, url):
     import webview  # only needed for the desktop window
 
@@ -5134,7 +5665,7 @@ def open_window(base_dir, data_dir, url):
 
     # Create native desktop window
     webview.create_window(
-        title='Setu - Restaurant & Hotel POS',
+        title=WINDOW_TITLE,
         url=url,
         width=1340,
         height=860,

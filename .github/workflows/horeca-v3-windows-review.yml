@@ -42,7 +42,7 @@ jobs:
           --add-data "icon-192.png;."
           --add-data "icon-512.png;."
           --add-data "logo.png;."
-          --add-data "favicon.ico;."
+          --add-data "favicon.ico;." --add-data "horeca-icon-dark.png;." --add-data "horeca-icon-trans.png;." --add-data "horeca-logo-dark.png;." --add-data "horeca-logo-full.png;."
           --add-data "food;food"
           app_main.py
       - name: Create SHA-256 checksum
