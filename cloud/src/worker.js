@@ -781,6 +781,9 @@ export class SetuHotel extends DurableObject {
     // WhatsApp messages from the website, sent by the Main Counter PC's linked WhatsApp (BUG-0040 option a)
     this.sql.exec(`CREATE TABLE IF NOT EXISTS wa_relay (id TEXT PRIMARY KEY, phone TEXT NOT NULL, text TEXT NOT NULL, bill_id TEXT,
       status TEXT NOT NULL, created INTEGER NOT NULL, claimed INTEGER DEFAULT 0, done INTEGER DEFAULT 0, provider_id TEXT, error TEXT)`);
+    { const rc = this.sql.exec('PRAGMA table_info(wa_relay)').toArray().map(r => r.name);
+      if(!rc.includes('pdf')) this.sql.exec('ALTER TABLE wa_relay ADD COLUMN pdf TEXT');
+      if(!rc.includes('file_name')) this.sql.exec('ALTER TABLE wa_relay ADD COLUMN file_name TEXT'); }
     // --- Phase 3.1: Secure Cloud Incremental Ingestion Relational Schema ---
     this.sql.exec(`CREATE TABLE IF NOT EXISTS sync_inbox (
       op_id TEXT PRIMARY KEY,
@@ -1560,17 +1563,26 @@ export class SetuHotel extends DurableObject {
       if(!/^[A-Za-z0-9_-]{8,40}$/.test(id)) return json(400, { error: 'bad order id' });
       const same = this.sql.exec('SELECT * FROM guestorder WHERE id = ?', 'g' + id).toArray()[0];
       if(same) return json(200, { id: same.id, status: same.status, again: true });   // the same order sent twice (slow network)
+      // Fake / prank orders (a shared photo of the QR, a script): few waiting orders per table, few orders per table in
+      // 30 minutes, sensible quantities and an order-value limit; prices always come from the hotel's own menu
       const pend = this.sql.exec(`SELECT COUNT(*) AS n FROM guestorder WHERE tbl = ? AND status = 'pending'`, tbl).toArray()[0].n;
-      if(pend >= 5) return json(429, { error: 'Your earlier orders are still waiting for the staff. Please wait a moment.' });
+      if(pend >= 3) return json(429, { error: 'Your earlier orders are still waiting for the staff. Please wait a moment.' });
+      const recent = this.sql.exec(`SELECT COUNT(*) AS n FROM guestorder WHERE tbl = ? AND at > ?`, tbl, Date.now() - 30 * 60000).toArray()[0].n;
+      if(recent >= 12) return json(429, { error: 'Many orders from this table just now. Please ask the staff.' });
+      const rej = this.sql.exec(`SELECT COUNT(*) AS n FROM guestorder WHERE tbl = ? AND status = 'rejected' AND at > ?`, tbl, Date.now() - 30 * 60000).toArray()[0].n;
+      if(rej >= 3) return json(429, { error: 'Please ask the staff to place your order.' });
       const menu = new Map((Array.isArray(d.menu) ? d.menu : []).filter(m => m && m.id && !m.qrOff && !m.out && m.active !== false).map(m => [m.id, m]));
       const lines = [];
       for(const x of (Array.isArray(b.items) ? b.items : []).slice(0, 40)){
         const m = menu.get(String(x && x.mid || '')), q = Math.round(+(x && x.qty) || 0);
-        if(!m || q < 1 || q > 50) continue;
+        if(!m || q < 1 || q > 20) continue;
         const ex = lines.find(l => l.mid === m.id);
-        if(ex) ex.qty = Math.min(50, ex.qty + q); else lines.push({ mid: m.id, name: str(m.name, 80), price: +m.price || 0, qty: q });
+        if(ex) ex.qty = Math.min(20, ex.qty + q); else lines.push({ mid: m.id, name: str(m.name, 80), price: +m.price || 0, qty: q });
       }
       if(!lines.length) return json(400, { error: 'Please add an item' });
+      const cap = +st.qrMaxOrder > 0 ? +st.qrMaxOrder : 5000;
+      if(lines.reduce((t, l) => t + l.price * l.qty, 0) > cap)
+        return json(400, { error: `For an order above ₹${cap} please ask the staff.` });
       // Persist guest order AND inbound change together: never create an
       // un-deliverable QR order if the event write fails.
       this.ctx.storage.transactionSync(() => {
@@ -2621,7 +2633,11 @@ export class SetuHotel extends DurableObject {
       const lastOp = lastOpRow?.value || '';
 
       const lastInbox = this.sql.exec('SELECT status, received_at FROM sync_inbox ORDER BY received_at DESC LIMIT 1').toArray()[0];
-      const lastSyncAt = lastInbox ? lastInbox.received_at : null;
+      // A JSON counter saves whole copies (no sync inbox): its last save counts too
+      const docAt = this.account.counterSaveAt || null;
+      const lastSyncAt = lastInbox ? Math.max(lastInbox.received_at, docAt || 0) : docAt;
+      // No Main Counter PC at all (website / phones only): nothing to wait for, no warning
+      const cloudOnly = !lastInbox && !docAt && !(this.account.waRelay && this.account.waRelay.at) && !this.account.sqliteCounter;
       const freshnessSeconds = lastSyncAt !== null ? Math.max(0, Math.floor((now - lastSyncAt) / 1000)) : null;
 
       const unresolvedConflicts = this.sql.exec('SELECT COUNT(*) AS c FROM sync_conflicts WHERE resolved = 0').toArray()[0]?.c || 0;
@@ -2631,11 +2647,13 @@ export class SetuHotel extends DurableObject {
       let warning = null;
       let isStale = false;
 
-      if(lastSyncAt === null){
+      if(cloudOnly){
+        syncStatus = 'cloud_only';
+      } else if(lastSyncAt === null){
         syncStatus = 'never_synced';
         isStale = true;
         warning = 'Hotel counter has never synchronized data with the cloud.';
-      } else if(lastInbox.status === 'rejected' || lastInbox.status === 'failed'){
+      } else if(lastInbox && lastInbox.received_at >= (docAt || 0) && (lastInbox.status === 'rejected' || lastInbox.status === 'failed')){
         syncStatus = 'failed';
         isStale = true;
         warning = 'Latest counter synchronization failed or was rejected.';
@@ -3945,17 +3963,19 @@ export class SetuHotel extends DurableObject {
       if(url.searchParams.get('claim') !== '1' || st !== 'open') return json(200, { ok: true, messages: [] });
       const now = Date.now();
       // "sending" for 10 minutes without an answer: offered again (the counter remembers what it sent, so no double message)
-      const rows = this.sql.exec(`SELECT id, phone, text, bill_id FROM wa_relay WHERE status = 'queued' OR (status = 'sending' AND claimed < ?)
-        ORDER BY created LIMIT 20`, now - 600000).toArray();
+      // A few at a time (a Day Book PDF can be large)
+      const rows = this.sql.exec(`SELECT id, phone, text, bill_id, pdf, file_name FROM wa_relay WHERE status = 'queued' OR (status = 'sending' AND claimed < ?)
+        ORDER BY created LIMIT 5`, now - 600000).toArray();
       rows.forEach(r => this.sql.exec(`UPDATE wa_relay SET status = 'sending', claimed = ? WHERE id = ?`, now, r.id));
-      return json(200, { ok: true, messages: rows.map(r => ({ id: r.id, phone: r.phone, text: r.text, billId: r.bill_id || '' })) });
+      return json(200, { ok: true, messages: rows.map(r => ({ id: r.id, phone: r.phone, text: r.text, billId: r.bill_id || '',
+        ...(r.pdf ? { pdf: r.pdf, fileName: r.file_name || 'Document.pdf' } : {}) })) });
     }
     if(path === '/api/wa/relay/done' && method === 'POST'){
       if(role !== 'sync') return json(403, { error: 'Main Counter only' });
       const list = Array.isArray(body().results) ? body().results.slice(0, 50) : [];
       for(const x of list){
         const stt = x && x.status === 'SUBMITTED' ? 'submitted' : 'failed';
-        this.sql.exec(`UPDATE wa_relay SET status = ?, done = ?, provider_id = ?, error = ? WHERE id = ? AND status != 'submitted'`,
+        this.sql.exec(`UPDATE wa_relay SET status = ?, done = ?, provider_id = ?, error = ?, pdf = NULL WHERE id = ? AND status != 'submitted'`,
           stt, Date.now(), String(x.providerId || '').slice(0, 120), String(x.error || '').slice(0, 200), String(x.id || ''));
       }
       return json(200, { ok: true });
@@ -4100,8 +4120,10 @@ export class SetuHotel extends DurableObject {
         if(!prior){
           const pending = this.sql.exec(`SELECT COUNT(*) AS n FROM wa_relay WHERE status IN ('queued', 'sending')`).toArray()[0].n;
           if(pending >= 500) return json(429, { ok: false, error: 'Too many messages are waiting for the Main Counter PC. Please try later.' });
-          this.sql.exec(`INSERT INTO wa_relay (id, phone, text, bill_id, status, created) VALUES (?, ?, ?, ?, 'queued', ?)`,
-            id, phone.slice(-12), text.slice(0, 4000), String(b.billId || '').slice(0, 90), Date.now());
+          // A PDF (Day Book) up to ~1.5 MB rides along; anything bigger goes as text only
+          const pdf = typeof b.pdf === 'string' && b.pdf.length < 1500000 && /^[A-Za-z0-9+/=]+$/.test(b.pdf.slice(0, 200)) ? b.pdf : null;
+          this.sql.exec(`INSERT INTO wa_relay (id, phone, text, bill_id, status, created, pdf, file_name) VALUES (?, ?, ?, ?, 'queued', ?, ?, ?)`,
+            id, phone.slice(-12), text.slice(0, 4000), String(b.billId || '').slice(0, 90), Date.now(), pdf, pdf ? str(b.fileName, 80) || 'Document.pdf' : null);
         }
         const cw = this.account.waRelay;
         return json(202, { ok: true, queued: true, id, status: prior ? prior.status.toUpperCase() : 'QUEUED',
@@ -4181,6 +4203,8 @@ export class SetuHotel extends DurableObject {
       // SQLite counter: the document comes without bills (they arrive through /api/sync/ops); the stored ones stay
       const keepBills = this.noBills(role, request) && !('bills' in data);
       if(this.noBills(role, request) && !this.account.sqliteCounter){ this.account.sqliteCounter = true; this.account.moveStorage = null; this.saveAccount(); }
+      // When the Main Counter PC last saved here (Reports shows it; a hotel without a counter PC has none)
+      if(role === 'sync' && Date.now() - (this.account.counterSaveAt || 0) > 60000){ this.account.counterSaveAt = Date.now(); this.saveAccount(); }
       if(this.account.sqliteCounter && role !== 'sync' && Array.isArray(data.bills)){
         // The website shows the counter's bills from the sync tables; they are the counter's, never stored here again
         let oldIds = new Set();

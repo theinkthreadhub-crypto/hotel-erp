@@ -4736,6 +4736,8 @@ html[data-theme] #main .modes button.split.on,
 #cloud-pill.conn-lan{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
 #cloud-pill.conn-standalone{background:#f1f5f9;color:#475569;border-color:#cbd5e1}
 @keyframes connSpin{to{transform:rotate(360deg)}}
+/* Menu cards keep their own height: with few items (one row) the grid used to stretch each card to the whole box */
+#main .items{align-content:start!important;grid-auto-rows:max-content!important}
 @media (prefers-reduced-motion:reduce){#cloud-pill.conn-syncing .ic-sync{animation:none}}
 </style>
 </head>
@@ -7692,10 +7694,13 @@ async function handleGate2Submit(e){
   }
 
   // Server login via /api/login
-  let res;
+  let res, hc = '';
   try {
     const headers = { 'Content-Type': 'application/json' };
     if(gate1 && gate1.hotelId) headers['X-Hotel-ID'] = gate1.hotelId;
+    // The cloud (website) finds the hotel by X-Setu-Hotel; without it the sign-in was refused "hotel code required"
+    hc = String((gate1 && gate1.hotelId) || SRV.hotel || '').toUpperCase();
+    if(hc && !lan) headers['X-Setu-Hotel'] = hc;
     res = await fetch('/api/login', {
       method: 'POST',
       headers,
@@ -7722,6 +7727,11 @@ async function handleGate2Submit(e){
     };
     if(err) err.style.display = 'none';
     if(lan) return lanFinishLogin(showErr);
+    if(SRV.on && SRV.cloud && hc){
+      // Website: this hotel's latest data from the cloud, then keep it fresh (as the Device Connect sign-in does)
+      SRV.hotel = hc; lsSet(HOTEL_KEY, hc);
+      try{ if(await srvInitData()) srvStartPolling(); }catch(e){}
+    }
     finishLogin();
     return;
   }
@@ -14572,6 +14582,7 @@ function renderDaybookReportScreen(){
       <button class="btn sm" onclick="backToDaybookFilter()" style="padding:6px 14px;font-weight:700">🔍 Change Filter / New Search</button>
       <button class="btn sm" onclick="printDaybook()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Print</button>
       <button class="btn ok sm" onclick="daybookPDF()" style="padding:6px 16px;font-weight:800;background:#2563eb;color:#fff;border:1.5px solid #1d4ed8">PDF</button>
+      <button class="btn wa sm" onclick="daybookToOwner()" title="Send the whole Day Book (PDF) to the owner's WhatsApp" style="padding:6px 14px;font-weight:800">Send to Owner</button>
       <button class="btn g sm" onclick="daybookCSV()" style="padding:6px 16px;font-weight:800;border:1.5px solid #334155;color:#08080E;background:#fff">Excel</button>
     </div>
     <div style="font-size:13px;font-weight:800;color:#08080E">
@@ -14777,17 +14788,48 @@ function daybookCSV(){
 }
 
 function daybookPDF(){
+  const x = daybookDoc();
+  pdfFile(x.name, x.doc);
+}
+// Day Book for the owner on WhatsApp: the same PDF, with a short summary, from the hotel's linked WhatsApp
+async function daybookToOwner(){
+  const own = String(D.settings.owner || '').replace(/\D/g, '');
+  if(own.length < 10){ uiAlert('Add the owner\'s WhatsApp number first: Settings (G) → Owner WhatsApp Number (for Daily Reports).', {title: 'Send to Owner'}); return; }
+  if(getWaCredits() <= 0){ uiAlert('WhatsApp balance is 0. Please recharge to send the Day Book.', {title: 'Send to Owner'}); return; }
+  const {t, days} = daybookData(dbFrom, dbTo), x = daybookDoc();
+  const text = [`*${D.settings.name || 'Hotel'} — Day Book*`, `${dmy(dbFrom)}${dbTo !== dbFrom ? ' to ' + dmy(dbTo) : ''} (${days} day${days > 1 ? 's' : ''})`, '',
+    `Bills: ${t.bills}`, `Total Sales: ${money(t.sales)}`, ...MODES.filter(m => t.by[m]).map(m => `  ${m}: ${money(t.by[m])}`),
+    `Discount: ${money(t.disc)}`, `GST: ${money(t.tax)}`, `Expenses: ${money(t.expT)}`, `Purchases: ${money(t.purT)}`,
+    `Cash in Hand: ${money(t.expected)}`, `Cancelled Bills: ${t.cancelled}`, '', 'Full Day Book attached (PDF).'].join('\n');
+  let pdf = '';
+  try{ pdf = bytesB64(pdfMake(x.doc)); }catch(e){ logError('Day Book PDF failed', 'daybookToOwner', e.message); }
+  toast('Sending the Day Book to the owner…');
+  try{
+    const r = await srvFetch('/api/wa/send', {method: 'POST', body: JSON.stringify({phone: own, text, pdf, fileName: x.name, kind: 'daybook'})});
+    const j = await r.json().catch(() => ({}));
+    if(r.ok && j.queued){ toast(j.counterOnline ? 'Day Book is going from the Main Counter PC WhatsApp…' : 'Saved. The Day Book goes from the Main Counter PC WhatsApp when Setu is open there.'); audit('Day Book to Owner', `${dbFrom} to ${dbTo} (via Main Counter)`); return; }
+    if(r.ok){ deductWaCredit(1); toast('Day Book sent to the owner on WhatsApp'); audit('Day Book to Owner', `${dbFrom} to ${dbTo}`); return; }
+    if(!SRV.on || r.status === 409 || r.status === 503 || /not connected|NOT_LINKED/i.test(j.error || j.message || '')){
+      if(await uiConfirm('WhatsApp is not linked on this HoReCa One yet. Open WhatsApp with the Day Book summary instead? (Attach the PDF by hand.)', {title: 'Send to Owner', ok: 'Open WhatsApp', cancel: 'Close'})){ pdfFile(x.name, x.doc); waOpen(own, text); }
+      return;
+    }
+    uiAlert('The Day Book could not be sent: ' + (j.message || j.error || 'HTTP ' + r.status), {title: 'Send to Owner'});
+  }catch(e){
+    if(await uiConfirm('No connection right now. Open WhatsApp with the Day Book summary instead?', {title: 'Send to Owner', ok: 'Open WhatsApp', cancel: 'Close'})) waOpen(own, text);
+  }
+}
+function daybookDoc(){
   const {e, t, days} = daybookData(dbFrom, dbTo);
   const kv = [['Bills', t.bills], ['Total Sales', money(t.sales)], ['Dine-In', money(t.dineSales)], ['Takeaway', money(t.takeawaySales)],
     ['Zomato', money(t.zomatoSales)], ['Swiggy', money(t.swiggySales)], ['Discount', money(t.disc)], ['GST', money(t.tax)],
     ['Expenses', money(t.expT)], ['Purchases', money(t.purT)], ['Cash In', money(t.cashIn)], ['Cash Out', money(t.cashOut)],
     ['Cash in Hand (on ' + dmy(dbTo) + ')', money(t.expected)], ['Cancelled Bills', t.cancelled]];
-  pdfFile(`${fileStem()}-daybook-${dbFrom}-to-${dbTo}.pdf`, {title: 'Day Book', sub: [hotelLine(), `${dmy(dbFrom)} to ${dmy(dbTo)} (${days} day${days > 1 ? 's' : ''})`], sections: [
+  return {name: `${fileStem()}-daybook-${dbFrom}-to-${dbTo}.pdf`, doc: {title: 'Day Book', sub: [hotelLine(), `${dmy(dbFrom)} to ${dmy(dbTo)} (${days} day${days > 1 ? 's' : ''})`], sections: [
     {h: 'Summary', head: ['Item', 'Value'], rows: kv},
     {h: 'Mode-wise Sales', head: ['Mode', 'Amount'], rows: MODES.map(m => [m, money(t.by[m])])},
     {h: 'Entries', head: ['Date', 'Time', 'Voucher', 'Particulars', 'Mode', 'Inward', 'Outward'], left: [0, 1, 2, 3, 4],
       rows: e.map(r => [dmy(r.date), r.time, r.type, r.part, r.mode, r.in ? r2(r.in).toFixed(2) : '', r.out ? r2(r.out).toFixed(2) : '']),
-      total: ['TOTAL', '', '', '', '', money(sum(e, 'in')), money(sum(e, 'out'))]}]});
+      total: ['TOTAL', '', '', '', '', money(sum(e, 'in')), money(sum(e, 'out'))]}]}};
 }
 
 // A4 Day Book with the hotel's details, for printing
@@ -18190,7 +18232,7 @@ function waWebsiteInfo(w){
   }
   return `<div style="background:var(--bg);border:1.5px solid var(--border);border-radius:18px;padding:22px;max-width:760px">
     <b style="font-size:16px;color:var(--text);display:block;margin-bottom:8px">WhatsApp is linked on the Main Counter PC</b>
-    <p style="font-size:13.5px;line-height:1.6;margin:0 0 10px">The website cannot hold a WhatsApp link of its own. Open the <b>HoReCa One Desktop App</b> on the Main Counter PC → <b>WhatsApp</b> → <b>Scan QR</b>, and scan it from the restaurant's WhatsApp (Settings → Linked devices → Link a device).</p>
+    <p style="font-size:13.5px;line-height:1.6;margin:0 0 10px">No Main Counter PC has connected its WhatsApp to this hotel yet. On the Main Counter PC: install the latest <b>HoReCa One Desktop App</b> (v1.0.162 or newer), sign in to this hotel, then <b>WhatsApp</b> → <b>Scan QR</b> and scan it from the restaurant's WhatsApp (Settings → Linked devices → Link a device). After that, messages from this website go out from that WhatsApp.</p>
     <p style="font-size:13.5px;line-height:1.6;margin:0 0 14px">From this website you can still send any bill on WhatsApp with the <b>WhatsApp</b> button on the bill: it opens WhatsApp with the receipt ready to send.</p>
     <p class="muted" style="font-size:12px;margin:0">Need help? HoReCa One Helpline ${esc(HELPLINE)}.</p>
   </div>`;
@@ -19973,7 +20015,7 @@ async function qrPoll(){
       QRS = {on: true, auto: false, localNative: true,
              orders: QR_NATIVE_ROWS, calls: QR_NATIVE_CALLS};
       QR_ERR = '';
-      next = 6000;
+      next = 2500;   // this PC's own inbox: cheap to read often, so a guest order shows within seconds
       const fresh = QR_NATIVE_ROWS.filter(o => !QR_SEEN.has(o.id));
       fresh.forEach(o => QR_SEEN.add(o.id));
       if(fresh.length){
@@ -19996,7 +20038,7 @@ async function qrPoll(){
     }else if(qrReady()){
       QRS = await qrApi('state'); QR_ERR = '';
       if(QRS.on){
-        next = 6000;
+        next = 3000;
         const fresh = QRS.orders.filter(o => o.status === 'pending' && !QR_SEEN.has(o.id));
         fresh.forEach(x => QR_SEEN.add(x.id));
         qrCallAlert(QRS.calls);
@@ -20009,16 +20051,25 @@ async function qrPoll(){
           if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
         }
         if(QRS.auto && qrAutoDevice()){
-          for(const o of QRS.orders.filter(o => o.status === 'pending')) await qrDecide(o.id, 'accept', true);
+          // Auto-accept only at a table that already has a running order: the first order of a table waits for the
+          // staff, so an order sent from outside the hotel (a shared photo of the QR) is never cooked by itself
+          for(const o of QRS.orders.filter(o => o.status === 'pending' && qrTableRunning(o.tbl))) await qrDecide(o.id, 'accept', true);
           for(const o of qrStuck()) await qrApply(o, 'Auto');
           if(typeof scrData !== 'undefined' && scrData.scr === 'bill') scrBill();
         }
       }
     }
-  }catch(e){ QR_ERR = e.message; }
+  }catch(e){ QR_ERR = e.message; next = 5000; }   // a failed check is tried again in seconds, never left for minutes
   qrPill();
   if($('#qr-panel')) qrPanel(true);
   qrPoll.t = setTimeout(qrPoll, next);
+}
+// A table with a running order on this counter (a KOT or items not billed yet)
+function qrTableRunning(tbl){
+  try{
+    const k = (D.kaccha || {})[tbl];
+    return !!(k && Array.isArray(k.items) && k.items.length);
+  }catch(e){ return false; }
 }
 setTimeout(qrPoll, 6000);
 const QR_CALL = {waiter: 'Call waiter', water: 'Water please', bill: 'Request bill'};

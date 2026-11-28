@@ -99,7 +99,7 @@ function draw(){
   $('#cartbtn').disabled = !n; $('#cartbtn').textContent = n ? `Cart (${n}) · ${rs(t)}` : 'Cart';
 }
 function jump(c){ CAT = c; draw(); const e = document.getElementById('c-' + encodeURIComponent(c)); if(e) window.scrollTo({top: e.offsetTop - 120, behavior: 'smooth'}); }
-function qty(id, d){ CART[id] = Math.max(0, Math.min(50, (CART[id] || 0) + d)); if(!CART[id]) delete CART[id]; keepCart(); draw(); if($('#sh').classList.contains('open') && $('#box').dataset.v === 'cart') openCart(); }
+function qty(id, d){ CART[id] = Math.max(0, Math.min(20, (CART[id] || 0) + d)); if(!CART[id]) delete CART[id]; keepCart(); draw(); if($('#sh').classList.contains('open') && $('#box').dataset.v === 'cart') openCart(); }
 function sheet(v, html){ const b = $('#box'); b.dataset.v = v; b.innerHTML = html; $('#sh').classList.add('open'); }
 function closeSheet(){ $('#sh').classList.remove('open'); }
 function openCart(){
@@ -151,7 +151,8 @@ async function poll(){
   clearTimeout(poll.t);
   try{ STATUS = await call('/api/guest/status'); if($('#sh').classList.contains('open') && $('#box').dataset.v === 'orders') openOrders(); }catch(e){}
   const live = STATUS && STATUS.orders.some(o => o.status !== 'rejected' && o.kot !== 'served');
-  poll.t = setTimeout(poll, live ? 8000 : 30000);
+  const waiting = STATUS && STATUS.orders.some(o => o.status === 'pending');
+  poll.t = setTimeout(poll, waiting ? 3000 : live ? 8000 : 30000);   // "accepted" shows within seconds
 }
 load();
 </script>

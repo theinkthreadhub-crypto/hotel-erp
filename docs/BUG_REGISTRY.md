@@ -44,6 +44,10 @@
 | **BUG-0038** | Connection Indicator Showed a Raw Server Address; Sync Details Button Did Nothing (`srvShowSyncDetails` undefined) | P2 (Medium) | RESOLVED | CHG-0055 | `tests/desktop_branding_e2e.cjs` |
 | **BUG-0039** | WhatsApp Credits Added in Super Admin Never Reached the Counter (Installer Showed 0; Messages Stopped) | **P1 (High)** | RESOLVED | CHG-0057 | `tests/wa_credits_counter_e2e.cjs` |
 | **BUG-0040** | Website WhatsApp Showed a Made-Up QR / Pairing Code and Marked Unsent Messages "Sent" (Credits Used) | **P1 (High)** | RESOLVED | CHG-0057 | `tests/wa_credits_counter_e2e.cjs` |
+| **BUG-0041** | Website Staff PIN Step Refused: "hotel code required" | **P1 (High)** | RESOLVED | CHG-0059 | `tests/web_qr_daybook_e2e.cjs` [L] |
+| **BUG-0042** | Reports Said "Hotel counter has never synchronized" for Hotels Without a Counter PC and for JSON Counters | P2 (Medium) | RESOLVED | CHG-0059 | `tests/web_qr_daybook_e2e.cjs` [R1, R2] |
+| **BUG-0043** | Menu Cards Stretched to the Whole Box When a Category Had One Row (Thali Looked Huge) | P3 (Low) | RESOLVED | CHG-0059 | `tests/web_qr_daybook_e2e.cjs` [M] |
+| **BUG-0044** | Table QR: One Failed Check Paused Orders for 2 Minutes; Auto-Accept Cooked a Table's First Order; Weak Fake-Order Limits | **P1 (High)** | RESOLVED | CHG-0059 | `tests/web_qr_daybook_e2e.cjs` [Q1–Q7] |
 
 ---
 
@@ -396,4 +400,20 @@
 ### BUG-0040: Website WhatsApp Showed a Made-Up QR and Marked Unsent Messages "Sent"
 - **Evidence (owner: "QR galat bata raha hai"; same test):** without a WhatsApp sender for the website (the separate Baileys gateway is not set up), "Generate QR" drew a QR from random text and "Phone number" made up a pairing code; WhatsApp cannot accept either. A message from the website was saved as "SENT" and used a credit although nothing was sent.
 - **Fix:** only a real QR / pairing code from WhatsApp is shown; the website's WhatsApp screen says WhatsApp is linked on the Main Counter PC (Desktop App → WhatsApp → Scan QR); a message that cannot go is not marked sent and uses no credit, and the bill's WhatsApp button opens WhatsApp with the receipt ready to send.
+
+### BUG-0041: Website Staff PIN Step Refused "hotel code required"
+- **Evidence (owner screenshot; test [L]):** on the website the Gate 2 staff PIN sign-in sent the hotel as `X-Hotel-ID`; the cloud reads `X-Setu-Hotel`, so it answered 400 "hotel code required".
+- **Fix:** the sign-in sends `X-Setu-Hotel`, keeps the hotel code and loads the hotel's latest data from the cloud.
+
+### BUG-0042: Reports "never synchronized" Warning
+- **Evidence (owner screenshot; tests [R1, R2]):** the warning looked only at the SQLite sync inbox: a hotel without a Main Counter PC and a JSON counter (whole-copy saves) always showed "never synchronized".
+- **Fix:** the cloud records when the Main Counter PC last saved; a hotel without a counter PC gets no warning (`cloud_only`).
+
+### BUG-0043: Menu Cards Stretched
+- **Evidence (owner screenshot; test [M]):** with one row of items the grid stretched each card to the full box height (384 px instead of 181 px).
+- **Fix:** grid rows take their content's height.
+
+### BUG-0044: Table QR Speed, Bridge and Fake Orders
+- **Evidence (test [Q*]):** a single failed check of the counter's QR inbox waited 2 minutes before the next one; the counter checked every 6 s and the SQLite counter fetched from the cloud every 5 s; with "auto-accept" on, any order (also one sent from outside the hotel with a shared photo of the QR) was accepted and sent to the kitchen; up to 5 waiting orders per table and 50 of an item were allowed, with no order-value limit.
+- **Fix:** a failed check is retried in 5 s; the counter checks its inbox every 2.5 s (3 s from the cloud) and the SQLite counter fetches every 2.5 s (order on the counter in 1–2.3 s in the test); the guest page refreshes every 3 s while an order waits; a table's first order always waits for the staff (auto-accept only adds to a running table); at most 3 waiting orders and 12 orders in 30 minutes per table, 3 refused orders in 30 minutes stop the table, at most 20 of an item, orders above ₹5,000 (Settings `qrMaxOrder`) go through the staff.
 

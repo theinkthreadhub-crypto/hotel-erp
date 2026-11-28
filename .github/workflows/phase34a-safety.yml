@@ -115,6 +115,8 @@ jobs:
         run: node tests/lan_device_signin_e2e.cjs
       - name: WhatsApp credits from Super Admin reach the counter; website shows no made-up QR (both engines)
         run: SETU_REQUIRE_WRANGLER=1 node tests/wa_credits_counter_e2e.cjs
+      - name: Website sign-in, Reports warning, menu cards, Table QR speed and fake-order guards, Day Book to Owner (both engines)
+        run: SETU_REQUIRE_WRANGLER=1 node tests/web_qr_daybook_e2e.cjs
 
   windows-counter-smoke:
     name: Windows EXE isolated counter smoke

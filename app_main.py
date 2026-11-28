@@ -2934,7 +2934,8 @@ class CloudSync:
             return
         self._ops_cfg = want
         if want:
-            self.store.start_cloud_sync(want[0], want[1], want[2], enabled=True)
+            # 2.5 s: a Table QR order reaches this counter within seconds
+            self.store.start_cloud_sync(want[0], want[1], want[2], enabled=True, poll_interval=2.5)
             self.store.log(f'Cloud sync (ops) started for {want[1]}')
         else:
             self.store.stop_cloud_sync()
@@ -5124,7 +5125,10 @@ class WaRelay:
         if credits <= 0:
             return {'id': mid, 'status': 'FAILED', 'error': 'WhatsApp balance is 0'}
         try:
-            code, j = self.store.wa.call('/send', {'phone': m.get('phone'), 'text': m.get('text')}, timeout=15)
+            body = {'phone': m.get('phone'), 'text': m.get('text')}
+            if m.get('pdf'):
+                body.update(pdf=m.get('pdf'), fileName=m.get('fileName') or 'Document.pdf')
+            code, j = self.store.wa.call('/send', body, timeout=30)
         except Exception as e:
             return {'id': mid, 'status': 'FAILED', 'error': str(e)[:200]}
         ok = code == 200 and (j.get('status') == 'submitted' or j.get('id'))
